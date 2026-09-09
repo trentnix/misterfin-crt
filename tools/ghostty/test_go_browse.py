@@ -124,6 +124,14 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"q")
         self.assertEqual(self.process.wait(timeout=3), 0)
 
+    def test_live_tv_uses_channels_endpoint(self):
+        self.key(b"\x1b[C\x1b[C\x1b[Cb")
+        params = self.wait_request("/LiveTv/Channels", StartIndex=0, Limit=64)
+        self.assertEqual(params["AddCurrentProgram"], ["true"])
+        self.assertNotIn("SortBy", params)
+        self.assertFalse(any(parse_qs(urlparse(r).query).get("ParentId") == ["view-live-tv"]
+                             for r in self.requests))
+
     def test_back_cancels_delayed_library(self):
         self.delay_items = True
         self.key(b"b")

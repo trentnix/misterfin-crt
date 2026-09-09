@@ -37,6 +37,11 @@ func runtime(ticks int64) string {
 func subtitle(i jellyfin.Item) (string, uint32) {
 	color := uint32(0x585858)
 	switch i.Type {
+	case "TvChannel":
+		if i.CurrentProgram.Name != "" {
+			return i.CurrentProgram.Name, color
+		}
+		return "No guide information", color
 	case "MusicArtist":
 		return fmt.Sprintf("%d albums", i.ChildCount), color
 	case "MusicAlbum":
@@ -61,6 +66,16 @@ func subtitle(i jellyfin.Item) (string, uint32) {
 }
 func itemTitle(i jellyfin.Item) string {
 	s := i.Name
+	if i.Type == "TvChannel" {
+		number := i.Number
+		if number == "" {
+			number = i.ChannelNumber
+		}
+		if number != "" {
+			return number + "  " + s
+		}
+		return s
+	}
 	if i.IsFolder || i.Type == "Series" || i.Type == "Season" || i.Type == "MusicArtist" || i.Type == "MusicAlbum" {
 		s = "> " + s
 	}

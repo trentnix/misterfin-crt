@@ -83,7 +83,13 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 		workCancel = stop
 		jf := client
 		go func() {
-			p, err := jf.List(work, req.Location, req.Start, PageSize)
+			var p jellyfin.Page
+			var err error
+			if req.Location.Kind == "views" {
+				p, err = jf.Libraries(work)
+			} else {
+				p, err = jf.List(work, req.Location, req.Start, PageSize)
+			}
 			send(work, result{request: *req, page: p, err: err})
 		}()
 	}
@@ -134,9 +140,9 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 			var metadata *jellyfin.Item
 			var err error
 			if root {
+				bundle.Count, err = jf.LibraryCount(work, selected)
 				page, e := jf.Mosaic(work, selected)
-				err = e
-				bundle.Count = page.TotalRecordCount
+				err = errors.Join(err, e)
 				for _, item := range page.Items {
 					if work.Err() != nil {
 						return
