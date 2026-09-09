@@ -94,16 +94,22 @@ func runLifecycle(t *testing.T, player string, headless bool, mode string, clip 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/Items/movie":
-			if mode == "resume" {
+			if mode == "audio-decode" {
+				fmt.Fprint(w, `{"Id":"movie","Type":"Audio","RunTimeTicks":30000000,"UserData":{"PlaybackPositionTicks":20000000}}`)
+			} else if mode == "resume" {
 				fmt.Fprint(w, `{"Id":"movie","Type":"Movie","RunTimeTicks":1000000000,"UserData":{"PlaybackPositionTicks":20000000}}`)
 			} else {
 				fmt.Fprint(w, `{"Id":"movie","Type":"Movie","RunTimeTicks":30000000}`)
 			}
-		case "/Videos/movie/stream":
+		case "/Videos/movie/stream", "/Audio/movie/stream":
 			if mode == "resume" && r.URL.Query().Get("startTimeTicks") != "20000000" {
 				t.Error("stream did not resume")
 			}
-			if r.URL.Query().Get("ApiKey") != "private-token" || r.URL.Query().Get("videoCodec") != "mpeg2video" {
+			if mode == "audio-decode" {
+				if r.URL.Path != "/Audio/movie/stream" || r.URL.Query().Get("static") != "true" || len(r.URL.Query()) != 3 {
+					t.Error("audio did not use original stream")
+				}
+			} else if r.URL.Query().Get("ApiKey") != "private-token" || r.URL.Query().Get("videoCodec") != "mpeg2video" {
 				t.Error("invalid stream query")
 			}
 			mu.Lock()
@@ -159,6 +165,9 @@ func runLifecycle(t *testing.T, player string, headless bool, mode string, clip 
 		t.Fatal("missing stop report", events)
 	}
 	for _, state := range states {
+		if mode == "audio-decode" && state.PlayMethod != "DirectStream" {
+			t.Error("audio reported transcoding")
+		}
 		if state.PlaySessionID != session || state.ItemID != "movie" {
 			t.Fatal("session identity changed")
 		}
@@ -313,4 +322,21 @@ func TestLivePlayerLifecycle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFFplayDecodesOriginalAudio(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	ffplay, err := exec.LookPath("ffplay")
+	if err != nil {
+		t.Skip("FFplay unavailable")
+	}
+	t.Setenv("SDL_AUDIODRIVER", "dummy")
+	clip, err := exec.Command(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "3", "-c:a", "flac", "-f", "flac", "pipe:1").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runLifecycle(t, ffplay, true, "audio-decode", clip)
 }

@@ -22,6 +22,8 @@ type result struct {
 	imageID  int
 	art      bool
 	playback bool
+	position bool
+	ticks    int64
 }
 
 func Run(ctx context.Context, d platform.Display, configPath, stateDir string, player playback.Options) error {
@@ -152,7 +154,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
 	draw := func() error {
-		if playing && (!player.Headless || player.TerminalPlayer != "") {
+		if playing && !m.PlayingAudio && (!player.Headless || player.TerminalPlayer != "") {
 			return nil
 		}
 		now := time.Now()
@@ -205,12 +207,16 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 			} else {
 				if key == "open" && m.Notice == "" && m.Current().Detail != nil && playback.Supported(*m.Current().Detail) {
-					artCancel()
-					imageID++
 					selected := *m.Current().Detail
+					m.PlayingAudio = selected.Type == "Audio"
+					m.PositionTicks = 0
+					if !m.PlayingAudio {
+						artCancel()
+						imageID++
+					}
 					playCtx, stop := context.WithCancel(ctx)
 					playCancel = stop
-					if !player.Headless || player.TerminalPlayer != "" {
+					if !m.PlayingAudio && (!player.Headless || player.TerminalPlayer != "") {
 						if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
 							return err
 						}
@@ -219,9 +225,17 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					finished := playDone
 					playing = true
 					m.Notice = "Playing in video window. A:stop"
+					if m.PlayingAudio {
+						m.Notice = ""
+					}
 					go func() {
 						defer close(finished)
-						err := playback.Run(playCtx, client, selected, player, func(int64) {})
+						err := playback.Run(playCtx, client, selected, player, func(ticks int64) {
+							select {
+							case events <- result{position: true, ticks: ticks}:
+							default:
+							}
+						})
 						select {
 						case events <- result{playback: true, err: err}:
 						case <-ctx.Done():
@@ -247,8 +261,13 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				loadArt()
 			}
 		case r := <-events:
-			if r.playback {
+			if r.position {
+				if playing {
+					m.PositionTicks = r.ticks
+				}
+			} else if r.playback {
 				playing = false
+				m.PlayingAudio = false
 				playCancel()
 				m.Notice = ""
 				selectedKey = ""
@@ -270,6 +289,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					m.Rows = visibleRows(geometry.Width, geometry.Height)
 					selectedKey = ""
 					artwork = newArtworkLoader(client)
+					artwork.photoWidth, artwork.photoHeight = geometry.Width, geometry.Height
 					status = ""
 					load(m.Load(0))
 				}

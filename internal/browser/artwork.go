@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"image"
 	"image/draw"
 	"sync"
@@ -39,20 +40,24 @@ type artUpdate struct {
 // artworkLoader caches images by server identity and tag, independently of
 // screens. Its lifetime is one authenticated browser session.
 type artworkLoader struct {
-	client    *jellyfin.Client
-	slots     chan struct{}
-	mu        sync.Mutex
-	images    map[imageKey]cachedImage
-	libraries map[string]cachedLibrary
-	bytes     int
-	clock     uint64
+	client                  *jellyfin.Client
+	photoWidth, photoHeight int
+	slots                   chan struct{}
+	mu                      sync.Mutex
+	images                  map[imageKey]cachedImage
+	libraries               map[string]cachedLibrary
+	bytes                   int
+	clock                   uint64
 }
 
 func newArtworkLoader(client *jellyfin.Client) *artworkLoader {
-	return &artworkLoader{client: client, slots: make(chan struct{}, 3), images: make(map[imageKey]cachedImage), libraries: make(map[string]cachedLibrary)}
+	return &artworkLoader{client: client, photoWidth: 640, photoHeight: 288, slots: make(chan struct{}, 3), images: make(map[imageKey]cachedImage), libraries: make(map[string]cachedLibrary)}
 }
 func artworkKey(item jellyfin.Item, kind string) imageKey {
 	key := imageKey{item.ID, kind, item.ImageTags[kind]}
+	if kind == "Photo" {
+		key.tag = item.ImageTags["Primary"]
+	}
 	if kind == "Backdrop" {
 		if len(item.BackdropImageTags) > 0 {
 			key.tag = item.BackdropImageTags[0]
@@ -162,11 +167,14 @@ func (l *artworkLoader) snapshot(item jellyfin.Item, root bool) Artwork {
 		}
 		return art
 	}
-	return Artwork{Primary: l.cached(artworkKey(item, "Primary")), Backdrop: l.cached(artworkKey(item, "Backdrop")), Logo: l.cached(artworkKey(item, "Logo"))}
+	return Artwork{Photo: l.cached(artworkKey(item, "Photo")), Primary: l.cached(artworkKey(item, "Primary")), Backdrop: l.cached(artworkKey(item, "Backdrop")), Logo: l.cached(artworkKey(item, "Logo"))}
 }
 func (l *artworkLoader) fetchImage(ctx context.Context, item jellyfin.Item, kind string) (image.Image, error) {
 	key := artworkKey(item, kind)
 	if key.tag == "" {
+		if kind == "Photo" {
+			return nil, errors.New("photo unavailable")
+		}
 		return nil, nil
 	}
 	if im := l.cached(key); im != nil {
@@ -181,7 +189,13 @@ func (l *artworkLoader) fetchImage(ctx context.Context, item jellyfin.Item, kind
 	if im := l.cached(key); im != nil {
 		return im, nil
 	}
-	im, err := l.client.ImageKind(ctx, item, kind)
+	var im image.Image
+	var err error
+	if kind == "Photo" {
+		im, err = l.client.Photo(ctx, item, l.photoWidth, l.photoHeight)
+	} else {
+		im, err = l.client.ImageKind(ctx, item, kind)
+	}
 	if err == nil && ctx.Err() == nil {
 		if im != nil {
 			if _, ok := im.(*image.RGBA); !ok {
@@ -227,6 +241,13 @@ func (l *artworkLoader) itemImages(ctx context.Context, item jellyfin.Item, deta
 // load sends each result independently. Metadata and counts have no selection
 // debounce. Expensive image requests are debounced and limited to three at once.
 func (l *artworkLoader) load(ctx context.Context, item jellyfin.Item, root, detail bool, emit func(artUpdate)) {
+	if detail && item.Type == "Photo" {
+		im, err := l.fetchImage(ctx, item, "Photo")
+		if ctx.Err() == nil {
+			emit(artUpdate{kind: "Photo", image: im, err: err})
+		}
+		return
+	}
 	if root {
 		if item.CollectionType == "livetv" {
 			return
@@ -308,6 +329,8 @@ func (l *artworkLoader) load(ctx context.Context, item jellyfin.Item, root, deta
 
 func applyArtwork(art *Artwork, update artUpdate) {
 	switch update.kind {
+	case "Photo":
+		art.Photo = update.image
 	case "count":
 		art.Count = update.count
 	case "Primary":

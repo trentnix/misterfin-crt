@@ -31,7 +31,7 @@ func Supported(item jellyfin.Item) bool {
 		return true
 	}
 	switch item.Type {
-	case "Movie", "Episode", "Video", "MusicVideo":
+	case "Movie", "Episode", "Video", "MusicVideo", "Audio":
 		return true
 	}
 	return false
@@ -49,6 +49,15 @@ func (o Options) executable() string {
 	return "/media/fat/misterfin/mplayer-arm"
 }
 func (o Options) args(item jellyfin.Item) []string {
+	if item.Type == "Audio" {
+		if o.TerminalPlayer != "" {
+			return []string{o.TerminalPlayer, "--audio-only"}
+		}
+		if o.Headless {
+			return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-nodisp", "-vn", "-af", "asetpts=PTS-STARTPTS", "-i", "pipe:3"}
+		}
+		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", "volume=-3,lavcresample=48000", "/dev/fd/3"}
+	}
 	if o.TerminalPlayer != "" {
 		return []string{o.TerminalPlayer, "--output", o.FrameOutput, "--width", strconv.Itoa(o.Width), "--height", strconv.Itoa(o.Height)}
 	}
@@ -122,10 +131,13 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		return errors.New("cannot create playback session")
 	}
 	start := max(int64(0), item.UserData.PlaybackPositionTicks)
-	if item.UserData.Played || liveTV {
+	if item.UserData.Played || liveTV || item.Type == "Audio" {
 		start = 0
 	}
 	streamURL := c.VideoStreamURL(item.ID, session, start, o.Height == 240 || o.Height == 480)
+	if item.Type == "Audio" {
+		streamURL = c.AudioStreamURL(item.ID, session)
+	}
 	var live jellyfin.LivePlayback
 	if liveTV {
 		live, err = c.OpenLive(ctx, item.ID, o.Height == 240 || o.Height == 480)
@@ -143,6 +155,9 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		}()
 	}
 	state := jellyfin.PlayState{ItemID: item.ID, PlaySessionID: session, PositionTicks: start}
+	if item.Type == "Audio" {
+		state.PlayMethod = "DirectStream"
+	}
 	if liveTV {
 		canSeek := false
 		state.MediaSourceID, state.LiveStreamID, state.CanSeek = live.MediaSourceID, live.LiveStreamID, &canSeek
@@ -195,7 +210,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	}
 	defer commands.Close()
 	if err = cmd.Start(); err != nil {
-		return errors.New("cannot start video player")
+		return errors.New("cannot start media player")
 	}
 	reader.Close()
 	copyDone := make(chan struct{})
@@ -241,7 +256,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		case <-startup.C:
 			cancel()
 			<-done
-			return errors.New("player did not start video within 30 seconds")
+			return errors.New("player did not start playback within 30 seconds")
 		case <-ctx.Done():
 			cancel()
 			<-done
@@ -260,7 +275,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 				return nil
 			}
 			if err != nil || !started {
-				return errors.New("video player could not play the stream")
+				return errors.New("player could not play the stream")
 			}
 			played = played || !liveTV && item.RunTimeTicks > 0 && state.PositionTicks >= item.RunTimeTicks-2*10000000
 			if reportErr {
@@ -289,7 +304,7 @@ func (p *positionWriter) Write(data []byte) (int, error) {
 			value := ""
 			if strings.HasPrefix(line, "ANS_TIME_POSITION=") {
 				value = strings.TrimPrefix(line, "ANS_TIME_POSITION=")
-			} else if fields := strings.Fields(line); len(fields) > 1 && (fields[1] == "A-V:" || fields[1] == "M-V:") {
+			} else if fields := strings.Fields(line); len(fields) > 1 && (fields[1] == "A-V:" || fields[1] == "M-V:" || fields[1] == "M-A:") {
 				value = fields[0]
 			}
 			if seconds, err := strconv.ParseFloat(value, 64); err == nil && !math.IsNaN(seconds) && !math.IsInf(seconds, 0) && seconds >= 0 && seconds < 1e9 {

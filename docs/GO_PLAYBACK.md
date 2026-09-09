@@ -1,4 +1,4 @@
-# Initial Go video playback
+# Go media playback
 
 The Go client can start and resume movies, episodes, videos, and music videos through Jellyfin's progressive MPEG-2/MP3 transcode endpoint. Desktop playback opens FFplay in a separate window by default, with optional video inside Ghostty through libmpv. The MiSTer path launches the existing `mplayer-arm` executable and suspends browser framebuffer writes until the player stops. Live TV channels use the C client’s negotiated stream setup. The C application remains unchanged.
 
@@ -29,6 +29,16 @@ The Python helper uses libmpv's [software rendering API](https://github.com/mpv-
 
 The Go process retains stream ownership and session reporting. The helper receives media on descriptor 3 and returns numeric playback positions. The direct Go binary accepts `-terminal-player tools/ghostty/video_player.py` with `-browse`, a 640×240 or 640×288 `-headless` geometry, and `-output`. The terminal helper cannot be combined with `-player`. MiSTer does not need Python or libmpv.
 
+## Photos and music
+
+Open a Photo item with B or Enter to view it full screen. The viewer requests Jellyfin's primary image at the logical framebuffer dimensions with quality 90, matching the C photo endpoint. It preserves the source aspect ratio on the physical 4:3 display, including portrait letterboxing. Title and controls overlay the image. A returns to the folder. R retries a failed image request. Photo loading is cancellable and shares the bounded artwork cache. Moving directly between photos, slideshows, and zoom remain pending.
+
+Browse Music → artist → album → track. Open the track's details, then press B or Enter to play it. The now-playing screen shows artwork, title, elapsed time, and a progress bar. A stops playback and returns to details. Q exits. Playback ends after the selected track.
+
+Music uses the C client's `/Audio/{id}/stream?static=true` request, with a unique play session ID. It streams the original audio and reports `DirectStream`. Each track starts at the beginning. Session progress and completion use the existing reporting and user-data endpoints. Go passes the stream through the private media pipe. Default desktop playback uses FFplay without a window. With `--inline-video`, the libmpv helper decodes audio without touching the browser frame. On MiSTer, MPlayer uses audio-only output with the C client's volume reduction and 48 kHz resampling filter.
+
+Album queues, automatic next-track playback, previous/next-track controls, pause, seek, shuffle, and visualizers remain pending. Photo and music rendering are covered by desktop tests. Physical CRT playback remains unverified.
+
 ## Live TV
 
 Open a channel's details and press B or Enter to tune it. A stops the stream and returns to details. Live TV works with both desktop player modes.
@@ -53,7 +63,7 @@ MiSTer playback remains blocked by the framebuffer failure. On September 9, 2026
 
 The hardware path uses `/media/fat/misterfin/mplayer-arm`. It currently supports 640-pixel-wide PAL and NTSC framebuffers, including doubled 480/576-line output. It uses the source display aspect ratio for letterboxing, ALSA audio, and the existing framebuffer output driver. The direct Go binary accepts `-player` to override the executable path. In headless mode the executable must accept FFplay arguments. On hardware it must accept MPlayer arguments.
 
-Pause, seek, restart selection, subtitles, audio-track selection, music playback, DDR output, HDMI layouts, and hardware timing validation remain pending. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.
+Pause, seek, restart selection, subtitles, audio-track selection, album queues, DDR output, HDMI layouts, and hardware timing validation remain pending. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.
 
 ## Validation
 
@@ -71,4 +81,4 @@ go vet ./...
 make -f Makefile.port arm
 ```
 
-Host tests with and without cgo, race checks, `go vet`, Ghostty helper tests, six browser integration tests, and the ARM cross-build passed. A five-second Live TV stream from the configured Jellyfin server decoded through the inline helper with muted audio and produced a 640×240 frame. The client then stopped and ran its cleanup. Mock-server tests verify the exact C negotiation profile, URL handling, cancellation during negotiation, tuner release on failure or stop, session identifiers, and absence of channel resume writes. Real Jellyfin movie playback and physical CRT playback remain unverified.
+Host tests with and without cgo, race checks, `go vet`, Ghostty helper tests, eight browser integration tests, and the ARM cross-build passed. A five-second Live TV stream from the configured Jellyfin server decoded through the inline helper with muted audio and produced a 640×240 frame. The client then stopped and ran its cleanup. Mock-server tests verify the exact C negotiation profile, URL handling, cancellation during negotiation, tuner release on failure or stop, session identifiers, and absence of channel resume writes. Generated FLAC tests verify original-audio decoding with FFplay and libmpv, position feedback, and direct-stream reporting. Photo tests cover the C image query, decoded-size limits, PAL and NTSC aspect ratio, and returning to the parent folder. Browser tests cover music start/stop and preservation of the now-playing frame. Real Jellyfin movie and music playback, real-server photos, and physical CRT playback remain unverified.

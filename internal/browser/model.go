@@ -29,6 +29,8 @@ type Model struct {
 	Rows                        int
 	ListMode, ExitConfirm, Quit bool
 	Notice                      string
+	PlayingAudio                bool
+	PositionTicks               int64
 }
 
 func New() *Model {
@@ -119,6 +121,9 @@ func (m *Model) Key(key string) *Request {
 			return nil
 		}
 		return m.Load(v.PendingStart)
+	}
+	if v.Detail != nil && v.Detail.Type == "Photo" && key == "open" {
+		return nil
 	}
 	if v.Detail != nil && key == "open" {
 		m.Notice = "Playback for this item type is not available yet.  A:back"

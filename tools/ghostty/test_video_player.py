@@ -59,6 +59,22 @@ class VideoTests(unittest.TestCase):
                 self.assertLess(max(pixel(height // 2)[1:]), 20)
                 self.assertLess(max(pixel(height * 15 // 16)), 10)
 
+    def test_audio_only_keeps_browser_frame(self):
+        clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                                        "sine=frequency=440:sample_rate=44100", "-t", "2",
+                                        "-c:a", "flac", "-f", "flac", "pipe:1"])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "frame.raw"
+            output.write_bytes(b"browser frame")
+            result = subprocess.run([sys.executable, "-c", BOOTSTRAP, str(HELPER),
+                                     "--audio-only", "--audio", "null", "--output", str(output)],
+                                    input=clip, capture_output=True, timeout=8)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            positions = [float(line.split(b"=")[1]) for line in result.stdout.splitlines()]
+            self.assertGreater(len(positions), 3)
+            self.assertGreater(positions[-1], 1.0)
+            self.assertEqual(output.read_bytes(), b"browser frame")
+
     def test_stop_during_playback(self):
         with tempfile.TemporaryDirectory() as directory:
             process, _ = self.start(directory, 240)

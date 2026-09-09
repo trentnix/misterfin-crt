@@ -22,6 +22,13 @@ func (c *Client) VideoStreamURL(itemID, sessionID string, start int64, ntsc bool
 	q := url.Values{"static": {"false"}, "videoCodec": {"mpeg2video"}, "container": {"ts"}, "audioCodec": {"mp3"}, "audioChannels": {"2"}, "allowVideoStreamCopy": {"false"}, "audioSampleRate": {"48000"}, "maxWidth": {"720"}, "maxHeight": {"576"}, "videoBitRate": {"12000000"}, "maxFramerate": {fps}, "startTimeTicks": {strconv.FormatInt(max(0, start), 10)}, "playSessionId": {sessionID}, "deviceId": {c.Session.DeviceID}, "ApiKey": {c.Session.Token}}
 	return c.Config.Server + "/Videos/" + url.PathEscape(itemID) + "/stream?" + q.Encode()
 }
+
+// AudioStreamURL matches jf_audio_stream_url: original audio, without transcoding.
+func (c *Client) AudioStreamURL(itemID, sessionID string) string {
+	q := url.Values{"static": {"true"}, "playSessionId": {sessionID}, "ApiKey": {c.Session.Token}}
+	return c.Config.Server + "/Audio/" + url.PathEscape(itemID) + "/stream?" + q.Encode()
+}
+
 func NewPlaySessionID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -40,7 +47,7 @@ func (c *Client) OpenVideo(ctx context.Context, itemID, sessionID string, start 
 func (c *Client) OpenStream(ctx context.Context, streamURL string) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", streamURL, nil)
 	if err != nil {
-		return nil, errors.New("cannot create video request")
+		return nil, errors.New("cannot create media request")
 	}
 	transport := c.HTTP.Transport
 	if t, ok := transport.(*http.Transport); ok {
@@ -55,7 +62,7 @@ func (c *Client) OpenStream(ctx context.Context, streamURL string) (io.ReadClose
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, errors.New("cannot open Jellyfin video stream")
+		return nil, errors.New("cannot open Jellyfin media stream")
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		response.Body.Close()
@@ -87,7 +94,9 @@ func (c *Client) ReportPlaying(ctx context.Context, event string, state PlayStat
 	default:
 		return errors.New("invalid playback event")
 	}
-	state.PlayMethod = "Transcode"
+	if state.PlayMethod == "" {
+		state.PlayMethod = "Transcode"
+	}
 	state.PositionTicks = max(0, state.PositionTicks)
 	_, err := c.request(ctx, "POST", path, nil, state)
 	return err

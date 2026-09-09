@@ -40,7 +40,7 @@ class BrowseIntegrationTests(unittest.TestCase):
 
             def do_GET(self):
                 test.requests.append(self.path)
-                if urlparse(self.path).path.startswith("/Videos/"):
+                if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
                     self.send_response(200)
                     self.send_header("Content-Length", "10")
                     self.end_headers()
@@ -221,6 +221,43 @@ class BrowseIntegrationTests(unittest.TestCase):
         stopped = [body for path, body in self.reports if path == "/Sessions/Playing/Stopped"]
         self.assertEqual(stopped[0]["LiveStreamId"], "live-tuner")
         self.assertFalse(stopped[0]["CanSeek"])
+        self.assertIsNone(self.process.poll())
+
+    def test_photo_opens_full_screen_and_returns_to_folder(self):
+        self.key(b"\x1b[C\x1b[C\x1b[C\x1b[Cb")
+        self.wait_request("/Items", ParentId="view-homevideos")
+        self.key(b"\x1b[Bb")
+        self.wait_request("/Items/photo-landscape/Images/Primary", quality=90, maxWidth=640, maxHeight=240)
+        frame = self.frame.read_bytes()
+        offset = (120 * 640 + 320) * 4
+        self.assertEqual(frame[offset:offset + 3], bytes([215, 125, 35]))
+        self.key(b"a")
+        time.sleep(0.15)
+        self.key(b"\x1b[Bb")
+        self.wait_request("/Items", ParentId="photo-album")
+        self.assertFalse(any(path.startswith("/Sessions/") for path, _ in self.reports))
+
+    def test_music_plays_with_browser_frame_and_stops(self):
+        self.key(b"\x1b[C\x1b[Cb")
+        self.wait_request("/Items", ParentId="view-music")
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="artist-000")
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="artist-000-album0")
+        self.key(b"b")
+        self.wait_request("/Items/artist-000-album0-t01")
+        details = self.frame.read_bytes()
+        self.key(b"b")
+        self.wait_request("/Audio/artist-000-album0-t01/stream", static="true")
+        self.assertNotEqual(self.frame.read_bytes(), details)
+        self.assertEqual(len(self.frame.read_bytes()), 640 * 240 * 4)
+        self.key(b"a")
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing/Stopped" for path, _ in self.reports):
+            self.assertLess(time.monotonic(), deadline, "music did not stop")
+            time.sleep(0.02)
+        playing = [body for path, body in self.reports if path == "/Sessions/Playing"]
+        self.assertEqual(playing[0]["PlayMethod"], "DirectStream")
         self.assertIsNone(self.process.poll())
 
     def test_back_cancels_delayed_library(self):

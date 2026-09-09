@@ -86,9 +86,9 @@ func itemTitle(i jellyfin.Item) string {
 }
 
 type Artwork struct {
-	Primary, Backdrop, Logo image.Image
-	Covers                  []image.Image
-	Count                   *int
+	Primary, Backdrop, Logo, Photo image.Image
+	Covers                         []image.Image
+	Count                          *int
 }
 type Animation struct{ Seconds, Selection, Row float64 }
 
@@ -142,6 +142,42 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		center(c, bottom, "B:try again   A:exit", dimColor, 1)
 		return c.Pixels
 	}
+	if v.Detail != nil && v.Detail.Type == "Photo" {
+		c.Image(art.Photo, 0, 0, w, h)
+		c.Shade(0, 0, w, sy+12, 175)
+		c.Shade(0, bottom-4, w, h-bottom+4, 175)
+		count := ""
+		if len(m.Stack) > 1 {
+			count = m.Stack[len(m.Stack)-2].Count()
+		}
+		c.Text(24, sy, truncate(v.Detail.Name, w-60-textWidth(count, 1), 1), 0xffffff, w-24)
+		c.Text(w-24-textWidth(count, 1), sy, count, dimColor, w-24)
+		if art.Photo == nil {
+			message := "Loading photo..."
+			if artError != "" {
+				message = "Photo unavailable. R:retry"
+			}
+			center(c, h/2-4, message, 0xffffff, 1)
+		}
+		center(c, bottom, "A:back", dimColor, 1)
+		return c.Pixels
+	}
+	if m.PlayingAudio && v.Detail != nil {
+		header("Now playing")
+		c.Image(art.Primary, 24, sy+28, w-48, h-sy-98)
+		center(c, h-sy-62, truncate(v.Detail.Name, w-48, 1), titleColor, 1)
+		center(c, h-sy-46, runtime(m.PositionTicks)+" / "+runtime(v.Detail.RunTimeTicks), dimColor, 1)
+		c.Rect(24, h-sy-30, w-48, 3, 0x303030)
+		if v.Detail.RunTimeTicks > 0 {
+			c.Rect(24, h-sy-30, int(min(m.PositionTicks, v.Detail.RunTimeTicks)*int64(w-48)/v.Detail.RunTimeTicks), 3, titleColor)
+		}
+		message := "A:stop"
+		if m.Notice != "" {
+			message = m.Notice
+		}
+		center(c, bottom, message, dimColor, 1)
+		return c.Pixels
+	}
 	hint := "B:select  A:back"
 	if v.Detail != nil {
 		hero := max(80, min(150, h-88))
@@ -177,7 +213,7 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		}
 		c.Wrap(24, ty+16, w-48, 3, v.Detail.Overview, 0xcccccc)
 		hint = "B:play  A:back"
-		if v.Detail.UserData.PlaybackPositionTicks > 0 && !v.Detail.UserData.Played {
+		if v.Detail.Type != "Audio" && !jellyfin.IsLive(*v.Detail) && v.Detail.UserData.PlaybackPositionTicks > 0 && !v.Detail.UserData.Played {
 			hint = "B:resume  A:back"
 		}
 	} else if len(m.Stack) == 1 && !m.ListMode {

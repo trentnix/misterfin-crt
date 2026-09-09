@@ -75,7 +75,7 @@ def publish_frame(output, source, width, height):
             os.unlink(path)
 
 
-def play(output, width, height, audio="auto"):
+def play(output, width, height, audio="auto", audio_only=False):
     mpv = MPV()
     handle = mpv.create()
     if not handle:
@@ -120,6 +120,7 @@ def play(output, width, height, audio="auto"):
             if context.value:
                 mpv.free(context)
 
+    reported = False
     previous = {}
     try:
         for key, value in {"config": "no", "terminal": "no", "msg-level": "all=no",
@@ -130,12 +131,15 @@ def play(output, width, height, audio="auto"):
                 raise RuntimeError("unsupported video player option")
         if audio != "auto" and mpv.option(handle, b"ao", audio.encode()) < 0:
             raise RuntimeError("unsupported audio output")
+        if audio_only and mpv.option(handle, b"vid", b"no") < 0:
+            raise RuntimeError("cannot disable video")
         if mpv.initialize(handle) < 0:
             raise RuntimeError("cannot initialize libmpv")
-        worker = threading.Thread(target=render_video, name="video-render")
-        worker.start()
-        if not ready.wait(5) or errors:
-            raise RuntimeError("video renderer did not initialize")
+        if not audio_only:
+            worker = threading.Thread(target=render_video, name="video-render")
+            worker.start()
+            if not ready.wait(5) or errors:
+                raise RuntimeError("video renderer did not initialize")
         for sig in (signal.SIGINT, signal.SIGTERM):
             previous[sig] = signal.signal(sig, lambda *_: stop.set())
         if mpv.send(handle, "loadfile", "fd://3", "replace") < 0:
@@ -149,14 +153,15 @@ def play(output, width, height, audio="auto"):
                     raise RuntimeError("video decoding failed")
                 break
             now = time.monotonic()
-            if frames[0] and now >= next_report:
+            if (frames[0] or audio_only) and now >= next_report:
                 position = C.c_double()
                 if mpv.property(handle, b"time-pos", 5, C.byref(position)) >= 0 and math.isfinite(position.value):
+                    reported = True
                     print(f"ANS_TIME_POSITION={max(0, position.value):.3f}", flush=True)
                 next_report = now + 0.25
         if errors:
             raise RuntimeError("video renderer failed")
-        if not frames[0] and not stop.is_set():
+        if not reported and not stop.is_set():
             raise RuntimeError("no video frames decoded")
     finally:
         # Stop media and free the render context before destroying the core.
@@ -173,6 +178,7 @@ def play(output, width, height, audio="auto"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--audio-only", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, choices=(240, 288), default=240)
@@ -182,9 +188,9 @@ def main():
         MPV()
         print("libmpv software rendering API is available")
         return
-    if args.output is None or args.width != 640:
+    if not args.audio_only and (args.output is None or args.width != 640):
         parser.error("--output and a 640-pixel framebuffer are required")
-    play(args.output, args.width, args.height, args.audio)
+    play(args.output, args.width, args.height, args.audio, args.audio_only)
 
 
 if __name__ == "__main__":

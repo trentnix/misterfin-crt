@@ -28,3 +28,14 @@ func TestVideoStreamQueryMatchesC(t *testing.T) {
 		t.Fatal("play session IDs must be unique")
 	}
 }
+
+func TestAudioStreamQueryMatchesC(t *testing.T) {
+	c := NewClient(Config{Server: "https://server/jellyfin"}, Session{Token: "private & token"})
+	u, err := url.Parse(c.AudioStreamURL("track", "session"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Path != "/jellyfin/Audio/track/stream" || !reflect.DeepEqual(u.Query(), url.Values{"static": {"true"}, "playSessionId": {"session"}, "ApiKey": {"private & token"}}) {
+		t.Fatal("audio query differs from C")
+	}
+}

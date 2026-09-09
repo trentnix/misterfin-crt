@@ -216,6 +216,18 @@ func (c *Client) Image(ctx context.Context, item Item) (image.Image, error) {
 	return c.ImageKind(ctx, item, "Primary")
 }
 func (c *Client) ImageKind(ctx context.Context, item Item, kind string) (image.Image, error) {
+	return c.imageSized(ctx, item, kind, 0, 360, 80)
+}
+
+// Photo follows jf_photo_image_url with the logical framebuffer dimensions.
+func (c *Client) Photo(ctx context.Context, item Item, width, height int) (image.Image, error) {
+	if width < 1 || height < 1 || width > 2048 || height > 2048 || item.ImageTags["Primary"] == "" {
+		return nil, errors.New("photo unavailable")
+	}
+	return c.imageSized(ctx, item, "Primary", width, height, 90)
+}
+
+func (c *Client) imageSized(ctx context.Context, item Item, kind string, requestedWidth, maxHeight, quality int) (image.Image, error) {
 	tag := item.ImageTags[kind]
 	if kind == "Backdrop" && len(item.BackdropImageTags) == 0 && len(item.ParentBackdropImageTags) > 0 {
 		item.ID = item.ParentBackdropItemId
@@ -242,7 +254,10 @@ func (c *Client) ImageKind(ctx context.Context, item Item, kind string) (image.I
 	if kind == "Logo" {
 		width = "480"
 	}
-	b, err := c.request(ctx, "GET", "/Items/"+url.PathEscape(item.ID)+"/Images/"+path, url.Values{"tag": {tag}, "maxWidth": {width}, "maxHeight": {"360"}, "quality": {"80"}, "format": {format}}, nil)
+	if requestedWidth > 0 {
+		width = strconv.Itoa(requestedWidth)
+	}
+	b, err := c.request(ctx, "GET", "/Items/"+url.PathEscape(item.ID)+"/Images/"+path, url.Values{"tag": {tag}, "maxWidth": {width}, "maxHeight": {strconv.Itoa(maxHeight)}, "quality": {strconv.Itoa(quality)}, "format": {format}}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +271,7 @@ func (c *Client) ImageKind(ctx context.Context, item Item, kind string) (image.I
 	}
 	// Bound cached pixels even when a server ignores the requested dimensions.
 	maxWidth, _ := strconv.Atoi(width)
-	scale := min(1.0, min(float64(maxWidth)/float64(conf.Width), 360.0/float64(conf.Height)))
+	scale := min(1.0, min(float64(maxWidth)/float64(conf.Width), float64(maxHeight)/float64(conf.Height)))
 	if scale < 1 {
 		resized := image.NewRGBA(image.Rect(0, 0, max(1, int(float64(conf.Width)*scale)), max(1, int(float64(conf.Height)*scale))))
 		bounds := im.Bounds()

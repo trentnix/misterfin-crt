@@ -1,6 +1,9 @@
 package browser
 
 import (
+	"image"
+	"image/color"
+	"image/draw"
 	"misterfin-go/internal/jellyfin"
 	"testing"
 	"time"
@@ -72,6 +75,28 @@ func TestCarouselShowsLibraryName(t *testing.T) {
 	for i := range frame {
 		if frame[i] != otherName[i] {
 			t.Fatal("carousel name exceeds the C client's 160-pixel limit")
+		}
+	}
+}
+
+func TestPhotoFitsPhysicalCRTAspect(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		m := New()
+		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{ID: "photo", Name: "Portrait", Type: "Photo"}})
+		photo := image.NewRGBA(image.Rect(0, 0, 9, 16))
+		draw.Draw(photo, photo.Bounds(), image.NewUniform(color.RGBA{R: 255, A: 255}), image.Point{}, draw.Src)
+		frame := render(640, height, m, "", Artwork{Photo: photo}, "", Animation{}, time.Time{})
+		red := func(x, y int) bool { offset := (y*640 + x) * 4; return frame[offset+2] == 255 && frame[offset] == 0 }
+		// A 9:16 portrait fills the screen height and occupies 270 logical columns.
+		if !red(320, height/2) || !red(190, height/2) || red(180, height/2) || red(460, height/2) {
+			t.Fatal("photo aspect ratio or letterboxing changed")
+		}
+		if m.Key("open") != nil || m.Notice != "" {
+			t.Fatal("photo tried to start playback")
+		}
+		m.Key("back")
+		if len(m.Stack) != 1 {
+			t.Fatal("photo did not return to parent")
 		}
 	}
 }
