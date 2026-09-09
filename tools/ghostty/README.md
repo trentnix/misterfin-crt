@@ -12,15 +12,42 @@ Use `--pal` for the 640x288 layout. PAL is the default. The helper builds the ho
 
 ## Go prototype
 
-To build and view the Go prototype, run:
+To browse the local demo, run:
+
+```bash
+python3 tools/ghostty/ghostty_harness.py --demo --ntsc
+```
+
+The demo starts a temporary mock Jellyfin server on loopback. It includes more than 500 movies, TV shows, music, Live TV channels, Home Videos, and a Mixed library. Configuration and session files stay in a temporary directory and are removed on exit. No real server or credentials are needed.
+
+To browse a real Jellyfin server, create a `jellyfin.conf` containing its URL, then run:
+
+```bash
+python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
+```
+
+The browser displays a Quick Connect code. Approve that code in Jellyfin to sign in. The existing three-line server URL, API key, and username format also works. Go saves its session separately under the user configuration directory in `misterfin-go/session.json`. It does not read or overwrite the C client's token or device files. `--state-dir PATH` selects another Go session directory.
+
+Go browser controls:
+
+- Up and Down select an item.
+- B, Enter, or X opens a library, folder, or item summary.
+- A, Escape, Backspace, or Z goes back or cancels loading.
+- Left and Right, or Page Up and Page Down, change pages of 64 items.
+- R retries a failed request or sign-in.
+- Q or Ctrl+C exits.
+
+Use `--pal` for PAL. The Go browser draws lists, artwork, and item summaries. Playback, full item details, and the C client's remaining screens are not ported yet. The preview works without MiSTer hardware.
+
+To view the original Go test frame, run:
 
 ```bash
 python3 tools/ghostty/ghostty_harness.py --go --ntsc
 ```
 
-Use `--go --pal` for PAL. The prototype displays color bars, a grayscale ramp, and a white border. Press Ctrl+C to exit. The Go prototype has no browsing or controller input yet and needs no Jellyfin configuration. It uses the same C framebuffer adapter as its hardware build, with allocated headless memory in place of `/dev/fb0`.
+Use `--go --pal` for PAL. The test frame displays color bars, a grayscale ramp, and a white border. Press Ctrl+C to exit. It needs no Jellyfin configuration and uses the same C framebuffer adapter as the browser, with allocated headless memory in place of `/dev/fb0`.
 
-The default command without `--go` continues to run the C client. The navigation keys and browsing features below apply to that client.
+The default command without `--go`, `--browse`, or `--demo` continues to run the C client. The navigation keys and browsing features below apply to that client.
 
 ## C client controls
 

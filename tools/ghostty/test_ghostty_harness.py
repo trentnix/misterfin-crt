@@ -33,6 +33,18 @@ class ConversionTests(unittest.TestCase):
 
 
 class LaunchOptionsTests(unittest.TestCase):
+    def test_demo_selects_go_browser(self):
+        args = HARNESS.parse_args(["--demo", "--ntsc"])
+        self.assertTrue(args.go)
+        self.assertTrue(args.browse)
+        self.assertTrue(args.demo)
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
+
+    def test_browse_preserves_explicit_config(self):
+        args = HARNESS.parse_args(["--browse", "--config", "/tmp/jellyfin.conf"])
+        self.assertTrue(args.go)
+        self.assertEqual(args.config, Path("/tmp/jellyfin.conf"))
+
     def test_c_client_remains_default(self):
         args = HARNESS.parse_args([])
         self.assertFalse(args.go)

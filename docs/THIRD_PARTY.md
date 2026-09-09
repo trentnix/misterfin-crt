@@ -45,6 +45,8 @@ where it lives and under what terms. MiSTerFin's own code is licensed
   downloaded separately by users who want interlaced output (see the
   [display compatibility guide](DISPLAY_COMPATIBILITY.md#interlaced-output)).
 
+The Go browser's `internal/ui/font.go` translates the bitmap tables from `src/font8x8.h`. The ASCII table retains its public-domain terms. The MiSTerFin Latin-1 extensions retain CC BY-NC 4.0 and Pudding Studio's copyright notice.
+
 ## Reference and inspiration (no code copied)
 
 - **[jellyfin-apiclient-python](https://github.com/jellyfin/jellyfin-apiclient-python)**

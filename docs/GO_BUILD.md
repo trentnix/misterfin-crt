@@ -1,5 +1,7 @@
 # Go framebuffer prototype
 
+For the subsequent Ghostty browsing milestone, see [GO_BROWSING.md](GO_BROWSING.md). The sections below record the initial framebuffer milestone.
+
 Milestone 1 is in progress. Host rendering, ARM cross-compilation, and execution on the physical MiSTer work. Visible framebuffer output is blocked by a missing mmap callback in the installed MiSTer kernel. The C application, its Makefile, and the preexisting README and port plan are unchanged.
 
 ## Build and run on Linux
@@ -20,7 +22,7 @@ To build and display the Go test frame inside Ghostty, run:
 python3 tools/ghostty/ghostty_harness.py --go --ntsc
 ```
 
-Use `--go --pal` for PAL. Press Ctrl+C to exit. The harness supplies `-wait` so the frame remains visible until interrupted. Go browsing and controller input are not implemented yet. Without `--go`, the Ghostty harness continues to run the C client with its existing controls.
+Use `--go --pal` for PAL. Press Ctrl+C to exit. The harness supplies `-wait` so the frame remains visible until interrupted. Use `--browse` or `--demo` for the subsequent Go browser. Without a Go mode flag, the Ghostty harness continues to run the C client with its existing controls.
 
 The existing environment variables also work:
 

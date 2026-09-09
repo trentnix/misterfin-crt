@@ -2,7 +2,7 @@
 GO ?= go
 GO_ARM_CC ?= $(CURDIR)/tools/zig-cc-go.sh
 
-.PHONY: host arm test headless
+.PHONY: host arm test test-browse headless
 host:
 	CGO_ENABLED=1 $(GO) build -trimpath -o build/misterfin-go ./cmd/misterfin-go
 
@@ -12,6 +12,10 @@ arm:
 test:
 	CGO_ENABLED=1 $(GO) test ./...
 	CGO_ENABLED=0 $(GO) test ./...
+	python3 -m unittest tools/ghostty/test_ghostty_harness.py
+
+test-browse: host
+	python3 -m unittest tools/ghostty/test_go_browse.py
 
 headless: host
 	./build/misterfin-go -headless 640x288 -output build/go-frame.raw

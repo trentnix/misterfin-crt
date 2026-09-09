@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+from contextlib import ExitStack
 import fcntl
+import importlib.util
 import os
 from pathlib import Path
 import shutil
@@ -16,6 +18,8 @@ import sys
 import tempfile
 import termios
 import time
+import threading
+from http.server import HTTPServer
 from typing import BinaryIO, Iterable
 
 
@@ -199,8 +203,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--go",
         action="store_true",
-        help="run the Go test-frame prototype (Ctrl+C exits)",
+        help="run the Go prototype (test frame unless --browse or --demo is selected)",
     )
+    parser.add_argument("--browse", action="store_true", help="browse Jellyfin with the Go client")
+    parser.add_argument("--demo", action="store_true", help="browse a local mock server with the Go client")
+    parser.add_argument("--config", type=Path, help="Go Jellyfin configuration path")
+    parser.add_argument("--state-dir", type=Path, help="Go session directory")
     parser.add_argument(
         "--binary",
         type=Path,
@@ -221,9 +229,45 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.fps <= 0:
         parser.error("--fps must be greater than zero")
+    if args.demo:
+        if args.config or args.state_dir:
+            parser.error("--demo uses temporary configuration and session files")
+        args.browse = True
+    if args.browse:
+        args.go = True
+    if (args.config or args.state_dir) and not args.browse:
+        parser.error("--config and --state-dir require --browse")
     if args.binary is None:
         args.binary = REPO_ROOT / ("build/misterfin-go" if args.go else "misterfin")
     return args
+
+
+def start_demo(directory: Path, cleanup: ExitStack) -> Path:
+    """Reuse the C harness's mock Jellyfin data on an ephemeral loopback port."""
+    spec = importlib.util.spec_from_file_location("mock_jellyfin", REPO_ROOT / "tools/mock-jellyfin.py")
+    assert spec and spec.loader
+    mock = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mock)
+
+    class QuietHandler(mock.Handler):
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            try:
+                super().do_GET()
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # Navigating away can cancel an in-flight artwork request.
+
+    server = HTTPServer(("127.0.0.1", 0), QuietHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    cleanup.callback(server.server_close)
+    cleanup.callback(thread.join)
+    cleanup.callback(server.shutdown)
+    config = directory / "jellyfin.conf"
+    config.write_text(f"http://127.0.0.1:{server.server_port}\nmock-api-key\nmockuser\n")
+    return config
 
 
 def stop_process(process: subprocess.Popen[bytes]) -> None:
@@ -290,16 +334,29 @@ def run(args: argparse.Namespace) -> int:
     }
 
     try:
-        with tempfile.TemporaryDirectory(prefix="misterfin-ghostty-") as temp_dir:
+        with tempfile.TemporaryDirectory(prefix="misterfin-ghostty-") as temp_dir, ExitStack() as cleanup:
             frame_path = Path(temp_dir) / "frame.raw"
             env = child_environment(width, height, frame_path)
+            command = [str(binary)]
+            if args.browse:
+                command.append("-browse")
+                config, state_dir = args.config, args.state_dir
+                if args.demo:
+                    config = start_demo(Path(temp_dir), cleanup)
+                    state_dir = Path(temp_dir) / "session"
+                if config:
+                    command += ["-config", str(config.resolve())]
+                if state_dir:
+                    command += ["-state-dir", str(state_dir.resolve())]
+            elif args.go:
+                command.append("-wait")
 
             with args.log.open("wb") as log, open("/dev/tty", "wb", buffering=0) as tty:
                 presenter = GhosttyPresenter(tty, width, height)
                 presenter.enter()
                 try:
                     process = subprocess.Popen(
-                        [str(binary), "-wait"] if args.go else [str(binary)],
+                        command,
                         cwd=REPO_ROOT,
                         env=env,
                         stdin=None,

@@ -1,4 +1,24 @@
-# MiSTerFin
+# MiSTerFin-Go
+
+An unofficial Go adaptation of [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio, maintained independently by trentnix. The starting point includes the improvements merged into the `local-all-features` branch of [trentnix/MiSTerFin](https://github.com/trentnix/MiSTerFin).
+
+The UI is built explicitly for CRT output. The project maintainer, trentnix, uses a CRT for both testing and everyday use.
+
+The Go prototype supports Jellyfin authentication, library browsing, paginated item lists, and artwork in Ghostty. The working C baseline and its Git history remain available as the behavioral reference. See [the Go port plan](docs/GO_PORT_PLAN.md) for the source commit, architecture, and milestones, and [the browsing guide](docs/GO_BROWSING.md) for setup and current limitations.
+
+Try the local demo from Ghostty:
+
+```bash
+python3 tools/ghostty/ghostty_harness.py --demo --ntsc
+```
+
+Use `--pal` for PAL. The `--go` flag by itself opens the static test frame. Use `--browse --config jellyfin.conf` to connect to a real Jellyfin server.
+
+MiSTerFin-derived material remains under [CC BY-NC 4.0](LICENSE). Copyright © 2026 Pudding Studio. Third-party components retain their [separate licenses](docs/THIRD_PARTY.md). This adaptation is not an official Pudding Studio release.
+
+The documentation below describes the inherited C application. Its release links, installer, updater, and deployment commands still refer to that application. Go build instructions are in [GO_BUILD.md](docs/GO_BUILD.md). The Go prototype has no installation or updater integration yet.
+
+## Inherited MiSTerFin documentation
 
 <p align="center"><img src="docs/hero.png" width="100%" alt="MiSTerFin screenshot collage"></p>
 
