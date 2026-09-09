@@ -152,7 +152,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
 	draw := func() error {
-		if playing && !player.Headless {
+		if playing && (!player.Headless || player.TerminalPlayer != "") {
 			return nil
 		}
 		now := time.Now()
@@ -210,7 +210,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					selected := *m.Current().Detail
 					playCtx, stop := context.WithCancel(ctx)
 					playCancel = stop
-					if !player.Headless {
+					if !player.Headless || player.TerminalPlayer != "" {
 						if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
 							return err
 						}

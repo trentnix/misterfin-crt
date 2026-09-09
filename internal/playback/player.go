@@ -18,13 +18,18 @@ import (
 )
 
 type Options struct {
-	Player        string
-	Headless      bool
-	Device        string
-	Width, Height int
+	Player         string
+	TerminalPlayer string
+	FrameOutput    string
+	Headless       bool
+	Device         string
+	Width, Height  int
 }
 
 func Supported(item jellyfin.Item) bool {
+	if jellyfin.IsLive(item) {
+		return true
+	}
 	switch item.Type {
 	case "Movie", "Episode", "Video", "MusicVideo":
 		return true
@@ -35,12 +40,18 @@ func (o Options) executable() string {
 	if o.Player != "" {
 		return o.Player
 	}
+	if o.TerminalPlayer != "" {
+		return "python3"
+	}
 	if o.Headless {
 		return "ffplay"
 	}
 	return "/media/fat/misterfin/mplayer-arm"
 }
 func (o Options) args(item jellyfin.Item) []string {
+	if o.TerminalPlayer != "" {
+		return []string{o.TerminalPlayer, "--output", o.FrameOutput, "--width", strconv.Itoa(o.Width), "--height", strconv.Itoa(o.Height)}
+	}
 	if o.Headless {
 		return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerFin-Go playback", "-vf", "setpts=PTS-STARTPTS", "-af", "asetpts=PTS-STARTPTS", "-i", "pipe:3"}
 	}
@@ -77,17 +88,21 @@ func (o Options) args(item jellyfin.Item) []string {
 
 // Run never draws into the framebuffer. The caller must stop presenting frames
 // until Run returns. Cancel stops the player, closes the stream, and reaps it.
-func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options, position func(int64)) error {
+func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options, position func(int64)) (resultErr error) {
 	if !Supported(item) {
 		return errors.New("playback for this item type is not implemented")
 	}
 	if !o.Headless && (o.Width != 640 || (o.Height != 240 && o.Height != 288 && o.Height != 480 && o.Height != 576)) {
 		return errors.New("MiSTer playback currently requires a 640-pixel PAL or NTSC framebuffer")
 	}
+	if o.TerminalPlayer != "" && (!o.Headless || o.FrameOutput == "" || o.Player != "" || o.Width != 640 || (o.Height != 240 && o.Height != 288)) {
+		return errors.New("terminal playback requires 640x240 or 640x288 headless output and no player override")
+	}
 	executable, err := exec.LookPath(o.executable())
 	if err != nil {
 		return fmt.Errorf("player not found: %s", o.executable())
 	}
+	liveTV := jellyfin.IsLive(item)
 	item, err = c.Details(ctx, item.ID)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -95,6 +110,10 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		}
 		return errors.New("cannot load playback details")
 	}
+	if liveTV {
+		item.Type = "TvChannel"
+	}
+	liveTV = jellyfin.IsLive(item)
 	if !Supported(item) {
 		return errors.New("playback for this item type is not implemented")
 	}
@@ -103,10 +122,31 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		return errors.New("cannot create playback session")
 	}
 	start := max(int64(0), item.UserData.PlaybackPositionTicks)
-	if item.UserData.Played {
+	if item.UserData.Played || liveTV {
 		start = 0
 	}
+	streamURL := c.VideoStreamURL(item.ID, session, start, o.Height == 240 || o.Height == 480)
+	var live jellyfin.LivePlayback
+	if liveTV {
+		live, err = c.OpenLive(ctx, item.ID, o.Height == 240 || o.Height == 480)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+		session, streamURL = live.PlaySessionID, live.StreamURL
+		defer func() {
+			cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stop()
+			_ = c.CloseLive(cleanup, live.LiveStreamID)
+		}()
+	}
 	state := jellyfin.PlayState{ItemID: item.ID, PlaySessionID: session, PositionTicks: start}
+	if liveTV {
+		canSeek := false
+		state.MediaSourceID, state.LiveStreamID, state.CanSeek = live.MediaSourceID, live.LiveStreamID, &canSeek
+	}
 	mediaCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// Even a player that cannot start must release the server's transcode.
@@ -115,12 +155,16 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	defer func() {
 		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
+		if liveTV {
+			failed := resultErr != nil
+			state.Failed = &failed
+		}
 		_ = c.ReportPlaying(cleanup, "stopped", state)
-		if started {
+		if started && !liveTV {
 			_ = c.SavePlaybackPosition(cleanup, item.ID, state.PositionTicks, played)
 		}
 	}()
-	stream, err := c.OpenVideo(mediaCtx, item.ID, session, start, o.Height == 240 || o.Height == 480)
+	stream, err := c.OpenStream(mediaCtx, streamURL)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
@@ -168,7 +212,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	reportErr := false
 	update := func(seconds float64) {
 		state.PositionTicks = start + int64(seconds*10000000)
-		if item.RunTimeTicks > 0 {
+		if !liveTV && item.RunTimeTicks > 0 {
 			state.PositionTicks = min(state.PositionTicks, item.RunTimeTicks)
 		}
 		position(state.PositionTicks)
@@ -190,7 +234,9 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		case <-report.C:
 			if started {
 				reportErr = c.ReportPlaying(mediaCtx, "progress", state) != nil || reportErr
-				reportErr = c.SavePlaybackPosition(mediaCtx, item.ID, state.PositionTicks, played) != nil || reportErr
+				if !liveTV {
+					reportErr = c.SavePlaybackPosition(mediaCtx, item.ID, state.PositionTicks, played) != nil || reportErr
+				}
 			}
 		case <-startup.C:
 			cancel()
@@ -216,7 +262,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			if err != nil || !started {
 				return errors.New("video player could not play the stream")
 			}
-			played = played || item.RunTimeTicks > 0 && state.PositionTicks >= item.RunTimeTicks-2*10000000
+			played = played || !liveTV && item.RunTimeTicks > 0 && state.PositionTicks >= item.RunTimeTicks-2*10000000
 			if reportErr {
 				return errors.New("playback ended, but Jellyfin progress reporting failed")
 			}

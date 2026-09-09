@@ -37,7 +37,7 @@ func runtime(ticks int64) string {
 func subtitle(i jellyfin.Item) (string, uint32) {
 	color := uint32(0x585858)
 	switch i.Type {
-	case "TvChannel":
+	case "TvChannel", "LiveTvChannel":
 		if i.CurrentProgram.Name != "" {
 			return i.CurrentProgram.Name, color
 		}
@@ -170,7 +170,11 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 			c.Text(81, ty, fmt.Sprintf("%.1f", v.Detail.CommunityRating), dimColor, w)
 		}
 		s, col := subtitle(*v.Detail)
-		c.Text(w-24-textWidth(s, 1), ty, s, col, w-24)
+		if jellyfin.IsLive(*v.Detail) {
+			center(c, ty, truncate(s, w-48, 1), col, 1)
+		} else {
+			c.Text(w-24-textWidth(s, 1), ty, s, col, w-24)
+		}
 		c.Wrap(24, ty+16, w-48, 3, v.Detail.Overview, 0xcccccc)
 		hint = "B:play  A:back"
 		if v.Detail.UserData.PlaybackPositionTicks > 0 && !v.Detail.UserData.Played {

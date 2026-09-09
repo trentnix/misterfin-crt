@@ -45,6 +45,13 @@ class LaunchOptionsTests(unittest.TestCase):
         self.assertTrue(args.go)
         self.assertEqual(args.config, Path("/tmp/jellyfin.conf"))
 
+    def test_inline_video_rate_can_be_overridden(self):
+        args = HARNESS.parse_args(["--browse", "--inline-video"])
+        self.assertTrue(args.go)
+        self.assertEqual(args.fps, 30)
+        args = HARNESS.parse_args(["--browse", "--inline-video", "--fps", "25"])
+        self.assertEqual(args.fps, 25)
+
     def test_c_client_remains_default(self):
         args = HARNESS.parse_args([])
         self.assertFalse(args.go)

@@ -231,3 +231,86 @@ func TestCancelBeforeStreamHeadersStillStopsSession(t *testing.T) {
 		t.Fatal("transcode session was not stopped")
 	}
 }
+
+func TestLivePlayerLifecycle(t *testing.T) {
+	for _, mode := range []string{"eof", "cancel", "player-failure", "stream-failure"} {
+		t.Run(mode, func(t *testing.T) {
+			player := filepath.Join(t.TempDir(), "player")
+			script := "#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf 'ANS_TIME_POSITION=3\\n'\n"
+			if mode == "cancel" {
+				script = "#!/bin/sh\nprintf 'ANS_TIME_POSITION=3\\n'\nsleep 30\n"
+			}
+			if mode == "player-failure" {
+				script = "#!/bin/sh\nexit 1\n"
+			}
+			if err := os.WriteFile(player, []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			var mu sync.Mutex
+			var events []string
+			var states []jellyfin.PlayState
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/Items/channel":
+					fmt.Fprint(w, `{"Id":"channel","Type":"LiveTvChannel","RunTimeTicks":10000000,"UserData":{"PlaybackPositionTicks":90000000}}`)
+				case "/Items/channel/PlaybackInfo":
+					fmt.Fprint(w, `{"PlaySessionId":"server-session","MediaSources":[{"Id":"source","LiveStreamId":"tuner","TranscodingUrl":"/negotiated/stream?LiveStreamId=tuner&level=8&VideoCodec=mpeg2video"}]}`)
+				case "/negotiated/stream":
+					if r.URL.Query().Get("level") != "" || r.URL.Query().Get("LiveStreamId") != "tuner" || r.URL.Query().Get("ApiKey") != "private" {
+						t.Error("wrong negotiated stream")
+					}
+					if mode == "stream-failure" {
+						w.WriteHeader(502)
+						return
+					}
+					fmt.Fprint(w, "video")
+				default:
+					mu.Lock()
+					defer mu.Unlock()
+					events = append(events, r.URL.Path)
+					if r.URL.Path == "/LiveStreams/Close" {
+						if r.URL.Query().Get("LiveStreamId") != "tuner" {
+							t.Error("wrong tuner closed")
+						}
+					} else if strings.HasPrefix(r.URL.Path, "/Sessions/") {
+						var state jellyfin.PlayState
+						json.NewDecoder(r.Body).Decode(&state)
+						states = append(states, state)
+					} else {
+						t.Error("unexpected request (channels must not persist resume state):", r.URL.Path)
+					}
+				}
+			}))
+			defer server.Close()
+			c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{Token: "private"})
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			err := Run(ctx, c, jellyfin.Item{ID: "channel", Type: "TvChannel"}, Options{Player: player, Headless: true}, func(ticks int64) {
+				if ticks != 30000000 {
+					t.Errorf("channel position clamped or resumed: %d", ticks)
+				}
+				if mode == "cancel" {
+					cancel()
+				}
+			})
+			wantFailure := strings.HasSuffix(mode, "failure")
+			if (err != nil) != wantFailure {
+				t.Fatalf("unexpected result: %v", err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(events) < 2 || events[len(events)-2] != "/Sessions/Playing/Stopped" || events[len(events)-1] != "/LiveStreams/Close" {
+				t.Fatal("stream not stopped and closed", events)
+			}
+			for _, state := range states {
+				if state.LiveStreamID != "tuner" || state.MediaSourceID != "source" || state.PlaySessionID != "server-session" || state.CanSeek == nil || *state.CanSeek {
+					t.Fatalf("wrong live state: %+v", state)
+				}
+			}
+			stopped := states[len(states)-1]
+			if stopped.Failed == nil || *stopped.Failed != wantFailure {
+				t.Fatal("incorrect stopped failure state")
+			}
+		})
+	}
+}

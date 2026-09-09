@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Render libmpv video into the Ghostty harness's BGRX frame file.
+
+Media arrives on inherited descriptor 3. libmpv owns audio and presentation
+timing. A dedicated render thread publishes complete frames atomically.
+The FFI declarations follow libmpv's public client.h and render.h APIs.
+"""
+
+import argparse
+import ctypes as C
+import ctypes.util
+import math
+import os
+from pathlib import Path
+import signal
+import tempfile
+import threading
+import time
+
+
+class RenderParam(C.Structure):
+    _fields_ = [("type", C.c_int), ("data", C.c_void_p)]
+
+
+class Event(C.Structure):
+    _fields_ = [("event_id", C.c_int), ("error", C.c_int),
+                ("reply_userdata", C.c_uint64), ("data", C.c_void_p)]
+
+
+class EndFile(C.Structure):
+    _fields_ = [("reason", C.c_int), ("error", C.c_int)]
+
+
+def bind(lib, name, restype, *args):
+    fn = getattr(lib, name)
+    fn.restype, fn.argtypes = restype, args
+    return fn
+
+
+class MPV:
+    def __init__(self):
+        self.lib = C.CDLL(ctypes.util.find_library("mpv") or "libmpv.so.2")
+        self.create = bind(self.lib, "mpv_create", C.c_void_p)
+        self.option = bind(self.lib, "mpv_set_option_string", C.c_int, C.c_void_p, C.c_char_p, C.c_char_p)
+        self.initialize = bind(self.lib, "mpv_initialize", C.c_int, C.c_void_p)
+        self.command = bind(self.lib, "mpv_command", C.c_int, C.c_void_p, C.POINTER(C.c_char_p))
+        self.wait = bind(self.lib, "mpv_wait_event", C.POINTER(Event), C.c_void_p, C.c_double)
+        self.property = bind(self.lib, "mpv_get_property", C.c_int, C.c_void_p, C.c_char_p, C.c_int, C.c_void_p)
+        self.destroy = bind(self.lib, "mpv_terminate_destroy", None, C.c_void_p)
+        self.render_create = bind(self.lib, "mpv_render_context_create", C.c_int, C.POINTER(C.c_void_p), C.c_void_p, C.POINTER(RenderParam))
+        self.callback_type = C.CFUNCTYPE(None, C.c_void_p)
+        self.callback = bind(self.lib, "mpv_render_context_set_update_callback", None, C.c_void_p, self.callback_type, C.c_void_p)
+        self.update = bind(self.lib, "mpv_render_context_update", C.c_uint64, C.c_void_p)
+        self.render = bind(self.lib, "mpv_render_context_render", C.c_int, C.c_void_p, C.POINTER(RenderParam))
+        self.free = bind(self.lib, "mpv_render_context_free", None, C.c_void_p)
+
+    def send(self, handle, *args):
+        values = (C.c_char_p * (len(args) + 1))(*(arg.encode() for arg in args), None)
+        return self.command(handle, values)
+
+
+def publish_frame(output, source, width, height):
+    # Render at square-pixel 4:3, then sample the logical CRT rows. This keeps
+    # both the source aspect ratio and the harness's tall-pixel correction.
+    row_bytes = width * 4
+    frame = b"".join(source[(y * 480 // height) * row_bytes:
+                            (y * 480 // height + 1) * row_bytes] for y in range(height))
+    fd, path = tempfile.mkstemp(prefix=".video-frame-", dir=output.parent)
+    try:
+        with os.fdopen(fd, "wb") as target:
+            target.write(frame)
+        os.replace(path, output)
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def play(output, width, height, audio="auto"):
+    mpv = MPV()
+    handle = mpv.create()
+    if not handle:
+        raise RuntimeError("cannot create libmpv player")
+    ready, stop, wake = threading.Event(), threading.Event(), threading.Event()
+    errors = []
+    frames = [0]
+    worker = None
+
+    def render_video():
+        context = C.c_void_p()
+        try:
+            api = C.create_string_buffer(b"sw")
+            params = (RenderParam * 2)(RenderParam(1, C.addressof(api)), RenderParam(0, None))
+            if mpv.render_create(C.byref(context), handle, params) < 0:
+                raise RuntimeError("cannot create software video renderer")
+            callback = mpv.callback_type(lambda _: wake.set())
+            mpv.callback(context, callback, None)
+            size = (C.c_int * 2)(width, 480)
+            stride = C.c_size_t(width * 4)
+            storage = C.create_string_buffer(width * 480 * 4 + 63)
+            pointer = (C.addressof(storage) + 63) & ~63
+            pixels = (C.c_ubyte * (width * 480 * 4)).from_address(pointer)
+            format_name = C.create_string_buffer(b"bgr0")
+            params = (RenderParam * 5)(
+                RenderParam(17, C.addressof(size)), RenderParam(18, C.addressof(format_name)),
+                RenderParam(19, C.addressof(stride)), RenderParam(20, pointer), RenderParam(0, None))
+            ready.set()
+            while not stop.is_set():
+                wake.wait(0.1)
+                wake.clear()
+                if mpv.update(context) & 1:
+                    if mpv.render(context, params) < 0:
+                        raise RuntimeError("video frame rendering failed")
+                    publish_frame(output, bytes(pixels), width, height)
+                    frames[0] += 1
+        except Exception as error:
+            errors.append(error)
+            ready.set()
+            stop.set()
+        finally:
+            if context.value:
+                mpv.free(context)
+
+    previous = {}
+    try:
+        for key, value in {"config": "no", "terminal": "no", "msg-level": "all=no",
+                           "vo": "libmpv", "idle": "yes", "hwdec": "no",
+                           "input-default-bindings": "no", "input-terminal": "no",
+                           "volume": "71"}.items():
+            if mpv.option(handle, key.encode(), value.encode()) < 0:
+                raise RuntimeError("unsupported video player option")
+        if audio != "auto" and mpv.option(handle, b"ao", audio.encode()) < 0:
+            raise RuntimeError("unsupported audio output")
+        if mpv.initialize(handle) < 0:
+            raise RuntimeError("cannot initialize libmpv")
+        worker = threading.Thread(target=render_video, name="video-render")
+        worker.start()
+        if not ready.wait(5) or errors:
+            raise RuntimeError("video renderer did not initialize")
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            previous[sig] = signal.signal(sig, lambda *_: stop.set())
+        if mpv.send(handle, "loadfile", "fd://3", "replace") < 0:
+            raise RuntimeError("cannot open media pipe")
+        next_report = 0.0
+        while not stop.is_set():
+            event = mpv.wait(handle, 0.05).contents
+            if event.event_id == 7:  # MPV_EVENT_END_FILE
+                end = C.cast(event.data, C.POINTER(EndFile)).contents
+                if end.reason == 4 or end.error < 0:
+                    raise RuntimeError("video decoding failed")
+                break
+            now = time.monotonic()
+            if frames[0] and now >= next_report:
+                position = C.c_double()
+                if mpv.property(handle, b"time-pos", 5, C.byref(position)) >= 0 and math.isfinite(position.value):
+                    print(f"ANS_TIME_POSITION={max(0, position.value):.3f}", flush=True)
+                next_report = now + 0.25
+        if errors:
+            raise RuntimeError("video renderer failed")
+        if not frames[0] and not stop.is_set():
+            raise RuntimeError("no video frames decoded")
+    finally:
+        # Stop media and free the render context before destroying the core.
+        mpv.send(handle, "stop")
+        stop.set()
+        wake.set()
+        if worker:
+            worker.join()
+        mpv.destroy(handle)
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--width", type=int, default=640)
+    parser.add_argument("--height", type=int, choices=(240, 288), default=240)
+    parser.add_argument("--audio", default="auto")
+    args = parser.parse_args()
+    if args.check:
+        MPV()
+        print("libmpv software rendering API is available")
+        return
+    if args.output is None or args.width != 640:
+        parser.error("--output and a 640-pixel framebuffer are required")
+    play(args.output, args.width, args.height, args.audio)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, RuntimeError):
+        # Never forward libmpv's media diagnostics, which can include metadata.
+        raise SystemExit("Terminal video failed. Check libmpv and audio availability.")

@@ -28,6 +28,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("mock_jellyfin", ROOT / "tools/mock-jellyfin.py")
         mock = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mock)
+        mock.ITEMS.update({channel["Id"]: channel for channel in mock.LIVE_CHANNELS})
         self.requests = []
         self.reports = []
         self.delay_items = False
@@ -54,8 +55,17 @@ class BrowseIntegrationTests(unittest.TestCase):
 
             def do_POST(self):
                 length = int(self.headers.get("Content-Length", "0"))
-                body = json.loads(self.rfile.read(length))
+                body = json.loads(self.rfile.read(length)) if length else {}
                 test.reports.append((urlparse(self.path).path, body))
+                if urlparse(self.path).path.endswith("/PlaybackInfo"):
+                    payload = json.dumps({"PlaySessionId": "live-session", "MediaSources": [{
+                        "Id": "live-source", "LiveStreamId": "live-tuner",
+                        "TranscodingUrl": "/Videos/channel-2-1/stream.ts?LiveStreamId=live-tuner"}]}).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
                 self.send_response(204)
                 self.end_headers()
 
@@ -71,6 +81,16 @@ class BrowseIntegrationTests(unittest.TestCase):
         player = self.directory / "test-player"
         player.write_text("#!/bin/sh\nprintf 'ANS_TIME_POSITION=2\\n'\nsleep 30\n")
         player.chmod(0o700)
+        player_args = ["-player", str(player)]
+        if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
+            player.write_text("import argparse, pathlib, time\n"
+                              "p=argparse.ArgumentParser()\n"
+                              "for name in ('output','width','height'): p.add_argument('--'+name)\n"
+                              "a=p.parse_args()\n"
+                              "pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
+                              "print('ANS_TIME_POSITION=2',flush=True)\n"
+                              "time.sleep(30)\n")
+            player_args = ["-terminal-player", str(player)]
         master, slave = pty.openpty()
         self.master = master
         self.addCleanup(os.close, master)
@@ -83,7 +103,7 @@ class BrowseIntegrationTests(unittest.TestCase):
 
         self.process = subprocess.Popen(
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
-             "-config", str(config), "-state-dir", str(self.directory / "state"), "-player", str(player)],
+             "-config", str(config), "-state-dir", str(self.directory / "state")] + player_args,
             stdin=slave, stdout=self.log, stderr=self.log, preexec_fn=terminal_session,
         )
         os.close(slave)
@@ -153,12 +173,17 @@ class BrowseIntegrationTests(unittest.TestCase):
         while not any(path == "/Sessions/Playing" for path, _ in self.reports):
             self.assertLess(time.monotonic(), deadline, "no playback start")
             time.sleep(0.02)
+        if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
+            time.sleep(0.3)
+            self.assertEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
         self.key(b"a")
         while not any(path == "/Sessions/Playing/Stopped" for path, _ in self.reports):
             self.assertLess(time.monotonic(), deadline, "no playback stop")
             time.sleep(0.02)
         time.sleep(0.3)
         self.assertIsNone(self.process.poll())
+        if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
+            self.assertNotEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
         starts = [body for path, body in self.reports if path == "/Sessions/Playing"]
         stops = [body for path, body in self.reports if path == "/Sessions/Playing/Stopped"]
         self.assertEqual(starts[0]["PlaySessionId"], stops[0]["PlaySessionId"])
@@ -169,6 +194,9 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"\x1b[Cb")
         self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
 
+    def test_inline_playback_owns_frame_until_stop(self):
+        self.test_playback_stop_returns_to_details()
+
     def test_live_tv_uses_channels_endpoint(self):
         self.key(b"\x1b[C\x1b[C\x1b[Cb")
         params = self.wait_request("/LiveTv/Channels", StartIndex=0, Limit=64)
@@ -176,6 +204,24 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertNotIn("SortBy", params)
         self.assertFalse(any(parse_qs(urlparse(r).query).get("ParentId") == ["view-live-tv"]
                              for r in self.requests))
+
+    def test_live_tv_playback_releases_tuner(self):
+        self.key(b"\x1b[C\x1b[C\x1b[Cb")
+        self.wait_request("/LiveTv/Channels", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/channel-2-1")
+        self.key(b"b")
+        self.wait_request("/Videos/channel-2-1/stream.ts")
+        self.key(b"a")
+        deadline = time.monotonic() + 5
+        while not any(path == "/LiveStreams/Close" for path, _ in self.reports):
+            self.assertLess(time.monotonic(), deadline, "tuner was not released")
+            time.sleep(0.02)
+        self.assertFalse(any("/UserData" in path for path, _ in self.reports))
+        stopped = [body for path, body in self.reports if path == "/Sessions/Playing/Stopped"]
+        self.assertEqual(stopped[0]["LiveStreamId"], "live-tuner")
+        self.assertFalse(stopped[0]["CanSeek"])
+        self.assertIsNone(self.process.poll())
 
     def test_back_cancels_delayed_library(self):
         self.delay_items = True

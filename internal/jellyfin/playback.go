@@ -33,7 +33,12 @@ func NewPlaySessionID() (string, error) {
 // OpenVideo keeps HTTP and TLS in Go. Players receive only an anonymous pipe.
 // Unlike JSON requests, media has no body-size or total-duration limit.
 func (c *Client) OpenVideo(ctx context.Context, itemID, sessionID string, start int64, ntsc bool) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.VideoStreamURL(itemID, sessionID, start, ntsc), nil)
+	return c.OpenStream(ctx, c.VideoStreamURL(itemID, sessionID, start, ntsc))
+}
+
+// OpenStream accepts a private URL produced by VideoStreamURL or OpenLive.
+func (c *Client) OpenStream(ctx context.Context, streamURL string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", streamURL, nil)
 	if err != nil {
 		return nil, errors.New("cannot create video request")
 	}
@@ -62,6 +67,10 @@ func (c *Client) OpenVideo(ctx context.Context, itemID, sessionID string, start 
 type PlayState struct {
 	ItemID        string `json:"ItemId"`
 	PlaySessionID string `json:"PlaySessionId"`
+	MediaSourceID string `json:"MediaSourceId,omitempty"`
+	LiveStreamID  string `json:"LiveStreamId,omitempty"`
+	CanSeek       *bool  `json:",omitempty"`
+	Failed        *bool  `json:",omitempty"`
 	PositionTicks int64
 	IsPaused      bool
 	PlayMethod    string

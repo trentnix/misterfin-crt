@@ -197,14 +197,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--fps",
         type=float,
-        default=DEFAULT_FPS,
-        help=f"maximum terminal presentation rate (default: {DEFAULT_FPS:g})",
+        default=None,
+        help=f"maximum terminal presentation rate (default: {DEFAULT_FPS:g}, or 30 with --inline-video)",
     )
     parser.add_argument(
         "--go",
         action="store_true",
         help="run the Go prototype (test frame unless --browse or --demo is selected)",
     )
+    parser.add_argument("--inline-video", action="store_true", help="play video inside Ghostty using libmpv (requires --browse)")
     parser.add_argument("--browse", action="store_true", help="browse Jellyfin with the Go client")
     parser.add_argument("--demo", action="store_true", help="browse a local mock server with the Go client")
     parser.add_argument("--config", type=Path, help="Go Jellyfin configuration path")
@@ -227,6 +228,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="run even when TERM does not identify Ghostty",
     )
     args = parser.parse_args(argv)
+    if args.fps is None:
+        args.fps = 30 if args.inline_video else DEFAULT_FPS
+    if args.inline_video and (not args.browse or args.demo):
+        parser.error("--inline-video requires --browse with a real Jellyfin server")
     if args.fps <= 0:
         parser.error("--fps must be greater than zero")
     if args.demo:
@@ -270,12 +275,12 @@ def start_demo(directory: Path, cleanup: ExitStack) -> Path:
     return config
 
 
-def stop_process(process: subprocess.Popen[bytes]) -> None:
+def stop_process(process: subprocess.Popen[bytes], timeout: float = 2) -> None:
     if process.poll() is not None:
         return
     process.terminate()
     try:
-        process.wait(timeout=2)
+        process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
@@ -340,6 +345,8 @@ def run(args: argparse.Namespace) -> int:
             command = [str(binary)]
             if args.browse:
                 command.append("-browse")
+                if args.inline_video:
+                    command += ["-terminal-player", str(Path(__file__).with_name("video_player.py").resolve())]
                 config, state_dir = args.config, args.state_dir
                 if args.demo:
                     config = start_demo(Path(temp_dir), cleanup)
@@ -379,7 +386,8 @@ def run(args: argparse.Namespace) -> int:
                         next_frame_at = time.monotonic() + frame_interval
                 finally:
                     if process is not None:
-                        stop_process(process)
+                        # Allow Go to finish bounded Live TV negotiation and tuner cleanup.
+                        stop_process(process, timeout=30 if args.browse else 2)
                     presenter.leave()
     finally:
         for signum, handler in previous_handlers.items():
