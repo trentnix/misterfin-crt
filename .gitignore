@@ -16,3 +16,4 @@ local-preview.png
 # directly for a per-file warning check (CFLAGS_ARM carries no -Wall, so that
 # is worth doing), and they are trivially easy to sweep up with `git add -A`.
 *.o
+/build/

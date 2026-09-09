@@ -10,6 +10,20 @@ python3 tools/ghostty/ghostty_harness.py --ntsc
 
 Use `--pal` for the 640x288 layout. PAL is the default. The helper builds the host binary before launch. Pass `--no-build` to use the existing binary.
 
+## Go prototype
+
+To build and view the Go prototype, run:
+
+```bash
+python3 tools/ghostty/ghostty_harness.py --go --ntsc
+```
+
+Use `--go --pal` for PAL. The prototype displays color bars, a grayscale ramp, and a white border. Press Ctrl+C to exit. The Go prototype has no browsing or controller input yet and needs no Jellyfin configuration. It uses the same C framebuffer adapter as its hardware build, with allocated headless memory in place of `/dev/fb0`.
+
+The default command without `--go` continues to run the C client. The navigation keys and browsing features below apply to that client.
+
+## C client controls
+
 Keys match the desktop harness:
 
 - Arrow keys navigate.

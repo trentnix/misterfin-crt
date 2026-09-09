@@ -197,10 +197,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=f"maximum terminal presentation rate (default: {DEFAULT_FPS:g})",
     )
     parser.add_argument(
+        "--go",
+        action="store_true",
+        help="run the Go test-frame prototype (Ctrl+C exits)",
+    )
+    parser.add_argument(
         "--binary",
         type=Path,
-        default=REPO_ROOT / "misterfin",
-        help="MiSTerFin host binary to run",
+        help="override the selected C or Go host binary",
     )
     parser.add_argument("--no-build", action="store_true", help="do not run make first")
     parser.add_argument(
@@ -217,6 +221,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.fps <= 0:
         parser.error("--fps must be greater than zero")
+    if args.binary is None:
+        args.binary = REPO_ROOT / ("build/misterfin-go" if args.go else "misterfin")
     return args
 
 
@@ -253,7 +259,10 @@ def run(args: argparse.Namespace) -> int:
         return 2
 
     if not args.no_build:
-        completed = subprocess.run(["make", "--no-print-directory"], cwd=REPO_ROOT)
+        build = ["make", "--no-print-directory"]
+        if args.go:
+            build += ["-f", "Makefile.port", "host"]
+        completed = subprocess.run(build, cwd=REPO_ROOT)
         if completed.returncode:
             return completed.returncode
 
@@ -290,7 +299,7 @@ def run(args: argparse.Namespace) -> int:
                 presenter.enter()
                 try:
                     process = subprocess.Popen(
-                        [str(binary)],
+                        [str(binary), "-wait"] if args.go else [str(binary)],
                         cwd=REPO_ROOT,
                         env=env,
                         stdin=None,

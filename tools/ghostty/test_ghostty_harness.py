@@ -32,6 +32,23 @@ class ConversionTests(unittest.TestCase):
             HARNESS.bgrx_to_rgb(b"short", 2, 1)
 
 
+class LaunchOptionsTests(unittest.TestCase):
+    def test_c_client_remains_default(self):
+        args = HARNESS.parse_args([])
+        self.assertFalse(args.go)
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "misterfin")
+
+    def test_go_selects_separate_binary(self):
+        args = HARNESS.parse_args(["--go", "--ntsc"])
+        self.assertTrue(args.go)
+        self.assertTrue(args.ntsc)
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
+
+    def test_explicit_binary_is_preserved(self):
+        args = HARNESS.parse_args(["--go", "--binary", "/tmp/custom-go"])
+        self.assertEqual(args.binary, Path("/tmp/custom-go"))
+
+
 class ProtocolTests(unittest.TestCase):
     def test_empty_command_has_no_continuation_field(self):
         chunks = list(HARNESS.kitty_chunks("a=d,d=i,i=1"))
