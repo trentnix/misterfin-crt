@@ -19,7 +19,7 @@ import tempfile
 import termios
 import time
 import threading
-from http.server import HTTPServer
+from http.server import ThreadingHTTPServer
 from typing import BinaryIO, Iterable
 
 
@@ -259,7 +259,7 @@ def start_demo(directory: Path, cleanup: ExitStack) -> Path:
             except (BrokenPipeError, ConnectionResetError):
                 pass  # Navigating away can cancel an in-flight artwork request.
 
-    server = HTTPServer(("127.0.0.1", 0), QuietHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), QuietHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     cleanup.callback(server.server_close)

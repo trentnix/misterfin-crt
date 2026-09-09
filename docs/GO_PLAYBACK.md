@@ -22,7 +22,7 @@ Go owns HTTP and TLS. It sends media through an anonymous pipe to the player. Pl
 
 The client reports session start after receiving player position feedback, then sends progress every ten seconds. It also persists the per-user resume position through the C client's user-data endpoint. Stopping cancels the stream, terminates the player process group, reaps the player, and sends a stopped report. A successful exit near the known end of the item marks it watched and clears its resume position. Canceling playback does not newly mark an item watched. Startup failure does not overwrite its resume position. Cleanup reports have a five-second deadline and are best effort if the server is unavailable.
 
-After playback ends, the browser reloads the details and artwork. Metadata and playback failures return to the browser with an error message.
+After playback ends, the browser refreshes the details and reuses cached artwork when its image tags are unchanged. Metadata and playback failures return to the browser with an error message.
 
 ## MiSTer use and remaining work
 

@@ -18,8 +18,7 @@ type result struct {
 	client   *jellyfin.Client
 	code     string
 	auth     bool
-	artwork  Artwork
-	detail   *jellyfin.Item
+	update   artUpdate
 	imageID  int
 	art      bool
 	playback bool
@@ -58,12 +57,17 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	var artCancel context.CancelFunc = func() {}
 	defer func() { artCancel() }()
 	var art Artwork
-	cache := make(map[string]Artwork)
+	var artwork *artworkLoader
 	selectedKey := ""
 	artError := ""
 	imageID := 0
 	authenticate := func() {
 		workCancel()
+		artCancel()
+		imageID++
+		art = Artwork{}
+		artError = ""
+		selectedKey = ""
 		authGeneration++
 		generation := authGeneration
 		work, stop := context.WithCancel(ctx)
@@ -129,59 +133,17 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		if item == nil || client == nil {
 			return
 		}
-		if cached, ok := cache[key]; ok && !detail {
-			art = cached
-			return
-		}
-
+		art = artwork.snapshot(*item, root)
 		selected := *item
 		generation := imageID
 		work, stop := context.WithCancel(ctx)
 		artCancel = stop
-		jf := client
-		go func() {
-			timer := time.NewTimer(120 * time.Millisecond)
-			defer timer.Stop()
-			select {
-			case <-work.Done():
-				return
-			case <-timer.C:
-			}
-			var bundle Artwork
-			var metadata *jellyfin.Item
-			var err error
-			if root {
-				bundle.Count, err = jf.LibraryCount(work, selected)
-				page, e := jf.Mosaic(work, selected)
-				err = errors.Join(err, e)
-				for _, item := range page.Items {
-					if work.Err() != nil {
-						return
-					}
-					im, e := jf.Image(work, item)
-					if e == nil && im != nil {
-						bundle.Covers = append(bundle.Covers, im)
-					}
-				}
-			} else {
-				if detail {
-					updated, e := jf.Details(work, selected.ID)
-					if e == nil {
-						selected = updated
-						metadata = &updated
-					} else {
-						err = e
-					}
-				}
-				bundle.Primary, _ = jf.Image(work, selected)
-				bundle.Backdrop, _ = jf.ImageKind(work, selected, "Backdrop")
-				if detail {
-					bundle.Logo, _ = jf.ImageKind(work, selected, "Logo")
-				}
-			}
-			send(work, result{art: true, imageID: generation, artwork: bundle, detail: metadata, err: err})
-		}()
+		loader := artwork
+		go loader.load(work, selected, root, detail, func(update artUpdate) {
+			send(work, result{art: true, imageID: generation, update: update})
+		})
 	}
+
 	geometry := d.Geometry()
 	m.Rows = visibleRows(geometry.Width, geometry.Height)
 	start := time.Now()
@@ -268,7 +230,9 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					continue
 				}
 				if key == "retry" {
-					delete(cache, selectedKey)
+					if item := m.Current().Item(); item != nil {
+						artwork.forget(*item)
+					}
 					selectedKey = ""
 				}
 				before := m.Generation
@@ -287,7 +251,6 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				playing = false
 				playCancel()
 				m.Notice = ""
-				clear(cache)
 				selectedKey = ""
 				loadArt()
 				if r.err != nil {
@@ -306,7 +269,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					m = New()
 					m.Rows = visibleRows(geometry.Width, geometry.Height)
 					selectedKey = ""
-					clear(cache)
+					artwork = newArtworkLoader(client)
 					status = ""
 					load(m.Load(0))
 				}
@@ -314,21 +277,26 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				if r.imageID != imageID {
 					continue
 				}
-				if jellyfin.Rejected(r.err) {
+				if jellyfin.Rejected(r.update.err) {
 					status = "Session rejected. Press R to sign in again."
 					continue
 				}
-				art = r.artwork
-				if len(cache) >= 16 {
-					clear(cache)
+				if r.update.err != nil {
+					switch r.update.kind {
+					case "detail":
+						artError = "Details unavailable. R:retry"
+					case "count":
+						artError = "Library count unavailable. R:retry"
+					default:
+						artError = "Artwork unavailable. R:retry"
+					}
+				} else {
+					applyArtwork(&art, r.update)
+					if r.update.kind == "detail" && m.Current().Detail != nil {
+						m.Current().Detail = r.update.detail
+					}
 				}
-				cache[selectedKey] = art
-				if r.detail != nil && m.Current().Detail != nil {
-					m.Current().Detail = r.detail
-				}
-				if r.err != nil {
-					artError = "Artwork or details unavailable. R:retry"
-				}
+
 			} else if m.Apply(r.request, r.page, r.err) {
 				if jellyfin.Rejected(r.err) {
 					artCancel()
