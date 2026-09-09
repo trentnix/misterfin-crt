@@ -33,7 +33,9 @@ Go browser controls:
 - Up and Down select an item.
 - B, Enter, or X opens a library, folder, or item summary.
 - A, Escape, Backspace, or Z goes back or cancels loading.
-- Left and Right, or Page Up and Page Down, change pages of 64 items.
+- Left and Right move between home cards. In lists, Left and Right or Page Up and Page Down jump one screen.
+- Tab (SELECT) toggles the home carousel and library list.
+- Back at home opens an exit confirmation. B confirms and A cancels.
 - R retries a failed request or sign-in.
 - Q or Ctrl+C exits.
 

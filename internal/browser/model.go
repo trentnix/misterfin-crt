@@ -13,6 +13,7 @@ type View struct {
 	Location                      jellyfin.Location
 	Page                          jellyfin.Page
 	Start, Selected, PendingStart int
+	Scroll, Target                int
 	Loading                       bool
 	Error                         string
 	Detail                        *jellyfin.Item
@@ -23,12 +24,15 @@ type Request struct {
 	Start      int
 }
 type Model struct {
-	Stack      []View
-	Generation int
+	Stack                       []View
+	Generation                  int
+	Rows                        int
+	ListMode, ExitConfirm, Quit bool
+	Notice                      string
 }
 
 func New() *Model {
-	return &Model{Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
+	return &Model{Rows: 6, Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
 }
 func (m *Model) Current() *View { return &m.Stack[len(m.Stack)-1] }
 func (m *Model) Load(start int) *Request {
@@ -56,7 +60,8 @@ func (m *Model) Apply(req Request, page jellyfin.Page, err error) bool {
 	}
 	v.Page = page
 	v.Start = req.Start
-	v.Selected = 0
+	v.Selected = min(max(0, v.Target-req.Start), max(0, len(page.Items)-1))
+	v.Scroll = max(0, v.Selected-m.Rows+1)
 	v.Error = ""
 	return true
 }
@@ -77,12 +82,34 @@ func (v *View) Item() *jellyfin.Item {
 }
 func (m *Model) Key(key string) *Request {
 	v := m.Current()
+	if m.Notice != "" {
+		if key == "back" || key == "open" {
+			m.Notice = ""
+		}
+		return nil
+	}
+	if m.ExitConfirm {
+		if key == "open" {
+			m.Quit = true
+		}
+		if key == "back" {
+			m.ExitConfirm = false
+		}
+		return nil
+	}
+	if key == "select" && len(m.Stack) == 1 {
+		m.ListMode = !m.ListMode
+		return nil
+	}
 	if key == "back" {
 		m.Generation++
 		if len(m.Stack) > 1 {
 			m.Stack = m.Stack[:len(m.Stack)-1]
 		} else if v.Loading {
 			v.Error = "Loading canceled. Press R to retry."
+		}
+		if len(m.Stack) == 1 && v == m.Current() && !v.Loading {
+			m.ExitConfirm = true
 		}
 		m.Current().Loading = false
 		return nil
@@ -93,30 +120,44 @@ func (m *Model) Key(key string) *Request {
 		}
 		return m.Load(v.PendingStart)
 	}
+	if v.Detail != nil && key == "open" {
+		m.Notice = "Playback is not available yet.  A:back"
+	}
 	if v.Loading || v.Detail != nil {
 		return nil
 	}
+	if key == "up" || key == "down" || key == "next" || key == "previous" {
+		step := 1
+		if key == "up" || key == "previous" {
+			step = -1
+		}
+		if len(m.Stack) == 1 && !m.ListMode {
+			if key == "up" || key == "down" {
+				return nil
+			}
+		} else if key == "next" || key == "previous" {
+			step *= max(1, m.Rows)
+		}
+		target := max(0, v.Start+v.Selected+step)
+		if v.Page.TotalRecordCount != nil {
+			target = min(target, max(0, *v.Page.TotalRecordCount-1))
+		} else if !v.More() {
+			target = min(target, v.Start+len(v.Page.Items)-1)
+		}
+		if target < v.Start || target >= v.Start+len(v.Page.Items) {
+			v.Target = target
+			return m.Load(target / PageSize * PageSize)
+		}
+		v.Selected = max(0, target-v.Start)
+		if v.Selected < v.Scroll {
+			v.Scroll = v.Selected
+		}
+		if v.Selected >= v.Scroll+max(1, m.Rows) {
+			v.Scroll = v.Selected - max(1, m.Rows) + 1
+		}
+		return nil
+	}
 	switch key {
-	case "down":
-		if v.Selected+1 < len(v.Page.Items) {
-			v.Selected++
-		} else if v.More() {
-			return m.Load(v.Start + len(v.Page.Items))
-		}
-	case "up":
-		if v.Selected > 0 {
-			v.Selected--
-		} else if v.Start > 0 {
-			return m.Load(max(0, v.Start-PageSize))
-		}
-	case "next":
-		if v.More() {
-			return m.Load(v.Start + len(v.Page.Items))
-		}
-	case "previous":
-		if v.Start > 0 {
-			return m.Load(max(0, v.Start-PageSize))
-		}
 	case "open":
 		item := v.Item()
 		if item == nil {
@@ -133,10 +174,13 @@ func (m *Model) Key(key string) *Request {
 			next.Location.Kind = "seasons"
 			next.Location.SeriesID = item.ID
 		case item.Type == "Season":
+			next.Title = v.Title + " / " + item.Name
 			next.Location.Kind = "episodes"
 			if item.SeriesID != "" {
 				next.Location.SeriesID = item.SeriesID
 			}
+		case item.Type == "MusicAlbum":
+			next.Title = v.Title + " / " + item.Name
 		case item.IsFolder || item.Type == "Folder" || item.Type == "PhotoAlbum" || item.Type == "MusicArtist" || item.Type == "MusicAlbum" || item.Type == "BoxSet" || item.Type == "Playlist":
 		default:
 			copy := *item
@@ -161,5 +205,5 @@ func (v *View) Count() string {
 	if v.Page.TotalRecordCount != nil {
 		total = fmt.Sprint(*v.Page.TotalRecordCount)
 	}
-	return fmt.Sprintf("%d / %s", v.Start+v.Selected+1, total)
+	return fmt.Sprintf("%d/%s", v.Start+v.Selected+1, total)
 }

@@ -43,3 +43,17 @@ func TestTextClipsAndSupportsLatin1(t *testing.T) {
 		t.Fatal("Latin-1 glyph missing")
 	}
 }
+
+func TestTransparentArtworkCompositesOverBackground(t *testing.T) {
+	c := New(2, 2)
+	c.Rect(0, 0, 2, 2, 0x0000ff)
+	im := image.NewNRGBA(image.Rect(0, 0, 2, 2))
+	im.SetNRGBA(0, 0, color.NRGBA{R: 255, A: 128})
+	c.Blit(im, 0, 0, 2, 2)
+	if c.Pixels[0] < 126 || c.Pixels[0] > 127 || c.Pixels[2] != 128 {
+		t.Fatalf("blend: %v", c.Pixels[:4])
+	}
+	if c.Pixels[4] != 255 || c.Pixels[6] != 0 {
+		t.Fatal("transparent pixel erased background")
+	}
+}

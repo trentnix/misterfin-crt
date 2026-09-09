@@ -25,7 +25,8 @@ Go stores its device identity and token in `misterfin-go/session.json` under `os
 | Up / Down | Select an item |
 | B / Enter / X | Open library, folder, or item summary |
 | A / Escape / Backspace / Z | Go back or cancel loading |
-| Left / Right or Page Up / Page Down | Previous or next page |
+| Left / Right or Page Up / Page Down | Move between home cards, or jump one screen in lists |
+| Tab (SELECT) | Toggle the home carousel and library list |
 | R | Retry request or sign-in |
 | Q / Ctrl+C | Exit and restore terminal settings |
 
@@ -37,11 +38,15 @@ The original test frame remains available with `--go --ntsc`. The harness's defa
 
 Movies and Music Videos use recursive lists filtered to their item types. Music retains artist, album, and track traversal. Home Videos and Mixed libraries retain folders and omit expensive folder user data. Other collections retain the C query's count fields. Series and seasons use the Jellyfin Shows endpoints. Live TV views returned by the server list channels, but the prototype does not synthesize a missing Live TV root view.
 
-Pages contain 64 items. The server's total count controls further paging when available. Without a count, a full page permits another request. Failed pages preserve the current rows and retry the failed offset. Back navigation preserves the parent's selection. Canceling a request or leaving a view invalidates its generation so a late response cannot replace the current screen. Artwork loads separately with a short selection debounce and its own cancellation token.
+The home screen uses a horizontal library carousel with a dimmed, moving cover mosaic and the selected library's item count. Tab toggles the classic library list without losing selection. Back at home opens the C client's exit confirmation. B confirms exit and A cancels.
+
+Lists use the C font spacing, colors, CRT safe margins, 30-pixel rows, top-aligned covers, and watched/resume metadata. The clock updates while idle. Long headers scroll, and selections animate. Left and Right jump six rows in NTSC or seven rows in PAL. Up and Down scroll one row at a time.
+
+Server pages contain 64 items. The server's total count controls further paging when available. Without a count, a full page permits another request. Failed pages preserve the current rows and retry the failed offset. Back navigation preserves the parent's selection. Canceling a request or leaving a view invalidates its generation so a late response cannot replace the current screen. Artwork loads separately with a short selection debounce and its own cancellation token.
 
 Saved tokens survive network failures, invalid JSON, and server errors. Only an explicit HTTP 401 or 403 triggers replacement Quick Connect authentication. HTTP requests time out after 15 seconds, limit responses to 8 MiB, and reject redirects to another origin. Artwork dimensions are checked before image decoding. Tokens, Quick Connect secrets, and server response bodies are not written to logs. TLS certificates are verified unless the configuration explicitly contains `INSECURE_TLS`.
 
-The UI provides lists, Primary artwork, watched/resume markers, and item summaries. It has no playback, photo viewer, complete metadata screen, search, Continue Watching, Next Up, or controller input. Text supports ASCII and Latin-1. Other characters use a fallback glyph. Artwork is fetched on selection without a persistent cache. These limits keep the initial browsing path reviewable while preserving the C application as the reference.
+Item details fetch the overview, year, rating, runtime, and watched/resume state. The screen uses a fading backdrop and a transparent logo when available. Pressing B displays a notice that playback is not available yet. The UI has no playback, photo viewer, search, Continue Watching, Next Up, or controller input. About, the setup starfield, exact carousel transition timing, and full C feature parity remain pending. Text supports ASCII and Latin-1. Other characters use a fallback glyph. Artwork loads on selection and uses a bounded session cache. The cache does not persist to disk. The C application remains the reference.
 
 ## Validation
 
@@ -57,4 +62,4 @@ The HTTP tests and demo require loopback sockets. A sandbox that prohibits socke
 
 Go tests cover complete collection query parameters, path/query encoding, response validation, cancellation, redirect rejection, saved-token preservation, Quick Connect replacement, server-bound storage, navigation generations, failed-page retries, terminal escape sequences, Latin-1 drawing, and artwork aspect ratio. The browser integration tests run the built Go binary in a pseudoterminal against the inherited mock server and exercise paging across the movie library, Music hierarchy, and Back during delayed loading.
 
-Go tests passed with cgo enabled and disabled. Race tests, `go vet`, 18 Ghostty helper tests, both browser integration tests, and the ARM cross-build passed. Host frames were inspected for libraries, movies, paging, and item summaries. The user confirmed that the demo browser works in Ghostty. Real-server authentication and browsing remain unverified until a server is supplied. Hardware display testing remains deferred because of the previously recorded kernel framebuffer failure. See `docs/GO_BUILD.md` for that first-milestone record.
+Go tests passed with cgo enabled and disabled. Race tests, `go vet`, 18 Ghostty helper tests, both browser integration tests, and the ARM cross-build passed. Host frames were inspected for libraries, movies, paging, and item summaries. The subsequent UX pass adds checks for carousel controls, exit confirmation, backward page crossings, CRT geometry, metadata requests, and transparent artwork. The user confirmed that the demo browser works in Ghostty. Real-server authentication and browsing remain unverified until a server is supplied. Hardware display testing remains deferred because of the previously recorded kernel framebuffer failure. See `docs/GO_BUILD.md` for that first-milestone record.

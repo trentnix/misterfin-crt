@@ -23,8 +23,11 @@ func (c *Canvas) Rect(x, y, w, h int, color uint32) {
 	}
 }
 func (c *Canvas) Text(x, y int, s string, color uint32, maxWidth int) {
+	c.TextScaled(x, y, s, color, maxWidth, 1)
+}
+func (c *Canvas) TextScaled(x, y int, s string, color uint32, maxWidth, scale int) {
 	for _, r := range s {
-		if x+8 > min(c.Width, maxWidth) {
+		if x+8*scale > min(c.Width, maxWidth) {
 			break
 		}
 		if r == '\n' {
@@ -40,19 +43,19 @@ func (c *Canvas) Text(x, y int, s string, color uint32, maxWidth int) {
 		for yy, bits := range glyph {
 			for xx := 0; xx < 8; xx++ {
 				if bits&(1<<xx) != 0 {
-					c.Rect(x+xx, y+yy, 1, 1, color)
+					c.Rect(x+xx*scale, y+yy*scale, scale, scale, color)
 				}
 			}
 		}
-		x += 9
+		x += 8 * scale
 	}
 }
 func (c *Canvas) Wrap(x, y, width, lines int, s string, color uint32) {
 	var line string
 	for _, word := range strings.Fields(s) {
-		if len([]rune(line+word))*9 > width && line != "" {
+		if len([]rune(line+word))*8 > width && line != "" {
 			c.Text(x, y, line, color, x+width)
-			y += 12
+			y += 10
 			lines--
 			line = ""
 			if lines == 0 {
@@ -77,10 +80,32 @@ func (c *Canvas) Image(im image.Image, x, y, w, h int) {
 	dh := max(1, int(float64(b.Dy())*scale/par))
 	x += (w - dw) / 2
 	y += (h - dh) / 2
-	for yy := 0; yy < dh; yy++ {
-		for xx := 0; xx < dw; xx++ {
-			r, g, bb, _ := im.At(b.Min.X+xx*b.Dx()/dw, b.Min.Y+yy*b.Dy()/dh).RGBA()
-			c.Rect(x+xx, y+yy, 1, 1, uint32(r>>8)<<16|uint32(g>>8)<<8|uint32(bb>>8))
+	c.Blit(im, x, y, dw, dh)
+}
+
+// Blit scales the complete image into a box and preserves transparency.
+func (c *Canvas) Blit(im image.Image, x, y, w, h int) {
+	if im == nil || w <= 0 || h <= 0 {
+		return
+	}
+	b := im.Bounds()
+	for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
+		for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
+			r, g, blue, a := im.At(b.Min.X+(xx-x)*b.Dx()/w, b.Min.Y+(yy-y)*b.Dy()/h).RGBA()
+			i := (yy*c.Width + xx) * 4
+			for k, v := range []uint32{blue, g, r} {
+				c.Pixels[i+k] = byte(min(255, (v+uint32(c.Pixels[i+k])*(65535-a)/255)/257))
+			}
+		}
+	}
+}
+func (c *Canvas) Shade(x, y, w, h, alpha int) {
+	for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
+		for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
+			i := (yy*c.Width + xx) * 4
+			for k := 0; k < 3; k++ {
+				c.Pixels[i+k] = byte(int(c.Pixels[i+k]) * (255 - alpha) / 255)
+			}
 		}
 	}
 }

@@ -24,7 +24,12 @@ type Item struct {
 	IsFolder                                       bool
 	ProductionYear                                 int
 	RunTimeTicks                                   int64
+	ChildCount, RecursiveItemCount                 int
+	CommunityRating                                float64
+	BackdropImageTags                              []string
 	ImageTags                                      map[string]string
+	ParentBackdropItemId                           string
+	ParentBackdropImageTags                        []string
 	UserData                                       struct {
 		Played                bool
 		PlaybackPositionTicks int64
@@ -188,11 +193,36 @@ func (c *Client) List(ctx context.Context, loc Location, start, limit int) (Page
 }
 
 func (c *Client) Image(ctx context.Context, item Item) (image.Image, error) {
-	tag := item.ImageTags["Primary"]
+	return c.ImageKind(ctx, item, "Primary")
+}
+func (c *Client) ImageKind(ctx context.Context, item Item, kind string) (image.Image, error) {
+	tag := item.ImageTags[kind]
+	if kind == "Backdrop" && len(item.BackdropImageTags) == 0 && len(item.ParentBackdropImageTags) > 0 {
+		item.ID = item.ParentBackdropItemId
+		item.BackdropImageTags = item.ParentBackdropImageTags
+	}
+	if kind == "Backdrop" && len(item.BackdropImageTags) > 0 {
+		tag = item.BackdropImageTags[0]
+	}
 	if tag == "" {
 		return nil, nil
 	}
-	b, err := c.request(ctx, "GET", "/Items/"+url.PathEscape(item.ID)+"/Images/Primary", url.Values{"tag": {tag}, "maxWidth": {"320"}, "maxHeight": {"320"}, "quality": {"80"}, "format": {"Jpg"}}, nil)
+	format := "Jpg"
+	if kind == "Logo" {
+		format = "Png"
+	}
+	path := kind
+	if kind == "Backdrop" {
+		path += "/0"
+	}
+	width := "320"
+	if kind == "Backdrop" {
+		width = "640"
+	}
+	if kind == "Logo" {
+		width = "480"
+	}
+	b, err := c.request(ctx, "GET", "/Items/"+url.PathEscape(item.ID)+"/Images/"+path, url.Values{"tag": {tag}, "maxWidth": {width}, "maxHeight": {"360"}, "quality": {"80"}, "format": {format}}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +231,23 @@ func (c *Client) Image(ctx context.Context, item Item) (image.Image, error) {
 		return nil, errors.New("invalid or oversized artwork")
 	}
 	im, _, err := image.Decode(bytes.NewReader(b))
-	return im, err
+	if err != nil {
+		return nil, err
+	}
+	// Bound cached pixels even when a server ignores the requested dimensions.
+	maxWidth, _ := strconv.Atoi(width)
+	scale := min(1.0, min(float64(maxWidth)/float64(conf.Width), 360.0/float64(conf.Height)))
+	if scale < 1 {
+		resized := image.NewRGBA(image.Rect(0, 0, max(1, int(float64(conf.Width)*scale)), max(1, int(float64(conf.Height)*scale))))
+		bounds := im.Bounds()
+		for y := 0; y < resized.Bounds().Dy(); y++ {
+			for x := 0; x < resized.Bounds().Dx(); x++ {
+				resized.Set(x, y, im.At(bounds.Min.X+x*bounds.Dx()/resized.Bounds().Dx(), bounds.Min.Y+y*bounds.Dy()/resized.Bounds().Dy()))
+			}
+		}
+		im = resized
+	}
+	return im, nil
 }
 
 // Authenticate preserves saved tokens on temporary failures. Only an explicit
@@ -289,4 +335,27 @@ func (c *Client) Authenticate(ctx context.Context, dir string, showCode func(str
 		}
 		return nil
 	}
+}
+
+func (c *Client) Details(ctx context.Context, id string) (Item, error) {
+	var item Item
+	err := c.json(ctx, "GET", "/Items/"+url.PathEscape(id), url.Values{"userId": {c.Session.UserID}, "Fields": {"Overview,ProductionYear,RunTimeTicks,CommunityRating"}, "EnableUserData": {"true"}, "EnableImageTypes": {"Primary,Logo,Backdrop"}}, nil, &item)
+	if err == nil && item.ID != id {
+		err = errors.New("invalid item details")
+	}
+	return item, err
+}
+func (c *Client) Mosaic(ctx context.Context, item Item) (Page, error) {
+	q := url.Values{"userId": {c.Session.UserID}, "ParentId": {item.ID}, "Recursive": {"true"}, "Limit": {"12"}, "EnableImages": {"true"}, "ImageTypeLimit": {"1"}, "EnableImageTypes": {"Primary"}}
+	kind := map[string]string{"movies": "Movie", "tvshows": "Series", "music": "MusicAlbum", "musicvideos": "MusicVideo", "homevideos": "Video,Photo", "mixed": "Movie,Series,Video,MusicVideo,Audio,Photo"}[item.CollectionType]
+	if kind == "" {
+		return Page{}, nil
+	}
+	q.Set("IncludeItemTypes", kind)
+	var page Page
+	err := c.json(ctx, "GET", "/Items", q, nil, &page)
+	if len(page.Items) > 12 {
+		page.Items = page.Items[:12]
+	}
+	return page, err
 }

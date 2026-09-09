@@ -104,12 +104,17 @@ class BrowseIntegrationTests(unittest.TestCase):
     def test_movie_paging_and_music_hierarchy(self):
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        jumps = 0
         for offset in range(64, 449, 64):
-            self.key(b"\x1b[C")
+            needed = (offset + 5) // 6
+            for _ in range(needed - jumps):
+                self.key(b"\x1b[C")
+                time.sleep(0.06)
             self.wait_request("/Items", ParentId="view-movies", StartIndex=offset)
+            jumps = needed
         self.key(b"a")
         time.sleep(0.1)
-        self.key(b"\x1b[B\x1b[Bb")
+        self.key(b"\x1b[C\x1b[Cb")
         self.wait_request("/Items", ParentId="view-music")
         self.key(b"b")
         self.wait_request("/Items", ParentId="artist-000")
@@ -125,7 +130,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items", ParentId="view-movies")
         self.key(b"a")
         time.sleep(0.5)  # Give the obsolete request time to finish.
-        self.key(b"\x1b[Bb")
+        self.key(b"\x1b[Cb")
         self.wait_request("/Items", ParentId="view-tv")
         time.sleep(0.4)
         self.key(b"b")

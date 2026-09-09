@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
-	"image"
+	"math"
 	"misterfin-go/internal/jellyfin"
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/terminal"
@@ -17,7 +17,8 @@ type result struct {
 	client  *jellyfin.Client
 	code    string
 	auth    bool
-	image   image.Image
+	artwork Artwork
+	detail  *jellyfin.Item
 	imageID int
 	art     bool
 }
@@ -45,7 +46,9 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 	defer func() { workCancel() }()
 	var artCancel context.CancelFunc = func() {}
 	defer func() { artCancel() }()
-	var art image.Image
+	var art Artwork
+	cache := make(map[string]Artwork)
+	selectedKey := ""
 	artError := ""
 	imageID := 0
 	authenticate := func() {
@@ -85,14 +88,35 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 		}()
 	}
 	loadArt := func() {
-		artCancel()
-		imageID++
-		art = nil
-		artError = ""
 		item := m.Current().Item()
-		if item == nil || item.ImageTags["Primary"] == "" || client == nil {
+		key := ""
+		root := len(m.Stack) == 1
+		detail := m.Current().Detail != nil
+		if item != nil {
+			key = item.ID
+			if root {
+				key = "root:" + key
+			}
+			if detail {
+				key = "detail:" + key
+			}
+		}
+		if key == selectedKey {
 			return
 		}
+		selectedKey = key
+		artCancel()
+		imageID++
+		art = Artwork{}
+		artError = ""
+		if item == nil || client == nil {
+			return
+		}
+		if cached, ok := cache[key]; ok && !detail {
+			art = cached
+			return
+		}
+
 		selected := *item
 		generation := imageID
 		work, stop := context.WithCancel(ctx)
@@ -106,18 +130,70 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 				return
 			case <-timer.C:
 			}
-			im, err := jf.Image(work, selected)
-			send(work, result{art: true, imageID: generation, image: im, err: err})
+			var bundle Artwork
+			var metadata *jellyfin.Item
+			var err error
+			if root {
+				page, e := jf.Mosaic(work, selected)
+				err = e
+				bundle.Count = page.TotalRecordCount
+				for _, item := range page.Items {
+					if work.Err() != nil {
+						return
+					}
+					im, e := jf.Image(work, item)
+					if e == nil && im != nil {
+						bundle.Covers = append(bundle.Covers, im)
+					}
+				}
+			} else {
+				if detail {
+					updated, e := jf.Details(work, selected.ID)
+					if e == nil {
+						selected = updated
+						metadata = &updated
+					} else {
+						err = e
+					}
+				}
+				bundle.Primary, _ = jf.Image(work, selected)
+				bundle.Backdrop, _ = jf.ImageKind(work, selected, "Backdrop")
+				if detail {
+					bundle.Logo, _ = jf.ImageKind(work, selected, "Logo")
+				}
+			}
+			send(work, result{art: true, imageID: generation, artwork: bundle, detail: metadata, err: err})
 		}()
 	}
 	geometry := d.Geometry()
-	draw := func() error { return d.Present(Render(geometry.Width, geometry.Height, m, status, art, artError)) }
+	m.Rows = visibleRows(geometry.Width, geometry.Height)
+	start := time.Now()
+	last := start
+	anim := Animation{}
+	ticker := time.NewTicker(time.Second / 30)
+	defer ticker.Stop()
+	draw := func() error {
+		now := time.Now()
+		dt := min(now.Sub(last).Seconds(), 0.05)
+		last = now
+		anim.Seconds = now.Sub(start).Seconds()
+		target := float64(m.Current().Selected)
+		row := float64(m.Current().Selected - m.Current().Scroll)
+		anim.Selection += (target - anim.Selection) * (1 - math.Exp(-dt/0.035))
+		if math.Abs(row-anim.Row) > float64(m.Rows) {
+			anim.Row = row
+		} else {
+			anim.Row += (row - anim.Row) * (1 - math.Exp(-dt/0.055))
+		}
+		return d.Present(render(geometry.Width, geometry.Height, m, status, art, artError, anim, now))
+	}
 	authenticate()
 	if err := draw(); err != nil {
 		return err
 	}
 	for {
 		select {
+		case <-ticker.C:
 		case <-ctx.Done():
 			return nil
 		case key, ok := <-keys:
@@ -131,12 +207,22 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 				return nil
 			}
 			if status != "" {
-				if key == "retry" {
+				if key == "back" {
+					return nil
+				}
+				if key == "retry" || key == "open" {
 					authenticate()
 				}
 			} else {
+				if key == "retry" {
+					delete(cache, selectedKey)
+					selectedKey = ""
+				}
 				before := m.Generation
 				req := m.Key(key)
+				if m.Quit {
+					return nil
+				}
 				if m.Generation != before {
 					workCancel()
 				}
@@ -155,6 +241,9 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 				} else {
 					client = r.client
 					m = New()
+					m.Rows = visibleRows(geometry.Width, geometry.Height)
+					selectedKey = ""
+					clear(cache)
 					status = ""
 					load(m.Load(0))
 				}
@@ -162,9 +251,20 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 				if r.imageID != imageID {
 					continue
 				}
-				art = r.image
+				if jellyfin.Rejected(r.err) {
+					status = "Session rejected. Press R to sign in again."
+					continue
+				}
+				art = r.artwork
+				if len(cache) >= 16 {
+					clear(cache)
+				}
+				cache[selectedKey] = art
+				if r.detail != nil && m.Current().Detail != nil {
+					m.Current().Detail = r.detail
+				}
 				if r.err != nil {
-					artError = "Artwork unavailable"
+					artError = "Artwork or details unavailable. R:retry"
 				}
 			} else if m.Apply(r.request, r.page, r.err) {
 				if jellyfin.Rejected(r.err) {

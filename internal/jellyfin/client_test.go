@@ -185,3 +185,36 @@ func TestConfigAndServerBinding(t *testing.T) {
 		}
 	}
 }
+
+func TestDetailsAndMosaicRequests(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("userId") != "viewer" {
+			t.Error("missing user context")
+		}
+		switch r.URL.Path {
+		case "/Items/movie":
+			if q.Get("EnableUserData") != "true" || q.Get("EnableImageTypes") != "Primary,Logo,Backdrop" || !strings.Contains(q.Get("Fields"), "Overview") {
+				t.Errorf("details query: %v", q)
+			}
+			fmt.Fprint(w, `{"Id":"movie","Overview":"Description","CommunityRating":8.2,"BackdropImageTags":["backdrop"]}`)
+		case "/Items":
+			if q.Get("IncludeItemTypes") != "MusicAlbum" || q.Get("Recursive") != "true" || q.Get("Limit") != "12" || q.Get("ParentId") != "music" {
+				t.Errorf("mosaic query: %v", q)
+			}
+			fmt.Fprint(w, `{"Items":[],"TotalRecordCount":120}`)
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer s.Close()
+	c := NewClient(Config{Server: s.URL}, Session{UserID: "viewer"})
+	item, err := c.Details(context.Background(), "movie")
+	if err != nil || item.Overview != "Description" || item.CommunityRating != 8.2 {
+		t.Fatalf("details: %+v %v", item, err)
+	}
+	page, err := c.Mosaic(context.Background(), Item{ID: "music", CollectionType: "music"})
+	if err != nil || page.TotalRecordCount == nil || *page.TotalRecordCount != 120 {
+		t.Fatalf("mosaic: %+v %v", page, err)
+	}
+}
