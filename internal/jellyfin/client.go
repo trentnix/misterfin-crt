@@ -32,7 +32,11 @@ type Item struct {
 	ParentBackdropImageTags                        []string
 	Number, ChannelNumber                          string
 	CurrentProgram                                 struct{ Name string }
-	UserData                                       struct {
+	MediaStreams                                   []struct {
+		Type, AspectRatio string
+		Width, Height     int
+	}
+	UserData struct {
 		Played                bool
 		PlaybackPositionTicks int64
 	}

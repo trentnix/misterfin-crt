@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"misterfin-go/internal/browser"
 	"misterfin-go/internal/platform"
+	"misterfin-go/internal/playback"
 	"misterfin-go/internal/testframe"
 	"os"
 	"os/signal"
@@ -21,6 +22,7 @@ func run() (err error) {
 	device := flag.String("device", "/dev/fb0", "Linux framebuffer device")
 	hold := flag.Duration("hold", 0, "keep test frame visible for this duration, for example 10s")
 	wait := flag.Bool("wait", false, "keep test frame visible until interrupted")
+	player := flag.String("player", "", "player executable (FFplay for headless preview, mplayer-arm on MiSTer)")
 	browse := flag.Bool("browse", false, "browse Jellyfin with terminal keyboard input")
 	config := flag.String("config", "jellyfin.conf", "Jellyfin configuration path")
 	stateDir := flag.String("state-dir", "", "Go session directory (default: user config directory/misterfin-go)")
@@ -49,7 +51,8 @@ func run() (err error) {
 			}
 			*stateDir = filepath.Join(dir, "misterfin-go")
 		}
-		return browser.Run(ctx, d, *config, *stateDir)
+		g := d.Geometry()
+		return browser.Run(ctx, d, *config, *stateDir, playback.Options{Player: *player, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight})
 	}
 	if err = testframe.Present(d); err != nil {
 		return err

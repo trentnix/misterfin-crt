@@ -173,6 +173,9 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		c.Text(w-24-textWidth(s, 1), ty, s, col, w-24)
 		c.Wrap(24, ty+16, w-48, 3, v.Detail.Overview, 0xcccccc)
 		hint = "B:play  A:back"
+		if v.Detail.UserData.PlaybackPositionTicks > 0 && !v.Detail.UserData.Played {
+			hint = "B:resume  A:back"
+		}
 	} else if len(m.Stack) == 1 && !m.ListMode {
 		if len(art.Covers) > 0 {
 			cw := max(1, w/6)

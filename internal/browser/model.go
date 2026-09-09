@@ -121,7 +121,7 @@ func (m *Model) Key(key string) *Request {
 		return m.Load(v.PendingStart)
 	}
 	if v.Detail != nil && key == "open" {
-		m.Notice = "Playback is not available yet.  A:back"
+		m.Notice = "Playback for this item type is not available yet.  A:back"
 	}
 	if v.Loading || v.Detail != nil {
 		return nil

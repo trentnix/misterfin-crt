@@ -2,6 +2,7 @@
 
 import fcntl
 import importlib.util
+import json
 import os
 from pathlib import Path
 import pty
@@ -11,7 +12,7 @@ import termios
 import threading
 import time
 import unittest
-from http.server import HTTPServer
+from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +29,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         mock = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mock)
         self.requests = []
+        self.reports = []
         self.delay_items = False
         test = self
 
@@ -37,6 +39,12 @@ class BrowseIntegrationTests(unittest.TestCase):
 
             def do_GET(self):
                 test.requests.append(self.path)
+                if urlparse(self.path).path.startswith("/Videos/"):
+                    self.send_response(200)
+                    self.send_header("Content-Length", "10")
+                    self.end_headers()
+                    self.wfile.write(b"test video")
+                    return
                 if test.delay_items and urlparse(self.path).path == "/Items":
                     time.sleep(0.4)
                 try:
@@ -44,7 +52,14 @@ class BrowseIntegrationTests(unittest.TestCase):
                 except (BrokenPipeError, ConnectionResetError):
                     pass  # Expected when the browser cancels a delayed request.
 
-        self.server = HTTPServer(("127.0.0.1", 0), Handler)
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length))
+                test.reports.append((urlparse(self.path).path, body))
+                self.send_response(204)
+                self.end_headers()
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         worker = threading.Thread(target=self.server.serve_forever, daemon=True)
         worker.start()
         self.addCleanup(self.server.server_close)
@@ -53,6 +68,9 @@ class BrowseIntegrationTests(unittest.TestCase):
         config = self.directory / "jellyfin.conf"
         config.write_text(f"http://127.0.0.1:{self.server.server_port}\nmock-api-key\nmockuser\n")
         self.frame = self.directory / "frame.raw"
+        player = self.directory / "test-player"
+        player.write_text("#!/bin/sh\nprintf 'ANS_TIME_POSITION=2\\n'\nsleep 30\n")
+        player.chmod(0o700)
         master, slave = pty.openpty()
         self.master = master
         self.addCleanup(os.close, master)
@@ -65,7 +83,7 @@ class BrowseIntegrationTests(unittest.TestCase):
 
         self.process = subprocess.Popen(
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
-             "-config", str(config), "-state-dir", str(self.directory / "state")],
+             "-config", str(config), "-state-dir", str(self.directory / "state"), "-player", str(player)],
             stdin=slave, stdout=self.log, stderr=self.log, preexec_fn=terminal_session,
         )
         os.close(slave)
@@ -123,6 +141,33 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(self.frame.stat().st_size, 640 * 240 * 4)
         self.key(b"q")
         self.assertEqual(self.process.wait(timeout=3), 0)
+
+    def test_playback_stop_returns_to_details(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream")
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing" for path, _ in self.reports):
+            self.assertLess(time.monotonic(), deadline, "no playback start")
+            time.sleep(0.02)
+        self.key(b"a")
+        while not any(path == "/Sessions/Playing/Stopped" for path, _ in self.reports):
+            self.assertLess(time.monotonic(), deadline, "no playback stop")
+            time.sleep(0.02)
+        time.sleep(0.3)
+        self.assertIsNone(self.process.poll())
+        starts = [body for path, body in self.reports if path == "/Sessions/Playing"]
+        stops = [body for path, body in self.reports if path == "/Sessions/Playing/Stopped"]
+        self.assertEqual(starts[0]["PlaySessionId"], stops[0]["PlaySessionId"])
+        self.assertEqual(stops[0]["PositionTicks"], 20000000)
+        # Playback returns to details. Back returns to Movies, then to home.
+        self.key(b"aa")
+        time.sleep(0.1)
+        self.key(b"\x1b[Cb")
+        self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
 
     def test_live_tv_uses_channels_endpoint(self):
         self.key(b"\x1b[C\x1b[C\x1b[Cb")

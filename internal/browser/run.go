@@ -6,24 +6,26 @@ import (
 	"math"
 	"misterfin-go/internal/jellyfin"
 	"misterfin-go/internal/platform"
+	"misterfin-go/internal/playback"
 	"misterfin-go/internal/terminal"
 	"time"
 )
 
 type result struct {
-	request Request
-	page    jellyfin.Page
-	err     error
-	client  *jellyfin.Client
-	code    string
-	auth    bool
-	artwork Artwork
-	detail  *jellyfin.Item
-	imageID int
-	art     bool
+	request  Request
+	page     jellyfin.Page
+	err      error
+	client   *jellyfin.Client
+	code     string
+	auth     bool
+	artwork  Artwork
+	detail   *jellyfin.Item
+	imageID  int
+	art      bool
+	playback bool
 }
 
-func Run(ctx context.Context, d platform.Display, configPath, stateDir string) error {
+func Run(ctx context.Context, d platform.Display, configPath, stateDir string, player playback.Options) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	keys, done, err := terminal.Read(ctx)
@@ -38,6 +40,15 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 		case <-work.Done():
 		}
 	}
+	playing := false
+	var playCancel context.CancelFunc = func() {}
+	var playDone chan struct{}
+	defer func() {
+		playCancel()
+		if playDone != nil {
+			<-playDone
+		}
+	}()
 	m := New()
 	var client *jellyfin.Client
 	status := "Connecting to Jellyfin..."
@@ -179,6 +190,9 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
 	draw := func() error {
+		if playing && !player.Headless {
+			return nil
+		}
 		now := time.Now()
 		dt := min(now.Sub(last).Seconds(), 0.05)
 		last = now
@@ -209,6 +223,14 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 				}
 				return errors.New("terminal input closed")
 			}
+			if playing && key != "quit" {
+				if key == "back" {
+					playCancel()
+					m.Notice = "Stopping playback..."
+				}
+				continue
+			}
+
 			if key == "quit" {
 				return nil
 			}
@@ -220,6 +242,31 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 					authenticate()
 				}
 			} else {
+				if key == "open" && m.Notice == "" && m.Current().Detail != nil && playback.Supported(*m.Current().Detail) {
+					artCancel()
+					imageID++
+					selected := *m.Current().Detail
+					playCtx, stop := context.WithCancel(ctx)
+					playCancel = stop
+					if !player.Headless {
+						if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
+							return err
+						}
+					}
+					playDone = make(chan struct{})
+					finished := playDone
+					playing = true
+					m.Notice = "Playing in video window. A:stop"
+					go func() {
+						defer close(finished)
+						err := playback.Run(playCtx, client, selected, player, func(int64) {})
+						select {
+						case events <- result{playback: true, err: err}:
+						case <-ctx.Done():
+						}
+					}()
+					continue
+				}
 				if key == "retry" {
 					delete(cache, selectedKey)
 					selectedKey = ""
@@ -236,7 +283,17 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string) e
 				loadArt()
 			}
 		case r := <-events:
-			if r.auth {
+			if r.playback {
+				playing = false
+				playCancel()
+				m.Notice = ""
+				clear(cache)
+				selectedKey = ""
+				loadArt()
+				if r.err != nil {
+					m.Notice = r.err.Error() + "  A:back"
+				}
+			} else if r.auth {
 				if r.request.Generation != authGeneration {
 					continue
 				}

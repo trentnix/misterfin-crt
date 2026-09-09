@@ -31,7 +31,9 @@ The browser displays a Quick Connect code. Approve that code in Jellyfin to sign
 Go browser controls:
 
 - Up and Down select an item.
-- B, Enter, or X opens a library, folder, or item summary.
+- B, Enter, or X opens a library, folder, or item summary. On a video details screen, B starts or resumes playback in a separate FFplay window.
+- During playback, A in Ghostty stops the player and returns to details. A keypress in the video window closes that window.
+- Desktop playback requires `ffplay`. See [the playback guide](../../docs/GO_PLAYBACK.md). The mock-server demo provides browsing data, not playable media.
 - A, Escape, Backspace, or Z goes back or cancels loading.
 - Left and Right move between home cards. In lists, Left and Right or Page Up and Page Down jump one screen.
 - Tab (SELECT) toggles the home carousel and library list.
