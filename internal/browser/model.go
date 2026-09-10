@@ -33,6 +33,9 @@ type Model struct {
 	PlayingAudio                bool
 	PlayingVideo                bool
 	Paused                      bool
+	ProgressSeen                bool
+	LastAdvance                 time.Time
+	Buffering, BufferingKnown   bool
 	ControlsUntil               time.Time
 	PositionTicks               int64
 }

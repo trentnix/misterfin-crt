@@ -95,6 +95,7 @@ func TestVideoControlsRestoreCleanFrame(t *testing.T) {
 	for _, height := range []int{240, 288} {
 		m := New()
 		m.PlayingVideo = true
+		m.ProgressSeen, m.BufferingKnown = true, true
 		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: "Movie", Name: "Movie", RunTimeTicks: 600000000}})
 		now := time.Unix(100, 0)
 		source := bytes.Repeat([]byte{30, 60, 90, 0}, 640*height)
@@ -124,5 +125,37 @@ func TestVideoControlsRestoreCleanFrame(t *testing.T) {
 		if !bytes.Equal(source, draw()) {
 			t.Fatal("resume left instructions on video")
 		}
+	}
+}
+
+func TestVideoWaitingStates(t *testing.T) {
+	m := New()
+	m.PlayingVideo = true
+	now := time.Unix(100, 0)
+	if got := m.videoWaitLabel(now); got != "Loading..." {
+		t.Fatal(got)
+	}
+	m.ProgressSeen, m.LastAdvance = true, now
+	if got := m.videoWaitLabel(now); got != "" {
+		t.Fatal(got)
+	}
+	if got := m.videoWaitLabel(now.Add(3 * time.Second)); got != "Buffering..." {
+		t.Fatal(got)
+	}
+	m.BufferingKnown = true
+	if got := m.videoWaitLabel(now.Add(10 * time.Second)); got != "" {
+		t.Fatal(got)
+	}
+	m.Buffering = true
+	if got := m.videoWaitLabel(now); got != "Buffering..." {
+		t.Fatal(got)
+	}
+	m.Paused = true
+	if got := m.videoWaitLabel(now); got != "" {
+		t.Fatal("pause showed buffering", got)
+	}
+	m.ProgressSeen = false
+	if got := m.videoWaitLabel(now); got != "" {
+		t.Fatal("pause showed loading", got)
 	}
 }

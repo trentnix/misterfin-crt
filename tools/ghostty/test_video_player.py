@@ -26,10 +26,10 @@ class VideoTests(unittest.TestCase):
             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "3",
             "-c:v", "mpeg2video", "-c:a", "mp3", "-f", "mpegts", "pipe:1"])
 
-    def start(self, directory, height):
+    def start(self, directory, height, status=False):
         output = Path(directory) / "frame.raw"
         process = subprocess.Popen([sys.executable, "-c", BOOTSTRAP, str(HELPER),
-                                    "--output", str(output), "--height", str(height), "--audio", "null"],
+                                    "--output", str(output), "--height", str(height), "--audio", "null"] + (["--status"] if status else []),
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.addCleanup(self.reap, process)
         return process, output
@@ -39,6 +39,17 @@ class VideoTests(unittest.TestCase):
         if process.poll() is None:
             process.kill()
         process.communicate()
+
+    def test_reports_buffering_separately_from_position(self):
+        with tempfile.TemporaryDirectory() as directory:
+            process, _ = self.start(directory, 240, status=True)
+            stdout, stderr = process.communicate(self.clip, timeout=10)
+            self.assertEqual(process.returncode, 0, stderr)
+            lines = stdout.splitlines()
+            self.assertIn(b"ANS_BUFFERING=false", lines)
+            self.assertTrue(any(line.startswith(b"ANS_TIME_POSITION=") for line in lines))
+            self.assertTrue(all(line.startswith(b"ANS_TIME_POSITION=") or line in
+                                (b"ANS_BUFFERING=true", b"ANS_BUFFERING=false") for line in lines))
 
     def test_decode_and_letterbox_pal_and_ntsc(self):
         for height in (240, 288):

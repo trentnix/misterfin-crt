@@ -368,6 +368,22 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 
 // Compose controls over a fresh decoder frame. Hidden controls leave it intact.
 func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
+	if label := m.videoWaitLabel(now); label != "" {
+		c := &ui.Canvas{Width: w, Height: h, Pixels: frame}
+		// Match the display's 4:3 shape after logical CRT pixels are stretched.
+		boxWidth := 140
+		boxHeight := (boxWidth*h + w/2) / w
+		c.Shade((w-boxWidth)/2, (h-boxHeight)/2, boxWidth, boxHeight, 64)
+		center(c, h/2-12, label, titleColor, 1)
+		step := int(now.UnixMilli()/150) % 8
+		for i := 0; i < 8; i++ {
+			color := uint32(0x505050)
+			if i == step {
+				color = titleColor
+			}
+			c.Rect(w/2-46+i*12, h/2+5, 8, 4, color)
+		}
+	}
 	if !m.ControlsVisible(now) || m.Current().Detail == nil {
 		return
 	}

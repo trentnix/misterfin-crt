@@ -90,10 +90,25 @@ class BrowseIntegrationTests(unittest.TestCase):
             player.write_text("import argparse, pathlib, time\n"
                               "p=argparse.ArgumentParser()\n"
                               "p.add_argument('--controls',action='store_true')\n"
+                              "p.add_argument('--status',action='store_true')\n"
                               "for name in ('output','width','height'): p.add_argument('--'+name)\n"
                               "a=p.parse_args()\n"
                               "pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
                               "print('ANS_TIME_POSITION=2',flush=True)\n"
+                              "time.sleep(30)\n")
+            player_args = ["-terminal-player", str(player)]
+        if self._testMethodName == "test_video_loading_and_buffering_animation":
+            player.write_text("import argparse, pathlib, time\n"
+                              "p=argparse.ArgumentParser()\n"
+                              "for name in ('controls','status'): p.add_argument('--'+name,action='store_true')\n"
+                              "for name in ('output','width','height'): p.add_argument('--'+name)\n"
+                              "a=p.parse_args()\n"
+                              "stage=pathlib.Path(a.output).parent/'stage'\n"
+                              "for n in range(1,4):\n"
+                              " while not stage.exists() or stage.read_text()!=str(n): time.sleep(.02)\n"
+                              " pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
+                              " print('ANS_BUFFERING='+('true' if n==2 else 'false'),flush=True)\n"
+                              " print('ANS_TIME_POSITION='+str(n+1),flush=True)\n"
                               "time.sleep(30)\n")
             player_args = ["-terminal-player", str(player)]
         master, slave = pty.openpty()
@@ -210,6 +225,30 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(0.1)
         self.key(b"\x1b[Cb")
         self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
+
+    def test_video_loading_and_buffering_animation(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream")
+        first = self.frame.read_bytes()
+        self.assertTrue(any(first), "loading screen was blank")
+        time.sleep(0.2)
+        self.assertNotEqual(first, self.frame.read_bytes(), "loading indicator did not animate")
+        clean = bytes([23]) * 640 * 240 * 4
+        for stage in (1, 2, 3):
+            (self.directory / "stage").write_text(str(stage))
+            time.sleep(0.3)
+            if stage == 2:
+                first = self.frame.read_bytes()
+                self.assertNotEqual(first, clean, "buffering was not shown")
+                time.sleep(0.2)
+                self.assertNotEqual(first, self.frame.read_bytes(), "buffering did not animate")
+            else:
+                self.assertEqual(self.frame.read_bytes(), clean, "indicator remained during playback")
+        self.key(b"a")
 
     def test_inline_playback_owns_frame_until_stop(self):
         self.test_playback_stop_returns_to_details()

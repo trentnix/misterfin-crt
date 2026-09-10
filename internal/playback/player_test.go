@@ -423,3 +423,15 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 		t.Fatal("pause state was not reported")
 	}
 }
+
+func TestBufferingProtocol(t *testing.T) {
+	p := &positionWriter{positions: make(chan float64, 10), buffering: make(chan bool, 10)}
+	p.Write([]byte("ANS_BUFFER"))
+	p.Write([]byte("ING=true\nANS_BUFFERING=invalid\nANS_TIME_POSITION=2\nANS_BUFFERING=false\n"))
+	if len(p.buffering) != 2 || !<-p.buffering || <-p.buffering {
+		t.Fatal("invalid buffering transitions")
+	}
+	if len(p.positions) != 1 || <-p.positions != 2 {
+		t.Fatal("position feedback lost")
+	}
+}

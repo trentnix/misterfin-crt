@@ -15,6 +15,19 @@ func (m *Model) RevealControls(now time.Time) bool {
 func (m *Model) ControlsVisible(now time.Time) bool { return now.Before(m.ControlsUntil) }
 func (m *Model) HideControls()                      { m.ControlsUntil = time.Time{} }
 
+func (m *Model) videoWaitLabel(now time.Time) string {
+	if !m.PlayingVideo || m.Paused {
+		return ""
+	}
+	if !m.ProgressSeen {
+		return "Loading..."
+	}
+	if m.Buffering || (!m.BufferingKnown && now.Sub(m.LastAdvance) >= 3*time.Second) {
+		return "Buffering..."
+	}
+	return ""
+}
+
 // Find adjacent media without replacing the visible page until a match arrives.
 // Photos skip other item types. A music queue ends at a non-audio item, as in C.
 func adjacentMedia(ctx context.Context, c *jellyfin.Client, parent View, kind string, direction, rows int) (View, *jellyfin.Item, error) {

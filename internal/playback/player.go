@@ -25,6 +25,7 @@ type Options struct {
 	AudioPlayer    string
 	Controls       <-chan Control
 	Paused         func(bool)
+	Buffering      func(bool)
 	Player         string
 	TerminalPlayer string
 	FrameOutput    string
@@ -66,7 +67,7 @@ func (o Options) args(item jellyfin.Item) []string {
 		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", "volume=-3,lavcresample=48000", "/dev/fd/3"}
 	}
 	if o.TerminalPlayer != "" {
-		return []string{o.TerminalPlayer, "--controls", "--output", o.FrameOutput + ".video", "--width", strconv.Itoa(o.Width), "--height", strconv.Itoa(o.Height)}
+		return []string{o.TerminalPlayer, "--controls", "--status", "--output", o.FrameOutput + ".video", "--width", strconv.Itoa(o.Width), "--height", strconv.Itoa(o.Height)}
 	}
 	if o.Headless {
 		return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerFin-Go playback", "-vf", "setpts=PTS-STARTPTS", "-af", "asetpts=PTS-STARTPTS", "-i", "pipe:3"}
@@ -234,7 +235,8 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	cmd.WaitDelay = 2 * time.Second
 	cmd.ExtraFiles = []*os.File{reader}
 	updates := make(chan float64, 16)
-	output := &positionWriter{positions: updates}
+	buffering := make(chan bool, 16)
+	output := &positionWriter{positions: updates, buffering: buffering}
 	cmd.Stdout = output
 	cmd.Stderr = output
 	commands, err := cmd.StdinPipe()
@@ -331,6 +333,10 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			if started {
 				reportErr = c.ReportPlaying(mediaCtx, "progress", state) != nil || reportErr
 			}
+		case waiting := <-buffering:
+			if o.Buffering != nil {
+				o.Buffering(waiting)
+			}
 		case seconds := <-updates:
 			update(seconds)
 		case <-poll.C:
@@ -377,12 +383,13 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	}
 }
 
-// Parse only numeric progress. Player diagnostics may contain media URLs and
+// Parse only numeric progress and boolean cache status. Diagnostics may contain media URLs and
 // must never be copied to terminal output or error messages.
 type positionWriter struct {
 	mu        sync.Mutex
 	pending   string
 	positions chan float64
+	buffering chan bool
 }
 
 func (p *positionWriter) Write(data []byte) (int, error) {
@@ -392,6 +399,13 @@ func (p *positionWriter) Write(data []byte) (int, error) {
 		if b == '\r' || b == '\n' {
 			line := strings.TrimSpace(p.pending)
 			p.pending = ""
+			if line == "ANS_BUFFERING=true" || line == "ANS_BUFFERING=false" {
+				select {
+				case p.buffering <- line == "ANS_BUFFERING=true":
+				default:
+				}
+				continue
+			}
 			value := ""
 			if strings.HasPrefix(line, "ANS_TIME_POSITION=") {
 				value = strings.TrimPrefix(line, "ANS_TIME_POSITION=")

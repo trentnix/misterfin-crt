@@ -26,6 +26,7 @@ type result struct {
 	position        bool
 	ticks           int64
 	paused          *bool
+	buffering       *bool
 	neighbor        bool
 	mediaGeneration int
 	parent          View
@@ -51,6 +52,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	controls := make(chan playback.Control, 16)
 	player.Controls = controls
 	player.Paused = func(paused bool) { send(ctx, result{paused: &paused}) }
+	player.Buffering = func(waiting bool) { send(ctx, result{buffering: &waiting}) }
 	mediaGeneration := 0
 	var mediaCancel context.CancelFunc = func() {}
 	defer func() { mediaCancel() }()
@@ -194,6 +196,9 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		}
 		m.Paused = false
 		m.PositionTicks = 0
+		m.ProgressSeen = false
+		m.LastAdvance = time.Now()
+		m.Buffering, m.BufferingKnown = false, false
 		m.HideControls()
 		stoppedByUser = false
 		nextTrack = 0
@@ -236,7 +241,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 			if player.TerminalPlayer != "" {
 				frame, err := os.ReadFile(player.FrameOutput + ".video")
 				if err != nil || len(frame) != geometry.Width*geometry.Height*4 {
-					return nil
+					frame = make([]byte, geometry.Width*geometry.Height*4)
 				}
 				// The decoder owns the clean source. Never fold an overlay into it.
 				renderVideoControls(frame, geometry.Width, geometry.Height, m, now)
@@ -406,6 +411,11 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 			if r.paused != nil {
 				if playing {
 					m.Paused = *r.paused
+					m.LastAdvance = time.Now()
+				}
+			} else if r.buffering != nil {
+				if playing {
+					m.Buffering, m.BufferingKnown = *r.buffering, true
 				}
 			} else if r.neighbor {
 				if r.mediaGeneration != mediaGeneration {
@@ -443,6 +453,10 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 			} else if r.position {
 				if playing {
+					if !m.ProgressSeen || r.ticks != m.PositionTicks {
+						m.LastAdvance = time.Now()
+					}
+					m.ProgressSeen = true
 					m.PositionTicks = r.ticks
 				}
 			} else if r.playback {

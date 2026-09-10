@@ -78,7 +78,7 @@ def publish_frame(output, source, width, height):
             os.unlink(path)
 
 
-def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False):
+def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False, status=False):
     mpv = MPV()
     handle = mpv.create()
     if not handle:
@@ -134,6 +134,11 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                 raise RuntimeError("unsupported video player option")
         if audio != "auto" and mpv.option(handle, b"ao", audio.encode()) < 0:
             raise RuntimeError("unsupported audio output")
+        if status:
+            # Descriptor 3 is a pipe, so network cache auto-detection may not apply.
+            for key in (b"cache", b"cache-pause"):
+                if mpv.option(handle, key, b"yes") < 0:
+                    raise RuntimeError("cannot enable playback buffering")
         if audio_only and mpv.option(handle, b"vid", b"no") < 0:
             raise RuntimeError("cannot disable video")
         if mpv.initialize(handle) < 0:
@@ -171,12 +176,18 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                     raise RuntimeError("video decoding failed")
                 break
             now = time.monotonic()
-            if (frames[0] or audio_only) and now >= next_report:
+            if now >= next_report:
+                if status:
+                    buffering = C.c_int()
+                    if mpv.property(handle, b"paused-for-cache", 3, C.byref(buffering)) >= 0:
+                        print(f"ANS_BUFFERING={'true' if buffering.value else 'false'}", flush=True)
+                next_report = now + 0.25
+                if not (frames[0] or audio_only):
+                    continue
                 position = C.c_double()
                 if mpv.property(handle, b"time-pos", 5, C.byref(position)) >= 0 and math.isfinite(position.value):
                     reported = True
                     print(f"ANS_TIME_POSITION={max(0, position.value):.3f}", flush=True)
-                next_report = now + 0.25
         if errors:
             raise RuntimeError("video renderer failed")
         if not reported and not stop.is_set():
@@ -199,6 +210,7 @@ def main():
     parser.add_argument("--audio-only", action="store_true")
     parser.add_argument("--source", default="fd://3")
     parser.add_argument("--controls", action="store_true")
+    parser.add_argument("--status", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, choices=(240, 288), default=240)
@@ -214,7 +226,7 @@ def main():
         source = urlparse(args.source)
         if not args.audio_only or source.scheme != "http" or source.hostname != "127.0.0.1" or source.username or source.password or source.query or source.fragment:
             parser.error("--source must identify the local audio proxy")
-    play(args.output, args.width, args.height, args.audio, args.audio_only, args.source, args.controls)
+    play(args.output, args.width, args.height, args.audio, args.audio_only, args.source, args.controls, args.status)
 
 
 if __name__ == "__main__":

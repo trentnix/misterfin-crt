@@ -45,6 +45,12 @@ The Ghostty harness uses libmpv for controllable audio in both video modes. The 
 
 Shuffle, repeat modes, and visualizers remain pending. Photo and music controls are covered by desktop tests. Physical CRT playback remains unverified.
 
+## Loading and buffering
+
+Desktop video shows a centered animated loading indicator while Jellyfin prepares the stream and the player starts. The indicator clears when the player reports playback progress. Inline Ghostty video enables caching for the media pipe and reports libmpv's `paused-for-cache` property through the helper's optional `--status` protocol. A cache stall shows an animated buffering indicator over the last frame. Resuming playback restores the clean frame. User pause suppresses both indicators and keeps the existing clean pause behavior.
+
+FFplay does not expose the same cache signal through the current adapter. Its buffering indicator is an estimate based on three seconds without advancing playback position. The indicator appears in Ghostty, while FFplay owns its separate video window. Native MiSTer playback still suspends browser framebuffer writes and does not show these indicators.
+
 ## Live TV
 
 Select a channel with B or Enter to tune it immediately. A stops the stream and returns to the channels list with the same channel selected. If playback ends or fails, the browser also returns to the channels list. Live TV works with both desktop player modes.
