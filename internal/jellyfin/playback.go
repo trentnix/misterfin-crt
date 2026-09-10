@@ -52,7 +52,10 @@ func (c *Client) OpenStream(ctx context.Context, streamURL string) (io.ReadClose
 	transport := c.HTTP.Transport
 	if t, ok := transport.(*http.Transport); ok {
 		clone := t.Clone()
-		clone.ResponseHeaderTimeout = 15 * time.Second
+		// A seek can start a second expensive HDR transcode while the old
+		// stream remains open. Allow its first response to arrive before
+		// abandoning the replacement. Context cancellation still stops it.
+		clone.ResponseHeaderTimeout = 60 * time.Second
 		clone.DisableKeepAlives = true
 		transport = clone
 	}

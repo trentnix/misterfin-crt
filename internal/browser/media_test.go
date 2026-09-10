@@ -13,6 +13,27 @@ import (
 	"time"
 )
 
+func TestResumableVideo(t *testing.T) {
+	if resumableVideo(nil) {
+		t.Fatal("missing details allowed restart")
+	}
+	for _, kind := range []string{"Movie", "Episode", "Video", "MusicVideo", "Audio", "Photo", "TvChannel", "LiveTvChannel", "Series"} {
+		item := jellyfin.Item{Type: kind}
+		if resumableVideo(&item) {
+			t.Fatalf("%s without resume position allowed restart", kind)
+		}
+		item.UserData.PlaybackPositionTicks = 600000000
+		want := kind == "Movie" || kind == "Episode" || kind == "Video" || kind == "MusicVideo"
+		if resumableVideo(&item) != want {
+			t.Fatalf("incorrect restart eligibility for %s", kind)
+		}
+		item.UserData.Played = true
+		if resumableVideo(&item) {
+			t.Fatalf("watched %s allowed restart", kind)
+		}
+	}
+}
+
 func TestCleanMusicPauseAndControlTimeout(t *testing.T) {
 	m := New()
 	m.PlayingAudio = true

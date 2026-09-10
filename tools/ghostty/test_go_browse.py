@@ -29,6 +29,8 @@ class BrowseIntegrationTests(unittest.TestCase):
         mock = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mock)
         mock.ITEMS.update({channel["Id"]: channel for channel in mock.LIVE_CHANNELS})
+        if self._testMethodName == "test_select_restarts_resumable_video":
+            mock.ITEMS["movie-tricky-0"]["UserData"]["PlaybackPositionTicks"] = 600000000
         if self._testMethodName == "test_music_advances_and_preserves_last_track":
             mock.CHILDREN["artist-000-album0"] = mock.CHILDREN["artist-000-album0"][:2]
         self.requests = []
@@ -44,6 +46,9 @@ class BrowseIntegrationTests(unittest.TestCase):
             def do_GET(self):
                 test.requests.append(self.path)
                 if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
+                    if (test._testMethodName == "test_select_restarts_resumable_video" and
+                            parse_qs(urlparse(self.path).query).get("startTimeTicks") == ["920000000"]):
+                        time.sleep(16)  # Exceed the former media response-header timeout.
                     gate = test.video_response_gate
                     if gate is not None:
                         gate.wait(timeout=3)
@@ -232,6 +237,35 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(0.1)
         self.key(b"\x1b[Cb")
         self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
+
+    def test_select_restarts_resumable_video(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=600000000)
+        self.key(b"a")
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing/Stopped" for path, _ in self.reports):
+            self.assertLess(time.monotonic(), deadline, "resume playback did not stop")
+            time.sleep(0.02)
+        time.sleep(0.3)
+        self.key(b"\t")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing" and body.get("PositionTicks") == 20000000
+                      for path, body in self.reports):
+            self.assertLess(time.monotonic(), deadline, "restart retained the saved resume offset")
+            time.sleep(0.02)
+        self.key(b"\x1b[C\x1b[C\x1b[C")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=920000000)
+        deadline = time.monotonic() + 22
+        while not any(path == "/Sessions/Playing" and body.get("PositionTicks") == 940000000
+                      for path, body in self.reports):
+            self.assertLess(time.monotonic(), deadline, "seek after restart did not reach destination")
+            time.sleep(0.02)
+        self.key(b"a")
 
     def test_video_seek_accumulates_and_preserves_pause(self):
         self.key(b"b")

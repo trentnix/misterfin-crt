@@ -502,6 +502,11 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					authenticate()
 				}
 			} else {
+				if key == "select" && m.Notice == "" && resumableVideo(m.Current().Detail) {
+					start := int64(0)
+					startPlayback(&start, false)
+					continue
+				}
 				if key == "open" && m.Notice == "" && m.Current().Detail != nil && playback.Supported(*m.Current().Detail) {
 					startPlayback(nil, false)
 					continue

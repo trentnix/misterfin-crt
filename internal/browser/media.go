@@ -3,8 +3,14 @@ package browser
 import (
 	"context"
 	"misterfin-go/internal/jellyfin"
+	"misterfin-go/internal/playback"
 	"time"
 )
+
+func resumableVideo(item *jellyfin.Item) bool {
+	return item != nil && playback.Supported(*item) && item.Type != "Audio" &&
+		!jellyfin.IsLive(*item) && !item.UserData.Played && item.UserData.PlaybackPositionTicks > 0
+}
 
 // The three-second reveal window follows bb31e83 and src/pause_ui.c.
 func (m *Model) RevealControls(now time.Time) bool {
