@@ -159,3 +159,102 @@ func TestVideoWaitingStates(t *testing.T) {
 		t.Fatal("pause showed loading", got)
 	}
 }
+
+func TestVideoSeekTargets(t *testing.T) {
+	now := time.Unix(100, 0)
+	for _, kind := range []string{"Movie", "Episode", "Video", "MusicVideo", "TvChannel", "LiveTvChannel", "Audio"} {
+		m := New()
+		m.PlayingVideo, m.ProgressSeen = kind != "Audio", true
+		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: kind, RunTimeTicks: 100 * 10000000}})
+		m.PositionTicks = 2 * 10000000
+		m.seekVideo("next", now)
+		if kind == "Audio" || jellyfin.IsLive(*m.Current().Detail) {
+			if m.SeekTarget != nil {
+				t.Fatal("seek allowed for", kind)
+			}
+			continue
+		}
+		m.seekVideo("next", now.Add(100*time.Millisecond))
+		if *m.SeekTarget != 62*10000000 || !m.SeekDeadline.Equal(now.Add(600*time.Millisecond)) {
+			t.Fatal("seek did not accumulate or debounce")
+		}
+		m.seekVideo("previous", now)
+		if *m.SeekTarget != 32*10000000 {
+			t.Fatal("opposite direction did not subtract")
+		}
+		for range 4 {
+			m.seekVideo("previous", now)
+		}
+		if *m.SeekTarget != 0 {
+			t.Fatal("negative seek")
+		}
+		for range 4 {
+			m.seekVideo("next", now)
+		}
+		if *m.SeekTarget != 99*10000000 {
+			t.Fatal("seek beyond end")
+		}
+		m.SeekTarget, m.ProgressSeen = nil, false
+		m.seekVideo("next", now)
+		if m.SeekTarget != nil {
+			t.Fatal("seek before playback ready")
+		}
+	}
+}
+
+func TestSeekOverlayShowsUpdatingDestination(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		now := time.Unix(100, 0)
+		m := New()
+		m.PlayingVideo, m.ProgressSeen, m.BufferingKnown = true, true, true
+		m.PositionTicks = 120 * 10000000
+		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: "Movie"}})
+		source := bytes.Repeat([]byte{30, 60, 90, 0}, 640*height)
+		draw := func() []byte {
+			frame := append([]byte(nil), source...)
+			renderVideoControls(frame, 640, height, m, now)
+			return frame
+		}
+		m.seekVideo("next", now)
+		if !bytes.Equal(source, draw()) {
+			t.Fatal("first press showed overlay")
+		}
+		m.seekVideo("next", now)
+		second := draw()
+		if bytes.Equal(source, second) || runtime(*m.SeekTarget) != "3:00" {
+			t.Fatal("second press did not show destination")
+		}
+		m.seekVideo("next", now)
+		if bytes.Equal(second, draw()) || runtime(*m.SeekTarget) != "3:30" {
+			t.Fatal("Right did not update destination")
+		}
+		m.seekVideo("previous", now)
+		if !bytes.Equal(second, draw()) {
+			t.Fatal("Left did not restore previous destination")
+		}
+		m.SeekTarget = nil
+		if !bytes.Equal(source, draw()) {
+			t.Fatal("finished seek left an overlay")
+		}
+	}
+}
+
+func TestSeekInFlightReplacesDestinationOverlay(t *testing.T) {
+	m := New()
+	m.PlayingVideo, m.ProgressSeen, m.Paused = true, true, true
+	m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: "Movie"}})
+	now := time.Unix(100, 0)
+	m.seekVideo("next", now)
+	m.seekVideo("next", now)
+	before := make([]byte, 640*240*4)
+	renderVideoControls(before, 640, 240, m, now)
+	m.SeekInFlight = true
+	if got := m.videoWaitLabel(now); got != "Seeking..." {
+		t.Fatal(got)
+	}
+	after := make([]byte, len(before))
+	renderVideoControls(after, 640, 240, m, now)
+	if bytes.Equal(before, after) {
+		t.Fatal("destination remained during seek cleanup")
+	}
+}

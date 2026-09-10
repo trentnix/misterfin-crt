@@ -45,6 +45,12 @@ The Ghostty harness uses libmpv for controllable audio in both video modes. The 
 
 Shuffle, repeat modes, and visualizers remain pending. Photo and music controls are covered by desktop tests. Physical CRT playback remains unverified.
 
+## Video seeking
+
+During movie, episode, video, or music-video playback, Left and Right seek backward or forward by 30 seconds. Two quick presses reveal a compact overlay showing the destination time. Further Right presses add 30 seconds to that destination, and Left presses subtract 30 seconds. Repeated presses accumulate, and the client waits 0.5 seconds after the last press before preparing the replacement stream. At that point, the current decoder pauses so playback does not continue beneath the “Seeking…” overlay. The overlay changes to “Loading…” until the replacement stream starts. The last decoded frame remains visible beneath both overlays. The replacement resumes automatically unless playback was already paused before seeking. Targets stay between the beginning and one second before the known end. Seeking is available after the first playback position arrives. Live TV and music retain their existing controls.
+
+The client requests a new progressive stream with an explicit `startTimeTicks` while the old decoder is still shutting down, matching the C implementation's server-side seek method while shortening the handoff. When the replacement stream is ready, the old decoder stops and its Jellyfin stop/save reports finish asynchronously. The new offset overrides Jellyfin's saved resume position. The loading overlay covers startup, and subsequent progress includes the new offset. If the video was paused, the client pauses the replacement player when its first position arrives. A cancels a pending seek and stops playback.
+
 ## Loading and buffering
 
 Desktop video shows a centered animated loading indicator while Jellyfin prepares the stream and the player starts. The indicator clears when the player reports playback progress. Inline Ghostty video enables caching for the media pipe and reports libmpv's `paused-for-cache` property through the helper's optional `--status` protocol. A cache stall shows an animated buffering indicator over the last frame. Resuming playback restores the clean frame. User pause suppresses both indicators and keeps the existing clean pause behavior.
@@ -75,7 +81,7 @@ MiSTer playback remains blocked by the framebuffer failure. On September 9, 2026
 
 The hardware path uses `/media/fat/misterfin/mplayer-arm`. It currently supports 640-pixel-wide PAL and NTSC framebuffers, including doubled 480/576-line output. It uses the source display aspect ratio for letterboxing, ALSA audio, and the existing framebuffer output driver. The direct Go binary accepts `-player` to override the executable path. In headless mode the executable must accept FFplay arguments. On hardware it must accept MPlayer arguments.
 
-Video seeking, restart selection, subtitles, audio-track selection, shuffle, DDR output, HDMI layouts, and hardware video overlays remain pending. The MPlayer path accepts pause/resume commands, but its physical framebuffer overlay and timing still need hardware work. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.
+Restart selection, subtitles, audio-track selection, shuffle, DDR output, HDMI layouts, and hardware video overlays remain pending. The MPlayer path accepts pause/resume commands, but its physical framebuffer overlay and timing still need hardware work. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.
 
 ## Validation
 

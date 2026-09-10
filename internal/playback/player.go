@@ -22,6 +22,10 @@ type Control struct {
 }
 
 type Options struct {
+	StartTicks     *int64
+	Ready          func()
+	Start          <-chan struct{}
+	AsyncCleanup   <-chan struct{}
 	AudioPlayer    string
 	Controls       <-chan Control
 	Paused         func(bool)
@@ -145,6 +149,12 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	if item.UserData.Played || liveTV || item.Type == "Audio" {
 		start = 0
 	}
+	if o.StartTicks != nil && !liveTV && item.Type != "Audio" {
+		start = max(int64(0), *o.StartTicks)
+		if item.RunTimeTicks > 0 {
+			start = min(start, max(int64(0), item.RunTimeTicks-10000000))
+		}
+	}
 	streamURL := c.VideoStreamURL(item.ID, session, start, o.Height == 240 || o.Height == 480)
 	if item.Type == "Audio" {
 		streamURL = c.AudioStreamURL(item.ID, session)
@@ -178,7 +188,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	// Even a player that cannot start must release the server's transcode.
 	played := item.UserData.Played
 	started := false
-	defer func() {
+	cleanupPlayback := func() {
 		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
 		if liveTV {
@@ -188,6 +198,14 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		_ = c.ReportPlaying(cleanup, "stopped", state)
 		if started && !liveTV {
 			_ = c.SavePlaybackPosition(cleanup, item.ID, state.PositionTicks, played)
+		}
+	}
+	defer func() {
+		select {
+		case <-o.AsyncCleanup:
+			go cleanupPlayback()
+		default:
+			cleanupPlayback()
 		}
 	}()
 	var stream io.ReadCloser
@@ -209,6 +227,16 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	}
 	if stream != nil {
 		defer stream.Close()
+	}
+	if o.Ready != nil {
+		o.Ready()
+	}
+	if o.Start != nil {
+		select {
+		case <-o.Start:
+		case <-ctx.Done():
+			return nil
+		}
 	}
 	reader, writer, err := os.Pipe()
 	if err != nil {

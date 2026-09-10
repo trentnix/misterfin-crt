@@ -368,12 +368,18 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 
 // Compose controls over a fresh decoder frame. Hidden controls leave it intact.
 func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
-	if label := m.videoWaitLabel(now); label != "" {
+	seeking := m.SeekTarget != nil && m.SeekPresses >= 2 && !m.SeekInFlight
+	if label := m.videoWaitLabel(now); label != "" || seeking {
 		c := &ui.Canvas{Width: w, Height: h, Pixels: frame}
 		// Match the display's 4:3 shape after logical CRT pixels are stretched.
 		boxWidth := 140
 		boxHeight := (boxWidth*h + w/2) / w
 		c.Shade((w-boxWidth)/2, (h-boxHeight)/2, boxWidth, boxHeight, 64)
+		if seeking {
+			center(c, h/2-12, "Seek to", titleColor, 1)
+			center(c, h/2+5, runtime(*m.SeekTarget), titleColor, 1)
+			return
+		}
 		center(c, h/2-12, label, titleColor, 1)
 		step := int(now.UnixMilli()/150) % 8
 		for i := 0; i < 8; i++ {
@@ -393,6 +399,9 @@ func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
 	c.Shade(0, bottom-46, w, h-bottom+46, 210)
 	center(c, bottom-36, truncate(m.Current().Detail.Name, w-48, 1), titleColor, 1)
 	label := runtime(m.PositionTicks)
+	if m.SeekTarget != nil {
+		label = "Seek to " + runtime(*m.SeekTarget)
+	}
 	if !jellyfin.IsLive(*m.Current().Detail) && m.Current().Detail.RunTimeTicks > 0 {
 		label += " / " + runtime(m.Current().Detail.RunTimeTicks)
 	}
@@ -400,6 +409,9 @@ func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
 	action := "B:pause"
 	if m.Paused {
 		action = "B:play"
+	}
+	if !jellyfin.IsLive(*m.Current().Detail) {
+		action = "LEFT/RIGHT:30s   " + action
 	}
 	center(c, bottom, action+"   A:stop", dimColor, 1)
 }

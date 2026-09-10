@@ -435,3 +435,143 @@ func TestBufferingProtocol(t *testing.T) {
 		t.Fatal("position feedback lost")
 	}
 }
+
+func TestExplicitVideoStartOverridesServerResume(t *testing.T) {
+	player := filepath.Join(t.TempDir(), "player")
+	if err := os.WriteFile(player, []byte("#!/bin/sh\nprintf 'ANS_TIME_POSITION=0\n'\nsleep 30\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ target, want int64 }{{-1, 0}, {0, 0}, {600000000, 600000000}, {2000000000, 990000000}} {
+		t.Run(fmt.Sprint(tc.target), func(t *testing.T) {
+			requests := make(chan string, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/Items/movie":
+					fmt.Fprint(w, `{"Id":"movie","Type":"Movie","RunTimeTicks":1000000000,"UserData":{"Played":true,"PlaybackPositionTicks":200000000}}`)
+				case "/Videos/movie/stream":
+					requests <- r.URL.Query().Get("startTimeTicks")
+					fmt.Fprint(w, "media")
+				default:
+					w.WriteHeader(http.StatusNoContent)
+				}
+			}))
+			defer server.Close()
+			c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{Token: "test", UserID: "user", DeviceID: "device"})
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			var got int64
+			err := Run(ctx, c, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{Headless: true, Player: player, StartTicks: &tc.target}, func(ticks int64) { got = ticks; cancel() })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("position=%d want=%d", got, tc.want)
+			}
+			select {
+			case start := <-requests:
+				if start != fmt.Sprint(tc.want) {
+					t.Fatal("stream offset", start)
+				}
+			default:
+				t.Fatal("no stream request")
+			}
+		})
+	}
+}
+
+func TestPreparedPlaybackWaitsAtStartGate(t *testing.T) {
+	player := filepath.Join(t.TempDir(), "player")
+	started := filepath.Join(t.TempDir(), "started")
+	if err := os.WriteFile(player, []byte("#!/bin/sh\ntouch \"$PLAYER_STARTED\"\nprintf 'ANS_TIME_POSITION=0\\n'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PLAYER_STARTED", started)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/Items/movie":
+			fmt.Fprint(w, `{"Id":"movie","Type":"Movie"}`)
+		case "/Videos/movie/stream":
+			fmt.Fprint(w, "media")
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer server.Close()
+	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
+	gate := make(chan struct{})
+	ready := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(context.Background(), client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{
+			Player: player, Headless: true, Start: gate, Ready: func() { close(ready) },
+		}, func(int64) {})
+	}()
+	select {
+	case <-ready:
+	case <-time.After(3 * time.Second):
+		t.Fatal("replacement stream was not prepared")
+	}
+	if _, err := os.Stat(started); !os.IsNotExist(err) {
+		t.Fatal("decoder started before the handoff gate opened")
+	}
+	close(gate)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("prepared playback did not start")
+	}
+	if _, err := os.Stat(started); err != nil {
+		t.Fatal("decoder did not start after handoff:", err)
+	}
+}
+
+func TestAsyncCleanupDoesNotDelayPlaybackReturn(t *testing.T) {
+	player := filepath.Join(t.TempDir(), "player")
+	if err := os.WriteFile(player, []byte("#!/bin/sh\nprintf 'ANS_TIME_POSITION=0\\n'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cleanupStarted := make(chan struct{})
+	releaseCleanup := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/Items/movie":
+			fmt.Fprint(w, `{"Id":"movie","Type":"Movie"}`)
+		case "/Videos/movie/stream":
+			fmt.Fprint(w, "media")
+		case "/Sessions/Playing/Stopped":
+			close(cleanupStarted)
+			<-releaseCleanup
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer server.Close()
+	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
+	fast := make(chan struct{})
+	close(fast)
+	returned := make(chan error, 1)
+	go func() {
+		returned <- Run(context.Background(), client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{
+			Player: player, Headless: true, AsyncCleanup: fast,
+		}, func(int64) {})
+	}()
+	select {
+	case err := <-returned:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		close(releaseCleanup)
+		t.Fatal("session cleanup delayed the playback handoff")
+	}
+	select {
+	case <-cleanupStarted:
+	case <-time.After(3 * time.Second):
+		close(releaseCleanup)
+		t.Fatal("asynchronous cleanup did not start")
+	}
+	close(releaseCleanup)
+}

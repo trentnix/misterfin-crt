@@ -15,7 +15,35 @@ func (m *Model) RevealControls(now time.Time) bool {
 func (m *Model) ControlsVisible(now time.Time) bool { return now.Before(m.ControlsUntil) }
 func (m *Model) HideControls()                      { m.ControlsUntil = time.Time{} }
 
+func (m *Model) seekVideo(key string, now time.Time) {
+	item := m.Current().Detail
+	if !m.PlayingVideo || !m.ProgressSeen || item == nil || jellyfin.IsLive(*item) {
+		return
+	}
+	target := m.PositionTicks
+	if m.SeekTarget == nil {
+		m.SeekPresses = 0
+	}
+	if m.SeekTarget != nil {
+		target = *m.SeekTarget
+	}
+	step := int64(30 * 10000000)
+	if key == "previous" {
+		step = -step
+	}
+	target = max(int64(0), target+step)
+	if item.RunTimeTicks > 0 {
+		target = min(target, max(int64(0), item.RunTimeTicks-10000000))
+	}
+	m.SeekTarget = &target
+	m.SeekDeadline = now.Add(500 * time.Millisecond)
+	m.SeekPresses++
+}
+
 func (m *Model) videoWaitLabel(now time.Time) string {
+	if m.PlayingVideo && m.SeekInFlight {
+		return "Seeking..."
+	}
 	if !m.PlayingVideo || m.Paused {
 		return ""
 	}

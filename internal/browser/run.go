@@ -23,6 +23,8 @@ type result struct {
 	imageID         int
 	art             bool
 	playback        bool
+	prepared        bool
+	playbackID      int
 	position        bool
 	ticks           int64
 	paused          *bool
@@ -50,9 +52,6 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	}
 	playing := false
 	controls := make(chan playback.Control, 16)
-	player.Controls = controls
-	player.Paused = func(paused bool) { send(ctx, result{paused: &paused}) }
-	player.Buffering = func(waiting bool) { send(ctx, result{buffering: &waiting}) }
 	mediaGeneration := 0
 	var mediaCancel context.CancelFunc = func() {}
 	defer func() { mediaCancel() }()
@@ -60,15 +59,34 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	nextTrack := 0
 	var queuedNeighbor *result
 	stoppedByUser := false
-	var startPlayback func()
+	var startPlayback func(*int64, bool)
+	seekRestart := false
+	restorePause := false
+	playbackSequence := 0
+	activePlaybackID := 0
+	var activeFastCleanup chan struct{}
+	pendingPlaybackID := 0
+	var pendingCancel context.CancelFunc
+	var pendingDone chan struct{}
+	var pendingGate chan struct{}
+	var pendingFastCleanup chan struct{}
+	pendingTarget := int64(0)
+	pendingPaused := false
+	seekAutoPaused := false
 
 	var playCancel context.CancelFunc = func() {}
 	var playDone chan struct{}
 	defer func() {
 		cancel()
 		playCancel()
+		if pendingCancel != nil {
+			pendingCancel()
+		}
 		if playDone != nil {
 			<-playDone
+		}
+		if pendingDone != nil {
+			<-pendingDone
 		}
 	}()
 	m := New()
@@ -187,7 +205,41 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 			send(work, result{neighbor: true, mediaGeneration: generation, parent: parent, item: item, err: err})
 		}()
 	}
-	startPlayback = func() {
+	launchPlayback := func(startTicks *int64, gate <-chan struct{}, prepared bool) (int, context.CancelFunc, chan struct{}, chan struct{}) {
+		playbackSequence++
+		id := playbackSequence
+		playCtx, stop := context.WithCancel(ctx)
+		finished := make(chan struct{})
+		fastCleanup := make(chan struct{})
+		options := player
+		options.StartTicks = startTicks
+		options.Start = gate
+		options.AsyncCleanup = fastCleanup
+		options.Controls = controls
+		options.Paused = func(paused bool) { send(ctx, result{paused: &paused, playbackID: id}) }
+		options.Buffering = func(waiting bool) { send(ctx, result{buffering: &waiting, playbackID: id}) }
+		if prepared {
+			options.Ready = func() { send(ctx, result{prepared: true, playbackID: id}) }
+		}
+		selected := *m.Current().Detail
+		go func() {
+			defer close(finished)
+			err := playback.Run(playCtx, client, selected, options, func(ticks int64) {
+				select {
+				case events <- result{position: true, ticks: ticks, playbackID: id}:
+				default:
+				}
+			})
+			send(ctx, result{playback: true, playbackID: id, err: err})
+		}()
+		return id, stop, finished, fastCleanup
+	}
+	startPlayback = func(startTicks *int64, paused bool) {
+		restorePause = paused
+		seekRestart = false
+		m.SeekInFlight = false
+		m.SeekTarget = nil
+		m.SeekDeadline = time.Time{}
 		selected := *m.Current().Detail
 		m.PlayingAudio = selected.Type == "Audio"
 		m.PlayingVideo = !m.PlayingAudio
@@ -210,22 +262,9 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 			artCancel()
 			imageID++
 		}
-		playCtx, stop := context.WithCancel(ctx)
-		playCancel = stop
-		playDone = make(chan struct{})
-		finished := playDone
+		activePlaybackID, playCancel, playDone, activeFastCleanup = launchPlayback(startTicks, nil, false)
 		playing = true
 		m.Notice = ""
-		go func() {
-			defer close(finished)
-			err := playback.Run(playCtx, client, selected, player, func(ticks int64) {
-				select {
-				case events <- result{position: true, ticks: ticks}:
-				default:
-				}
-			})
-			send(ctx, result{playback: true, err: err})
-		}()
 	}
 	start := time.Now()
 	last := start
@@ -268,6 +307,21 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	for {
 		select {
 		case <-ticker.C:
+			if playing && m.SeekTarget != nil && !seekRestart && !time.Now().Before(m.SeekDeadline) {
+				seekRestart = true
+				m.SeekInFlight = true
+				pendingTarget = *m.SeekTarget
+				pendingPaused = m.Paused
+				seekAutoPaused = !pendingPaused
+				if seekAutoPaused {
+					select {
+					case controls <- playback.Control{Kind: "pause"}:
+					default:
+					}
+				}
+				pendingGate = make(chan struct{})
+				pendingPlaybackID, pendingCancel, pendingDone, pendingFastCleanup = launchPlayback(&pendingTarget, pendingGate, true)
+			}
 		case <-ctx.Done():
 			return nil
 		case key, ok := <-keys:
@@ -309,12 +363,29 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				continue
 			}
 			if playing && key != "quit" {
+				if seekRestart && key != "back" {
+					continue
+				}
 				switch key {
+				case "previous", "next":
+					m.seekVideo(key, time.Now())
 				case "back":
 					stoppedByUser = true
+					seekRestart = false
+					m.SeekTarget = nil
+					if pendingCancel != nil {
+						pendingCancel()
+						pendingCancel = nil
+						pendingPlaybackID = 0
+					}
 					playCancel()
 				case "open":
 					m.HideControls()
+					if restorePause {
+						// Resume requested while the replacement stream is loading.
+						restorePause = false
+						break
+					}
 					select {
 					case controls <- playback.Control{Kind: "pause"}:
 					default:
@@ -373,7 +444,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 							return err
 						}
 					}
-					startPlayback()
+					startPlayback(nil, false)
 					continue
 				}
 				if key == "retry" {
@@ -399,22 +470,28 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
 						return err
 					}
-					startPlayback()
+					startPlayback(nil, false)
 					continue
 				}
 				loadArt()
 				if key == "open" && !wasDetail && m.Current().Detail != nil && m.Current().Detail.Type == "Audio" {
-					startPlayback()
+					startPlayback(nil, false)
 				}
 			}
 		case r := <-events:
-			if r.paused != nil {
-				if playing {
+			if r.prepared {
+				if r.playbackID == pendingPlaybackID && activeFastCleanup != nil {
+					close(activeFastCleanup)
+					activeFastCleanup = nil
+					playCancel()
+				}
+			} else if r.paused != nil {
+				if playing && r.playbackID == activePlaybackID {
 					m.Paused = *r.paused
 					m.LastAdvance = time.Now()
 				}
 			} else if r.buffering != nil {
-				if playing {
+				if playing && r.playbackID == activePlaybackID {
 					m.Buffering, m.BufferingKnown = *r.buffering, true
 				}
 			} else if r.neighbor {
@@ -444,7 +521,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					selectedKey = ""
 					loadArt()
 					if r.item.Type == "Audio" {
-						startPlayback()
+						startPlayback(nil, false)
 					}
 				} else if m.PlayingAudio {
 					m.PlayingAudio = false
@@ -452,14 +529,65 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					loadArt()
 				}
 			} else if r.position {
-				if playing {
+				if playing && r.playbackID == activePlaybackID {
 					if !m.ProgressSeen || r.ticks != m.PositionTicks {
 						m.LastAdvance = time.Now()
 					}
 					m.ProgressSeen = true
 					m.PositionTicks = r.ticks
+					if restorePause {
+						select {
+						case controls <- playback.Control{Kind: "pause"}:
+							restorePause = false
+						default:
+						}
+					}
 				}
 			} else if r.playback {
+				if r.playbackID == pendingPlaybackID {
+					if seekAutoPaused && playing {
+						select {
+						case controls <- playback.Control{Kind: "pause"}:
+						default:
+						}
+					}
+					seekAutoPaused = false
+					pendingPlaybackID = 0
+					pendingCancel, pendingDone, pendingGate, pendingFastCleanup = nil, nil, nil, nil
+					m.SeekTarget = nil
+					m.SeekInFlight = false
+					seekRestart = false
+					if r.err != nil {
+						m.Notice = r.err.Error() + "  A:back"
+					}
+					continue
+				}
+				if r.playbackID != activePlaybackID {
+					continue
+				}
+				if seekRestart && !stoppedByUser && pendingPlaybackID != 0 {
+					activePlaybackID = pendingPlaybackID
+					playCancel, playDone, activeFastCleanup = pendingCancel, pendingDone, pendingFastCleanup
+					pendingPlaybackID = 0
+					pendingCancel, pendingDone, pendingFastCleanup = nil, nil, nil
+					close(pendingGate)
+					pendingGate = nil
+					restorePause = pendingPaused
+					seekAutoPaused = false
+					m.SeekTarget = nil
+					m.SeekPresses = 0
+					m.SeekInFlight = false
+					seekRestart = false
+					m.Paused = false
+					m.PositionTicks = pendingTarget
+					m.ProgressSeen = false
+					m.LastAdvance = time.Now()
+					m.Buffering, m.BufferingKnown = false, false
+					continue
+				}
+				m.SeekTarget = nil
+				m.SeekInFlight = false
+				seekRestart = false
 				playing = false
 				m.PlayingVideo = false
 				if player.TerminalPlayer != "" {
@@ -474,7 +602,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					queuedNeighbor = nil
 					selectedKey = ""
 					loadArt()
-					startPlayback()
+					startPlayback(nil, false)
 				} else if m.PlayingAudio && !stoppedByUser && r.err == nil {
 					direction := nextTrack
 					if direction == 0 {

@@ -33,6 +33,10 @@ type Model struct {
 	PlayingAudio                bool
 	PlayingVideo                bool
 	Paused                      bool
+	SeekTarget                  *int64
+	SeekPresses                 int
+	SeekInFlight                bool
+	SeekDeadline                time.Time
 	ProgressSeen                bool
 	LastAdvance                 time.Time
 	Buffering, BufferingKnown   bool

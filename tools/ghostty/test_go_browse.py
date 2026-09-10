@@ -226,6 +226,46 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"\x1b[Cb")
         self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
 
+    def test_video_seek_accumulates_and_preserves_pause(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+        initial_stream = next(r for r in self.requests
+                              if urlparse(r).path == "/Videos/movie-tricky-0/stream")
+        initial_session = parse_qs(urlparse(initial_stream).query)["playSessionId"][0]
+        self.key(b"\x1b[C\x1b[C")
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing/Progress" and body.get("IsPaused") and
+                      body.get("PlaySessionId") == initial_session for path, body in self.reports):
+            self.assertLess(time.monotonic(), deadline, "seek did not pause the old decoder")
+            time.sleep(0.02)
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=620000000)
+        streams = [r for r in self.requests if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
+        self.assertEqual(len(streams), 2, "rapid presses restarted separately")
+        self.assertNotEqual(parse_qs(urlparse(streams[0]).query)["playSessionId"],
+                            parse_qs(urlparse(streams[1]).query)["playSessionId"])
+        self.key(b"b")
+        time.sleep(0.2)
+        self.assertTrue(any(path == "/Sessions/Playing/Progress" and body.get("IsPaused")
+                            for path, body in self.reports))
+        self.reports.clear()
+        self.key(b"\x1b[D")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=340000000)
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing/Progress" and body.get("IsPaused")
+                      for path, body in self.reports):
+            self.assertLess(time.monotonic(), deadline, "seek did not restore pause")
+            time.sleep(0.02)
+        # Back cancels a pending seek without starting another stream.
+        self.key(b"\x1b[Ca")
+        time.sleep(0.9)
+        streams = [r for r in self.requests if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
+        self.assertEqual(len(streams), 3)
+        self.assertIsNone(self.process.poll())
+
     def test_video_loading_and_buffering_animation(self):
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
