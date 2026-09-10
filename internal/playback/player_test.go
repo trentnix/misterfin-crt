@@ -1,6 +1,7 @@
 package playback
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -339,4 +340,86 @@ func TestFFplayDecodesOriginalAudio(t *testing.T) {
 		t.Fatal(err)
 	}
 	runLifecycle(t, ffplay, true, "audio-decode", clip)
+}
+
+func TestControllableAudioReportsPauseAndResume(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("Python unavailable")
+	}
+	if exec.Command(python, "-c", "import ctypes.util,sys;sys.exit(not ctypes.util.find_library('mpv'))").Run() != nil {
+		t.Skip("libmpv unavailable")
+	}
+	clip, err := exec.Command(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "8", "-c:a", "pcm_s16le", "-f", "wav", "pipe:1").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	helper, err := filepath.Abs("../../tools/ghostty/video_player.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapper := filepath.Join(t.TempDir(), "audio.py")
+	if err = os.WriteFile(wrapper, []byte(fmt.Sprintf("import runpy,sys\nsys.argv += ['--audio','null']\nrunpy.run_path(%q,run_name='__main__')\n", helper)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var states []jellyfin.PlayState
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/Items/track":
+			fmt.Fprint(w, `{"Id":"track","Type":"Audio","RunTimeTicks":80000000}`)
+		case "/Audio/track/stream":
+			http.ServeContent(w, r, "track.wav", time.Time{}, bytes.NewReader(clip))
+		default:
+			if strings.HasPrefix(r.URL.Path, "/Sessions/") {
+				var state jellyfin.PlayState
+				json.NewDecoder(r.Body).Decode(&state)
+				mu.Lock()
+				states = append(states, state)
+				mu.Unlock()
+			}
+		}
+	}))
+	defer server.Close()
+	c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	controls := make(chan Control, 4)
+	first, paused, resumed, advanced := true, false, false, false
+	err = Run(ctx, c, jellyfin.Item{ID: "track", Type: "Audio"}, Options{Headless: true, AudioPlayer: wrapper, Controls: controls, Paused: func(value bool) {
+		if value {
+			paused = true
+			time.AfterFunc(200*time.Millisecond, func() { controls <- Control{Kind: "pause"} })
+		} else {
+			resumed = true
+		}
+	}}, func(ticks int64) {
+		if first {
+			first = false
+			controls <- Control{Kind: "pause"}
+		}
+		if resumed && ticks >= 10000000 {
+			advanced = true
+			cancel()
+		}
+	})
+	if err != nil || !paused || !resumed || !advanced {
+		t.Fatalf("audio controls failed: pause=%v resume=%v advanced=%v error=%v", paused, resumed, advanced, err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	reportedPause := false
+	for _, state := range states {
+		if state.PlayMethod != "DirectStream" {
+			t.Fatal("audio did not report direct streaming")
+		}
+		reportedPause = reportedPause || state.IsPaused
+	}
+	if !reportedPause {
+		t.Fatal("pause state was not reported")
+	}
 }

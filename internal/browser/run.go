@@ -8,22 +8,28 @@ import (
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/playback"
 	"misterfin-go/internal/terminal"
+	"os"
 	"time"
 )
 
 type result struct {
-	request  Request
-	page     jellyfin.Page
-	err      error
-	client   *jellyfin.Client
-	code     string
-	auth     bool
-	update   artUpdate
-	imageID  int
-	art      bool
-	playback bool
-	position bool
-	ticks    int64
+	request         Request
+	page            jellyfin.Page
+	err             error
+	client          *jellyfin.Client
+	code            string
+	auth            bool
+	update          artUpdate
+	imageID         int
+	art             bool
+	playback        bool
+	position        bool
+	ticks           int64
+	paused          *bool
+	neighbor        bool
+	mediaGeneration int
+	parent          View
+	item            *jellyfin.Item
 }
 
 func Run(ctx context.Context, d platform.Display, configPath, stateDir string, player playback.Options) error {
@@ -42,9 +48,22 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		}
 	}
 	playing := false
+	controls := make(chan playback.Control, 16)
+	player.Controls = controls
+	player.Paused = func(paused bool) { send(ctx, result{paused: &paused}) }
+	mediaGeneration := 0
+	var mediaCancel context.CancelFunc = func() {}
+	defer func() { mediaCancel() }()
+	mediaPending := false
+	nextTrack := 0
+	var queuedNeighbor *result
+	stoppedByUser := false
+	var startPlayback func()
+
 	var playCancel context.CancelFunc = func() {}
 	var playDone chan struct{}
 	defer func() {
+		cancel()
 		playCancel()
 		if playDone != nil {
 			<-playDone
@@ -148,16 +167,82 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 
 	geometry := d.Geometry()
 	m.Rows = visibleRows(geometry.Width, geometry.Height)
+	navigateMedia := func(direction int) {
+		if len(m.Stack) < 2 || m.Current().Detail == nil || mediaPending {
+			return
+		}
+		mediaCancel()
+		mediaGeneration++
+		generation := mediaGeneration
+		parent := m.Stack[len(m.Stack)-2]
+		kind := m.Current().Detail.Type
+		rows := m.Rows
+		work, stop := context.WithCancel(ctx)
+		mediaCancel = stop
+		mediaPending = true
+		go func() {
+			parent, item, err := adjacentMedia(work, client, parent, kind, direction, rows)
+			send(work, result{neighbor: true, mediaGeneration: generation, parent: parent, item: item, err: err})
+		}()
+	}
+	startPlayback = func() {
+		selected := *m.Current().Detail
+		m.PlayingAudio = selected.Type == "Audio"
+		m.PlayingVideo = !m.PlayingAudio
+		if m.PlayingVideo && player.TerminalPlayer != "" {
+			_ = os.Remove(player.FrameOutput + ".video")
+		}
+		m.Paused = false
+		m.PositionTicks = 0
+		m.HideControls()
+		stoppedByUser = false
+		nextTrack = 0
+		// Discard controls left over from the preceding track.
+		for len(controls) > 0 {
+			<-controls
+		}
+		if !m.PlayingAudio {
+			artCancel()
+			imageID++
+		}
+		playCtx, stop := context.WithCancel(ctx)
+		playCancel = stop
+		playDone = make(chan struct{})
+		finished := playDone
+		playing = true
+		m.Notice = ""
+		go func() {
+			defer close(finished)
+			err := playback.Run(playCtx, client, selected, player, func(ticks int64) {
+				select {
+				case events <- result{position: true, ticks: ticks}:
+				default:
+				}
+			})
+			send(ctx, result{playback: true, err: err})
+		}()
+	}
 	start := time.Now()
 	last := start
 	anim := Animation{}
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
 	draw := func() error {
-		if playing && !m.PlayingAudio && (!player.Headless || player.TerminalPlayer != "") {
-			return nil
-		}
 		now := time.Now()
+		if playing && m.PlayingVideo {
+			if !player.Headless {
+				return nil
+			}
+			if player.TerminalPlayer != "" {
+				frame, err := os.ReadFile(player.FrameOutput + ".video")
+				if err != nil || len(frame) != geometry.Width*geometry.Height*4 {
+					return nil
+				}
+				// The decoder owns the clean source. Never fold an overlay into it.
+				renderVideoControls(frame, geometry.Width, geometry.Height, m, now)
+				return d.Present(frame)
+			}
+		}
 		dt := min(now.Sub(last).Seconds(), 0.05)
 		last = now
 		anim.Seconds = now.Sub(start).Seconds()
@@ -187,12 +272,83 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 				return errors.New("terminal input closed")
 			}
-			if playing && key != "quit" {
-				if key == "back" {
+			if m.PlayingAudio && playing && key != "quit" {
+				now := time.Now()
+				switch key {
+				case "back":
+					stoppedByUser = true
+					mediaCancel()
+					mediaGeneration++
+					mediaPending = false
+					queuedNeighbor = nil
+					nextTrack = 0
 					playCancel()
-					m.Notice = "Stopping playback..."
+				case "open":
+					m.HideControls()
+					select {
+					case controls <- playback.Control{Kind: "pause"}:
+					default:
+					}
+				case "up":
+					m.RevealControls(now)
+				case "previous", "next":
+					nextTrack = -1
+					if key == "next" {
+						nextTrack = 1
+					}
+					navigateMedia(nextTrack)
+				}
+				if err := draw(); err != nil {
+					return err
 				}
 				continue
+			}
+			if playing && key != "quit" {
+				switch key {
+				case "back":
+					stoppedByUser = true
+					playCancel()
+				case "open":
+					m.HideControls()
+					select {
+					case controls <- playback.Control{Kind: "pause"}:
+					default:
+					}
+				case "up":
+					m.RevealControls(time.Now())
+				}
+				if err := draw(); err != nil {
+					return err
+				}
+				continue
+			}
+			if mediaPending && key != "quit" {
+				if key == "back" {
+					mediaCancel()
+					mediaGeneration++
+					mediaPending = false
+					m.PlayingAudio = false
+					m.Notice = ""
+					load(m.Key("back"))
+					loadArt()
+				}
+				continue
+			}
+			if m.Current().Detail != nil && m.Current().Detail.Type == "Photo" {
+				if key == "back" {
+					m.Notice = ""
+					m.HideControls()
+				}
+				switch key {
+				case "up":
+					m.RevealControls(time.Now())
+				case "previous", "next", "down":
+					direction := 1
+					if key == "previous" {
+						direction = -1
+					}
+					navigateMedia(direction)
+				}
 			}
 
 			if key == "quit" {
@@ -207,40 +363,12 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 			} else {
 				if key == "open" && m.Notice == "" && m.Current().Detail != nil && playback.Supported(*m.Current().Detail) {
-					selected := *m.Current().Detail
-					m.PlayingAudio = selected.Type == "Audio"
-					m.PositionTicks = 0
-					if !m.PlayingAudio {
-						artCancel()
-						imageID++
-					}
-					playCtx, stop := context.WithCancel(ctx)
-					playCancel = stop
-					if !m.PlayingAudio && (!player.Headless || player.TerminalPlayer != "") {
+					if m.Current().Detail.Type != "Audio" && (!player.Headless || player.TerminalPlayer != "") {
 						if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
 							return err
 						}
 					}
-					playDone = make(chan struct{})
-					finished := playDone
-					playing = true
-					m.Notice = "Playing in video window. A:stop"
-					if m.PlayingAudio {
-						m.Notice = ""
-					}
-					go func() {
-						defer close(finished)
-						err := playback.Run(playCtx, client, selected, player, func(ticks int64) {
-							select {
-							case events <- result{position: true, ticks: ticks}:
-							default:
-							}
-						})
-						select {
-						case events <- result{playback: true, err: err}:
-						case <-ctx.Done():
-						}
-					}()
+					startPlayback()
 					continue
 				}
 				if key == "retry" {
@@ -250,7 +378,11 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					selectedKey = ""
 				}
 				before := m.Generation
+				wasDetail := m.Current().Detail != nil
 				req := m.Key(key)
+				if key == "open" && m.Current().Detail != nil && m.Current().Detail.Type == "Photo" {
+					m.HideControls()
+				}
 				if m.Quit {
 					return nil
 				}
@@ -259,21 +391,87 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 				load(req)
 				loadArt()
+				if key == "open" && !wasDetail && m.Current().Detail != nil && m.Current().Detail.Type == "Audio" {
+					startPlayback()
+				}
 			}
 		case r := <-events:
-			if r.position {
+			if r.paused != nil {
+				if playing {
+					m.Paused = *r.paused
+				}
+			} else if r.neighbor {
+				if r.mediaGeneration != mediaGeneration {
+					continue
+				}
+				mediaPending = false
+				nextTrack = 0
+				if playing && m.PlayingAudio {
+					if r.item != nil && r.err == nil {
+						queuedNeighbor = &r
+						playCancel()
+					}
+					if r.err != nil {
+						m.Notice = "Could not load adjacent track"
+					}
+					continue
+				}
+				if r.err != nil {
+					m.Notice = "Could not load adjacent item. A:back"
+					m.PlayingAudio = false
+				} else if r.item != nil {
+					m.Stack[len(m.Stack)-2] = r.parent
+					m.Current().Detail = r.item
+					m.Current().Title = r.item.Name
+					m.Notice = ""
+					selectedKey = ""
+					loadArt()
+					if r.item.Type == "Audio" {
+						startPlayback()
+					}
+				} else if m.PlayingAudio {
+					m.PlayingAudio = false
+					load(m.Key("back"))
+					loadArt()
+				}
+			} else if r.position {
 				if playing {
 					m.PositionTicks = r.ticks
 				}
 			} else if r.playback {
 				playing = false
-				m.PlayingAudio = false
+				m.PlayingVideo = false
+				if player.TerminalPlayer != "" {
+					_ = os.Remove(player.FrameOutput + ".video")
+				}
 				playCancel()
 				m.Notice = ""
-				selectedKey = ""
-				loadArt()
-				if r.err != nil {
-					m.Notice = r.err.Error() + "  A:back"
+				if m.PlayingAudio && !stoppedByUser && r.err == nil && queuedNeighbor != nil {
+					m.Stack[len(m.Stack)-2] = queuedNeighbor.parent
+					m.Current().Detail = queuedNeighbor.item
+					m.Current().Title = queuedNeighbor.item.Name
+					queuedNeighbor = nil
+					selectedKey = ""
+					loadArt()
+					startPlayback()
+				} else if m.PlayingAudio && !stoppedByUser && r.err == nil {
+					direction := nextTrack
+					if direction == 0 {
+						direction = 1
+					}
+					navigateMedia(direction)
+				} else {
+					wasAudio := m.PlayingAudio
+					m.PlayingAudio = false
+					m.HideControls()
+					if wasAudio && stoppedByUser {
+						load(m.Key("back"))
+					}
+					selectedKey = ""
+					loadArt()
+					if r.err != nil {
+						m.Notice = r.err.Error() + "  A:back"
+					}
 				}
 			} else if r.auth {
 				if r.request.Generation != authGeneration {

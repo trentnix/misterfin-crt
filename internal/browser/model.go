@@ -4,6 +4,7 @@ package browser
 import (
 	"fmt"
 	"misterfin-go/internal/jellyfin"
+	"time"
 )
 
 const PageSize = 64
@@ -30,6 +31,9 @@ type Model struct {
 	ListMode, ExitConfirm, Quit bool
 	Notice                      string
 	PlayingAudio                bool
+	PlayingVideo                bool
+	Paused                      bool
+	ControlsUntil               time.Time
 	PositionTicks               int64
 }
 

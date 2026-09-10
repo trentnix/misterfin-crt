@@ -344,7 +344,7 @@ def run(args: argparse.Namespace) -> int:
             env = child_environment(width, height, frame_path)
             command = [str(binary)]
             if args.browse:
-                command.append("-browse")
+                command += ["-browse", "-audio-player", str(Path(__file__).with_name("video_player.py").resolve())]
                 if args.inline_video:
                     command += ["-terminal-player", str(Path(__file__).with_name("video_player.py").resolve())]
                 config, state_dir = args.config, args.state_dir

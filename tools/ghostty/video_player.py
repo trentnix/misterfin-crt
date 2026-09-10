@@ -13,6 +13,9 @@ import math
 import os
 from pathlib import Path
 import signal
+import select
+import sys
+from urllib.parse import urlparse
 import tempfile
 import threading
 import time
@@ -75,7 +78,7 @@ def publish_frame(output, source, width, height):
             os.unlink(path)
 
 
-def play(output, width, height, audio="auto", audio_only=False):
+def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False):
     mpv = MPV()
     handle = mpv.create()
     if not handle:
@@ -142,10 +145,25 @@ def play(output, width, height, audio="auto", audio_only=False):
                 raise RuntimeError("video renderer did not initialize")
         for sig in (signal.SIGINT, signal.SIGTERM):
             previous[sig] = signal.signal(sig, lambda *_: stop.set())
-        if mpv.send(handle, "loadfile", "fd://3", "replace") < 0:
+        if mpv.send(handle, "loadfile", source, "replace") < 0:
             raise RuntimeError("cannot open media pipe")
         next_report = 0.0
+        control_buffer = b""
+        control_open = controls or (audio_only and source != "fd://3")
         while not stop.is_set():
+            if control_open and select.select([sys.stdin], [], [], 0)[0]:
+                chunk = os.read(sys.stdin.fileno(), 1024)
+                if not chunk:
+                    control_open = False
+                control_buffer += chunk
+                while b"\n" in control_buffer:
+                    line, control_buffer = control_buffer.split(b"\n", 1)
+                    parts = line.decode("ascii", errors="ignore").split()
+                    if len(parts) == 2 and parts[0] == "pause" and parts[1] in ("true", "false"):
+                        mpv.send(handle, "set", "pause", "yes" if parts[1] == "true" else "no")
+                    next_report = 0.0
+                if len(control_buffer) > 1024:
+                    control_buffer = b""
             event = mpv.wait(handle, 0.05).contents
             if event.event_id == 7:  # MPV_EVENT_END_FILE
                 end = C.cast(event.data, C.POINTER(EndFile)).contents
@@ -179,6 +197,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--audio-only", action="store_true")
+    parser.add_argument("--source", default="fd://3")
+    parser.add_argument("--controls", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, choices=(240, 288), default=240)
@@ -190,7 +210,11 @@ def main():
         return
     if not args.audio_only and (args.output is None or args.width != 640):
         parser.error("--output and a 640-pixel framebuffer are required")
-    play(args.output, args.width, args.height, args.audio, args.audio_only)
+    if args.source != "fd://3":
+        source = urlparse(args.source)
+        if not args.audio_only or source.scheme != "http" or source.hostname != "127.0.0.1" or source.username or source.password or source.query or source.fragment:
+            parser.error("--source must identify the local audio proxy")
+    play(args.output, args.width, args.height, args.audio, args.audio_only, args.source, args.controls)
 
 
 if __name__ == "__main__":

@@ -144,14 +144,22 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 	}
 	if v.Detail != nil && v.Detail.Type == "Photo" {
 		c.Image(art.Photo, 0, 0, w, h)
-		c.Shade(0, 0, w, sy+12, 175)
-		c.Shade(0, bottom-4, w, h-bottom+4, 175)
-		count := ""
-		if len(m.Stack) > 1 {
-			count = m.Stack[len(m.Stack)-2].Count()
+		if m.ControlsVisible(now) {
+			c.Shade(0, 0, w, sy+12, 175)
+			c.Shade(0, bottom-4, w, h-bottom+4, 175)
+			count := ""
+			if len(m.Stack) > 1 {
+				count = m.Stack[len(m.Stack)-2].Count()
+			}
+			c.Text(24, sy, truncate(v.Detail.Name, w-60-textWidth(count, 1), 1), 0xffffff, w-24)
+			c.Text(w-24-textWidth(count, 1), sy, count, dimColor, w-24)
+			center(c, bottom, "LEFT/RIGHT: photos   A:back", dimColor, 1)
 		}
-		c.Text(24, sy, truncate(v.Detail.Name, w-60-textWidth(count, 1), 1), 0xffffff, w-24)
-		c.Text(w-24-textWidth(count, 1), sy, count, dimColor, w-24)
+
+		if m.Notice != "" {
+			c.Shade(0, h/2-10, w, 24, 210)
+			center(c, h/2-4, m.Notice, 0xffffff, 1)
+		}
 		if art.Photo == nil {
 			message := "Loading photo..."
 			if artError != "" {
@@ -159,7 +167,12 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 			}
 			center(c, h/2-4, message, 0xffffff, 1)
 		}
-		center(c, bottom, "A:back", dimColor, 1)
+		return c.Pixels
+	}
+	if m.PlayingVideo && v.Detail != nil {
+		c.Image(art.Backdrop, 0, 0, w, h)
+		center(c, h/2-4, truncate(v.Detail.Name, w-48, 1), titleColor, 1)
+		renderVideoControls(c.Pixels, w, h, m, now)
 		return c.Pixels
 	}
 	if m.PlayingAudio && v.Detail != nil {
@@ -171,11 +184,18 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		if v.Detail.RunTimeTicks > 0 {
 			c.Rect(24, h-sy-30, int(min(m.PositionTicks, v.Detail.RunTimeTicks)*int64(w-48)/v.Detail.RunTimeTicks), 3, titleColor)
 		}
-		message := "A:stop"
-		if m.Notice != "" {
-			message = m.Notice
+		if m.ControlsVisible(now) {
+			c.Shade(0, bottom-22, w, h-bottom+22, 210)
+			action := "B:pause"
+			if m.Paused {
+				action = "B:play"
+			}
+			center(c, bottom-12, "LEFT/RIGHT: previous/next track", dimColor, 1)
+			center(c, bottom, action+"   A:stop", dimColor, 1)
 		}
-		center(c, bottom, message, dimColor, 1)
+		if m.Notice != "" {
+			center(c, bottom, m.Notice, dimColor, 1)
+		}
 		return c.Pixels
 	}
 	hint := "B:select  A:back"
@@ -344,4 +364,26 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		center(c, h/2-4*scale, message, titleColor, scale)
 	}
 	return c.Pixels
+}
+
+// Compose controls over a fresh decoder frame. Hidden controls leave it intact.
+func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
+	if !m.ControlsVisible(now) || m.Current().Detail == nil {
+		return
+	}
+	c := &ui.Canvas{Width: w, Height: h, Pixels: frame}
+	sy := safeY(w, h)
+	bottom := h - 8 - sy
+	c.Shade(0, bottom-46, w, h-bottom+46, 210)
+	center(c, bottom-36, truncate(m.Current().Detail.Name, w-48, 1), titleColor, 1)
+	label := runtime(m.PositionTicks)
+	if !jellyfin.IsLive(*m.Current().Detail) && m.Current().Detail.RunTimeTicks > 0 {
+		label += " / " + runtime(m.Current().Detail.RunTimeTicks)
+	}
+	center(c, bottom-22, label, dimColor, 1)
+	action := "B:pause"
+	if m.Paused {
+		action = "B:play"
+	}
+	center(c, bottom, action+"   A:stop", dimColor, 1)
 }

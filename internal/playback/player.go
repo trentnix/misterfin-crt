@@ -17,7 +17,14 @@ import (
 	"time"
 )
 
+type Control struct {
+	Kind string
+}
+
 type Options struct {
+	AudioPlayer    string
+	Controls       <-chan Control
+	Paused         func(bool)
 	Player         string
 	TerminalPlayer string
 	FrameOutput    string
@@ -59,7 +66,7 @@ func (o Options) args(item jellyfin.Item) []string {
 		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", "volume=-3,lavcresample=48000", "/dev/fd/3"}
 	}
 	if o.TerminalPlayer != "" {
-		return []string{o.TerminalPlayer, "--output", o.FrameOutput, "--width", strconv.Itoa(o.Width), "--height", strconv.Itoa(o.Height)}
+		return []string{o.TerminalPlayer, "--controls", "--output", o.FrameOutput + ".video", "--width", strconv.Itoa(o.Width), "--height", strconv.Itoa(o.Height)}
 	}
 	if o.Headless {
 		return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerFin-Go playback", "-vf", "setpts=PTS-STARTPTS", "-af", "asetpts=PTS-STARTPTS", "-i", "pipe:3"}
@@ -106,6 +113,9 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	}
 	if o.TerminalPlayer != "" && (!o.Headless || o.FrameOutput == "" || o.Player != "" || o.Width != 640 || (o.Height != 240 && o.Height != 288)) {
 		return errors.New("terminal playback requires 640x240 or 640x288 headless output and no player override")
+	}
+	if item.Type == "Audio" && o.AudioPlayer != "" && o.Player == "" {
+		o.TerminalPlayer = o.AudioPlayer
 	}
 	executable, err := exec.LookPath(o.executable())
 	if err != nil {
@@ -179,25 +189,48 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			_ = c.SavePlaybackPosition(cleanup, item.ID, state.PositionTicks, played)
 		}
 	}()
-	stream, err := c.OpenStream(mediaCtx, streamURL)
+	var stream io.ReadCloser
+	source := ""
+	if item.Type == "Audio" && (o.TerminalPlayer != "" || !o.Headless) {
+		var closeProxy func()
+		source, closeProxy, err = audioProxy(mediaCtx, c, streamURL)
+		if err == nil {
+			defer closeProxy()
+		}
+	} else {
+		stream, err = c.OpenStream(mediaCtx, streamURL)
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
 		}
 		return err
 	}
-	defer stream.Close()
+	if stream != nil {
+		defer stream.Close()
+	}
 	reader, writer, err := os.Pipe()
 	if err != nil {
 		return errors.New("cannot open player stream pipe")
 	}
 	defer reader.Close()
 	defer writer.Close()
-	cmd := exec.CommandContext(mediaCtx, executable, o.args(item)...)
+	args := o.args(item)
+	if source != "" {
+		if o.TerminalPlayer != "" {
+			args = append(args, "--source", source)
+		} else {
+			args[len(args)-1] = source
+		}
+	}
+	cmd := exec.CommandContext(mediaCtx, executable, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Give the player a chance to restore its video device before the
 	// CommandContext watchdog falls back to killing an unresponsive process.
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
+	cmd.Cancel = func() error {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGCONT)
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+	}
 	cmd.WaitDelay = 2 * time.Second
 	cmd.ExtraFiles = []*os.File{reader}
 	updates := make(chan float64, 16)
@@ -214,10 +247,23 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	}
 	reader.Close()
 	copyDone := make(chan struct{})
-	go func() { _, _ = io.Copy(writer, stream); writer.Close(); close(copyDone) }()
+	go func() {
+		if stream != nil {
+			_, _ = io.Copy(writer, stream)
+		}
+		writer.Close()
+		close(copyDone)
+	}()
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	defer func() { cancel(); stream.Close(); writer.Close(); <-copyDone }()
+	defer func() {
+		cancel()
+		if stream != nil {
+			stream.Close()
+		}
+		writer.Close()
+		<-copyDone
+	}()
 	poll := time.NewTicker(time.Second)
 	defer poll.Stop()
 	report := time.NewTicker(10 * time.Second)
@@ -226,6 +272,9 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	defer startup.Stop()
 	reportErr := false
 	update := func(seconds float64) {
+		if state.IsPaused && started {
+			return
+		}
 		state.PositionTicks = start + int64(seconds*10000000)
 		if !liveTV && item.RunTimeTicks > 0 {
 			state.PositionTicks = min(state.PositionTicks, item.RunTimeTicks)
@@ -238,8 +287,50 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			reportErr = c.ReportPlaying(mediaCtx, "progress", state) != nil || reportErr
 		}
 	}
+	controls := o.Controls
 	for {
 		select {
+		case control, ok := <-controls:
+			if !ok {
+				controls = nil
+				continue
+			}
+			switch control.Kind {
+			case "pause":
+				paused := !state.IsPaused
+				var controlErr error
+				if o.TerminalPlayer != "" {
+					_, controlErr = fmt.Fprintf(commands, "pause %t\n", paused)
+				} else if !o.Headless {
+					_, controlErr = io.WriteString(commands, "pause\n")
+				} else {
+					sig := syscall.SIGSTOP
+					if !paused {
+						sig = syscall.SIGCONT
+					}
+					controlErr = syscall.Kill(-cmd.Process.Pid, sig)
+				}
+				if controlErr != nil {
+					continue
+				}
+				state.IsPaused = paused
+				if !started {
+					if paused {
+						startup.Stop()
+					} else {
+						startup.Reset(30 * time.Second)
+					}
+				}
+				if o.Paused != nil {
+					o.Paused(paused)
+				}
+
+			default:
+				continue
+			}
+			if started {
+				reportErr = c.ReportPlaying(mediaCtx, "progress", state) != nil || reportErr
+			}
 		case seconds := <-updates:
 			update(seconds)
 		case <-poll.C:

@@ -4,7 +4,7 @@ An unofficial Go adaptation of [MiSTerFin](https://github.com/puddingstudio/MiST
 
 The UI is built explicitly for CRT output. The project maintainer, trentnix, uses a CRT for both testing and everyday use.
 
-The Go prototype supports Jellyfin authentication, library browsing, paginated item lists, full-screen photos, and individual music tracks in Ghostty. Video playback can run inside Ghostty with `--inline-video`, or in a separate FFplay window by default. See [the playback guide](docs/GO_PLAYBACK.md) for controls and current limits. The working C baseline and its Git history remain available as the behavioral reference. See [the Go port plan](docs/GO_PORT_PLAN.md) for the source commit, architecture, and milestones, and [the browsing guide](docs/GO_BROWSING.md) for setup and current limitations.
+The Go prototype supports Jellyfin authentication, library browsing, paginated item lists, full-screen photos, and album playback in Ghostty. Video playback can run inside Ghostty with `--inline-video`, or in a separate FFplay window by default. See [the playback guide](docs/GO_PLAYBACK.md) for controls and current limits. The working C baseline and its Git history remain available as the behavioral reference. See [the Go port plan](docs/GO_PORT_PLAN.md) for the source commit, architecture, and milestones, and [the browsing guide](docs/GO_BROWSING.md) for setup and current limitations.
 
 Try the local demo from Ghostty:
 

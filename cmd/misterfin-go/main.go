@@ -23,6 +23,7 @@ func run() (err error) {
 	hold := flag.Duration("hold", 0, "keep test frame visible for this duration, for example 10s")
 	wait := flag.Bool("wait", false, "keep test frame visible until interrupted")
 	player := flag.String("player", "", "player executable (FFplay for headless preview, mplayer-arm on MiSTer)")
+	audioPlayer := flag.String("audio-player", "", "Python helper for controllable desktop music playback")
 	terminalPlayer := flag.String("terminal-player", "", "Python helper for video in the headless framebuffer")
 	browse := flag.Bool("browse", false, "browse Jellyfin with terminal keyboard input")
 	config := flag.String("config", "jellyfin.conf", "Jellyfin configuration path")
@@ -40,6 +41,9 @@ func run() (err error) {
 	if *terminalPlayer != "" && (!*browse || *headless == "" || *output == "" || *player != "") {
 		return errors.New("-terminal-player requires -browse, -headless, and -output, without -player")
 	}
+	if *audioPlayer != "" && (*headless == "" || !*browse || *player != "") {
+		return errors.New("-audio-player requires headless browsing without -player")
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	d, err := platform.Open(platform.Options{Device: *device, Headless: *headless, Output: *output})
@@ -56,7 +60,7 @@ func run() (err error) {
 			*stateDir = filepath.Join(dir, "misterfin-go")
 		}
 		g := d.Geometry()
-		return browser.Run(ctx, d, *config, *stateDir, playback.Options{Player: *player, TerminalPlayer: *terminalPlayer, FrameOutput: *output, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight})
+		return browser.Run(ctx, d, *config, *stateDir, playback.Options{AudioPlayer: *audioPlayer, Player: *player, TerminalPlayer: *terminalPlayer, FrameOutput: *output, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight})
 	}
 	if err = testframe.Present(d); err != nil {
 		return err

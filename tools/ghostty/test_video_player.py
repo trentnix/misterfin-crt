@@ -3,6 +3,9 @@
 import ctypes.util
 from pathlib import Path
 import shutil
+import select
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import subprocess
 import sys
 import tempfile
@@ -74,6 +77,82 @@ class VideoTests(unittest.TestCase):
             self.assertGreater(len(positions), 3)
             self.assertGreater(positions[-1], 1.0)
             self.assertEqual(output.read_bytes(), b"browser frame")
+
+    def test_audio_pause_resume(self):
+        clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                                        "sine=frequency=440:sample_rate=44100", "-t", "8",
+                                        "-c:a", "pcm_s16le", "-f", "wav", "pipe:1"])
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+            def do_GET(self):
+                start = int(self.headers.get("Range", "bytes=0-").split("=")[1].split("-")[0])
+                self.send_response(206 if "Range" in self.headers else 200)
+                self.send_header("Content-Length", str(len(clip) - start))
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Type", "audio/wav")
+                if "Range" in self.headers:
+                    self.send_header("Content-Range", f"bytes {start}-{len(clip)-1}/{len(clip)}")
+                self.end_headers()
+                try:
+                    self.wfile.write(clip[start:])
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(worker.join)
+        self.addCleanup(server.shutdown)
+        process = subprocess.Popen([sys.executable, str(HELPER), "--audio-only", "--audio", "null",
+                                    "--source", f"http://127.0.0.1:{server.server_port}/audio"],
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        self.addCleanup(self.reap, process)
+        def position():
+            self.assertTrue(select.select([process.stdout], [], [], 3)[0], "no position feedback")
+            line = process.stdout.readline()
+            self.assertTrue(line.startswith(b"ANS_TIME_POSITION="), line)
+            return float(line.split(b"=")[1])
+        position()
+        process.stdin.write(b"pause true\n")
+        position()  # Allow an already queued report to drain.
+        paused = position()
+        self.assertAlmostEqual(position(), paused, delta=0.05)
+        process.stdin.write(b"pause false\n")
+        deadline = time.monotonic() + 3
+        while position() < paused + 0.2:
+            self.assertLess(time.monotonic(), deadline, "audio did not resume")
+        process.terminate()
+        process.wait(timeout=2)
+        self.assertEqual(process.returncode, 0)
+
+    def test_video_pause_resume_with_separate_control_pipe(self):
+        clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                                        "testsrc2=size=320x180:rate=25", "-f", "lavfi", "-i",
+                                        "sine=frequency=440:sample_rate=48000", "-t", "4",
+                                        "-c:v", "mpeg2video", "-c:a", "mp3", "-f", "mpegts", "pipe:1"])
+        with tempfile.TemporaryDirectory() as directory:
+            media = Path(directory) / "clip.ts"
+            media.write_bytes(clip)
+            output = Path(directory) / "frame.raw"
+            bootstrap = "import os,sys,runpy; fd=os.open(sys.argv[1],os.O_RDONLY); os.dup2(fd,3); sys.argv=sys.argv[2:]; runpy.run_path(sys.argv[0],run_name='__main__')"
+            process = subprocess.Popen([sys.executable, "-c", bootstrap, str(media), str(HELPER),
+                                        "--controls", "--audio", "null", "--output", str(output)],
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+            self.addCleanup(self.reap, process)
+            self.assertTrue(select.select([process.stdout], [], [], 3)[0])
+            self.assertTrue(process.stdout.readline().startswith(b"ANS_TIME_POSITION="))
+            process.stdin.write(b"pause true\n")
+            time.sleep(0.3)
+            paused = output.read_bytes()
+            time.sleep(0.4)
+            self.assertEqual(output.read_bytes(), paused)
+            process.stdin.write(b"pause false\n")
+            time.sleep(0.4)
+            self.assertNotEqual(output.read_bytes(), paused)
+            process.terminate()
+            process.wait(timeout=2)
+            self.assertEqual(process.returncode, 0)
 
     def test_stop_during_playback(self):
         with tempfile.TemporaryDirectory() as directory:

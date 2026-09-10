@@ -29,6 +29,8 @@ class BrowseIntegrationTests(unittest.TestCase):
         mock = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mock)
         mock.ITEMS.update({channel["Id"]: channel for channel in mock.LIVE_CHANNELS})
+        if self._testMethodName == "test_music_advances_and_preserves_last_track":
+            mock.CHILDREN["artist-000-album0"] = mock.CHILDREN["artist-000-album0"][:2]
         self.requests = []
         self.reports = []
         self.delay_items = False
@@ -80,11 +82,14 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.frame = self.directory / "frame.raw"
         player = self.directory / "test-player"
         player.write_text("#!/bin/sh\nprintf 'ANS_TIME_POSITION=2\\n'\nsleep 30\n")
+        if self._testMethodName == "test_music_advances_and_preserves_last_track":
+            player.write_text("#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf 'ANS_TIME_POSITION=3\\n'\n")
         player.chmod(0o700)
         player_args = ["-player", str(player)]
         if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
             player.write_text("import argparse, pathlib, time\n"
                               "p=argparse.ArgumentParser()\n"
+                              "p.add_argument('--controls',action='store_true')\n"
                               "for name in ('output','width','height'): p.add_argument('--'+name)\n"
                               "a=p.parse_args()\n"
                               "pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
@@ -176,6 +181,18 @@ class BrowseIntegrationTests(unittest.TestCase):
         if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
             time.sleep(0.3)
             self.assertEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.key(b"\x1b[A")
+            time.sleep(0.1)
+            self.assertNotEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.key(b"b")
+            deadline = time.monotonic() + 5
+            while not any(path == "/Sessions/Playing/Progress" and body.get("IsPaused") for path, body in self.reports):
+                self.assertLess(time.monotonic(), deadline, "video pause was not reported")
+                time.sleep(0.02)
+            self.assertEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.key(b"b")
+            time.sleep(0.1)
+            self.assertEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
         self.key(b"a")
         while not any(path == "/Sessions/Playing/Stopped" for path, _ in self.reports):
             self.assertLess(time.monotonic(), deadline, "no playback stop")
@@ -231,6 +248,10 @@ class BrowseIntegrationTests(unittest.TestCase):
         frame = self.frame.read_bytes()
         offset = (120 * 640 + 320) * 4
         self.assertEqual(frame[offset:offset + 3], bytes([215, 125, 35]))
+        self.key(b"\x1b[C")
+        self.wait_request("/Items/photo-portrait/Images/Primary", quality=90)
+        self.key(b"\x1b[D")
+        time.sleep(0.15)  # The previous photo is already cached.
         self.key(b"a")
         time.sleep(0.15)
         self.key(b"\x1b[Bb")
@@ -246,11 +267,29 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items", ParentId="artist-000-album0")
         self.key(b"b")
         self.wait_request("/Items/artist-000-album0-t01")
-        details = self.frame.read_bytes()
-        self.key(b"b")
         self.wait_request("/Audio/artist-000-album0-t01/stream", static="true")
-        self.assertNotEqual(self.frame.read_bytes(), details)
         self.assertEqual(len(self.frame.read_bytes()), 640 * 240 * 4)
+        self.key(b"\x1b[A")  # Reveal only. Do not change tracks.
+        time.sleep(0.1)
+        self.assertEqual(sum(urlparse(r).path.startswith("/Audio/") for r in self.requests), 1)
+        self.key(b"b")  # Pause and hide the instructions.
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing/Progress" and body.get("IsPaused") for path, body in self.reports):
+            self.assertLess(time.monotonic(), deadline, "pause was not reported")
+            time.sleep(0.02)
+        time.sleep(0.1)
+        self.assertEqual(self.frame.read_bytes()[220 * 640 * 4:], bytes(20 * 640 * 4))
+        self.key(b"b")
+        time.sleep(0.1)
+        self.key(b"\x1b[C")  # Hidden controls must not consume navigation.
+        self.wait_request("/Audio/artist-000-album0-t02/stream", static="true")
+        self.key(b"\x1b[C")  # The next move must also take one press.
+        self.wait_request("/Audio/artist-000-album0-t03/stream", static="true")
+        self.key(b"\x1b[D")
+        deadline = time.monotonic() + 5
+        while sum(urlparse(r).path == "/Audio/artist-000-album0-t02/stream" for r in self.requests) < 2:
+            self.assertLess(time.monotonic(), deadline, "Left did not change tracks immediately")
+            time.sleep(0.02)
         self.key(b"a")
         deadline = time.monotonic() + 5
         while not any(path == "/Sessions/Playing/Stopped" for path, _ in self.reports):
@@ -259,6 +298,27 @@ class BrowseIntegrationTests(unittest.TestCase):
         playing = [body for path, body in self.reports if path == "/Sessions/Playing"]
         self.assertEqual(playing[0]["PlayMethod"], "DirectStream")
         self.assertIsNone(self.process.poll())
+
+    def test_music_advances_and_preserves_last_track(self):
+        self.key(b"\x1b[C\x1b[Cb")
+        self.wait_request("/Items", ParentId="view-music")
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="artist-000")
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="artist-000-album0")
+        self.key(b"b")
+        self.wait_request("/Audio/artist-000-album0-t01/stream")
+        self.wait_request("/Audio/artist-000-album0-t02/stream")
+        deadline = time.monotonic() + 5
+        while sum(path == "/Sessions/Playing/Stopped" for path, _ in self.reports) < 2:
+            self.assertLess(time.monotonic(), deadline, "queue did not finish")
+            time.sleep(0.02)
+        time.sleep(0.2)
+        self.key(b"b")  # Back in the album with the last track selected.
+        while sum(urlparse(r).path == "/Audio/artist-000-album0-t02/stream" for r in self.requests) < 2:
+            self.assertLess(time.monotonic(), deadline, "last-track selection was not restored")
+            time.sleep(0.02)
+        self.assertFalse(any("t03/stream" in r for r in self.requests))
 
     def test_back_cancels_delayed_library(self):
         self.delay_items = True
