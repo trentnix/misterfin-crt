@@ -9,9 +9,15 @@ import (
 type Canvas struct {
 	Width, Height int
 	Pixels        []byte
+	transparent   bool
 }
 
-func New(w, h int) *Canvas { return &Canvas{w, h, make([]byte, w*h*4)} }
+func New(w, h int) *Canvas {
+	return &Canvas{Width: w, Height: h, Pixels: make([]byte, w*h*4)}
+}
+func NewOverlay(w, h int) *Canvas {
+	return &Canvas{Width: w, Height: h, Pixels: make([]byte, w*h*4), transparent: true}
+}
 func (c *Canvas) Rect(x, y, w, h int, color uint32) {
 	for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
 		for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
@@ -19,6 +25,9 @@ func (c *Canvas) Rect(x, y, w, h int, color uint32) {
 			c.Pixels[i] = byte(color)
 			c.Pixels[i+1] = byte(color >> 8)
 			c.Pixels[i+2] = byte(color >> 16)
+			if c.transparent {
+				c.Pixels[i+3] = 255
+			}
 		}
 	}
 }
@@ -103,9 +112,36 @@ func (c *Canvas) Shade(x, y, w, h, alpha int) {
 	for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
 		for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
 			i := (yy*c.Width + xx) * 4
+			if c.transparent {
+				oldAlpha := int(c.Pixels[i+3])
+				outAlpha := alpha + oldAlpha*(255-alpha)/255
+				if outAlpha > 0 {
+					for k := 0; k < 3; k++ {
+						c.Pixels[i+k] = byte(int(c.Pixels[i+k]) * oldAlpha * (255 - alpha) / (255 * outAlpha))
+					}
+				}
+				c.Pixels[i+3] = byte(outAlpha)
+				continue
+			}
 			for k := 0; k < 3; k++ {
 				c.Pixels[i+k] = byte(int(c.Pixels[i+k]) * (255 - alpha) / 255)
 			}
+		}
+	}
+}
+
+// Composite draws a straight-alpha BGRA overlay over a BGRX frame.
+func Composite(frame, overlay []byte) {
+	if len(frame) != len(overlay) || len(frame)%4 != 0 {
+		return
+	}
+	for i := 0; i < len(frame); i += 4 {
+		a := int(overlay[i+3])
+		if a == 0 {
+			continue
+		}
+		for k := 0; k < 3; k++ {
+			frame[i+k] = byte((int(overlay[i+k])*a + int(frame[i+k])*(255-a) + 127) / 255)
 		}
 	}
 }

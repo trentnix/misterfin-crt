@@ -6,7 +6,7 @@ This repository starts from the working C implementation in `/mnt/Data/Source/Mi
 
 The original project is [Pudding Studio's MiSTerFin](https://github.com/puddingstudio/MiSTerFin). The integration repository is [trentnix/MiSTerFin](https://github.com/trentnix/MiSTerFin). Git history preserves the ancestry and contributor records. The local `source` remote points to the integration repository. No publishing remote is configured.
 
-The Go implementation now includes a framebuffer prototype and a Ghostty browsing path with configuration, authentication, paginated lists, and artwork. The current C source and tests remain the behavioral reference. Initial external-player video playback is implemented, with desktop decoding and session lifecycle tests. See [the playback record](GO_PLAYBACK.md), [the build record](GO_BUILD.md), and [the browsing record](GO_BROWSING.md) for validation and remaining limits. Ignored configuration, tokens, build products, and other untracked files were not copied by the clone.
+The Go implementation now includes a framebuffer prototype and a Ghostty browsing path with configuration, authentication, paginated lists, and artwork. The current C source and tests remain the behavioral reference. External-player video playback uses one Go overlay renderer and output-specific composition for headless decoder frames and native `mplayer-arm`. See [the playback record](GO_PLAYBACK.md), [the build record](GO_BUILD.md), and [the browsing record](GO_BROWSING.md) for validation and remaining limits. Ignored configuration, tokens, build products, and other untracked files were not copied by the clone.
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Go media playback
 
-The Go client can start and resume movies, episodes, videos, and music videos through Jellyfin's progressive MPEG-2/MP3 transcode endpoint. Desktop playback opens FFplay in a separate window by default, with optional video inside Ghostty through libmpv. The MiSTer path launches the existing `mplayer-arm` executable and suspends browser framebuffer writes until the player stops. Live TV channels use the C client’s negotiated stream setup. The C application remains unchanged.
+The Go client can start and resume movies, episodes, videos, and music videos through Jellyfin's progressive MPEG-2/MP3 transcode endpoint. Desktop playback opens FFplay in a separate window by default, with optional video inside Ghostty through libmpv. The MiSTer path launches the patched `mplayer-arm` executable and passes Go-rendered overlays to its framebuffer output driver while MPlayer owns `/dev/fb0`. Live TV channels use the C client’s negotiated stream setup. The C application remains unchanged.
 
 ## Desktop use
 
@@ -25,7 +25,7 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --config
 
 Open a video's details and press B or Enter. Video replaces the browser image inside Ghostty. Audio plays through the desktop audio output. B or Enter pauses or resumes without a pause overlay. Up reveals the title, playback time, and controls over the video for three seconds. Pausing or resuming hides the menu immediately. A stops playback and restores the details screen. Q exits. The inline mode defaults to 30 terminal presentations per second. Use `--fps 25` to select a lower limit. The mock demo does not supply playable media.
 
-The Python helper uses libmpv's [software rendering API](https://github.com/mpv-player/mpv/blob/v0.37.0/libmpv/render.h). libmpv handles decoding, audio, and presentation timing. A dedicated render thread writes complete BGRX frames atomically to a separate decoder frame file, using the output path with `.video` appended. Rendering at 640×480 before sampling PAL or NTSC rows preserves the harness's physical 4:3 aspect ratio and source letterboxing. The Go browser reads each clean decoder frame and presents it with controls only when requested. The menu never modifies the decoder frame, so hiding or expiring it restores the clean picture even while paused. Terminal presentation can drop frames if uploads cannot keep up. Visible smoothness and audible synchronization still need interactive Ghostty validation.
+The Python helper uses libmpv's [software rendering API](https://github.com/mpv-player/mpv/blob/v0.37.0/libmpv/render.h). libmpv handles decoding, audio, and presentation timing. A dedicated render thread writes complete BGRX frames atomically to a separate decoder frame file, using the output path with `.video` appended. Rendering at 640×480 before sampling PAL or NTSC rows preserves the harness's physical 4:3 aspect ratio and source letterboxing. The browser produces one straight-alpha BGRA overlay without knowing which video output is active. The headless output backend reads each clean decoder frame, composites the overlay, and presents the result. The menu never modifies the decoder frame, so hiding or expiring it restores the clean picture even while paused. Terminal presentation can drop frames if uploads cannot keep up. Visible smoothness and audible synchronization still need interactive Ghostty validation.
 
 The Go process retains stream ownership and session reporting. The helper receives media on descriptor 3, reads pause commands from a separate standard-input pipe, and returns numeric playback positions. The direct Go binary accepts `-terminal-player tools/ghostty/video_player.py` with `-browse`, a 640×240 or 640×288 `-headless` geometry, and `-output`. The terminal helper cannot be combined with `-player`. MiSTer does not need Python or libmpv.
 
@@ -53,9 +53,9 @@ The client requests a new progressive stream with an explicit `startTimeTicks` w
 
 ## Loading and buffering
 
-Desktop video shows a centered animated loading indicator while Jellyfin prepares the stream and the player starts. The indicator clears when the player reports playback progress. Inline Ghostty video enables caching for the media pipe and reports libmpv's `paused-for-cache` property through the helper's optional `--status` protocol. A cache stall shows an animated buffering indicator over the last frame. Resuming playback restores the clean frame. User pause suppresses both indicators and keeps the existing clean pause behavior.
+Video output shows a centered animated loading indicator while Jellyfin prepares the stream and the player starts. The indicator clears when the player reports playback progress. Inline Ghostty video enables caching for the media pipe and reports libmpv's `paused-for-cache` property through the helper's optional `--status` protocol. A cache stall shows an animated buffering indicator over the last frame. Resuming playback restores the clean frame. User pause suppresses both indicators and keeps the existing clean pause behavior.
 
-FFplay does not expose the same cache signal through the current adapter. Its buffering indicator is an estimate based on three seconds without advancing playback position. The indicator appears in Ghostty, while FFplay owns its separate video window. Native MiSTer playback still suspends browser framebuffer writes and does not show these indicators.
+FFplay does not expose the same cache signal through the current adapter. Its buffering indicator is an estimate based on three seconds without advancing playback position. The indicator appears in Ghostty, while FFplay owns its separate video window. On MiSTer, the native output backend scales and publishes the same overlay through `/tmp/misterfin_go_overlay`. The Go-specific MPlayer `vo_fbdev` driver validates the file, composites its cropped BGRA pixels after decoding each frame, and keeps a clean copy beneath the overlay for paused redraws.
 
 ## Live TV
 
@@ -79,15 +79,22 @@ After playback ends, the browser refreshes the details and reuses cached artwork
 
 MiSTer playback remains blocked by the framebuffer failure. On September 9, 2026, the new ARM build ran its headless test on `192.168.1.42`, but opening the hardware framebuffer returned `open framebuffer: no such device`. The device still runs `6.18.38-MiSTer` and has the existing player. No installed executable was replaced.
 
-The hardware path uses `/media/fat/misterfin/mplayer-arm`. It currently supports 640-pixel-wide PAL and NTSC framebuffers, including doubled 480/576-line output. It uses the source display aspect ratio for letterboxing, ALSA audio, and the existing framebuffer output driver. The direct Go binary accepts `-player` to override the executable path. In headless mode the executable must accept FFplay arguments. On hardware it must accept MPlayer arguments.
+The hardware path uses `/media/fat/misterfin-go/mplayer-arm`, separate from the C client’s player. It currently supports 640-pixel-wide PAL and NTSC framebuffers, including doubled 480/576-line output. It uses the source display aspect ratio for letterboxing, ALSA audio, and the Go-specific framebuffer output driver. The output driver consumes the same Go-rendered loading, buffering, seeking, and playback-control overlays as the headless backend. Build it with `docker/Dockerfile.misterfin-go`, which applies `docker/vo_fbdev_go.patch` to a private build copy without changing the preserved C player source. The direct Go binary accepts `-player` to override the executable path. In headless mode the executable must accept FFplay arguments. On hardware it must accept MPlayer arguments and include the Go overlay adapter.
 
-Restart selection, subtitles, audio-track selection, shuffle, DDR output, HDMI layouts, and hardware video overlays remain pending. The MPlayer path accepts pause/resume commands, but its physical framebuffer overlay and timing still need hardware work. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.
+```sh
+docker build -f docker/Dockerfile.misterfin-go -t misterfin-go-mplayer docker
+docker run --name misterfin-go-mplayer-build misterfin-go-mplayer
+docker cp misterfin-go-mplayer-build:/build/mplayer-arm build/misterfin-go-mplayer-arm
+docker rm misterfin-go-mplayer-build
+```
+
+Restart selection, subtitles, audio-track selection, shuffle, DDR output, and HDMI layouts remain pending. The MPlayer overlay adapter compiles for ARM, but its physical framebuffer presentation and timing still need hardware validation. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.
 
 ## Validation
 
 Go tests cover the C stream query, unique session IDs, fragmented player feedback, invalid positions, CRT aspect calculations, normal completion, startup failure, cancellation, stopped reports, and watched/resume persistence. If FFmpeg and FFplay are installed, a test generates a three-second MPEG-2/MP3 clip and decodes it with FFplay using dummy SDL output. That test validates decoding and position feedback without opening a visible window.
 
-Generated-media libmpv tests cover PAL and NTSC frame sizes, letterboxing, position feedback, completion, invalid media, and stopping before and during decoding. Those tests use null audio and skip when libmpv or FFmpeg is unavailable. A generated four-second clip also completed through this workstation’s desktop audio service.
+Generated-media libmpv tests cover PAL and NTSC frame sizes, letterboxing, position feedback, completion, invalid media, and stopping before and during decoding. Output-boundary tests cover alpha composition, clean decoder-frame ownership, physical line doubling, cropped native overlay publication, and cleanup. Those tests use null audio and skip when libmpv or FFmpeg is unavailable. A generated four-second clip also completed through this workstation’s desktop audio service.
 
 The browser integration test uses a controlled player process and mock HTTP server to exercise details → playback → stop → details → library navigation. Inline tests verify video pause/resume, menu reveal, clean-frame restoration after hiding or expiry, pause session reports, and return to browsing. Concurrent HTTP handling allows the media connection and API requests to proceed independently.
 

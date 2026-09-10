@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"testing"
@@ -55,5 +56,22 @@ func TestTransparentArtworkCompositesOverBackground(t *testing.T) {
 	}
 	if c.Pixels[4] != 255 || c.Pixels[6] != 0 {
 		t.Fatal("transparent pixel erased background")
+	}
+}
+
+func TestOverlayShadeAndComposite(t *testing.T) {
+	overlay := NewOverlay(1, 1)
+	overlay.Shade(0, 0, 1, 1, 64)
+	if !bytes.Equal(overlay.Pixels, []byte{0, 0, 0, 64}) {
+		t.Fatalf("shade %v", overlay.Pixels)
+	}
+	frame := []byte{100, 120, 140, 0}
+	Composite(frame, overlay.Pixels)
+	if !bytes.Equal(frame, []byte{75, 90, 105, 0}) {
+		t.Fatalf("composite %v", frame)
+	}
+	overlay.Rect(0, 0, 1, 1, 0x1e140a)
+	if !bytes.Equal(overlay.Pixels, []byte{10, 20, 30, 255}) {
+		t.Fatalf("opaque draw %v", overlay.Pixels)
 	}
 }

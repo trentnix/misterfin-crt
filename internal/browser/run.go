@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"math"
@@ -8,7 +9,7 @@ import (
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/playback"
 	"misterfin-go/internal/terminal"
-	"os"
+	"misterfin-go/internal/videoout"
 	"time"
 )
 
@@ -35,9 +36,10 @@ type result struct {
 	item            *jellyfin.Item
 }
 
-func Run(ctx context.Context, d platform.Display, configPath, stateDir string, player playback.Options) error {
+func Run(ctx context.Context, d platform.Display, configPath, stateDir string, player playback.Options, video videoout.Output) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer video.Clear()
 	keys, done, err := terminal.Read(ctx)
 	if err != nil {
 		return err
@@ -216,6 +218,8 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		options.Start = gate
 		options.AsyncCleanup = fastCleanup
 		options.Controls = controls
+		options.AcquireVideo = video.Acquire
+		options.ReleaseVideo = video.Release
 		options.Paused = func(paused bool) { send(ctx, result{paused: &paused, playbackID: id}) }
 		options.Buffering = func(waiting bool) { send(ctx, result{buffering: &waiting, playbackID: id}) }
 		if prepared {
@@ -243,8 +247,8 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		selected := *m.Current().Detail
 		m.PlayingAudio = selected.Type == "Audio"
 		m.PlayingVideo = !m.PlayingAudio
-		if m.PlayingVideo && player.TerminalPlayer != "" {
-			_ = os.Remove(player.FrameOutput + ".video")
+		if m.PlayingVideo {
+			video.Start()
 		}
 		m.Paused = false
 		m.PositionTicks = 0
@@ -269,24 +273,11 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	start := time.Now()
 	last := start
 	anim := Animation{}
+	var lastVideoOverlay []byte
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
 	draw := func() error {
 		now := time.Now()
-		if playing && m.PlayingVideo {
-			if !player.Headless {
-				return nil
-			}
-			if player.TerminalPlayer != "" {
-				frame, err := os.ReadFile(player.FrameOutput + ".video")
-				if err != nil || len(frame) != geometry.Width*geometry.Height*4 {
-					frame = make([]byte, geometry.Width*geometry.Height*4)
-				}
-				// The decoder owns the clean source. Never fold an overlay into it.
-				renderVideoControls(frame, geometry.Width, geometry.Height, m, now)
-				return d.Present(frame)
-			}
-		}
 		dt := min(now.Sub(last).Seconds(), 0.05)
 		last = now
 		anim.Seconds = now.Sub(start).Seconds()
@@ -298,7 +289,24 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		} else {
 			anim.Row += (row - anim.Row) * (1 - math.Exp(-dt/0.055))
 		}
-		return d.Present(render(geometry.Width, geometry.Height, m, status, art, artError, anim, now))
+		backdrop := render(geometry.Width, geometry.Height, m, status, art, artError, anim, now)
+		if playing && m.PlayingVideo {
+			overlay := renderVideoOverlay(geometry.Width, geometry.Height, m, now)
+			changed := !bytes.Equal(lastVideoOverlay, overlay)
+			lastVideoOverlay = append(lastVideoOverlay[:0], overlay...)
+			if err := video.Present(backdrop, overlay); err != nil {
+				return err
+			}
+			if changed && m.Paused {
+				select {
+				case controls <- playback.Control{Kind: "refresh"}:
+				default:
+				}
+			}
+			return nil
+		}
+		lastVideoOverlay = lastVideoOverlay[:0]
+		return d.Present(backdrop)
 	}
 	authenticate()
 	if err := draw(); err != nil {
@@ -439,11 +447,6 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 			} else {
 				if key == "open" && m.Notice == "" && m.Current().Detail != nil && playback.Supported(*m.Current().Detail) {
-					if m.Current().Detail.Type != "Audio" && (!player.Headless || player.TerminalPlayer != "") {
-						if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
-							return err
-						}
-					}
 					startPlayback(nil, false)
 					continue
 				}
@@ -467,9 +470,6 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 				load(req)
 				if key == "open" && !wasDetail && m.Current().Detail != nil && jellyfin.IsLive(*m.Current().Detail) {
-					if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
-						return err
-					}
 					startPlayback(nil, false)
 					continue
 				}
@@ -590,9 +590,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				seekRestart = false
 				playing = false
 				m.PlayingVideo = false
-				if player.TerminalPlayer != "" {
-					_ = os.Remove(player.FrameOutput + ".video")
-				}
+				video.Clear()
 				playCancel()
 				m.Notice = ""
 				if m.PlayingAudio && !stoppedByUser && r.err == nil && queuedNeighbor != nil {

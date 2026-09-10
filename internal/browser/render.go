@@ -172,7 +172,6 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 	if m.PlayingVideo && v.Detail != nil {
 		c.Image(art.Backdrop, 0, 0, w, h)
 		center(c, h/2-4, truncate(v.Detail.Name, w-48, 1), titleColor, 1)
-		renderVideoControls(c.Pixels, w, h, m, now)
 		return c.Pixels
 	}
 	if m.PlayingAudio && v.Detail != nil {
@@ -366,11 +365,12 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 	return c.Pixels
 }
 
-// Compose controls over a fresh decoder frame. Hidden controls leave it intact.
-func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
+// renderVideoOverlay returns straight-alpha BGRA pixels independent of the
+// decoder and display that will present them.
+func renderVideoOverlay(w, h int, m *Model, now time.Time) []byte {
+	c := ui.NewOverlay(w, h)
 	seeking := m.SeekTarget != nil && m.SeekPresses >= 2 && !m.SeekInFlight
 	if label := m.videoWaitLabel(now); label != "" || seeking {
-		c := &ui.Canvas{Width: w, Height: h, Pixels: frame}
 		// Match the display's 4:3 shape after logical CRT pixels are stretched.
 		boxWidth := 140
 		boxHeight := (boxWidth*h + w/2) / w
@@ -378,7 +378,7 @@ func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
 		if seeking {
 			center(c, h/2-12, "Seek to", titleColor, 1)
 			center(c, h/2+5, runtime(*m.SeekTarget), titleColor, 1)
-			return
+			return c.Pixels
 		}
 		center(c, h/2-12, label, titleColor, 1)
 		step := int(now.UnixMilli()/150) % 8
@@ -391,9 +391,8 @@ func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
 		}
 	}
 	if !m.ControlsVisible(now) || m.Current().Detail == nil {
-		return
+		return c.Pixels
 	}
-	c := &ui.Canvas{Width: w, Height: h, Pixels: frame}
 	sy := safeY(w, h)
 	bottom := h - 8 - sy
 	c.Shade(0, bottom-46, w, h-bottom+46, 210)
@@ -414,4 +413,10 @@ func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
 		action = "LEFT/RIGHT:30s   " + action
 	}
 	center(c, bottom, action+"   A:stop", dimColor, 1)
+	return c.Pixels
+}
+
+// Compose controls over a fresh decoder frame. Hidden controls leave it intact.
+func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
+	ui.Composite(frame, renderVideoOverlay(w, h, m, now))
 }

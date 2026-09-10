@@ -30,6 +30,8 @@ type Options struct {
 	Controls       <-chan Control
 	Paused         func(bool)
 	Buffering      func(bool)
+	AcquireVideo   func()
+	ReleaseVideo   func()
 	Player         string
 	TerminalPlayer string
 	FrameOutput    string
@@ -58,7 +60,7 @@ func (o Options) executable() string {
 	if o.Headless {
 		return "ffplay"
 	}
-	return "/media/fat/misterfin/mplayer-arm"
+	return "/media/fat/misterfin-go/mplayer-arm"
 }
 func (o Options) args(item jellyfin.Item) []string {
 	if item.Type == "Audio" {
@@ -107,8 +109,8 @@ func (o Options) args(item jellyfin.Item) []string {
 	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + o.Device, "-ao", "alsa", "-osdlevel", "0", "-demuxer", "lavf", "-cache", "8192", "-cache-min", "20", "-sws", "0", "-vf", filter, "-lavdopts", "threads=2:fast", "-af", "volume=-3", "/dev/fd/3"}
 }
 
-// Run never draws into the framebuffer. The caller must stop presenting frames
-// until Run returns. Cancel stops the player, closes the stream, and reaps it.
+// Run reports video-output ownership through AcquireVideo and ReleaseVideo.
+// Cancel stops the player, closes the stream, and reaps it.
 func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options, position func(int64)) (resultErr error) {
 	if !Supported(item) {
 		return errors.New("playback for this item type is not implemented")
@@ -275,6 +277,12 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	if err = cmd.Start(); err != nil {
 		return errors.New("cannot start media player")
 	}
+	if item.Type != "Audio" && o.AcquireVideo != nil {
+		o.AcquireVideo()
+		if o.ReleaseVideo != nil {
+			defer o.ReleaseVideo()
+		}
+	}
 	reader.Close()
 	copyDone := make(chan struct{})
 	go func() {
@@ -354,6 +362,11 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 				if o.Paused != nil {
 					o.Paused(paused)
 				}
+			case "refresh":
+				if !o.Headless && state.IsPaused {
+					_, _ = io.WriteString(commands, "pausing_keep_force osd_show_text \" \" 1\n")
+				}
+				continue
 
 			default:
 				continue

@@ -9,6 +9,7 @@ import (
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/playback"
 	"misterfin-go/internal/testframe"
+	"misterfin-go/internal/videoout"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -60,7 +61,14 @@ func run() (err error) {
 			*stateDir = filepath.Join(dir, "misterfin-go")
 		}
 		g := d.Geometry()
-		return browser.Run(ctx, d, *config, *stateDir, playback.Options{AudioPlayer: *audioPlayer, Player: *player, TerminalPlayer: *terminalPlayer, FrameOutput: *output, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight})
+		video := videoout.NewCompanion(d)
+		if *terminalPlayer != "" {
+			video = videoout.NewFrameFile(d, *output+".video")
+		} else if *headless == "" {
+			video = videoout.NewNative(d, videoout.OverlayPath)
+		}
+		defer func() { err = errors.Join(err, video.Close()) }()
+		return browser.Run(ctx, d, *config, *stateDir, playback.Options{AudioPlayer: *audioPlayer, Player: *player, TerminalPlayer: *terminalPlayer, FrameOutput: *output, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight}, video)
 	}
 	if err = testframe.Present(d); err != nil {
 		return err

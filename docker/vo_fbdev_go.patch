@@ -1,0 +1,187 @@
+--- a/docker/vo_fbdev.c
++++ b/docker/vo_fbdev.c
+@@ -33,0 +34 @@
++#include <sys/stat.h>
+@@ -1237,0 +1239,170 @@
++/* ── MiSTerFin-Go playback overlay ────────────────────────────────────────
++ * Go renders controls once as straight-alpha BGRA pixels. The application
++ * publishes a cropped overlay atomically through OVERLAY_FILE. This video
++ * output driver composites those pixels over the finished decoder frame,
++ * which keeps framebuffer ownership here while video is active.
++ *
++ * Header, little endian: magic[8], canvas w/h, crop x/y/w/h, sequence u64.
++ * The payload is crop-width * crop-height BGRA pixels. */
++#define OVERLAY_FILE "/tmp/misterfin_go_overlay"
++#define OVERLAY_HEADER_SIZE 40
++#define OVERLAY_MAX_BYTES (16u * 1024u * 1024u)
++
++typedef struct {
++    uint8_t *pixels;
++    uint32_t x, y, w, h;
++    uint64_t sequence;
++} go_overlay_t;
++
++typedef struct {
++    uint8_t *pixels;
++    uint32_t x, y, w, h;
++    int valid;
++} go_overlay_backup_t;
++
++static go_overlay_t go_overlay;
++static go_overlay_backup_t go_overlay_backup[2];
++static int go_overlay_dirty[2] = {1, 1};
++
++static uint32_t overlay_le32(const uint8_t *p)
++{
++    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
++           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
++}
++
++static uint64_t overlay_le64(const uint8_t *p)
++{
++    return (uint64_t)overlay_le32(p) | ((uint64_t)overlay_le32(p + 4) << 32);
++}
++
++static int overlay_read_all(int fd, uint8_t *dst, size_t size)
++{
++    while (size > 0) {
++        ssize_t n = read(fd, dst, size);
++        if (n <= 0) return 0;
++        dst += n;
++        size -= (size_t)n;
++    }
++    return 1;
++}
++
++static void overlay_discard(void)
++{
++    free(go_overlay.pixels);
++    memset(&go_overlay, 0, sizeof(go_overlay));
++}
++
++static int overlay_page(void)
++{
++    if (pf_active) return pf_back;
++    if (vo_doublebuffering) return fb_page;
++    return 0;
++}
++
++static void overlay_mark_dirty(void)
++{
++    go_overlay_dirty[overlay_page()] = 1;
++}
++
++static void overlay_restore(int page)
++{
++    go_overlay_backup_t *b = &go_overlay_backup[page];
++    if (!b->valid) return;
++    for (uint32_t y = 0; y < b->h; y++) {
++        memcpy(center + (size_t)(b->y + y) * fb_line_len + b->x * 4,
++               b->pixels + (size_t)y * b->w * 4, (size_t)b->w * 4);
++    }
++    free(b->pixels);
++    memset(b, 0, sizeof(*b));
++}
++
++static void overlay_forget_backup(int page)
++{
++    free(go_overlay_backup[page].pixels);
++    memset(&go_overlay_backup[page], 0, sizeof(go_overlay_backup[page]));
++}
++
++static void overlay_load(void)
++{
++    uint8_t header[OVERLAY_HEADER_SIZE];
++    struct stat st;
++    int fd = open(OVERLAY_FILE, O_RDONLY);
++    if (fd < 0) {
++        overlay_discard();
++        return;
++    }
++    if (fstat(fd, &st) != 0 || !overlay_read_all(fd, header, sizeof(header)) ||
++        memcmp(header, "MFGOOV1\0", 8) != 0) {
++        close(fd);
++        overlay_discard();
++        return;
++    }
++    uint32_t canvas_w = overlay_le32(header + 8);
++    uint32_t canvas_h = overlay_le32(header + 12);
++    uint32_t x = overlay_le32(header + 16);
++    uint32_t y = overlay_le32(header + 20);
++    uint32_t w = overlay_le32(header + 24);
++    uint32_t h = overlay_le32(header + 28);
++    uint64_t sequence = overlay_le64(header + 32);
++    uint64_t payload_size = (uint64_t)w * h * 4;
++    if (canvas_w != (uint32_t)in_width || canvas_h != (uint32_t)in_height ||
++        !w || !h || x > canvas_w || y > canvas_h ||
++        w > canvas_w - x || h > canvas_h - y ||
++        payload_size > OVERLAY_MAX_BYTES ||
++        (uint64_t)st.st_size != OVERLAY_HEADER_SIZE + payload_size) {
++        close(fd);
++        overlay_discard();
++        return;
++    }
++    if (go_overlay.pixels && go_overlay.sequence == sequence) {
++        close(fd);
++        return;
++    }
++    uint8_t *pixels = malloc((size_t)payload_size);
++    if (!pixels || !overlay_read_all(fd, pixels, (size_t)payload_size)) {
++        free(pixels);
++        close(fd);
++        return;
++    }
++    close(fd);
++    overlay_discard();
++    go_overlay.pixels = pixels;
++    go_overlay.x = x;
++    go_overlay.y = y;
++    go_overlay.w = w;
++    go_overlay.h = h;
++    go_overlay.sequence = sequence;
++}
++
++static void overlay_frame(void)
++{
++    if (fb_pixel_size != 4) return;
++    int page = overlay_page();
++    if (go_overlay_dirty[page]) overlay_forget_backup(page);
++    else overlay_restore(page);
++    go_overlay_dirty[page] = 0;
++    overlay_load();
++    if (!go_overlay.pixels) return;
++
++    go_overlay_backup_t *b = &go_overlay_backup[page];
++    size_t size = (size_t)go_overlay.w * go_overlay.h * 4;
++    b->pixels = malloc(size);
++    if (!b->pixels) return;
++    b->x = go_overlay.x;
++    b->y = go_overlay.y;
++    b->w = go_overlay.w;
++    b->h = go_overlay.h;
++    b->valid = 1;
++    for (uint32_t y = 0; y < b->h; y++) {
++        uint8_t *dst = center + (size_t)(b->y + y) * fb_line_len + b->x * 4;
++        uint8_t *src = go_overlay.pixels + (size_t)y * b->w * 4;
++        memcpy(b->pixels + (size_t)y * b->w * 4, dst, (size_t)b->w * 4);
++        for (uint32_t x = 0; x < b->w; x++, dst += 4, src += 4) {
++            unsigned a = src[3];
++            if (!a) continue;
++            for (int c = 0; c < 3; c++)
++                dst[c] = (uint8_t)((src[c] * a + dst[c] * (255 - a) + 127) / 255);
++        }
++    }
++}
++
+@@ -1258 +1428,0 @@
+-#include <sys/stat.h>
+@@ -1435,0 +1606 @@
++    overlay_mark_dirty();
+@@ -1469,0 +1641 @@
++    overlay_frame();
+@@ -1496,0 +1669,3 @@
++    overlay_discard();
++    overlay_forget_backup(0);
++    overlay_forget_backup(1);
+@@ -1567,0 +1743 @@
++    overlay_mark_dirty();
