@@ -390,6 +390,13 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					workCancel()
 				}
 				load(req)
+				if key == "open" && !wasDetail && m.Current().Detail != nil && jellyfin.IsLive(*m.Current().Detail) {
+					if err := d.Present(make([]byte, geometry.Width*geometry.Height*4)); err != nil {
+						return err
+					}
+					startPlayback()
+					continue
+				}
 				loadArt()
 				if key == "open" && !wasDetail && m.Current().Detail != nil && m.Current().Detail.Type == "Audio" {
 					startPlayback()
@@ -464,7 +471,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					wasAudio := m.PlayingAudio
 					m.PlayingAudio = false
 					m.HideControls()
-					if wasAudio && stoppedByUser {
+					if (wasAudio && stoppedByUser) || (m.Current().Detail != nil && jellyfin.IsLive(*m.Current().Detail)) {
 						load(m.Key("back"))
 					}
 					selectedKey = ""

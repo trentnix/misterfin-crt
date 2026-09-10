@@ -62,7 +62,7 @@ class BrowseIntegrationTests(unittest.TestCase):
                 if urlparse(self.path).path.endswith("/PlaybackInfo"):
                     payload = json.dumps({"PlaySessionId": "live-session", "MediaSources": [{
                         "Id": "live-source", "LiveStreamId": "live-tuner",
-                        "TranscodingUrl": "/Videos/channel-2-1/stream.ts?LiveStreamId=live-tuner"}]}).encode()
+                        "TranscodingUrl": f"/Videos/{urlparse(self.path).path.split('/')[2]}/stream.ts?LiveStreamId=live-tuner"}]}).encode()
                     self.send_response(200)
                     self.send_header("Content-Length", str(len(payload)))
                     self.end_headers()
@@ -226,8 +226,6 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"\x1b[C\x1b[C\x1b[Cb")
         self.wait_request("/LiveTv/Channels", StartIndex=0)
         self.key(b"b")
-        self.wait_request("/Items/channel-2-1")
-        self.key(b"b")
         self.wait_request("/Videos/channel-2-1/stream.ts")
         self.key(b"a")
         deadline = time.monotonic() + 5
@@ -239,6 +237,23 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(stopped[0]["LiveStreamId"], "live-tuner")
         self.assertFalse(stopped[0]["CanSeek"])
         self.assertIsNone(self.process.poll())
+        time.sleep(0.3)
+        # One press retunes the selected channel from the restored list.
+        self.requests.clear()
+        self.key(b"b")
+        self.wait_request("/Videos/channel-2-1/stream.ts")
+        self.key(b"a")
+        time.sleep(0.4)
+        # Down selects the next channel, and one confirm starts it.
+        self.key(b"\x1b[Bb")
+        self.wait_request("/Videos/channel-5-1/stream.ts")
+        self.key(b"a")
+        time.sleep(0.4)
+        # Back from the restored channel list returns directly to libraries.
+        self.key(b"a")
+        time.sleep(0.1)
+        self.key(b"\x1b[Db")
+        self.wait_request("/Items", ParentId="view-music")
 
     def test_photo_opens_full_screen_and_returns_to_folder(self):
         self.key(b"\x1b[C\x1b[C\x1b[C\x1b[Cb")

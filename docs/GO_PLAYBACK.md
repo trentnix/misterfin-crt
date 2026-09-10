@@ -47,7 +47,7 @@ Shuffle, repeat modes, and visualizers remain pending. Photo and music controls 
 
 ## Live TV
 
-Open a channel's details and press B or Enter to tune it. A stops the stream and returns to details. Live TV works with both desktop player modes.
+Select a channel with B or Enter to tune it immediately. A stops the stream and returns to the channels list with the same channel selected. If playback ends or fails, the browser also returns to the channels list. Live TV works with both desktop player modes.
 
 The client posts the C device profile to `/Items/{id}/PlaybackInfo`, requests automatic tuner opening, and uses the returned transcode URL and session identifiers. The profile requests progressive MPEG-2/MP3 transport streams rather than direct tuner playback. The client removes the incompatible MPEG-2 level hints, matching the C workaround, and preserves the other negotiated parameters. Session reports include the media source and tuner identifiers with seeking disabled. Channels start live and never write movie resume or watched state.
 
