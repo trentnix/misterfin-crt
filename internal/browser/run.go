@@ -72,9 +72,11 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	var pendingDone chan struct{}
 	var pendingGate chan struct{}
 	var pendingFastCleanup chan struct{}
+	pendingPrepared := false
 	pendingTarget := int64(0)
 	pendingPaused := false
 	seekAutoPaused := false
+	seekRetarget := false
 
 	var playCancel context.CancelFunc = func() {}
 	var playDone chan struct{}
@@ -238,9 +240,48 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		}()
 		return id, stop, finished, fastCleanup
 	}
+	cancelPendingSeek := func() {
+		if pendingCancel != nil {
+			if pendingFastCleanup != nil {
+				close(pendingFastCleanup)
+			}
+			pendingCancel()
+		}
+		pendingPlaybackID = 0
+		pendingCancel, pendingDone, pendingGate, pendingFastCleanup = nil, nil, nil, nil
+		pendingPrepared = false
+	}
+	launchPendingSeek := func(target int64) {
+		cancelPendingSeek()
+		pendingTarget = target
+		pendingGate = make(chan struct{})
+		pendingPlaybackID, pendingCancel, pendingDone, pendingFastCleanup = launchPlayback(&pendingTarget, pendingGate, true)
+	}
+	activatePendingSeek := func() {
+		activePlaybackID = pendingPlaybackID
+		playCancel, playDone, activeFastCleanup = pendingCancel, pendingDone, pendingFastCleanup
+		pendingPlaybackID = 0
+		pendingCancel, pendingDone, pendingFastCleanup = nil, nil, nil
+		pendingPrepared = false
+		close(pendingGate)
+		pendingGate = nil
+		restorePause = pendingPaused
+		seekAutoPaused = false
+		seekRetarget = false
+		m.SeekTarget = nil
+		m.SeekPresses = 0
+		m.SeekInFlight = false
+		seekRestart = false
+		m.Paused = false
+		m.PositionTicks = pendingTarget
+		m.ProgressSeen = false
+		m.LastAdvance = time.Now()
+		m.Buffering, m.BufferingKnown = false, false
+	}
 	startPlayback = func(startTicks *int64, paused bool) {
 		restorePause = paused
 		seekRestart = false
+		seekRetarget = false
 		m.SeekInFlight = false
 		m.SeekTarget = nil
 		m.SeekDeadline = time.Time{}
@@ -315,20 +356,21 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	for {
 		select {
 		case <-ticker.C:
-			if playing && m.SeekTarget != nil && !seekRestart && !time.Now().Before(m.SeekDeadline) {
-				seekRestart = true
+			if playing && m.SeekTarget != nil && (!seekRestart || seekRetarget) && !time.Now().Before(m.SeekDeadline) {
+				initialSeek := !seekRestart
+				seekRestart, seekRetarget = true, false
 				m.SeekInFlight = true
-				pendingTarget = *m.SeekTarget
-				pendingPaused = m.Paused
-				seekAutoPaused = !pendingPaused
-				if seekAutoPaused {
-					select {
-					case controls <- playback.Control{Kind: "pause"}:
-					default:
+				if initialSeek {
+					pendingPaused = m.Paused
+					seekAutoPaused = !pendingPaused
+					if seekAutoPaused {
+						select {
+						case controls <- playback.Control{Kind: "pause"}:
+						default:
+						}
 					}
 				}
-				pendingGate = make(chan struct{})
-				pendingPlaybackID, pendingCancel, pendingDone, pendingFastCleanup = launchPlayback(&pendingTarget, pendingGate, true)
+				launchPendingSeek(*m.SeekTarget)
 			}
 		case <-ctx.Done():
 			return nil
@@ -372,6 +414,17 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 			}
 			if playing && key != "quit" {
 				if seekRestart && key != "back" {
+					if key == "previous" || key == "next" {
+						m.seekVideo(key, time.Now())
+						if m.SeekTarget != nil {
+							cancelPendingSeek()
+							seekRetarget = true
+							m.SeekInFlight = false
+						}
+						if err := draw(); err != nil {
+							return err
+						}
+					}
 					continue
 				}
 				switch key {
@@ -379,14 +432,17 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					m.seekVideo(key, time.Now())
 				case "back":
 					stoppedByUser = true
-					seekRestart = false
+					seekRestart, seekRetarget = false, false
 					m.SeekTarget = nil
-					if pendingCancel != nil {
-						pendingCancel()
-						pendingCancel = nil
-						pendingPlaybackID = 0
-					}
+					m.SeekInFlight = false
+					cancelPendingSeek()
 					playCancel()
+					if activePlaybackID == 0 {
+						playing = false
+						m.PlayingVideo = false
+						m.Paused = false
+						video.Clear()
+					}
 				case "open":
 					m.HideControls()
 					if restorePause {
@@ -480,10 +536,15 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 			}
 		case r := <-events:
 			if r.prepared {
-				if r.playbackID == pendingPlaybackID && activeFastCleanup != nil {
-					close(activeFastCleanup)
-					activeFastCleanup = nil
-					playCancel()
+				if r.playbackID == pendingPlaybackID {
+					pendingPrepared = true
+					if activePlaybackID == 0 {
+						activatePendingSeek()
+					} else if activeFastCleanup != nil {
+						close(activeFastCleanup)
+						activeFastCleanup = nil
+						playCancel()
+					}
 				}
 			} else if r.paused != nil {
 				if playing && r.playbackID == activePlaybackID {
@@ -545,6 +606,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 			} else if r.playback {
 				if r.playbackID == pendingPlaybackID {
+					activeEnded := activePlaybackID == 0
 					if seekAutoPaused && playing {
 						select {
 						case controls <- playback.Control{Kind: "pause"}:
@@ -554,40 +616,36 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					seekAutoPaused = false
 					pendingPlaybackID = 0
 					pendingCancel, pendingDone, pendingGate, pendingFastCleanup = nil, nil, nil, nil
+					pendingPrepared = false
 					m.SeekTarget = nil
 					m.SeekInFlight = false
-					seekRestart = false
+					seekRestart, seekRetarget = false, false
 					if r.err != nil {
 						m.Notice = r.err.Error() + "  A:back"
+					}
+					if activeEnded {
+						playing = false
+						m.PlayingVideo = false
+						m.Paused = false
+						video.Clear()
 					}
 					continue
 				}
 				if r.playbackID != activePlaybackID {
 					continue
 				}
-				if seekRestart && !stoppedByUser && pendingPlaybackID != 0 {
-					activePlaybackID = pendingPlaybackID
-					playCancel, playDone, activeFastCleanup = pendingCancel, pendingDone, pendingFastCleanup
-					pendingPlaybackID = 0
-					pendingCancel, pendingDone, pendingFastCleanup = nil, nil, nil
-					close(pendingGate)
-					pendingGate = nil
-					restorePause = pendingPaused
-					seekAutoPaused = false
-					m.SeekTarget = nil
-					m.SeekPresses = 0
-					m.SeekInFlight = false
-					seekRestart = false
-					m.Paused = false
-					m.PositionTicks = pendingTarget
-					m.ProgressSeen = false
-					m.LastAdvance = time.Now()
-					m.Buffering, m.BufferingKnown = false, false
+				if seekRestart && !stoppedByUser {
+					activePlaybackID = 0
+					playCancel = func() {}
+					playDone, activeFastCleanup = nil, nil
+					if pendingPlaybackID != 0 && pendingPrepared {
+						activatePendingSeek()
+					}
 					continue
 				}
 				m.SeekTarget = nil
 				m.SeekInFlight = false
-				seekRestart = false
+				seekRestart, seekRetarget = false, false
 				playing = false
 				m.PlayingVideo = false
 				video.Clear()

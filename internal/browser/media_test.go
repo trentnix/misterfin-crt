@@ -257,4 +257,17 @@ func TestSeekInFlightReplacesDestinationOverlay(t *testing.T) {
 	if bytes.Equal(before, after) {
 		t.Fatal("destination remained during seek cleanup")
 	}
+	m.seekVideo("next", now)
+	m.SeekInFlight = false
+	retargeted := make([]byte, len(before))
+	renderVideoControls(retargeted, 640, 240, m, now)
+	if bytes.Equal(after, retargeted) || runtime(*m.SeekTarget) != "1:30" {
+		t.Fatal("retarget did not restore the updated destination")
+	}
+	m.SeekInFlight = true
+	seekingAgain := make([]byte, len(before))
+	renderVideoControls(seekingAgain, 640, 240, m, now)
+	if !bytes.Equal(after, seekingAgain) {
+		t.Fatal("retarget did not return to seeking")
+	}
 }

@@ -34,6 +34,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.requests = []
         self.reports = []
         self.delay_items = False
+        self.video_response_gate = None
         test = self
 
         class Handler(mock.Handler):
@@ -43,10 +44,16 @@ class BrowseIntegrationTests(unittest.TestCase):
             def do_GET(self):
                 test.requests.append(self.path)
                 if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
-                    self.send_response(200)
-                    self.send_header("Content-Length", "10")
-                    self.end_headers()
-                    self.wfile.write(b"test video")
+                    gate = test.video_response_gate
+                    if gate is not None:
+                        gate.wait(timeout=3)
+                    try:
+                        self.send_response(200)
+                        self.send_header("Content-Length", "10")
+                        self.end_headers()
+                        self.wfile.write(b"test video")
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
                     return
                 if test.delay_items and urlparse(self.path).path == "/Items":
                     time.sleep(0.4)
@@ -264,6 +271,48 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(0.9)
         streams = [r for r in self.requests if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
         self.assertEqual(len(streams), 3)
+        self.assertIsNone(self.process.poll())
+
+    def test_video_seek_retargets_while_replacement_is_loading(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+
+        gate = threading.Event()
+        self.video_response_gate = gate
+        self.addCleanup(gate.set)
+        self.key(b"\x1b[C\x1b[C")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=620000000)
+
+        self.key(b"\x1b[C")
+        time.sleep(0.2)
+        targets = [int(parse_qs(urlparse(r).query).get("startTimeTicks", ["0"])[0])
+                   for r in self.requests
+                   if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
+        self.assertNotIn(920000000, targets, "retarget skipped the destination-time delay")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=920000000)
+        self.key(b"\x1b[D")
+        time.sleep(0.2)
+        targets = [int(parse_qs(urlparse(r).query).get("startTimeTicks", ["0"])[0])
+                   for r in self.requests
+                   if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
+        self.assertEqual(targets.count(620000000), 1, "left retarget skipped the destination-time delay")
+        deadline = time.monotonic() + 5
+        while True:
+            targets = [int(parse_qs(urlparse(r).query).get("startTimeTicks", ["0"])[0])
+                       for r in self.requests
+                       if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
+            if targets.count(620000000) >= 2:
+                break
+            self.assertLess(time.monotonic(), deadline, f"seek did not retarget left: {targets}")
+            time.sleep(0.01)
+        self.assertEqual(targets[-3:], [620000000, 920000000, 620000000])
+        gate.set()
+        time.sleep(0.3)
+        self.key(b"a")
         self.assertIsNone(self.process.poll())
 
     def test_video_loading_and_buffering_animation(self):
