@@ -4,7 +4,6 @@ package browser
 import (
 	"fmt"
 	"misterfin-go/internal/jellyfin"
-	"time"
 )
 
 const PageSize = 64
@@ -30,22 +29,11 @@ type Model struct {
 	Rows                        int
 	ListMode, ExitConfirm, Quit bool
 	Notice                      string
-	PlayingAudio                bool
-	PlayingVideo                bool
-	Paused                      bool
-	SeekTarget                  *int64
-	SeekPresses                 int
-	SeekInFlight                bool
-	SeekDeadline                time.Time
-	ProgressSeen                bool
-	LastAdvance                 time.Time
-	Buffering, BufferingKnown   bool
-	ControlsUntil               time.Time
-	PositionTicks               int64
+	*PlaybackState
 }
 
 func New() *Model {
-	return &Model{Rows: 6, Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
+	return &Model{PlaybackState: &PlaybackState{}, Rows: 6, Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
 }
 func (m *Model) Current() *View { return &m.Stack[len(m.Stack)-1] }
 func (m *Model) Load(start int) *Request {

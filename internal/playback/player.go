@@ -78,7 +78,8 @@ func (o Options) args(item jellyfin.Item) []string {
 	if o.Headless {
 		return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerFin-Go playback", "-vf", "setpts=PTS-STARTPTS", "-af", "asetpts=PTS-STARTPTS", "-i", "pipe:3"}
 	}
-	dar := 4.0 / 3
+	// Match the C client's item_dar fallback for channels without video metadata.
+	dar := 16.0 / 9
 	for _, stream := range item.MediaStreams {
 		if stream.Type == "Video" {
 			if stream.Width > 0 && stream.Height > 0 {
@@ -96,7 +97,7 @@ func (o Options) args(item jellyfin.Item) []string {
 		}
 	}
 	if math.IsNaN(dar) || math.IsInf(dar, 0) || dar < 0.1 || dar > 10 {
-		dar = 4.0 / 3
+		dar = 16.0 / 9
 	}
 	par := float64(o.Width) * 3 / float64(o.Height*4)
 	w := o.Width
@@ -106,7 +107,13 @@ func (o Options) args(item jellyfin.Item) []string {
 		w = int(float64(h)*dar*par + 0.5)
 	}
 	filter := fmt.Sprintf("scale=%d:%d,expand=%d:%d,dsize=%d:%d", max(2, w/2*2), max(2, h/2*2), o.Width, o.Height, o.Width, o.Height)
-	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + o.Device, "-ao", "alsa", "-osdlevel", "0", "-demuxer", "lavf", "-cache", "8192", "-cache-min", "20", "-sws", "0", "-vf", filter, "-lavdopts", "threads=2:fast", "-af", "volume=-3", "/dev/fd/3"}
+	// Match the C player's audio-clock correction. Recorded video smooths ALSA
+	// delay measurements. Live TV reacts sooner to broadcast timing changes.
+	autosync := "30"
+	if jellyfin.IsLive(item) {
+		autosync = "1"
+	}
+	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + o.Device, "-ao", "alsa", "-osdlevel", "0", "-framedrop", "-autosync", autosync, "-demuxer", "lavf", "-cache", "8192", "-cache-min", "20", "-sws", "0", "-vf", filter, "-lavdopts", "threads=2:fast", "-af", "volume=-3", "/dev/fd/3"}
 }
 
 // Run reports video-output ownership through AcquireVideo and ReleaseVideo.
@@ -171,6 +178,9 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			return err
 		}
 		session, streamURL = live.PlaySessionID, live.StreamURL
+		if len(live.MediaStreams) > 0 {
+			item.MediaStreams = live.MediaStreams
+		}
 		defer func() {
 			cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stop()

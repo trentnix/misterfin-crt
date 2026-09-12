@@ -2,7 +2,21 @@
 +++ b/docker/vo_fbdev.c
 @@ -33,0 +34 @@
 +#include <sys/stat.h>
-@@ -1237,0 +1239,170 @@
+@@ -572,0 +574,2 @@
++/* The Go application owns console graphics mode across decoder lifetimes. */
++static int fb_tty_mode = KD_TEXT;
+@@ -829,0 +833 @@
++    fb_tty_mode = KD_TEXT;
+@@ -831,0 +836,5 @@
++    }
++
++    if (fb_tty_fd >= 0 && ioctl(fb_tty_fd, KDGETMODE, &fb_tty_mode) < 0) {
++        close(fb_tty_fd);
++        fb_tty_fd = -1;
+@@ -969 +978 @@
+-        if (fb_tty_fd >= 0 && ioctl(fb_tty_fd, KDSETMODE, KD_TEXT) < 0) {
++        if (fb_tty_fd >= 0 && ioctl(fb_tty_fd, KDSETMODE, fb_tty_mode) < 0) {
+@@ -1237,0 +1247,139 @@
 +/* ── MiSTerFin-Go playback overlay ────────────────────────────────────────
 + * Go renders controls once as straight-alpha BGRA pixels. The application
 + * publishes a cropped overlay atomically through OVERLAY_FILE. This video
@@ -21,15 +35,19 @@
 +    uint64_t sequence;
 +} go_overlay_t;
 +
-+typedef struct {
-+    uint8_t *pixels;
-+    uint32_t x, y, w, h;
-+    int valid;
-+} go_overlay_backup_t;
-+
 +static go_overlay_t go_overlay;
-+static go_overlay_backup_t go_overlay_backup[2];
-+static int go_overlay_dirty[2] = {1, 1};
++/* Decoders must never expose bare video under a visible overlay. Keep their
++ * destination in RAM, including direct-rendered frames. Paused refreshes reuse
++ * this clean frame, so alpha never accumulates and hiding restores the video. */
++static uint8_t *go_video;
++static uint8_t *go_row;
++
++static int overlay_prepare(void)
++{
++    if (!go_video) go_video = calloc((size_t)fb_line_len, in_height);
++    if (!go_row) go_row = malloc((size_t)in_width * fb_pixel_size);
++    return go_video && go_row;
++}
 +
 +static uint32_t overlay_le32(const uint8_t *p)
 +{
@@ -57,36 +75,6 @@
 +{
 +    free(go_overlay.pixels);
 +    memset(&go_overlay, 0, sizeof(go_overlay));
-+}
-+
-+static int overlay_page(void)
-+{
-+    if (pf_active) return pf_back;
-+    if (vo_doublebuffering) return fb_page;
-+    return 0;
-+}
-+
-+static void overlay_mark_dirty(void)
-+{
-+    go_overlay_dirty[overlay_page()] = 1;
-+}
-+
-+static void overlay_restore(int page)
-+{
-+    go_overlay_backup_t *b = &go_overlay_backup[page];
-+    if (!b->valid) return;
-+    for (uint32_t y = 0; y < b->h; y++) {
-+        memcpy(center + (size_t)(b->y + y) * fb_line_len + b->x * 4,
-+               b->pixels + (size_t)y * b->w * 4, (size_t)b->w * 4);
-+    }
-+    free(b->pixels);
-+    memset(b, 0, sizeof(*b));
-+}
-+
-+static void overlay_forget_backup(int page)
-+{
-+    free(go_overlay_backup[page].pixels);
-+    memset(&go_overlay_backup[page], 0, sizeof(go_overlay_backup[page]));
 +}
 +
 +static void overlay_load(void)
@@ -143,45 +131,81 @@
 +
 +static void overlay_frame(void)
 +{
-+    if (fb_pixel_size != 4) return;
-+    int page = overlay_page();
-+    if (go_overlay_dirty[page]) overlay_forget_backup(page);
-+    else overlay_restore(page);
-+    go_overlay_dirty[page] = 0;
++    if (!go_video || !go_row) return;
 +    overlay_load();
-+    if (!go_overlay.pixels) return;
-+
-+    go_overlay_backup_t *b = &go_overlay_backup[page];
-+    size_t size = (size_t)go_overlay.w * go_overlay.h * 4;
-+    b->pixels = malloc(size);
-+    if (!b->pixels) return;
-+    b->x = go_overlay.x;
-+    b->y = go_overlay.y;
-+    b->w = go_overlay.w;
-+    b->h = go_overlay.h;
-+    b->valid = 1;
-+    for (uint32_t y = 0; y < b->h; y++) {
-+        uint8_t *dst = center + (size_t)(b->y + y) * fb_line_len + b->x * 4;
-+        uint8_t *src = go_overlay.pixels + (size_t)y * b->w * 4;
-+        memcpy(b->pixels + (size_t)y * b->w * 4, dst, (size_t)b->w * 4);
-+        for (uint32_t x = 0; x < b->w; x++, dst += 4, src += 4) {
-+            unsigned a = src[3];
-+            if (!a) continue;
-+            for (int c = 0; c < 3; c++)
-+                dst[c] = (uint8_t)((src[c] * a + dst[c] * (255 - a) + 127) / 255);
++    for (int y = 0; y < in_height; y++) {
++        uint8_t *video = go_video + (size_t)y * fb_line_len;
++        uint8_t *row = video;
++        if (fb_pixel_size == 4 && go_overlay.pixels &&
++            y >= go_overlay.y && y - go_overlay.y < go_overlay.h) {
++            /* Compose in RAM. Scanout sees only the finished row, never a
++             * restore/erase followed by a separate overlay paint. */
++            memcpy(go_row, video, (size_t)in_width * fb_pixel_size);
++            row = go_row;
++            uint8_t *dst = row + go_overlay.x * 4;
++            uint8_t *src = go_overlay.pixels +
++                (size_t)(y - go_overlay.y) * go_overlay.w * 4;
++            for (uint32_t x = 0; x < go_overlay.w; x++, dst += 4, src += 4) {
++                unsigned a = src[3];
++                for (int c = 0; c < 3; c++)
++                    dst[c] = (uint8_t)((src[c] * a + dst[c] * (255 - a) + 127) / 255);
++            }
 +        }
++        memcpy(center + (size_t)y * fb_line_len, row,
++               (size_t)in_width * fb_pixel_size);
 +    }
 +}
 +
-@@ -1258 +1428,0 @@
+@@ -1258 +1405,0 @@
 -#include <sys/stat.h>
-@@ -1435,0 +1606 @@
-+    overlay_mark_dirty();
-@@ -1469,0 +1641 @@
+@@ -1419,17 +1566,2 @@
+-    /* Wait for vblank before writing the first slice of each frame.
+-     * Toggled at runtime via /tmp/misterdvd_vsync flag file (L/R buttons).
+-     *
+-     * A predictive, non-blocking variant of this (a background thread
+-     * timestamping vblanks, this write path sleeping to a computed phase
+-     * instead of calling the ioctl directly) was built for the interlaced
+-     * full-frame page-flip modes, where the plain blocking wait below
+-     * doesn't fit a frame period — but page flipping (see the PF_* block)
+-     * turned out to solve that case entirely on its own (the scaler
+-     * latches the displayed page at its own vblank, so there is nothing
+-     * left for THIS wait to protect once flipping is active — note the
+-     * pf_active exclusion below, unchanged since before that work).
+-     * Progressive modes never had the timing problem the predictive
+-     * version was built for, and reintroduced tearing there instead
+-     * (confirmed on hardware) — this plain per-frame block is what
+-     * shipped for the platform's entire history and is what pf_active==0
+-     * still needs. */
++    /* Match the C player's pacing before MPlayer schedules presentation.
++     * Waiting in flip_page adds another delay after that deadline. */
+@@ -1448 +1580,2 @@
+-    d = center + fb_line_len * y + fb_pixel_size * x;
++    if (!overlay_prepare()) return VO_FALSE;
++    d = go_video + fb_line_len * y + fb_pixel_size * x;
+@@ -1470 +1603,7 @@
+-    ban_frame();
++    uint8_t *output = center;
++    if (go_video) {
++        center = go_video;
++        ban_frame();
++        center = output;
++    }
 +    overlay_frame();
-@@ -1496,0 +1669,3 @@
+@@ -1491,0 +1631,3 @@
++    if (!overlay_prepare()) return;
++    uint8_t *output = center;
++    center = go_video;
+@@ -1492,0 +1635 @@
++    center = output;
+@@ -1496,0 +1640,4 @@
 +    overlay_discard();
-+    overlay_forget_backup(0);
-+    overlay_forget_backup(1);
-@@ -1567,0 +1743 @@
-+    overlay_mark_dirty();
++    free(go_video);
++    free(go_row);
++    go_video = go_row = NULL;
+@@ -1518 +1665 @@
+-        if (ioctl(fb_tty_fd, KDSETMODE, KD_TEXT) < 0)
++        if (ioctl(fb_tty_fd, KDSETMODE, fb_tty_mode) < 0)
+@@ -1568 +1715,2 @@
+-    mpi->planes[0] = center;
++    if (!overlay_prepare()) return VO_FALSE;
++    mpi->planes[0] = go_video;

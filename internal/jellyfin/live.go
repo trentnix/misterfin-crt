@@ -13,6 +13,7 @@ import (
 // contains credentials and must never be logged or passed to a player.
 type LivePlayback struct {
 	LiveStreamID, MediaSourceID, PlaySessionID, StreamURL string
+	MediaStreams                                          []MediaStream
 }
 
 func IsLive(item Item) bool {
@@ -85,13 +86,14 @@ func (c *Client) OpenLive(ctx context.Context, channel string, ntsc bool) (LiveP
 			ID             string `json:"Id"`
 			LiveStreamID   string `json:"LiveStreamId"`
 			TranscodingURL string `json:"TranscodingUrl"`
+			MediaStreams   []MediaStream
 		}
 	}
 	err := c.json(negotiation, "POST", "/Items/"+url.PathEscape(channel)+"/PlaybackInfo", nil, c.liveProfile(ntsc), &response)
 	var live LivePlayback
 	if len(response.MediaSources) > 0 {
 		source := response.MediaSources[0]
-		live = LivePlayback{LiveStreamID: source.LiveStreamID, MediaSourceID: source.ID, PlaySessionID: response.PlaySessionID}
+		live = LivePlayback{LiveStreamID: source.LiveStreamID, MediaSourceID: source.ID, PlaySessionID: response.PlaySessionID, MediaStreams: source.MediaStreams}
 		if err == nil {
 			live.StreamURL, err = c.liveURL(source.TranscodingURL)
 		}

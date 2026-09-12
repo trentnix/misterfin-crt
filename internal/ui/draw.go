@@ -97,6 +97,10 @@ func (c *Canvas) Blit(im image.Image, x, y, w, h int) {
 	if im == nil || w <= 0 || h <= 0 {
 		return
 	}
+	if rgba, ok := im.(*image.RGBA); ok {
+		c.blitRGBA(rgba, x, y, w, h)
+		return
+	}
 	b := im.Bounds()
 	for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
 		for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
@@ -109,23 +113,33 @@ func (c *Canvas) Blit(im image.Image, x, y, w, h int) {
 	}
 }
 func (c *Canvas) Shade(x, y, w, h, alpha int) {
+	if !c.transparent {
+		// Reuse the same channel transform instead of dividing every pixel on ARM.
+		var shaded [256]byte
+		for v := range shaded {
+			shaded[v] = byte(v * (255 - alpha) / 255)
+		}
+		for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
+			for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
+				i := (yy*c.Width + xx) * 4
+				c.Pixels[i] = shaded[c.Pixels[i]]
+				c.Pixels[i+1] = shaded[c.Pixels[i+1]]
+				c.Pixels[i+2] = shaded[c.Pixels[i+2]]
+			}
+		}
+		return
+	}
 	for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
 		for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
 			i := (yy*c.Width + xx) * 4
-			if c.transparent {
-				oldAlpha := int(c.Pixels[i+3])
-				outAlpha := alpha + oldAlpha*(255-alpha)/255
-				if outAlpha > 0 {
-					for k := 0; k < 3; k++ {
-						c.Pixels[i+k] = byte(int(c.Pixels[i+k]) * oldAlpha * (255 - alpha) / (255 * outAlpha))
-					}
+			oldAlpha := int(c.Pixels[i+3])
+			outAlpha := alpha + oldAlpha*(255-alpha)/255
+			if outAlpha > 0 {
+				for k := 0; k < 3; k++ {
+					c.Pixels[i+k] = byte(int(c.Pixels[i+k]) * oldAlpha * (255 - alpha) / (255 * outAlpha))
 				}
-				c.Pixels[i+3] = byte(outAlpha)
-				continue
 			}
-			for k := 0; k < 3; k++ {
-				c.Pixels[i+k] = byte(int(c.Pixels[i+k]) * (255 - alpha) / 255)
-			}
+			c.Pixels[i+3] = byte(outAlpha)
 		}
 	}
 }
@@ -142,6 +156,36 @@ func Composite(frame, overlay []byte) {
 		}
 		for k := 0; k < 3; k++ {
 			frame[i+k] = byte((int(overlay[i+k])*a + int(frame[i+k])*(255-a) + 127) / 255)
+		}
+	}
+}
+
+// blitRGBA avoids interface calls and boxed colors for cached browser artwork.
+// Source pixels are premultiplied RGBA. The destination is BGRX, as in Blit.
+func (c *Canvas) blitRGBA(im *image.RGBA, x, y, w, h int) {
+	left, right := max(0, x), min(c.Width, x+w)
+	top, bottom := max(0, y), min(c.Height, y+h)
+	if left >= right || top >= bottom {
+		return
+	}
+	offsets := make([]int, right-left)
+	for xx := range offsets {
+		offsets[xx] = (left + xx - x) * im.Rect.Dx() / w * 4
+	}
+	for yy := top; yy < bottom; yy++ {
+		row := (yy - y) * im.Rect.Dy() / h * im.Stride
+		dst := (yy*c.Width + left) * 4
+		for _, offset := range offsets {
+			src := row + offset
+			a := uint32(im.Pix[src+3])
+			if a == 255 {
+				c.Pixels[dst], c.Pixels[dst+1], c.Pixels[dst+2] = im.Pix[src+2], im.Pix[src+1], im.Pix[src]
+			} else {
+				for k := 0; k < 3; k++ {
+					c.Pixels[dst+k] = byte(min(255, uint32(im.Pix[src+2-k])+uint32(c.Pixels[dst+k])*(255-a)/255))
+				}
+			}
+			dst += 4
 		}
 	}
 }

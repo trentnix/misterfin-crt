@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fb.h>
+#include <linux/kd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,16 +16,32 @@
 
 struct mf_display {
     int fd, w, h, ow, oh, stride, bx, by, bw, bh;
+    int tty_fd, tty_mode;
     size_t size;
-    uint8_t *mem, *saved;
+    uint8_t *mem;
 };
+
+/* Clear the terminal's backing text as well as the visible framebuffer. A
+ * later KD_TEXT transition must not repaint login text over a black frame. */
+static int clear_console(int fd)
+{
+    const char sequence[] = "\033[0m\033[40m\033[2J\033[3J\033[H";
+    size_t offset = 0;
+    while (offset < sizeof(sequence) - 1) {
+        ssize_t n = write(fd, sequence + offset, sizeof(sequence) - 1 - offset);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return n < 0 ? errno : EIO;
+        offset += (size_t)n;
+    }
+    return 0;
+}
 
 int mf_open(mf_display **out, const char *device, int width, int height)
 {
     *out = NULL;
     mf_display *d = calloc(1, sizeof(*d));
     if (!d) return ENOMEM;
-    d->fd = -1;
+    d->fd = d->tty_fd = -1;
     int error = EINVAL;
     if (!width && !height) {
         d->fd = open(device, O_RDWR | O_CLOEXEC);
@@ -76,9 +93,26 @@ int mf_open(mf_display **out, const char *device, int width, int height)
     } else {
         d->mem = mmap(NULL, d->size, PROT_READ | PROT_WRITE, MAP_SHARED, d->fd, 0);
         if (d->mem == MAP_FAILED) { d->mem = NULL; error = errno; goto fail; }
-        d->saved = malloc(d->size);
-        if (!d->saved) { error = ENOMEM; goto fail; }
-        memcpy(d->saved, d->mem, d->size);
+        /* Own graphics mode until the app closes. Scripts may have no
+         * controlling terminal, so use the active virtual console then. */
+        const char *consoles[] = {"/dev/tty", "/dev/tty0"};
+        for (size_t i = 0; i < sizeof(consoles) / sizeof(consoles[0]); ++i) {
+            int fd = open(consoles[i], O_RDWR | O_CLOEXEC);
+            if (fd < 0) continue;
+            int mode;
+            if (ioctl(fd, KDGETMODE, &mode) == 0 &&
+                ioctl(fd, KDSETMODE, KD_GRAPHICS) == 0) {
+                d->tty_fd = fd;
+                d->tty_mode = mode;
+                break;
+            }
+            close(fd);
+        }
+        if (d->tty_fd < 0) { error = ENODEV; goto fail; }
+        error = clear_console(d->tty_fd);
+        if (error) goto fail;
+        memset(d->mem, 0, d->size);
+
     }
     *out = d;
     return 0;
@@ -134,11 +168,16 @@ int mf_close(mf_display *d)
     if (d->mem) {
         if (d->fd < 0) free(d->mem);
         else {
-            if (d->saved) memcpy(d->mem, d->saved, d->size);
+            memset(d->mem, 0, d->size);
             if (munmap(d->mem, d->size)) error = errno;
         }
     }
-    free(d->saved);
+    if (d->tty_fd >= 0) {
+        int clear_error = clear_console(d->tty_fd);
+        if (clear_error && !error) error = clear_error;
+        if (ioctl(d->tty_fd, KDSETMODE, d->tty_mode) < 0 && !error) error = errno;
+        if (close(d->tty_fd) < 0 && !error) error = errno;
+    }
     if (d->fd >= 0 && close(d->fd) && !error) error = errno;
     free(d);
     return error;

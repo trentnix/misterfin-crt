@@ -10,6 +10,9 @@ import (
 	"misterfin-go/internal/playback"
 	"misterfin-go/internal/testframe"
 	"misterfin-go/internal/videoout"
+	"misterfin-go/internal/videoout/companion"
+	"misterfin-go/internal/videoout/framefile"
+	"misterfin-go/internal/videoout/native"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -61,14 +64,14 @@ func run() (err error) {
 			*stateDir = filepath.Join(dir, "misterfin-go")
 		}
 		g := d.Geometry()
-		video := videoout.NewCompanion(d)
+		var video videoout.Output = companion.New(d)
 		if *terminalPlayer != "" {
-			video = videoout.NewFrameFile(d, *output+".video")
+			video = framefile.New(d, *output+".video")
 		} else if *headless == "" {
-			video = videoout.NewNative(d, videoout.OverlayPath)
+			video = native.New(d, native.OverlayPath)
 		}
 		defer func() { err = errors.Join(err, video.Close()) }()
-		return browser.Run(ctx, d, *config, *stateDir, playback.Options{AudioPlayer: *audioPlayer, Player: *player, TerminalPlayer: *terminalPlayer, FrameOutput: *output, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight}, video)
+		return browser.Run(ctx, *config, *stateDir, playback.Options{AudioPlayer: *audioPlayer, Player: *player, TerminalPlayer: *terminalPlayer, FrameOutput: *output, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight}, video, browser.NewRenderer())
 	}
 	if err = testframe.Present(d); err != nil {
 		return err

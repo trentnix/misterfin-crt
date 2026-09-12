@@ -75,3 +75,51 @@ func TestOverlayShadeAndComposite(t *testing.T) {
 		t.Fatalf("opaque draw %v", overlay.Pixels)
 	}
 }
+
+// Hiding the concrete type exercises the generic image path as a reference.
+type genericImage struct{ image.Image }
+
+func TestRGBABlitMatchesGeneric(t *testing.T) {
+	parent := image.NewRGBA(image.Rect(3, 5, 40, 35))
+	for y := 5; y < 35; y++ {
+		for x := 3; x < 40; x++ {
+			a := uint8((x*37 + y*13) % 256)
+			parent.SetRGBA(x, y, color.RGBA{a / 2, a / 3, a / 4, a})
+		}
+	}
+	source := parent.SubImage(image.Rect(7, 9, 33, 28)).(*image.RGBA)
+	for _, box := range [][4]int{{0, 0, 32, 24}, {-7, -3, 40, 30}, {20, 10, 30, 25}, {50, 0, 10, 10}} {
+		fast, generic := New(32, 24), New(32, 24)
+		for i := range fast.Pixels {
+			fast.Pixels[i] = byte(i)
+			generic.Pixels[i] = byte(i)
+		}
+		fast.Blit(source, box[0], box[1], box[2], box[3])
+		generic.Blit(genericImage{source}, box[0], box[1], box[2], box[3])
+		if !bytes.Equal(fast.Pixels, generic.Pixels) {
+			t.Fatalf("RGBA path changed pixels for box %v", box)
+		}
+	}
+}
+
+func TestOpaqueShadeMatchesChannelFormula(t *testing.T) {
+	for _, alpha := range []int{0, 64, 145, 210, 255} {
+		c := New(32, 24)
+		for i := range c.Pixels {
+			c.Pixels[i] = byte(i)
+		}
+		want := append([]byte(nil), c.Pixels...)
+		for y := 0; y < 12; y++ {
+			for x := 0; x < 20; x++ {
+				for k := 0; k < 3; k++ {
+					i := (y*32+x)*4 + k
+					want[i] = byte(int(want[i]) * (255 - alpha) / 255)
+				}
+			}
+		}
+		c.Shade(-3, -2, 23, 14, alpha)
+		if !bytes.Equal(c.Pixels, want) {
+			t.Fatalf("shade changed pixels for alpha %d", alpha)
+		}
+	}
+}

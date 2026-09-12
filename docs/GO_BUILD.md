@@ -2,7 +2,7 @@
 
 For the subsequent Ghostty browsing milestone, see [GO_BROWSING.md](GO_BROWSING.md). The sections below record the initial framebuffer milestone.
 
-Milestone 1 is in progress. Host rendering, ARM cross-compilation, and execution on the physical MiSTer work. Visible framebuffer output is blocked by a missing mmap callback in the installed MiSTer kernel. The C application, its Makefile, and the preexisting README and port plan are unchanged.
+Host rendering, ARM cross-compilation, and hardware framebuffer drawing now work. On September 12, 2026, the Go build passed framebuffer drawing and restoration checks on a MiSTer with a rebuilt kernel. Direct CRT confirmation and authenticated browser/playback checks remain pending. The C baseline is unchanged.
 
 ## Build and run on Linux
 
@@ -56,6 +56,18 @@ If the build environment restricts cache writes, set `GOCACHE` and `ZIG_GLOBAL_C
 
 ## Hardware validation
 
+### September 12 retest with rebuilt kernel
+
+The user supplied a kernel build containing the framebuffer fix and confirmed that the installed C MiSTerFin works again. SSH reports `Linux MiSTer 6.18.38-MiSTer #1 SMP Sat Sep 12 11:53:48 UTC 2026 armv7l GNU/Linux`. The framebuffer remains 640×240 at 32 bits per pixel.
+
+The current Go source cross-compiled successfully and was copied only to `/tmp/misterfin-go-arm`. Hardware execution completed with status 0 and reported logical and output dimensions of 640×240. A framebuffer capture showed the expected color bars, white perimeter, and grayscale ramp. The first capture differed from the host reference by 384 bytes in the console cursor rectangle at x=0–7, y=160–175. The initial restoration comparison also differed within that cursor rectangle.
+
+With the tty2 cursor temporarily hidden, full 614400-byte framebuffer comparisons passed after timed exit, SIGINT, and SIGTERM. Each run exited with status 0. These checks establish mapping, drawing, and memory restoration. They do not establish CRT scanout quality or timing.
+
+The browser launched against the installed Jellyfin configuration with its own temporary state directory, `/tmp/misterfin-go-state`. A hardware capture confirmed the Quick Connect screen. Quick Connect sign-in succeeded. The user reported that the SSH-launched browser was not visible on the CRT. Main_MiSTer enables framebuffer scanout when launching from its Scripts menu, a step bypassed by the SSH test. A separate `MiSTerFin-Go-Test.sh` launcher was prepared for that path. Visible browser output and playback remain unverified. The first Scripts launch failed with `no such device or address`: terminal input opened `/dev/tty`, which requires a controlling terminal. The failure was reproduced on MiSTer with `setsid` and terminal stdin. The input reader now falls back to reopening stdin when `/dev/tty` returns `ENXIO`, still requiring terminal ioctls to succeed. The fallback owns its descriptor and nonblocking flags. A regression test exercises navigation and exit with terminal stdin and no controlling terminal. No desktop credentials were transferred, and the installed C client, player, launcher, kernel, and core were not replaced during this retest.
+
+### Initial validation before the kernel fix
+
 Hardware was reached at `root@192.168.1.42` after `mister.local` failed to resolve. The device runs Linux `6.18.38-MiSTer`, built September 7, 2026, on a dual-core ARM Cortex-A9 with VFPv3 and NEON. GNU libc reports version 2.31, and `/lib/ld-linux-armhf.so.3` points to `ld-2.31.so`. The framebuffer reports 640×240 at 32 bits per pixel, stride 2560, and 614400 bytes of memory at physical address `0x22001000`.
 
 The ARM binary was copied to `/tmp/misterfin-go-arm`. It ran successfully in headless mode on the device. Its 640×240 raw output matched the host output byte for byte, with SHA-256 `bd3cc032d928f432ff1b49ab173289a91bfec78f310a52d0b72ffc1b53a87a01`.
@@ -85,7 +97,13 @@ After the target is confirmed, copy only `build/misterfin-go-arm` to `/tmp/miste
 
 Confirm the color order, white perimeter, grayscale ramp, centered geometry, and restoration after the ten-second timeout. Repeat with SIGINT and SIGTERM. Record the device's output mode and reported logical/output dimensions. The adapter reports ioctl, mapping, and unsupported-layout errors instead of treating them as successful presentation. Confirm the frame visually because a successful ioctl and memory copy cannot establish visible output or timing.
 
-The prototype does not install a launcher, change a core, use `/dev/mem`, stop `Main_MiSTer`, or invoke the C updater. The separate executable and temporary hardware path permit testing alongside the C client. Restoration copies the framebuffer contents saved at open. It cannot restore content after SIGKILL, a crash, or power loss.
+The prototype does not install a launcher, change a core, use `/dev/mem`, stop `Main_MiSTer`, or invoke the C updater. The separate executable and temporary hardware path permit testing alongside the C client. The display clears the framebuffer and console text on open and close. It does not restore a snapshot of the startup screen. Cleanup cannot run after SIGKILL, a crash, or power loss.
+
+## Launch the Go browser from the Scripts menu
+
+For CRT testing, copy [`tools/misterfin-go-test.sh`](../tools/misterfin-go-test.sh) to `/media/fat/Scripts/MiSTerFin-Go-Test.sh` the ARM build to `/tmp/misterfin-go-arm`, and the [Go-specific MPlayer build](GO_PLAYBACK.md#mister-use-and-remaining-work) to `/tmp/misterfin-go-mplayer-arm`. Both binaries must be executable. Launch **MiSTerFin-Go-Test** from the MiSTer Scripts menu. That path switches to tty2 and enables framebuffer output through Main_MiSTer. An SSH launch alone does not perform that setup.
+
+The test launcher uses the installed Jellyfin configuration, the temporary Go-specific player, and a separate Go session at `/tmp/misterfin-go-state`. The C player does not read Go overlays and must not be used for this test. Both binaries and the session are temporary and must be prepared again after reboot. Use a keyboard: arrows to navigate, Enter to select, Escape to go back, and Q to quit. The launcher removes Main_MiSTer’s inherited CPU-1-only affinity with `taskset -p 3` before starting Go. Both the UI and decoder can then use both Cortex-A9 cores. The launcher clears the active virtual console directly at startup and exit. It hides the console cursor while running and restores it on exit. It does not replace the C launcher or client.
 
 ## Platform contract and audit
 
@@ -109,6 +127,6 @@ DDR, raw SPI page flipping, interlaced playback compensation, and player handoff
 - Headless SIGINT and SIGTERM checks exited successfully and produced complete NTSC frames.
 - All 16 Ghostty harness tests passed after adding `--go`. PAL and NTSC pseudoterminal checks verified complete Kitty image uploads, Ctrl+C exit, image deletion, and terminal restoration. The user confirmed that the test frame looks correct in Ghostty.
 - The inherited `make test` passed through authentication and pause UI after allowing its localhost HTTP server outside the network sandbox. It stopped at `tests/test_sfx.c:57`, whose assertion requires a host without `libasound`. This desktop has ALSA. The remaining hero, cache sweep, and 13 Ghostty tests passed when run separately. The baseline test was not changed.
-- Physical MiSTer execution and headless output passed on Linux `6.18.38-MiSTer` with glibc 2.31. Visible output and hardware shutdown restoration remain blocked by the installed kernel's missing framebuffer mmap callback.
+- Initial physical MiSTer execution and headless output passed on Linux `6.18.38-MiSTer` with glibc 2.31. The September 12 rebuilt-kernel retest also passed hardware framebuffer drawing and restoration after timeout, SIGINT, and SIGTERM. Direct CRT confirmation and authenticated browser/playback checks remain pending.
 
 The `c-baseline` tag still points to `19d99fa5f479692e45ea7b5dddc42e42fb1782a9`.

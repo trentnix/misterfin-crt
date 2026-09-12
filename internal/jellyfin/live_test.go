@@ -31,7 +31,7 @@ func TestLiveProfileAndNegotiatedURL(t *testing.T) {
 				if !reflect.DeepEqual(got, want) {
 					t.Errorf("profile does not match C: %+v", got)
 				}
-				fmt.Fprint(w, `{"PlaySessionId":"session","MediaSources":[{"Id":"source","LiveStreamId":"tuner","TranscodingUrl":"/Videos/channel/stream.ts?Level=8&mpeg2video-level=2&keep=value&LiveStreamId=tuner"}]}`)
+				fmt.Fprint(w, `{"PlaySessionId":"session","MediaSources":[{"Id":"source","LiveStreamId":"tuner","MediaStreams":[{"Type":"Video","Width":720,"Height":576,"AspectRatio":"16:9"}],"TranscodingUrl":"/Videos/channel/stream.ts?Level=8&mpeg2video-level=2&keep=value&LiveStreamId=tuner"}]}`)
 			}))
 			defer server.Close()
 			c := NewClient(Config{Server: server.URL}, Session{UserID: "user", Token: "private-token"})
@@ -41,6 +41,9 @@ func TestLiveProfileAndNegotiatedURL(t *testing.T) {
 			}
 			if live.LiveStreamID != "tuner" || live.MediaSourceID != "source" || live.PlaySessionID != "session" {
 				t.Fatal("missing stream identity")
+			}
+			if len(live.MediaStreams) != 1 || live.MediaStreams[0].AspectRatio != "16:9" {
+				t.Fatal("negotiated video geometry was lost")
 			}
 			u, _ := url.Parse(live.StreamURL)
 			want := url.Values{"keep": {"value"}, "LiveStreamId": {"tuner"}, "ApiKey": {"private-token"}}

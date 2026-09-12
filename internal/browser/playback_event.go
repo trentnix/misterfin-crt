@@ -1,0 +1,105 @@
+package browser
+
+import "time"
+
+// PlaybackEvent carries decoder feedback without browser navigation or artwork.
+type PlaybackEvent struct {
+	Kind  PlaybackEventKind
+	ID    int   // Decoder generation assigned by the launch bridge.
+	Ticks int64 // Position including the requested stream offset.
+	Value bool  // Used by PlaybackPaused and PlaybackBuffering.
+	Err   error // Used by PlaybackEnded.
+}
+type PlaybackEventKind uint8
+
+const (
+	PlaybackPrepared PlaybackEventKind = iota
+	PlaybackPosition
+	PlaybackPaused
+	PlaybackBuffering
+	PlaybackEnded
+)
+
+// Handle applies feedback from a tracked decoder. It returns true only when the
+// active item ends and the browser should advance a track or navigate away.
+// A completed seek handoff does not complete the item.
+func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
+	if event.ID == 0 {
+		return false
+	}
+	switch event.Kind {
+	case PlaybackPrepared:
+		c.replacementReady(event.ID, now)
+	case PlaybackEnded:
+		return c.decoderEnded(event, now)
+	default:
+		// Position, pause, and buffering belong only to the current decoder.
+		if !c.running || event.ID != c.active.id {
+			return false
+		}
+		switch event.Kind {
+		case PlaybackPaused:
+			c.state.Paused = event.Value
+			c.state.LastAdvance = now
+		case PlaybackBuffering:
+			c.state.Buffering = event.Value
+			c.state.BufferingKnown = true
+		case PlaybackPosition:
+			c.updatePosition(event.Ticks, now)
+		}
+	}
+	return false
+}
+
+func (c *PlaybackController) replacementReady(id int, now time.Time) {
+	if id != c.pending.id {
+		return
+	}
+	c.pending.ready = true
+	if c.active.id == 0 {
+		c.activatePendingSeek(now)
+	} else {
+		// Keep the replacement gated until the original's end event arrives.
+		c.active.stopWithAsyncCleanup()
+	}
+}
+
+func (c *PlaybackController) updatePosition(ticks int64, now time.Time) {
+	if !c.state.ProgressSeen && c.state.SeekTarget == nil {
+		c.state.finishSeekControls(now)
+	}
+	if !c.state.ProgressSeen || ticks != c.state.PositionTicks {
+		c.state.LastAdvance = now
+	}
+	c.state.ProgressSeen = true
+	c.state.PositionTicks = ticks
+	if c.pauseOnFirstPosition && c.sendCommand("pause") {
+		c.pauseOnFirstPosition = false
+	}
+}
+
+func (c *PlaybackController) decoderEnded(event PlaybackEvent, now time.Time) bool {
+	if event.ID == c.pending.id {
+		// A pending process cannot finish normally: it is still behind its gate.
+		c.replacementFailed(event.Err, now)
+		return false
+	}
+	if event.ID != c.active.id {
+		return false
+	}
+	if c.seekPhase != seekInactive && !c.stoppedByUser {
+		c.active = playbackProcess{}
+		// Retargeting can leave no replacement while the debounce runs. Do not
+		// navigate away or open a gate until the latest replacement is ready.
+		if c.pending.id != 0 && c.pending.ready {
+			c.activatePendingSeek(now)
+		}
+		return false
+	}
+	c.clearSeek()
+	c.running = false
+	c.state.PlayingVideo = false
+	c.active.stop()
+	c.notice = ""
+	return true
+}

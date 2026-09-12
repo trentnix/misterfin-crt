@@ -1,10 +1,11 @@
 //go:build linux
 
-// Package terminal provides cancellable desktop keyboard input without cgo.
+// Package terminal provides cancellable terminal keyboard input without cgo.
 package terminal
 
 import (
 	"context"
+	"fmt"
 	"syscall"
 	"time"
 	"unsafe"
@@ -13,14 +14,20 @@ import (
 // Read temporarily disables line buffering and echo. Signal keys keep their
 // normal meaning. The goroutine restores the terminal before closing done.
 func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
-	fd, err := syscall.Open("/dev/tty", syscall.O_RDONLY|syscall.O_NONBLOCK, 0)
+	fd, err := syscall.Open("/dev/tty", syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
+	if err == syscall.ENXIO {
+		// A Scripts launcher can supply a terminal on stdin without assigning
+		// a controlling terminal. Reopen stdin to own our descriptor and its
+		// nonblocking flags. TCGETS below still rejects pipes and regular files.
+		fd, err = syscall.Open("/proc/self/fd/0", syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
+	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("open keyboard terminal: %w", err)
 	}
 	var old syscall.Termios
 	if _, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), syscall.TCGETS, uintptr(unsafe.Pointer(&old))); e != 0 {
 		syscall.Close(fd)
-		return nil, nil, e
+		return nil, nil, fmt.Errorf("read keyboard terminal settings: %w", e)
 	}
 	next := old
 	next.Lflag &^= syscall.ICANON | syscall.ECHO
@@ -28,7 +35,7 @@ func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
 	next.Cc[syscall.VTIME] = 0
 	if _, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), syscall.TCSETS, uintptr(unsafe.Pointer(&next))); e != 0 {
 		syscall.Close(fd)
-		return nil, nil, e
+		return nil, nil, fmt.Errorf("configure keyboard terminal: %w", e)
 	}
 	out := make(chan string, 32)
 	done := make(chan struct{})

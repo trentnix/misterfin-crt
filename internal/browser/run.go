@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"math"
+	"misterfin-go/internal/input"
 	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/platform"
 	"misterfin-go/internal/playback"
-	"misterfin-go/internal/terminal"
 	"misterfin-go/internal/videoout"
+	"strings"
 	"time"
 )
 
@@ -23,24 +22,17 @@ type result struct {
 	update          artUpdate
 	imageID         int
 	art             bool
-	playback        bool
-	prepared        bool
-	playbackID      int
-	position        bool
-	ticks           int64
-	paused          *bool
-	buffering       *bool
 	neighbor        bool
 	mediaGeneration int
 	parent          View
 	item            *jellyfin.Item
 }
 
-func Run(ctx context.Context, d platform.Display, configPath, stateDir string, player playback.Options, video videoout.Output) error {
+func Run(ctx context.Context, configPath, stateDir string, player playback.Options, output videoout.Output, renderer Renderer) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	defer video.Clear()
-	keys, done, err := terminal.Read(ctx)
+	defer output.Clear()
+	keys, done, err := input.Read(ctx, player.Headless)
 	if err != nil {
 		return err
 	}
@@ -52,47 +44,12 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		case <-work.Done():
 		}
 	}
-	playing := false
-	controls := make(chan playback.Control, 16)
 	mediaGeneration := 0
 	var mediaCancel context.CancelFunc = func() {}
 	defer func() { mediaCancel() }()
 	mediaPending := false
 	nextTrack := 0
 	var queuedNeighbor *result
-	stoppedByUser := false
-	var startPlayback func(*int64, bool)
-	seekRestart := false
-	restorePause := false
-	playbackSequence := 0
-	activePlaybackID := 0
-	var activeFastCleanup chan struct{}
-	pendingPlaybackID := 0
-	var pendingCancel context.CancelFunc
-	var pendingDone chan struct{}
-	var pendingGate chan struct{}
-	var pendingFastCleanup chan struct{}
-	pendingPrepared := false
-	pendingTarget := int64(0)
-	pendingPaused := false
-	seekAutoPaused := false
-	seekRetarget := false
-
-	var playCancel context.CancelFunc = func() {}
-	var playDone chan struct{}
-	defer func() {
-		cancel()
-		playCancel()
-		if pendingCancel != nil {
-			pendingCancel()
-		}
-		if playDone != nil {
-			<-playDone
-		}
-		if pendingDone != nil {
-			<-pendingDone
-		}
-	}()
 	m := New()
 	var client *jellyfin.Client
 	status := "Connecting to Jellyfin..."
@@ -189,7 +146,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 		})
 	}
 
-	geometry := d.Geometry()
+	geometry := output.Geometry()
 	m.Rows = visibleRows(geometry.Width, geometry.Height)
 	navigateMedia := func(direction int) {
 		if len(m.Stack) < 2 || m.Current().Detail == nil || mediaPending {
@@ -209,145 +166,52 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 			send(work, result{neighbor: true, mediaGeneration: generation, parent: parent, item: item, err: err})
 		}()
 	}
-	launchPlayback := func(startTicks *int64, gate <-chan struct{}, prepared bool) (int, context.CancelFunc, chan struct{}, chan struct{}) {
-		playbackSequence++
-		id := playbackSequence
-		playCtx, stop := context.WithCancel(ctx)
-		finished := make(chan struct{})
-		fastCleanup := make(chan struct{})
-		options := player
-		options.StartTicks = startTicks
-		options.Start = gate
-		options.AsyncCleanup = fastCleanup
-		options.Controls = controls
-		options.AcquireVideo = video.Acquire
-		options.ReleaseVideo = video.Release
-		options.Paused = func(paused bool) { send(ctx, result{paused: &paused, playbackID: id}) }
-		options.Buffering = func(waiting bool) { send(ctx, result{buffering: &waiting, playbackID: id}) }
-		if prepared {
-			options.Ready = func() { send(ctx, result{prepared: true, playbackID: id}) }
-		}
+	driver := playbackDriver{ctx: ctx, options: player, output: output, events: make(chan PlaybackEvent, 16)}
+	controller := newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control) playbackProcess {
+		return driver.launch(client, item, offset, gate, prepared, controls)
+	})
+	m.PlaybackState = controller.state
+	defer func() { cancel(); controller.Close() }()
+	startPlayback := func(startTicks *int64, paused bool) {
 		selected := *m.Current().Detail
-		go func() {
-			defer close(finished)
-			err := playback.Run(playCtx, client, selected, options, func(ticks int64) {
-				select {
-				case events <- result{position: true, ticks: ticks, playbackID: id}:
-				default:
-				}
-			})
-			send(ctx, result{playback: true, playbackID: id, err: err})
-		}()
-		return id, stop, finished, fastCleanup
-	}
-	cancelPendingSeek := func() {
-		if pendingCancel != nil {
-			if pendingFastCleanup != nil {
-				close(pendingFastCleanup)
-			}
-			pendingCancel()
-		}
-		pendingPlaybackID = 0
-		pendingCancel, pendingDone, pendingGate, pendingFastCleanup = nil, nil, nil, nil
-		pendingPrepared = false
-	}
-	launchPendingSeek := func(target int64) {
-		cancelPendingSeek()
-		pendingTarget = target
-		pendingGate = make(chan struct{})
-		pendingPlaybackID, pendingCancel, pendingDone, pendingFastCleanup = launchPlayback(&pendingTarget, pendingGate, true)
-	}
-	activatePendingSeek := func() {
-		activePlaybackID = pendingPlaybackID
-		playCancel, playDone, activeFastCleanup = pendingCancel, pendingDone, pendingFastCleanup
-		pendingPlaybackID = 0
-		pendingCancel, pendingDone, pendingFastCleanup = nil, nil, nil
-		pendingPrepared = false
-		close(pendingGate)
-		pendingGate = nil
-		restorePause = pendingPaused
-		seekAutoPaused = false
-		seekRetarget = false
-		m.SeekTarget = nil
-		m.SeekPresses = 0
-		m.SeekInFlight = false
-		seekRestart = false
-		m.Paused = false
-		m.PositionTicks = pendingTarget
-		m.ProgressSeen = false
-		m.LastAdvance = time.Now()
-		m.Buffering, m.BufferingKnown = false, false
-	}
-	startPlayback = func(startTicks *int64, paused bool) {
-		restorePause = paused
-		seekRestart = false
-		seekRetarget = false
-		m.SeekInFlight = false
-		m.SeekTarget = nil
-		m.SeekDeadline = time.Time{}
-		selected := *m.Current().Detail
-		m.PlayingAudio = selected.Type == "Audio"
-		m.PlayingVideo = !m.PlayingAudio
-		if m.PlayingVideo {
-			video.Start()
-		}
-		m.Paused = false
-		m.PositionTicks = 0
-		m.ProgressSeen = false
-		m.LastAdvance = time.Now()
-		m.Buffering, m.BufferingKnown = false, false
-		m.HideControls()
-		stoppedByUser = false
-		nextTrack = 0
-		// Discard controls left over from the preceding track.
-		for len(controls) > 0 {
-			<-controls
-		}
-		if !m.PlayingAudio {
+		if selected.Type != "Audio" {
+			output.Clear()
 			artCancel()
 			imageID++
 		}
-		activePlaybackID, playCancel, playDone, activeFastCleanup = launchPlayback(startTicks, nil, false)
-		playing = true
+		controller.Start(selected, startTicks, paused, time.Now())
+		nextTrack = 0
 		m.Notice = ""
 	}
-	start := time.Now()
-	last := start
-	anim := Animation{}
 	var lastVideoOverlay []byte
-	ticker := time.NewTicker(time.Second / 30)
+	frameInterval := time.Second / 60
+	ticker := time.NewTicker(frameInterval)
 	defer ticker.Stop()
 	draw := func() error {
 		now := time.Now()
-		dt := min(now.Sub(last).Seconds(), 0.05)
-		last = now
-		anim.Seconds = now.Sub(start).Seconds()
-		target := float64(m.Current().Selected)
-		row := float64(m.Current().Selected - m.Current().Scroll)
-		anim.Selection += (target - anim.Selection) * (1 - math.Exp(-dt/0.035))
-		if math.Abs(row-anim.Row) > float64(m.Rows) {
-			anim.Row = row
-		} else {
-			anim.Row += (row - anim.Row) * (1 - math.Exp(-dt/0.055))
+		// Browser motion follows the C client's 60 Hz timeline. Video owns its
+		// decoding cadence and only needs the existing 30 Hz overlay updates.
+		interval := time.Second / 60
+		if controller.running && m.PlayingVideo {
+			interval = time.Second / 30
 		}
-		backdrop := render(geometry.Width, geometry.Height, m, status, art, artError, anim, now)
-		if playing && m.PlayingVideo {
-			overlay := renderVideoOverlay(geometry.Width, geometry.Height, m, now)
-			changed := !bytes.Equal(lastVideoOverlay, overlay)
-			lastVideoOverlay = append(lastVideoOverlay[:0], overlay...)
-			if err := video.Present(backdrop, overlay); err != nil {
-				return err
-			}
-			if changed && m.Paused {
-				select {
-				case controls <- playback.Control{Kind: "refresh"}:
-				default:
-				}
-			}
-			return nil
+		if interval != frameInterval {
+			frameInterval = interval
+			ticker.Reset(interval)
 		}
-		lastVideoOverlay = lastVideoOverlay[:0]
-		return d.Present(backdrop)
+		scene := sceneFromModel(m, status, art, artError, now)
+		scene.Video = controller.running && m.PlayingVideo
+		scene.Playback = controller.Snapshot(now)
+		frame := renderer.Render(geometry.Width, geometry.Height, scene)
+		changed := !bytes.Equal(lastVideoOverlay, frame.Overlay)
+		lastVideoOverlay = append(lastVideoOverlay[:0], frame.Overlay...)
+		if err := output.Present(frame); err != nil {
+			return err
+		}
+		if frame.Video && changed && m.Paused {
+			controller.Refresh()
+		}
+		return nil
 	}
 	authenticate()
 	if err := draw(); err != nil {
@@ -356,22 +220,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 	for {
 		select {
 		case <-ticker.C:
-			if playing && m.SeekTarget != nil && (!seekRestart || seekRetarget) && !time.Now().Before(m.SeekDeadline) {
-				initialSeek := !seekRestart
-				seekRestart, seekRetarget = true, false
-				m.SeekInFlight = true
-				if initialSeek {
-					pendingPaused = m.Paused
-					seekAutoPaused = !pendingPaused
-					if seekAutoPaused {
-						select {
-						case controls <- playback.Control{Kind: "pause"}:
-						default:
-						}
-					}
-				}
-				launchPendingSeek(*m.SeekTarget)
-			}
+			controller.Tick(time.Now())
 		case <-ctx.Done():
 			return nil
 		case key, ok := <-keys:
@@ -381,25 +230,27 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 				return errors.New("terminal input closed")
 			}
-			if m.PlayingAudio && playing && key != "quit" {
+			if strings.HasSuffix(key, "-repeat") {
+				photo := m.Current().Detail != nil && m.Current().Detail.Type == "Photo"
+				if key == "up-repeat" && (controller.running || photo) {
+					continue
+				}
+				key = strings.TrimSuffix(key, "-repeat")
+			}
+			if m.PlayingAudio && controller.running && key != "quit" {
 				now := time.Now()
 				switch key {
 				case "back":
-					stoppedByUser = true
+					controller.Key("back", now)
 					mediaCancel()
 					mediaGeneration++
 					mediaPending = false
 					queuedNeighbor = nil
 					nextTrack = 0
-					playCancel()
 				case "open":
-					m.HideControls()
-					select {
-					case controls <- playback.Control{Kind: "pause"}:
-					default:
-					}
+					controller.Key("open", now)
 				case "up":
-					m.RevealControls(now)
+					controller.Key("up", now)
 				case "previous", "next":
 					nextTrack = -1
 					if key == "next" {
@@ -412,50 +263,10 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 				continue
 			}
-			if playing && key != "quit" {
-				if seekRestart && key != "back" {
-					if key == "previous" || key == "next" {
-						m.seekVideo(key, time.Now())
-						if m.SeekTarget != nil {
-							cancelPendingSeek()
-							seekRetarget = true
-							m.SeekInFlight = false
-						}
-						if err := draw(); err != nil {
-							return err
-						}
-					}
-					continue
-				}
-				switch key {
-				case "previous", "next":
-					m.seekVideo(key, time.Now())
-				case "back":
-					stoppedByUser = true
-					seekRestart, seekRetarget = false, false
-					m.SeekTarget = nil
-					m.SeekInFlight = false
-					cancelPendingSeek()
-					playCancel()
-					if activePlaybackID == 0 {
-						playing = false
-						m.PlayingVideo = false
-						m.Paused = false
-						video.Clear()
-					}
-				case "open":
-					m.HideControls()
-					if restorePause {
-						// Resume requested while the replacement stream is loading.
-						restorePause = false
-						break
-					}
-					select {
-					case controls <- playback.Control{Kind: "pause"}:
-					default:
-					}
-				case "up":
-					m.RevealControls(time.Now())
+			if controller.running && key != "quit" {
+				controller.Key(key, time.Now())
+				if !controller.running {
+					output.Clear()
 				}
 				if err := draw(); err != nil {
 					return err
@@ -481,7 +292,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				}
 				switch key {
 				case "up":
-					m.RevealControls(time.Now())
+					m.ToggleControls(time.Now())
 				case "previous", "next", "down":
 					direction := 1
 					if key == "previous" {
@@ -539,37 +350,56 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					startPlayback(nil, false)
 				}
 			}
+		case event := <-driver.events:
+			ended := controller.Handle(event, time.Now())
+			if controller.notice != "" {
+				m.Notice = controller.notice
+			}
+			if !controller.running {
+				output.Clear()
+			}
+			if !ended {
+				continue
+			}
+			m.Notice = ""
+			if m.PlayingAudio && !controller.stoppedByUser && event.Err == nil && queuedNeighbor != nil {
+				m.Stack[len(m.Stack)-2] = queuedNeighbor.parent
+				m.Current().Detail = queuedNeighbor.item
+				m.Current().Title = queuedNeighbor.item.Name
+				queuedNeighbor = nil
+				selectedKey = ""
+				loadArt()
+				startPlayback(nil, false)
+			} else if m.PlayingAudio && !controller.stoppedByUser && event.Err == nil {
+				direction := nextTrack
+				if direction == 0 {
+					direction = 1
+				}
+				navigateMedia(direction)
+			} else {
+				wasAudio := m.PlayingAudio
+				m.PlayingAudio = false
+				m.HideControls()
+				if (wasAudio && controller.stoppedByUser) || (m.Current().Detail != nil && jellyfin.IsLive(*m.Current().Detail)) {
+					load(m.Key("back"))
+				}
+				selectedKey = ""
+				loadArt()
+				if event.Err != nil {
+					m.Notice = event.Err.Error() + "  A:back"
+				}
+			}
 		case r := <-events:
-			if r.prepared {
-				if r.playbackID == pendingPlaybackID {
-					pendingPrepared = true
-					if activePlaybackID == 0 {
-						activatePendingSeek()
-					} else if activeFastCleanup != nil {
-						close(activeFastCleanup)
-						activeFastCleanup = nil
-						playCancel()
-					}
-				}
-			} else if r.paused != nil {
-				if playing && r.playbackID == activePlaybackID {
-					m.Paused = *r.paused
-					m.LastAdvance = time.Now()
-				}
-			} else if r.buffering != nil {
-				if playing && r.playbackID == activePlaybackID {
-					m.Buffering, m.BufferingKnown = *r.buffering, true
-				}
-			} else if r.neighbor {
+			if r.neighbor {
 				if r.mediaGeneration != mediaGeneration {
 					continue
 				}
 				mediaPending = false
 				nextTrack = 0
-				if playing && m.PlayingAudio {
+				if controller.running && m.PlayingAudio {
 					if r.item != nil && r.err == nil {
 						queuedNeighbor = &r
-						playCancel()
+						controller.StopForTrackChange()
 					}
 					if r.err != nil {
 						m.Notice = "Could not load adjacent track"
@@ -594,95 +424,6 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 					load(m.Key("back"))
 					loadArt()
 				}
-			} else if r.position {
-				if playing && r.playbackID == activePlaybackID {
-					if !m.ProgressSeen || r.ticks != m.PositionTicks {
-						m.LastAdvance = time.Now()
-					}
-					m.ProgressSeen = true
-					m.PositionTicks = r.ticks
-					if restorePause {
-						select {
-						case controls <- playback.Control{Kind: "pause"}:
-							restorePause = false
-						default:
-						}
-					}
-				}
-			} else if r.playback {
-				if r.playbackID == pendingPlaybackID {
-					activeEnded := activePlaybackID == 0
-					if seekAutoPaused && playing {
-						select {
-						case controls <- playback.Control{Kind: "pause"}:
-						default:
-						}
-					}
-					seekAutoPaused = false
-					pendingPlaybackID = 0
-					pendingCancel, pendingDone, pendingGate, pendingFastCleanup = nil, nil, nil, nil
-					pendingPrepared = false
-					m.SeekTarget = nil
-					m.SeekInFlight = false
-					seekRestart, seekRetarget = false, false
-					if r.err != nil {
-						m.Notice = r.err.Error() + "  A:back"
-					}
-					if activeEnded {
-						playing = false
-						m.PlayingVideo = false
-						m.Paused = false
-						video.Clear()
-					}
-					continue
-				}
-				if r.playbackID != activePlaybackID {
-					continue
-				}
-				if seekRestart && !stoppedByUser {
-					activePlaybackID = 0
-					playCancel = func() {}
-					playDone, activeFastCleanup = nil, nil
-					if pendingPlaybackID != 0 && pendingPrepared {
-						activatePendingSeek()
-					}
-					continue
-				}
-				m.SeekTarget = nil
-				m.SeekInFlight = false
-				seekRestart, seekRetarget = false, false
-				playing = false
-				m.PlayingVideo = false
-				video.Clear()
-				playCancel()
-				m.Notice = ""
-				if m.PlayingAudio && !stoppedByUser && r.err == nil && queuedNeighbor != nil {
-					m.Stack[len(m.Stack)-2] = queuedNeighbor.parent
-					m.Current().Detail = queuedNeighbor.item
-					m.Current().Title = queuedNeighbor.item.Name
-					queuedNeighbor = nil
-					selectedKey = ""
-					loadArt()
-					startPlayback(nil, false)
-				} else if m.PlayingAudio && !stoppedByUser && r.err == nil {
-					direction := nextTrack
-					if direction == 0 {
-						direction = 1
-					}
-					navigateMedia(direction)
-				} else {
-					wasAudio := m.PlayingAudio
-					m.PlayingAudio = false
-					m.HideControls()
-					if (wasAudio && stoppedByUser) || (m.Current().Detail != nil && jellyfin.IsLive(*m.Current().Detail)) {
-						load(m.Key("back"))
-					}
-					selectedKey = ""
-					loadArt()
-					if r.err != nil {
-						m.Notice = r.err.Error() + "  A:back"
-					}
-				}
 			} else if r.auth {
 				if r.request.Generation != authGeneration {
 					continue
@@ -694,6 +435,7 @@ func Run(ctx context.Context, d platform.Display, configPath, stateDir string, p
 				} else {
 					client = r.client
 					m = New()
+					m.PlaybackState = controller.state
 					m.Rows = visibleRows(geometry.Width, geometry.Height)
 					selectedKey = ""
 					artwork = newArtworkLoader(client)

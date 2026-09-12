@@ -12,54 +12,9 @@ func resumableVideo(item *jellyfin.Item) bool {
 		!jellyfin.IsLive(*item) && !item.UserData.Played && item.UserData.PlaybackPositionTicks > 0
 }
 
-// The three-second reveal window follows bb31e83 and src/pause_ui.c.
-func (m *Model) RevealControls(now time.Time) bool {
-	hidden := !m.ControlsVisible(now)
-	m.ControlsUntil = now.Add(3 * time.Second)
-	return hidden
-}
-func (m *Model) ControlsVisible(now time.Time) bool { return now.Before(m.ControlsUntil) }
-func (m *Model) HideControls()                      { m.ControlsUntil = time.Time{} }
-
+// seekVideo keeps the model-based rendering tests using the same seek rules.
 func (m *Model) seekVideo(key string, now time.Time) {
-	item := m.Current().Detail
-	if !m.PlayingVideo || !m.ProgressSeen || item == nil || jellyfin.IsLive(*item) {
-		return
-	}
-	target := m.PositionTicks
-	if m.SeekTarget == nil {
-		m.SeekPresses = 0
-	}
-	if m.SeekTarget != nil {
-		target = *m.SeekTarget
-	}
-	step := int64(30 * 10000000)
-	if key == "previous" {
-		step = -step
-	}
-	target = max(int64(0), target+step)
-	if item.RunTimeTicks > 0 {
-		target = min(target, max(int64(0), item.RunTimeTicks-10000000))
-	}
-	m.SeekTarget = &target
-	m.SeekDeadline = now.Add(500 * time.Millisecond)
-	m.SeekPresses++
-}
-
-func (m *Model) videoWaitLabel(now time.Time) string {
-	if m.PlayingVideo && m.SeekInFlight {
-		return "Seeking..."
-	}
-	if !m.PlayingVideo || m.Paused {
-		return ""
-	}
-	if !m.ProgressSeen {
-		return "Loading..."
-	}
-	if m.Buffering || (!m.BufferingKnown && now.Sub(m.LastAdvance) >= 3*time.Second) {
-		return "Buffering..."
-	}
-	return ""
+ m.PlaybackState.seekVideo(m.Current().Detail, key, now)
 }
 
 // Find adjacent media without replacing the visible page until a match arrives.

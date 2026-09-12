@@ -1,0 +1,146 @@
+package browser
+
+import (
+	"time"
+
+	"misterfin-go/internal/jellyfin"
+	"misterfin-go/internal/playback"
+)
+
+// PlaybackController coordinates one item's playback on the browser event loop.
+// Call its methods from that loop only. Decoder goroutines return PlaybackEvents
+// through the launch bridge instead of mutating controller state.
+//
+// Navigation and track selection belong to the browser. Drawing and framebuffer
+// ownership belong to the renderer and output adapters.
+type PlaybackController struct {
+	// Model shares this state for music rendering and photo control visibility.
+	state    *PlaybackState
+	item     jellyfin.Item
+	launch   playbackLaunch
+	controls chan playback.Control
+
+	// The active decoder may be stopping while a replacement is being prepared.
+	// A zero process ID means that slot has no decoder.
+	active        playbackProcess
+	pending       playbackProcess
+	running       bool // Remains true across a seek, even between decoder processes.
+	stoppedByUser bool
+
+	seekPhase            seekPhase
+	pendingTarget        int64 // Offset requested by the pending replacement.
+	pausedBeforeSeek     bool  // User intent, captured before we pause for a seek.
+	pausedForSeek        bool  // Whether we must resume the original if preparation fails.
+	pauseOnFirstPosition bool  // Restore user pause after the replacement starts.
+	notice               string
+}
+
+func newPlaybackController(launch playbackLaunch) *PlaybackController {
+	return &PlaybackController{
+		state:    &PlaybackState{},
+		launch:   launch,
+		controls: make(chan playback.Control, 16),
+	}
+}
+
+// Start begins a new item after the preceding item has finished. A nil offset
+// resumes from Jellyfin's saved position. A pointer to zero requests a restart.
+func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused bool, now time.Time) {
+	c.item = item
+	c.pauseOnFirstPosition = paused
+	c.seekPhase = seekInactive
+	c.stoppedByUser = false
+	c.notice = ""
+	*c.state = PlaybackState{
+		PlayingAudio: item.Type == "Audio",
+		PlayingVideo: item.Type != "Audio",
+		LastAdvance:  now,
+	}
+	// Commands queued for the previous item must not reach the new player.
+	c.controls = make(chan playback.Control, 16)
+	c.active = c.launch(item, offset, nil, false, c.controls)
+	c.running = true
+}
+
+// Snapshot copies the visible playback state. Later events cannot change it.
+func (c *PlaybackController) Snapshot(now time.Time) PlaybackPresentation {
+	presentation := c.state.presentation(&c.item, now)
+	presentation.Notice = c.notice
+	return presentation
+}
+
+// Key receives normalized browser actions. During a seek, retargeting, menu toggling, and
+// stopping are accepted. Music track navigation is handled by the browser.
+func (c *PlaybackController) Key(key string, now time.Time) {
+	if c.seekPhase != seekInactive && key != "back" && key != "up" {
+		if key == "previous" || key == "next" {
+			c.retargetSeek(key, now)
+		}
+		return
+	}
+	switch key {
+	case "previous", "next":
+		c.state.seekVideo(&c.item, key, now)
+	case "back":
+		c.stopByUser()
+	case "open":
+		c.state.HideControls()
+		if c.pauseOnFirstPosition {
+			// The user requested resume before the replacement's first position.
+			c.pauseOnFirstPosition = false
+		} else {
+			c.sendCommand("pause")
+		}
+	case "up":
+		c.state.ToggleControls(now)
+	}
+}
+
+func (c *PlaybackController) stopByUser() {
+	c.stoppedByUser = true
+	c.state.HideControls()
+	c.clearSeek()
+	c.cancelPendingSeek()
+	c.active.stop()
+	if c.active.id == 0 {
+		// No completion event will arrive if the old decoder already stopped.
+		c.finishVideo()
+	}
+}
+
+// StopForTrackChange leaves queue selection and navigation with the browser.
+func (c *PlaybackController) StopForTrackChange() {
+	c.active.stop()
+}
+
+// Refresh requests a redraw of paused video after its overlay changes.
+func (c *PlaybackController) Refresh() {
+	c.sendCommand("refresh")
+}
+
+// sendCommand never blocks the UI loop. The caller can retry on a later event
+// when delivery is required, as with pause restoration on a position update.
+func (c *PlaybackController) sendCommand(kind string) bool {
+	select {
+	case c.controls <- playback.Control{Kind: kind}:
+		return true
+	default:
+		return false
+	}
+}
+
+// finishVideo leaves music queue state intact for the browser to resolve.
+func (c *PlaybackController) finishVideo() {
+	c.running = false
+	c.state.PlayingVideo = false
+	c.state.Paused = false
+}
+
+// Close cancels both tracked decoders before waiting, so a gated replacement
+// cannot keep shutdown waiting for the original decoder to finish first.
+func (c *PlaybackController) Close() {
+	c.active.stop()
+	c.pending.stop()
+	c.active.wait()
+	c.pending.wait()
+}

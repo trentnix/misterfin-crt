@@ -129,9 +129,12 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.log = (self.directory / "browser.log").open("w+b")
         self.addCleanup(self.log.close)
 
+        controlling_terminal = self._testMethodName != "test_terminal_stdin_without_controlling_terminal"
+
         def terminal_session():
             os.setsid()
-            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+            if controlling_terminal:
+                fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
         self.process = subprocess.Popen(
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
@@ -170,6 +173,14 @@ class BrowseIntegrationTests(unittest.TestCase):
 
     def key(self, key):
         os.write(self.master, key)
+
+    def test_terminal_stdin_without_controlling_terminal(self):
+        # Scripts launch can pass terminal stdin without a controlling terminal.
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.assertEqual(self.frame.stat().st_size, 640 * 240 * 4)
+        self.key(b"q")
+        self.assertEqual(self.process.wait(timeout=3), 0)
 
     def test_movie_paging_and_music_hierarchy(self):
         self.key(b"b")

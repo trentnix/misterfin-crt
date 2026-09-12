@@ -18,6 +18,12 @@ import (
 	"time"
 )
 
+// MediaStream describes source video geometry returned by Jellyfin.
+type MediaStream struct {
+	Type, AspectRatio string
+	Width, Height     int
+}
+
 type Item struct {
 	ID                                             string `json:"Id"`
 	Name, Type, CollectionType, SeriesID, Overview string
@@ -32,11 +38,8 @@ type Item struct {
 	ParentBackdropImageTags                        []string
 	Number, ChannelNumber                          string
 	CurrentProgram                                 struct{ Name string }
-	MediaStreams                                   []struct {
-		Type, AspectRatio string
-		Width, Height     int
-	}
-	UserData struct {
+	MediaStreams                                   []MediaStream
+	UserData                                       struct {
 		Played                bool
 		PlaybackPositionTicks int64
 	}

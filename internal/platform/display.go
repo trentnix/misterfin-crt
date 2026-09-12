@@ -6,11 +6,17 @@ type Geometry struct {
 	Width, Height, OutputWidth, OutputHeight int
 }
 
-// Display borrows pixels only during Present. Callers own the slice and must
-// serialize all calls. Close releases resources and is safe to repeat.
-type Display interface {
+// Presenter borrows pixels during Present. Callers own the slice and serialize
+// presentation calls. Output backends need this contract, not resource ownership.
+type Presenter interface {
 	Geometry() Geometry
 	Present(pixels []byte) error
+}
+
+// Display adds resource ownership to Presenter. The application that opens a
+// display closes it after its output backend. Close is safe to repeat.
+type Display interface {
+	Presenter
 	Close() error
 }
 

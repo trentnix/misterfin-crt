@@ -31,7 +31,10 @@ func center(c *ui.Canvas, y int, s string, color uint32, scale int) {
 	c.TextScaled((c.Width-textWidth(s, scale))/2, y, s, color, c.Width, scale)
 }
 func runtime(ticks int64) string {
-	seconds := ticks / 10000000
+	seconds := max(int64(0), ticks/10000000)
+	if seconds >= 3600 {
+		return fmt.Sprintf("%d:%02d:%02d", seconds/3600, seconds/60%60, seconds%60)
+	}
 	return fmt.Sprintf("%d:%02d", seconds/60, seconds%60)
 }
 func subtitle(i jellyfin.Item) (string, uint32) {
@@ -43,11 +46,22 @@ func subtitle(i jellyfin.Item) (string, uint32) {
 		}
 		return "No guide information", color
 	case "MusicArtist":
-		return fmt.Sprintf("%d albums", i.ChildCount), color
+		return positiveCount(i.ChildCount, "album"), color
 	case "MusicAlbum":
-		return fmt.Sprintf("%d - %d tracks", i.ProductionYear, i.ChildCount), color
+		parts := []string{}
+		if i.ProductionYear > 0 {
+			parts = append(parts, fmt.Sprint(i.ProductionYear))
+		}
+		if tracks := positiveCount(i.ChildCount, "track"); tracks != "" {
+			parts = append(parts, tracks)
+		}
+		return strings.Join(parts, " - "), color
 	case "Series":
-		return fmt.Sprintf("%d seasons - %d episodes", i.ChildCount, i.RecursiveItemCount), color
+		seasons := positiveCount(i.ChildCount, "season")
+		if seasons != "" && i.RecursiveItemCount > 0 {
+			seasons += " - " + positiveCount(i.RecursiveItemCount, "episode")
+		}
+		return seasons, color
 	case "Audio":
 		return runtime(i.RunTimeTicks), color
 	}
@@ -66,7 +80,7 @@ func subtitle(i jellyfin.Item) (string, uint32) {
 }
 func itemTitle(i jellyfin.Item) string {
 	s := i.Name
-	if i.Type == "TvChannel" {
+	if jellyfin.IsLive(i) {
 		number := i.Number
 		if number == "" {
 			number = i.ChannelNumber
@@ -90,34 +104,40 @@ type Artwork struct {
 	Covers                         []image.Image
 	Count                          *int
 }
-type Animation struct{ Seconds, Selection, Row float64 }
+type Animation struct{ Seconds, TitleSeconds, Selection, Row float64 }
 
 func Render(w, h int, m *Model, status string, art image.Image, artError string) []byte {
 	return render(w, h, m, status, Artwork{Primary: art}, artError, Animation{Selection: float64(m.Current().Selected), Row: float64(m.Current().Selected - m.Current().Scroll)}, time.Now())
 }
 func render(w, h int, m *Model, status string, art Artwork, artError string, anim Animation, now time.Time) []byte {
-	c := ui.New(w, h)
+	return renderScene(ui.New(w, h), nil, sceneFromModel(m, status, art, artError, now), anim)
+}
+
+func renderScene(c *ui.Canvas, cache *sceneCache, s Scene, anim Animation) []byte {
+	status, art, artError, now := s.Status, s.Artwork, s.ArtworkError, s.Now
+	w, h := c.Width, c.Height
 	sy := safeY(w, h)
 	bottom := h - 8 - sy
-	v := m.Current()
+	v := &s.View
 	clock := func() { c.Text(w-72, sy+4, now.Format("15:04"), dimColor, w-32) }
 	header := func(title string) {
 		end := w - 84
 		x := 24
 		if textWidth(title, 2) > end-x {
-			x -= int(anim.Seconds*24) % (textWidth(title, 2) + 40)
+			x -= int(anim.TitleSeconds*15) % (textWidth(title, 2) + 40)
 		}
 		// Clip the marquee to the title's safe area, including its repeated copy.
-		layer := ui.New(w, h)
-		layer.TextScaled(x, sy, title, titleColor, end, 2)
+		layer := ui.New(w, 16)
+		layer.TextScaled(x, 0, title, titleColor, end, 2)
 		if x < 24 {
-			layer.TextScaled(x+textWidth(title, 2)+40, sy, title, titleColor, end, 2)
+			layer.TextScaled(x+textWidth(title, 2)+40, 0, title, titleColor, end, 2)
 		}
 		for y := sy; y < min(h, sy+16); y++ {
 			for x := 24; x < end; x++ {
 				i := (y*w + x) * 4
-				if layer.Pixels[i]|layer.Pixels[i+1]|layer.Pixels[i+2] != 0 {
-					copy(c.Pixels[i:i+3], layer.Pixels[i:i+3])
+				j := ((y-sy)*w + x) * 4
+				if layer.Pixels[j]|layer.Pixels[j+1]|layer.Pixels[j+2] != 0 {
+					copy(c.Pixels[i:i+3], layer.Pixels[j:j+3])
 				}
 			}
 		}
@@ -144,21 +164,18 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 	}
 	if v.Detail != nil && v.Detail.Type == "Photo" {
 		c.Image(art.Photo, 0, 0, w, h)
-		if m.ControlsVisible(now) {
+		if s.Playback.ControlsVisible {
 			c.Shade(0, 0, w, sy+12, 175)
 			c.Shade(0, bottom-4, w, h-bottom+4, 175)
-			count := ""
-			if len(m.Stack) > 1 {
-				count = m.Stack[len(m.Stack)-2].Count()
-			}
+			count := s.PhotoCount
 			c.Text(24, sy, truncate(v.Detail.Name, w-60-textWidth(count, 1), 1), 0xffffff, w-24)
 			c.Text(w-24-textWidth(count, 1), sy, count, dimColor, w-24)
 			center(c, bottom, "LEFT/RIGHT: photos   A:back", dimColor, 1)
 		}
 
-		if m.Notice != "" {
+		if s.Notice != "" {
 			c.Shade(0, h/2-10, w, 24, 210)
-			center(c, h/2-4, m.Notice, 0xffffff, 1)
+			center(c, h/2-4, s.Notice, 0xffffff, 1)
 		}
 		if art.Photo == nil {
 			message := "Loading photo..."
@@ -169,31 +186,31 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		}
 		return c.Pixels
 	}
-	if m.PlayingVideo && v.Detail != nil {
-		c.Image(art.Backdrop, 0, 0, w, h)
+	if s.Video && v.Detail != nil {
+		cache.videoBackdrop(c, art.Backdrop)
 		center(c, h/2-4, truncate(v.Detail.Name, w-48, 1), titleColor, 1)
 		return c.Pixels
 	}
-	if m.PlayingAudio && v.Detail != nil {
+	if s.Audio && v.Detail != nil {
 		header("Now playing")
 		c.Image(art.Primary, 24, sy+28, w-48, h-sy-98)
 		center(c, h-sy-62, truncate(v.Detail.Name, w-48, 1), titleColor, 1)
-		center(c, h-sy-46, runtime(m.PositionTicks)+" / "+runtime(v.Detail.RunTimeTicks), dimColor, 1)
+		center(c, h-sy-46, runtime(s.Playback.PositionTicks)+" / "+runtime(v.Detail.RunTimeTicks), dimColor, 1)
 		c.Rect(24, h-sy-30, w-48, 3, 0x303030)
 		if v.Detail.RunTimeTicks > 0 {
-			c.Rect(24, h-sy-30, int(min(m.PositionTicks, v.Detail.RunTimeTicks)*int64(w-48)/v.Detail.RunTimeTicks), 3, titleColor)
+			c.Rect(24, h-sy-30, int(min(s.Playback.PositionTicks, v.Detail.RunTimeTicks)*int64(w-48)/v.Detail.RunTimeTicks), 3, titleColor)
 		}
-		if m.ControlsVisible(now) {
+		if s.Playback.ControlsVisible {
 			c.Shade(0, bottom-22, w, h-bottom+22, 210)
 			action := "B:pause"
-			if m.Paused {
+			if s.Playback.Paused {
 				action = "B:play"
 			}
 			center(c, bottom-12, "LEFT/RIGHT: previous/next track", dimColor, 1)
 			center(c, bottom, action+"   A:stop", dimColor, 1)
 		}
-		if m.Notice != "" {
-			center(c, bottom, m.Notice, dimColor, 1)
+		if s.Notice != "" {
+			center(c, bottom, s.Notice, dimColor, 1)
 		}
 		return c.Pixels
 	}
@@ -201,11 +218,13 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 	if v.Detail != nil {
 		hero := max(80, min(150, h-88))
 		full := max(h*3/4, hero)
-		c.Rect(0, 0, w, full, 0x181818)
-		c.Blit(art.Backdrop, 0, 0, w, full)
-		for y := 0; y < full; y++ {
-			c.Shade(0, y, w, 1, y*255/max(1, full-1))
-		}
+		cache.backdrop(c, art, true, func(layer *ui.Canvas) {
+			layer.Rect(0, 0, w, full, 0x181818)
+			layer.Blit(art.Backdrop, 0, 0, w, full)
+			for y := 0; y < full; y++ {
+				layer.Shade(0, y, w, 1, y*255/max(1, full-1))
+			}
+		})
 		clock()
 		cy := hero - 22 + 3
 		if art.Logo != nil {
@@ -214,15 +233,18 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 			center(c, cy-4, truncate(itemTitle(*v.Detail), w-48, 1), 0xffffff, 1)
 		}
 		ty := max(hero+4, h-8-sy-34-50)
+		metadataX := 24
 		if v.Detail.ProductionYear > 0 {
-			c.Text(24, ty, fmt.Sprint(v.Detail.ProductionYear), dimColor, w)
+			year := fmt.Sprint(v.Detail.ProductionYear)
+			c.Text(metadataX, ty, year, dimColor, w)
+			metadataX += textWidth(year, 1) + 8
 		}
 		if v.Detail.CommunityRating > 0 {
 			for y := 0; y < 5; y++ {
 				inset := int(math.Abs(float64(y - 2)))
-				c.Rect(72+inset, ty+1+y, 5-2*inset, 1, 0xffd700)
+				c.Rect(metadataX+inset, ty+1+y, 5-2*inset, 1, 0xffd700)
 			}
-			c.Text(81, ty, fmt.Sprintf("%.1f", v.Detail.CommunityRating), dimColor, w)
+			c.Text(metadataX+9, ty, fmt.Sprintf("%.1f", v.Detail.CommunityRating), dimColor, w)
 		}
 		s, col := subtitle(*v.Detail)
 		if jellyfin.IsLive(*v.Detail) {
@@ -235,28 +257,10 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		if resumableVideo(v.Detail) {
 			hint = "B:resume  SELECT:restart  A:back"
 		}
-	} else if len(m.Stack) == 1 && !m.ListMode {
+	} else if s.Root && !s.ListMode {
 		if len(art.Covers) > 0 {
-			cw := max(1, w/6)
-			aspect := 2.0 / 3
-			if v.Item() != nil && v.Item().CollectionType == "music" {
-				aspect = 1
-			}
-			ch := max(1, int(float64(cw)/(aspect*float64(w*3)/float64(h*4))))
-			for row := 0; row*ch < h; row++ {
-				shift := int(anim.Seconds*10) % cw
-				if row%2 == 0 {
-					shift = -shift
-				}
-				for col := -1; col < 8; col++ {
-					idx := (row*7 + col + 13) % len(art.Covers)
-					c.Blit(art.Covers[idx], col*cw+shift, row*ch, cw, ch)
-				}
-			}
-			c.Shade(0, 0, w, h, 145)
-			for y := 0; y < h; y++ {
-				c.Shade(0, y, w, 1, y*180/max(1, h-1))
-			}
+			music := v.Item() != nil && v.Item().CollectionType == "music"
+			cache.mosaic(c, art.Covers, music, anim.Seconds)
 		}
 		header("MiSTerFin-Go")
 		centers := make([]float64, len(v.Page.Items))
@@ -299,12 +303,24 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		}
 		hint = "LEFT/RIGHT: browse   B:select   SELECT:list view   A:exit"
 	} else {
-		if art.Backdrop != nil {
-			c.Blit(art.Backdrop, 0, 0, w, h)
-			c.Shade(0, 0, w, h, 210)
-		}
+		cache.backdrop(c, art, false, func(layer *ui.Canvas) {
+			if art.Backdrop != nil {
+				heroHeight := h * 3 / 4
+				layer.Blit(art.Backdrop, 0, 0, w, heroHeight)
+				for y := 0; y < heroHeight; y++ {
+					brightness := 110 * (255 - y*255/max(1, heroHeight-1)) / 255
+					layer.Shade(0, y, w, 1, 255-brightness)
+				}
+			}
+			if art.Primary != nil {
+				b := art.Primary.Bounds()
+				par := float64(w*3) / float64(h*4)
+				dh := min(140, int(175*float64(b.Dy())/float64(b.Dx())/par))
+				layer.Image(art.Primary, w-24-175, sy+21, 175, dh)
+			}
+		})
 		title := v.Title
-		if len(m.Stack) == 1 {
+		if s.Root {
 			title = "MiSTerFin-Go"
 			hint = "B:select  SELECT:cover view  A:exit"
 		}
@@ -312,10 +328,6 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 		width := w - 48
 		if art.Primary != nil {
 			width = w - 24 - 175 - 10 - 24
-			b := art.Primary.Bounds()
-			par := float64(w*3) / float64(h*4)
-			dh := min(140, int(175*float64(b.Dy())/float64(b.Dx())/par))
-			c.Image(art.Primary, w-24-175, sy+21, 175, dh)
 		}
 		if len(v.Page.Items) > 0 {
 			c.Rect(20, sy+21+int(math.Round(anim.Row*30)), width+8, 28, 0x0d377c)
@@ -351,10 +363,10 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 	if message != "" {
 		center(c, bottom-14, truncate(message, w-48, 1), 0xff6060, 1)
 	}
-	if m.ExitConfirm || m.Notice != "" {
-		message := m.Notice
+	if s.ExitConfirm || s.Notice != "" {
+		message := s.Notice
 		scale := 1
-		if m.ExitConfirm {
+		if s.ExitConfirm {
 			message = "Exit? [B: yes  A: no]"
 			scale = 2
 		}
@@ -367,21 +379,26 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 
 // renderVideoOverlay returns straight-alpha BGRA pixels independent of the
 // decoder and display that will present them.
-func renderVideoOverlay(w, h int, m *Model, now time.Time) []byte {
-	c := ui.NewOverlay(w, h)
-	seeking := m.SeekTarget != nil && m.SeekPresses >= 2 && !m.SeekInFlight
-	if label := m.videoWaitLabel(now); label != "" || seeking {
+func renderVideoOverlay(w, h int, p PlaybackPresentation, now time.Time) []byte {
+	return renderVideoOverlayOn(ui.NewOverlay(w, h), p, now)
+}
+
+func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time) []byte {
+	w, h := c.Width, c.Height
+	seeking := p.ShowDestination
+	if label := p.WaitLabel; !p.ControlsVisible && (label != "" || seeking) {
 		// Match the display's 4:3 shape after logical CRT pixels are stretched.
 		boxWidth := 140
 		boxHeight := (boxWidth*h + w/2) / w
 		c.Shade((w-boxWidth)/2, (h-boxHeight)/2, boxWidth, boxHeight, 64)
 		if seeking {
 			center(c, h/2-12, "Seek to", titleColor, 1)
-			center(c, h/2+5, runtime(*m.SeekTarget), titleColor, 1)
+			center(c, h/2+5, runtime(p.DestinationTicks), titleColor, 1)
 			return c.Pixels
 		}
 		center(c, h/2-12, label, titleColor, 1)
-		step := int(now.UnixMilli()/150) % 8
+		// Reduce in int64 before narrowing: MiSTer uses a 32-bit int.
+		step := int((now.UnixMilli() / 150) % 8)
 		for i := 0; i < 8; i++ {
 			color := uint32(0x505050)
 			if i == step {
@@ -390,26 +407,33 @@ func renderVideoOverlay(w, h int, m *Model, now time.Time) []byte {
 			c.Rect(w/2-46+i*12, h/2+5, 8, 4, color)
 		}
 	}
-	if !m.ControlsVisible(now) || m.Current().Detail == nil {
+	if !p.ControlsVisible {
 		return c.Pixels
 	}
 	sy := safeY(w, h)
 	bottom := h - 8 - sy
 	c.Shade(0, bottom-46, w, h-bottom+46, 210)
-	center(c, bottom-36, truncate(m.Current().Detail.Name, w-48, 1), titleColor, 1)
-	label := runtime(m.PositionTicks)
-	if m.SeekTarget != nil {
-		label = "Seek to " + runtime(*m.SeekTarget)
+	center(c, bottom-36, truncate(p.Title, w-48, 1), titleColor, 1)
+	label := runtime(p.PositionTicks)
+	if p.HasDestination {
+		label = "Seek to " + runtime(p.DestinationTicks)
 	}
-	if !jellyfin.IsLive(*m.Current().Detail) && m.Current().Detail.RunTimeTicks > 0 {
-		label += " / " + runtime(m.Current().Detail.RunTimeTicks)
+	if p.WaitLabel != "" {
+		position := p.PositionTicks
+		if p.HasDestination {
+			position = p.DestinationTicks
+		}
+		label = p.WaitLabel + " " + runtime(position)
+	}
+	if p.Seekable && p.DurationTicks > 0 {
+		label += " / " + runtime(p.DurationTicks)
 	}
 	center(c, bottom-22, label, dimColor, 1)
 	action := "B:pause"
-	if m.Paused {
+	if p.Paused {
 		action = "B:play"
 	}
-	if !jellyfin.IsLive(*m.Current().Detail) {
+	if p.Seekable {
 		action = "LEFT/RIGHT:30s   " + action
 	}
 	center(c, bottom, action+"   A:stop", dimColor, 1)
@@ -418,5 +442,16 @@ func renderVideoOverlay(w, h int, m *Model, now time.Time) []byte {
 
 // Compose controls over a fresh decoder frame. Hidden controls leave it intact.
 func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
-	ui.Composite(frame, renderVideoOverlay(w, h, m, now))
+	ui.Composite(frame, renderVideoOverlay(w, h, m.PlaybackState.presentation(m.Current().Detail, now), now))
+}
+
+// positiveCount follows the C list metadata: omit unknown counts and pluralize.
+func positiveCount(count int, name string) string {
+	if count <= 0 {
+		return ""
+	}
+	if count != 1 {
+		name += "s"
+	}
+	return fmt.Sprintf("%d %s", count, name)
 }

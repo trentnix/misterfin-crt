@@ -100,3 +100,114 @@ func TestPhotoFitsPhysicalCRTAspect(t *testing.T) {
 		}
 	}
 }
+
+func TestWaitAnimationTraversesEveryBlock(t *testing.T) {
+	// This date overflows a 32-bit int if the timestamp is narrowed before modulo.
+	start := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+	for _, label := range []string{"Loading...", "Buffering...", "Seeking..."} {
+		for _, height := range []int{240, 288} {
+			for tick := 0; tick < 16; tick++ {
+				now := start.Add(time.Duration(tick) * 150 * time.Millisecond)
+				pixels := renderVideoOverlay(640, height, PlaybackPresentation{WaitLabel: label}, now)
+				want := int((now.UnixMilli() / 150) % 8)
+				for block := 0; block < 8; block++ {
+					i := ((height/2+5)*640 + 640/2 - 46 + block*12) * 4
+					got := uint32(pixels[i]) | uint32(pixels[i+1])<<8 | uint32(pixels[i+2])<<16
+					color := uint32(0x505050)
+					if block == want {
+						color = titleColor
+					}
+					if got != color {
+						t.Fatalf("%s height=%d tick=%d block=%d: got %x want %x", label, height, tick, block, got, color)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestMetadataMatchesCBaseline(t *testing.T) {
+	for _, tc := range []struct {
+		item jellyfin.Item
+		want string
+	}{
+		{jellyfin.Item{Type: "MusicArtist"}, ""},
+		{jellyfin.Item{Type: "MusicArtist", ChildCount: 1}, "1 album"},
+		{jellyfin.Item{Type: "MusicAlbum", ChildCount: 1}, "1 track"},
+		{jellyfin.Item{Type: "MusicAlbum", ProductionYear: 2024}, "2024"},
+		{jellyfin.Item{Type: "MusicAlbum", ProductionYear: 2024, ChildCount: 2}, "2024 - 2 tracks"},
+		{jellyfin.Item{Type: "Series", ChildCount: 1, RecursiveItemCount: 1}, "1 season - 1 episode"},
+		{jellyfin.Item{Type: "Series", ChildCount: 2}, "2 seasons"},
+	} {
+		if got, _ := subtitle(tc.item); got != tc.want {
+			t.Fatalf("%+v: got %q want %q", tc.item, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		seconds int64
+		want    string
+	}{{-1, "0:00"}, {3599, "59:59"}, {3600, "1:00:00"}, {7384, "2:03:04"}} {
+		if got := runtime(tc.seconds * 10000000); got != tc.want {
+			t.Fatalf("%d: %s", tc.seconds, got)
+		}
+	}
+}
+
+func TestListBackdropFadesWithinWideImage(t *testing.T) {
+	for _, h := range []int{240, 288} {
+		m := New()
+		m.ListMode = true
+		source := image.NewRGBA(image.Rect(0, 0, 16, 9))
+		draw.Draw(source, source.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+		pixels := render(640, h, m, "", Artwork{Backdrop: source}, "", Animation{}, time.Time{})
+		// Left edge avoids text and selection. The hero ends at three quarters height.
+		if pixels[0] != 110 || pixels[(h*3/4-1)*640*4] != 0 || pixels[(h-1)*640*4] != 0 {
+			t.Fatal("backdrop brightness or fade extent differs from C")
+		}
+	}
+}
+
+func TestHeaderMarqueePreservesSafeMargins(t *testing.T) {
+	m := New()
+	m.Stack = append(m.Stack, View{Title: "A very long library title that must scroll without covering the clock"})
+	start := render(640, 240, m, "", Artwork{}, "", Animation{}, time.Time{})
+	moved := render(640, 240, m, "", Artwork{}, "", Animation{TitleSeconds: 2}, time.Time{})
+	if string(start) == string(moved) {
+		t.Fatal("long header did not scroll")
+	}
+	for y := safeY(640, 240); y < safeY(640, 240)+16; y++ {
+		for x := 0; x < 640; x++ {
+			if x >= 24 && x < 556 {
+				continue
+			}
+			i := (y*640 + x) * 4
+			if string(start[i:i+4]) != string(moved[i:i+4]) {
+				t.Fatal("marquee changed pixels outside title area")
+			}
+		}
+	}
+}
+
+func TestSeekUsesOnlyTheOpenMenu(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		for _, wait := range []string{"", "Seeking...", "Loading..."} {
+			p := PlaybackPresentation{Title: "Episode", ControlsVisible: true, Seekable: true,
+				HasDestination: true, ShowDestination: wait == "", DestinationTicks: 900000000, WaitLabel: wait}
+			pixels := renderVideoOverlay(640, height, p, time.Unix(100, 0))
+			menuTop := height - 8 - safeY(640, height) - 46
+			for i := 3; i < menuTop*640*4; i += 4 {
+				if pixels[i] != 0 {
+					t.Fatalf("%s: seek feedback escaped the open menu", wait)
+				}
+			}
+			if pixels[(menuTop*640)*4+3] == 0 {
+				t.Fatal("seek hid the playback menu")
+			}
+			p.ControlsVisible = false
+			pixels = renderVideoOverlay(640, height, p, time.Unix(100, 0))
+			if pixels[((height/2)*640+320)*4+3] == 0 {
+				t.Fatal("hidden-menu seek lost the centered feedback")
+			}
+		}
+	}
+}

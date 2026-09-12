@@ -1,0 +1,39 @@
+package browser
+
+import (
+	"math"
+	"time"
+)
+
+// animationState owns elapsed time and motion for one renderer instance.
+type animationState struct {
+	initialized             bool
+	start, last, titleSince time.Time
+	title                   string
+	value                   Animation
+}
+
+func (a *animationState) advance(scene Scene, rows int) Animation {
+	now := scene.Now
+	if !a.initialized {
+		a.initialized = true
+		a.start = now
+		a.last = now
+		a.titleSince = now
+	}
+	dt := max(0.0, min(now.Sub(a.last).Seconds(), 0.05))
+	a.last = now
+	a.value.Seconds = now.Sub(a.start).Seconds()
+	if title := scene.title(); title != a.title {
+		a.title, a.titleSince = title, now
+	}
+	a.value.TitleSeconds = now.Sub(a.titleSince).Seconds()
+	a.value.Selection += (float64(scene.View.Selected) - a.value.Selection) * (1 - math.Exp(-dt/0.035))
+	row := float64(scene.View.Selected - scene.View.Scroll)
+	if math.Abs(row-a.value.Row) > float64(rows) {
+		a.value.Row = row
+	} else {
+		a.value.Row += (row - a.value.Row) * (1 - math.Exp(-dt/0.055))
+	}
+	return a.value
+}
