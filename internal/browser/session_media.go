@@ -69,6 +69,9 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		return false
 	}
 	s.model.Notice = ""
+	if s.controller.item.Type != "Audio" && !jellyfin.IsLive(s.controller.item) {
+		s.refreshHome()
+	}
 	if s.model.MusicQueueActive() && !s.controller.stoppedByUser && event.Err == nil && s.media.queued != nil {
 		queued := s.media.queued
 		s.media.queued = nil

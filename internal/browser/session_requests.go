@@ -24,6 +24,10 @@ func (s *browserSession) send(work context.Context, r result) {
 // selection work. A generation check prevents earlier sign-in attempts from changing
 // the current screen, even if a canceled worker still delivers its result.
 func (s *browserSession) authenticate() {
+	if s.home.cancel != nil {
+		s.home.cancel()
+	}
+	s.home = homeState{generation: s.home.generation + 1, initialFocus: true}
 	s.requests.cancel()
 	s.selection.cancel()
 	s.selection.generation++
@@ -59,6 +63,10 @@ func (s *browserSession) load(req *Request) {
 	if req == nil {
 		return
 	}
+	if req.Location.Kind == "continue" {
+		s.loadContinue()
+		return
+	}
 	s.requests.cancel()
 	work, stop := context.WithCancel(s.ctx)
 	s.requests.cancel = stop
@@ -92,12 +100,16 @@ func (s *browserSession) handleAuth(r result) bool {
 		s.selection.loader.disk = newMosaicDiskCache(mosaicCacheRoot(s.driver.options.Headless), s.client.Config.Server, s.client.Session.UserID)
 		s.status = ""
 		s.load(s.model.Load(0))
+		s.refreshHome()
 	}
 
 	return true
 }
 
 func (s *browserSession) handlePage(r result) bool {
+	if r.request.Location.Kind == "views" && r.err == nil {
+		r.page = s.homeLibraries(r.page)
+	}
 	if !s.model.Apply(r.request, r.page, r.err) {
 		return false
 	}

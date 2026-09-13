@@ -11,11 +11,12 @@ const (
 	authResult
 	selectionResult
 	neighborResult
+	homeResult
 )
 
 // result carries one worker result, selected by kind. Page and authentication
 // results use request.Generation. Selection uses selectionGeneration. Adjacent media uses
-// mediaGeneration. Fields belonging to other kinds are ignored. Workers must
+// mediaGeneration. Home refreshes use homeGeneration. Fields for other kinds are ignored. Workers must
 // stop mutating referenced data before sending a result.
 type result struct {
 	request             Request
@@ -27,12 +28,15 @@ type result struct {
 	update              selectionUpdate
 	selectionGeneration int
 	mediaGeneration     int
+	homeGeneration      int
 	parent              View
 	item                *jellyfin.Item
 }
 
 func (s *browserSession) handleResult(r result) bool {
 	switch r.kind {
+	case homeResult:
+		return s.handleHome(r)
 	case authResult:
 		return s.handleAuth(r)
 	case selectionResult:

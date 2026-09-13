@@ -51,6 +51,9 @@ func subtitle(i jellyfin.Item) (string, uint32) {
 
 func itemTitle(i jellyfin.Item) string {
 	s := i.Name
+	if i.ContinueAction != "" && i.Type == "Episode" && i.SeriesName != "" {
+		s = i.SeriesName + " - " + s
+	}
 	if jellyfin.IsLive(i) {
 		number := i.Number
 		if number == "" {
@@ -79,4 +82,22 @@ func positiveCount(count int, name string) string {
 		name += "s"
 	}
 	return fmt.Sprintf("%d %s", count, name)
+}
+
+// continueSubtitle distinguishes starting an episode from resuming saved progress.
+func continueSubtitle(item jellyfin.Item) string {
+	parts := []string{}
+	if item.ContinueAction == "resume" {
+		parts = append(parts, "Resume", runtime(item.UserData.PlaybackPositionTicks))
+	} else {
+		parts = append(parts, "Next")
+	}
+	if item.Type == "Episode" {
+		if item.ParentIndexNumber != nil && item.IndexNumber != nil {
+			parts = append(parts, fmt.Sprintf("S%d E%d", *item.ParentIndexNumber, *item.IndexNumber))
+		} else if item.IndexNumber != nil {
+			parts = append(parts, fmt.Sprintf("Episode %d", *item.IndexNumber))
+		}
+	}
+	return strings.Join(parts, " · ")
 }

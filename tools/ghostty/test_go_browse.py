@@ -33,10 +33,18 @@ class BrowseIntegrationTests(unittest.TestCase):
             mock.ITEMS["movie-tricky-0"]["UserData"]["PlaybackPositionTicks"] = 600000000
         if self._testMethodName == "test_music_advances_and_preserves_last_track":
             mock.CHILDREN["artist-000-album0"] = mock.CHILDREN["artist-000-album0"][:2]
+        if self._testMethodName == "test_combined_continue_watching":
+            for item_id in ("movie-tricky-0", "series-000-s1e01"):
+                mock.ITEMS[item_id]["UserData"]["PlaybackPositionTicks"] = 600000000
+                mock.ITEMS[item_id]["UserData"]["LastPlayedDate"] = "2026-09-12T12:00:00Z"
         self.movie_ids = mock.CHILDREN["view-movies"]
         self.requests = []
         self.reports = []
         self.delay_items = False
+        self.home_gate = threading.Event()
+        if self._testMethodName != "test_slow_continue_watching_does_not_block_libraries":
+            self.home_gate.set()
+        self.addCleanup(self.home_gate.set)
         self.video_response_gate = None
         test = self
 
@@ -46,6 +54,16 @@ class BrowseIntegrationTests(unittest.TestCase):
 
             def do_GET(self):
                 test.requests.append(self.path)
+                path = urlparse(self.path).path
+                if path in ("/UserItems/Resume", "/Shows/NextUp"):
+                    test.home_gate.wait(timeout=5)
+                    if test._testMethodName != "test_combined_continue_watching":
+                        return self._send({"Items": [], "TotalRecordCount": 0})
+                    if path == "/UserItems/Resume":
+                        ids = ["movie-tricky-0", "series-000-s1e01"]
+                    else:
+                        ids = ["series-000-s1e02", "series-001-s1e01"]
+                    return self._send(self._query_result(ids, parse_qs(urlparse(self.path).query)))
                 if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
                     if (test._testMethodName == "test_select_restarts_resumable_video" and
                             parse_qs(urlparse(self.path).query).get("startTimeTicks") == ["920000000"]):
@@ -173,14 +191,61 @@ class BrowseIntegrationTests(unittest.TestCase):
             time.sleep(0.01)
         self.fail(f"request not observed: {path} {query}; got {self.requests}")
 
+    def read_frame(self):
+        # The raw framebuffer writer truncates before writing. Like the
+        # presenter, wait for a complete frame that stayed stable during read.
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            before = self.frame.stat()
+            data = self.frame.read_bytes()
+            after = self.frame.stat()
+            if (len(data) == 640 * 240 * 4 and before.st_size == after.st_size == len(data)
+                    and before.st_mtime_ns == after.st_mtime_ns):
+                return data
+            time.sleep(0.005)
+        self.fail("no complete framebuffer frame published")
+
     def key(self, key):
         os.write(self.master, key)
+
+    def test_slow_continue_watching_does_not_block_libraries(self):
+        self.assertFalse(self.home_gate.is_set())
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.home_gate.set()
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+
+    def test_combined_continue_watching(self):
+        self.wait_request("/UserItems/Resume", MediaTypes="Video")
+        self.wait_request("/Shows/NextUp", enableResumable="false")
+        # The combined card is first. Left also handles arrival after libraries.
+        self.key(b"\x1b[D")
+        time.sleep(0.15)
+        self.key(b"b")
+        time.sleep(0.25)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=600000000)
+        self.key(b"a")
+        time.sleep(0.3)
+        self.key(b"a")
+        time.sleep(0.2)
+        self.key(b"\x1b[Bb")
+        self.wait_request("/Items/series-000-s1e01")
+        self.key(b"a")
+        time.sleep(0.2)
+        self.key(b"\x1b[Bb")
+        self.wait_request("/Items/series-001-s1e01")
+        self.assertFalse(any("misterfin-go%3Acontinue" in request for request in self.requests))
+        self.assertFalse(any(urlparse(request).path == "/Items/series-000-s1e02" for request in self.requests))
 
     def test_terminal_stdin_without_controlling_terminal(self):
         # Scripts launch can pass terminal stdin without a controlling terminal.
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
-        self.assertEqual(self.frame.stat().st_size, 640 * 240 * 4)
+        self.assertEqual(len(self.read_frame()), 640 * 240 * 4)
         self.key(b"q")
         self.assertEqual(self.process.wait(timeout=3), 0)
 
@@ -203,7 +268,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items", ParentId="artist-000")
         self.key(b"b")
         self.wait_request("/Items", ParentId="artist-000-album0")
-        self.assertEqual(self.frame.stat().st_size, 640 * 240 * 4)
+        self.assertEqual(len(self.read_frame()), 640 * 240 * 4)
         self.key(b"q")
         self.assertEqual(self.process.wait(timeout=3), 0)
 
@@ -245,19 +310,19 @@ class BrowseIntegrationTests(unittest.TestCase):
             time.sleep(0.02)
         if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
             time.sleep(0.3)
-            self.assertEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.assertEqual(self.read_frame(), bytes([23]) * 640 * 240 * 4)
             self.key(b"\x1b[A")
             time.sleep(0.1)
-            self.assertNotEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.assertNotEqual(self.read_frame(), bytes([23]) * 640 * 240 * 4)
             self.key(b"b")
             deadline = time.monotonic() + 5
             while not any(path == "/Sessions/Playing/Progress" and body.get("IsPaused") for path, body in self.reports):
                 self.assertLess(time.monotonic(), deadline, "video pause was not reported")
                 time.sleep(0.02)
-            self.assertEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.assertEqual(self.read_frame(), bytes([23]) * 640 * 240 * 4)
             self.key(b"b")
             time.sleep(0.1)
-            self.assertEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.assertEqual(self.read_frame(), bytes([23]) * 640 * 240 * 4)
         self.key(b"a")
         while not any(path == "/Sessions/Playing/Stopped" for path, _ in self.reports):
             self.assertLess(time.monotonic(), deadline, "no playback stop")
@@ -265,7 +330,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(0.3)
         self.assertIsNone(self.process.poll())
         if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
-            self.assertNotEqual(self.frame.read_bytes(), bytes([23]) * 640 * 240 * 4)
+            self.assertNotEqual(self.read_frame(), bytes([23]) * 640 * 240 * 4)
         starts = [body for path, body in self.reports if path == "/Sessions/Playing"]
         stops = [body for path, body in self.reports if path == "/Sessions/Playing/Stopped"]
         self.assertEqual(starts[0]["PlaySessionId"], stops[0]["PlaySessionId"])
@@ -394,21 +459,21 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items/movie-tricky-0")
         self.key(b"b")
         self.wait_request("/Videos/movie-tricky-0/stream")
-        first = self.frame.read_bytes()
+        first = self.read_frame()
         self.assertTrue(any(first), "loading screen was blank")
         time.sleep(0.2)
-        self.assertNotEqual(first, self.frame.read_bytes(), "loading indicator did not animate")
+        self.assertNotEqual(first, self.read_frame(), "loading indicator did not animate")
         clean = bytes([23]) * 640 * 240 * 4
         for stage in (1, 2, 3):
             (self.directory / "stage").write_text(str(stage))
             time.sleep(0.3)
             if stage == 2:
-                first = self.frame.read_bytes()
+                first = self.read_frame()
                 self.assertNotEqual(first, clean, "buffering was not shown")
                 time.sleep(0.2)
-                self.assertNotEqual(first, self.frame.read_bytes(), "buffering did not animate")
+                self.assertNotEqual(first, self.read_frame(), "buffering did not animate")
             else:
-                self.assertEqual(self.frame.read_bytes(), clean, "indicator remained during playback")
+                self.assertEqual(self.read_frame(), clean, "indicator remained during playback")
         self.key(b"a")
 
     def test_inline_playback_owns_frame_until_stop(self):
@@ -460,7 +525,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items", ParentId="view-homevideos")
         self.key(b"\x1b[Bb")
         self.wait_request("/Items/photo-landscape/Images/Primary", quality=90, maxWidth=640, maxHeight=240)
-        frame = self.frame.read_bytes()
+        frame = self.read_frame()
         offset = (120 * 640 + 320) * 4
         self.assertEqual(frame[offset:offset + 3], bytes([215, 125, 35]))
         self.key(b"\x1b[C")
@@ -483,7 +548,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"b")
         self.wait_request("/Items/artist-000-album0-t01")
         self.wait_request("/Audio/artist-000-album0-t01/stream", static="true")
-        self.assertEqual(len(self.frame.read_bytes()), 640 * 240 * 4)
+        self.assertEqual(len(self.read_frame()), 640 * 240 * 4)
         self.key(b"\x1b[A")  # Reveal only. Do not change tracks.
         time.sleep(0.1)
         self.assertEqual(sum(urlparse(r).path.startswith("/Audio/") for r in self.requests), 1)
@@ -493,7 +558,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, "pause was not reported")
             time.sleep(0.02)
         time.sleep(0.1)
-        self.assertEqual(self.frame.read_bytes()[220 * 640 * 4:], bytes(20 * 640 * 4))
+        self.assertEqual(self.read_frame()[220 * 640 * 4:], bytes(20 * 640 * 4))
         self.key(b"b")
         time.sleep(0.1)
         self.key(b"]")  # Hidden controls must not consume navigation.

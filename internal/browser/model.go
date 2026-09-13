@@ -215,6 +215,9 @@ func (m *Model) Key(key string) *Request {
 		}
 		next := View{Title: item.Name, Location: jellyfin.Location{Kind: "items", ParentID: item.ID, Collection: v.Location.Collection, SeriesID: v.Location.SeriesID}}
 		switch {
+		case item.ID == continueID:
+			next.Title = "Continue Watching"
+			next.Location = jellyfin.Location{Kind: "continue"}
 		case v.Location.Kind == "views":
 			next.Location.Collection = item.CollectionType
 			if item.CollectionType == "livetv" {

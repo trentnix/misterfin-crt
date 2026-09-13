@@ -45,6 +45,7 @@ func (l *selectionLoader) load(ctx context.Context, item jellyfin.Item, root, de
 		if ctx.Err() != nil {
 			return
 		}
+		updated.ContinueAction = item.ContinueAction
 		emit(selectionUpdate{kind: selectionDetails, detail: &updated, err: err})
 		if err == nil {
 			item = updated

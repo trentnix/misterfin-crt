@@ -1,5 +1,7 @@
 package jellyfin
 
+import "time"
+
 // MediaStream describes source video geometry returned by Jellyfin.
 type MediaStream struct {
 	Type, AspectRatio string
@@ -12,19 +14,24 @@ type MediaStream struct {
 type Item struct {
 	ID                                             string `json:"Id"`
 	Name, Type, CollectionType, SeriesID, Overview string
-	IsFolder                                       bool
-	ProductionYear                                 int
-	RunTimeTicks                                   int64
-	ChildCount, RecursiveItemCount                 int
-	CommunityRating                                float64
-	BackdropImageTags                              []string
-	ImageTags                                      map[string]string
-	ParentBackdropItemId                           string
-	ParentBackdropImageTags                        []string
-	Number, ChannelNumber                          string
-	CurrentProgram                                 struct{ Name string }
-	MediaStreams                                   []MediaStream
-	UserData                                       struct {
+	SeriesName                                     string
+	IndexNumber, ParentIndexNumber                 *int
+	// ContinueAction is local presentation metadata, never sent to Jellyfin.
+	ContinueAction                 string `json:"-"`
+	IsFolder                       bool
+	ProductionYear                 int
+	RunTimeTicks                   int64
+	ChildCount, RecursiveItemCount int
+	CommunityRating                float64
+	BackdropImageTags              []string
+	ImageTags                      map[string]string
+	ParentBackdropItemId           string
+	ParentBackdropImageTags        []string
+	Number, ChannelNumber          string
+	CurrentProgram                 struct{ Name string }
+	MediaStreams                   []MediaStream
+	UserData                       struct {
+		LastPlayedDate        *time.Time
 		Played                bool
 		PlaybackPositionTicks int64
 	}
@@ -40,4 +47,5 @@ type Page struct {
 // Location identifies a browsing query. Kind selects views, items, seasons,
 // episodes, or livetv. ParentID identifies the folder or season. SeriesID is
 // required for season and episode queries. Collection selects C-compatible fields.
+// The browser owns the synthetic "continue" location and never sends it to List.
 type Location struct{ Kind, ParentID, Collection, SeriesID string }

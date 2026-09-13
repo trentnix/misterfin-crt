@@ -20,6 +20,7 @@ type browserSession struct {
 	client               *jellyfin.Client
 	status               string
 	requests             requestState
+	home                 homeState
 	selection            selectionState
 	media                mediaNavigation
 	events               chan result
@@ -60,6 +61,9 @@ func newBrowserSession(ctx context.Context, configPath, stateDir string, player 
 func (s *browserSession) close() {
 	s.ticker.Stop()
 	s.requests.cancel()
+	if s.home.cancel != nil {
+		s.home.cancel()
+	}
 	s.selection.cancel()
 	s.media.cancel()
 	s.controller.Close()

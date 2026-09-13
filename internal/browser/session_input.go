@@ -118,6 +118,12 @@ func (s *browserSession) handlePhotoKey(key string) {
 }
 
 func (s *browserSession) handleBrowseKey(key string) bool {
+	s.home.initialFocus = false
+	if key == "retry" && s.model.Current().Detail == nil && (s.model.Current().Location.Kind == "continue" || (s.model.Current().Item() != nil && s.model.Current().Item().ID == continueID)) {
+		s.refreshHome()
+		return true
+	}
+	depth := len(s.model.Stack)
 	if key == "select" && s.model.Notice == "" && resumableVideo(s.model.Current().Detail) {
 		start := int64(0)
 		s.startPlayback(&start, false)
@@ -136,6 +142,9 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 	before := s.model.Generation
 	wasDetail := s.model.Current().Detail != nil
 	req := s.model.Key(key)
+	if key == "back" && len(s.model.Stack) < depth && (len(s.model.Stack) == 1 || s.model.Current().Location.Kind == "continue") {
+		s.refreshHome()
+	}
 	if s.model.Quit {
 		return false
 	}

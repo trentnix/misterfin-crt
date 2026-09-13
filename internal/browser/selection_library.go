@@ -13,6 +13,10 @@ import (
 // Live TV has neither counts nor carousel covers. Both branches finish before
 // this method returns, including when the selection context is canceled.
 func (l *selectionLoader) loadLibrary(ctx context.Context, item jellyfin.Item, emit func(selectionUpdate)) {
+	if item.ID == continueID {
+		l.loadHomeArtwork(ctx, emit)
+		return
+	}
 	if item.CollectionType == "livetv" {
 		return
 	}

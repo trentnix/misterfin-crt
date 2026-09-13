@@ -65,6 +65,9 @@ func (p *screenPainter) list() string {
 		}
 		list.Text(24, y, truncate(itemTitle(item), width, 1), color, 24+width)
 		s, col := subtitle(item)
+		if v.Location.Kind == "continue" {
+			s, col = continueSubtitle(item), titleColor
+		}
 		list.Text(24, y+11, truncate(s, width, 1), col, 24+width)
 	}
 	if len(v.Page.Items) == 0 && !v.Loading {

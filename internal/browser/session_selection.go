@@ -43,7 +43,13 @@ func (s *browserSession) loadSelection() {
 	if item == nil || s.client == nil {
 		return
 	}
+	if item.ID == continueID {
+		s.seedHomeArtwork()
+	}
 	s.selection.current = s.selection.loader.snapshot(*item, root)
+	if item.ID == continueID && s.home.err != nil {
+		s.selection.err = "Continue Watching incomplete. R:retry"
+	}
 	selected := *item
 	generation := s.selection.generation
 	work, stop := context.WithCancel(s.ctx)
