@@ -68,7 +68,7 @@ Keys match the desktop harness:
 
 The helper writes MiSTerFin's stdout and stderr to `/tmp/misterfin-ghostty.log` so terminal output cannot corrupt the image. Pass `--log PATH` to choose another location.
 
-Artwork is cached under `/tmp/misterfin-cache` by default. Set `MISTERFIN_CACHE_ROOT` before launching the helper to use another location.
+The C artwork cache defaults to `/tmp/misterfin-cache`. Go stores persistent carousel collages separately under `/tmp/misterfin-cache/misterfin-go/gridcache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERFIN_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
 
 Ghostty must report `TERM=xterm-ghostty`. The `--force` option permits another terminal that implements the Kitty graphics protocol.
 

@@ -140,6 +140,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
              "-config", str(config), "-state-dir", str(self.directory / "state")] + player_args,
             stdin=slave, stdout=self.log, stderr=self.log, preexec_fn=terminal_session,
+            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache")},
         )
         os.close(slave)
         self.addCleanup(self.stop)

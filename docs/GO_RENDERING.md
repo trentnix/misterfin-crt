@@ -134,6 +134,10 @@ The controller has no dependency on `platform`, `videoout`, terminal input, font
 
 Library counts start independently of carousel samples and images. A slow count does not delay covers, and slow images do not delay counts. `libraryCache` retains at most 32 libraries, with separate one-minute deadlines for counts and sample metadata. Metadata expiry does not evict decoded images.
 
+`mosaicDiskCache` persists each library's decoded collage separately from the C cache. Selection workers restore saved images before querying current sample IDs and tags, then delegate missing images to `artworkLoader`. Cached pixels populate the existing image cache, so unchanged tags avoid both downloads and decoding after restart. The browser loop performs no cache file I/O. Counts remain independent of collage persistence.
+
+A complete `covers` artwork update replaces the sample as a unit before individual cover updates arrive. This also clears an obsolete collage when a refreshed library is empty. Only complete, uncanceled samples replace the disk file, and identical contents do not rewrite it. Retry defers disk invalidation to the selection worker. See [cache locations and limits](GO_BROWSING.md#persistent-collage-cache).
+
 `artworkLoader` handles only image requests, normalization, and retention. Its three-request limit is shared across selections. `artworkCache` retains at most 16 MiB and 128 decoded images. The cache performs no network requests. Cached images remain immutable after publication, and completed images survive selection cancellation. Carousel image workers retain the sample order when publishing completed covers.
 
 `selectionState` belongs to the browser loop. It tracks the current selection, cancellation, generation, presentation data, and error. `selectionUpdate` distinguishes detail metadata, library counts, and artwork. Its generation is checked before any result changes the model or screen. `Artwork` contains only images. `Scene.LibraryCount` carries the count separately. Retry invalidates the selected item's metadata and images through `selectionLoader.forget`.
@@ -141,6 +145,8 @@ Library counts start independently of carousel samples and images. A slow count 
 - [`selection_loader.go`](../internal/browser/selection_loader.go): detail loading, image coordination, debounce, cached snapshots, and retry invalidation.
 - [`selection_library.go`](../internal/browser/selection_library.go): independent library counts and carousel sample queries.
 - [`selection_update.go`](../internal/browser/selection_update.go): selection presentation data and typed progressive results.
+- [`mosaic_disk_cache.go`](../internal/browser/mosaic_disk_cache.go): cache locations, server/user isolation, atomic file replacement, and disk limits.
+- [`mosaic_cache_format.go`](../internal/browser/mosaic_cache_format.go): versioned manifests, bounded RGBA records, and checksum validation.
 - [`library_cache.go`](../internal/browser/library_cache.go): bounded library metadata retention and separate expiry deadlines.
 - [`artwork.go`](../internal/browser/artwork.go): immutable image inputs for rendering.
 - [`artwork_loader.go`](../internal/browser/artwork_loader.go): image loader resources, dimensions, and request limit.

@@ -11,11 +11,12 @@ const libraryCacheLimit = 32
 const libraryCacheTTL = time.Minute
 
 type cachedLibrary struct {
-	count      *int
-	countUntil time.Time
-	items      []jellyfin.Item
-	itemsUntil time.Time
-	used       uint64
+	count         *int
+	countUntil    time.Time
+	items         []jellyfin.Item
+	itemsUntil    time.Time
+	used          uint64
+	discardMosaic bool // Explicit retry defers disk invalidation to the worker.
 }
 
 // libraryCache owns library counts and cover sample metadata for one session.

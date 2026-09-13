@@ -11,12 +11,15 @@ type artUpdate struct {
 	image       image.Image
 	slot, total int
 	err         error
+	covers      []image.Image // Complete sample snapshot, used only by "covers".
 }
 
 // applyArtwork updates a screen from a successful result. The browser loop is
 // its only caller. Errors are handled separately by that loop.
 func applyArtwork(art *Artwork, update artUpdate) {
 	switch update.kind {
+	case "covers":
+		art.Covers = update.covers
 	case "Photo":
 		art.Photo = update.image
 	case "Primary":

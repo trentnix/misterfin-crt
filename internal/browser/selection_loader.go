@@ -15,6 +15,7 @@ type selectionLoader struct {
 	client    *jellyfin.Client
 	artwork   *artworkLoader
 	libraries libraryCache
+	disk      *mosaicDiskCache
 }
 
 func newSelectionLoader(client *jellyfin.Client, photoWidth, photoHeight int) *selectionLoader {
@@ -94,5 +95,6 @@ func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData 
 // parent backdrops follow the image cache's existing invalidation policy.
 func (l *selectionLoader) forget(item jellyfin.Item) {
 	l.libraries.forget(item.ID)
+	l.libraries.remember(item.ID, func(value *cachedLibrary) { value.discardMosaic = true })
 	l.artwork.cache.forget(item)
 }
