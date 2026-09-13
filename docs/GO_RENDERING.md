@@ -34,7 +34,9 @@ flowchart TD
 
 Only the event loop mutates `browserSession`. Workers capture their request inputs and send results through channels. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
 
-MiSTer’s `evdev.navigation` merges controller directions and virtual keyboard echoes into one press and repeat stream per direction. Held directions follow the C repeat timing: a 350 ms initial delay, six 110 ms intervals, then 45 ms intervals. Releasing a direction resets its acceleration. Late polls emit one repeat without catching up in a burst. Repeat actions retain their `-repeat` suffix so holding Up cannot repeatedly toggle playback or photo controls. Ghostty terminal input uses the desktop keyboard repeat settings.
+Controller profiles are resolved at the input boundary before the browser receives semantic actions. Button codes and axis thresholds stay in `internal/input/evdev`. See [input configuration](GO_INPUT.md) for profile matching and defaults.
+
+MiSTer’s `evdev.navigation` merges controller directions and virtual keyboard echoes into one press and repeat stream per direction. Held directions follow the C repeat timing: a 350 ms initial delay, six 110 ms intervals, then 45 ms intervals. Releasing a direction resets its acceleration. Late polls emit one repeat without catching up in a burst. Repeat actions retain their `-repeat` suffix so holding any direction cannot repeatedly toggle playback controls. Photo controls still toggle with Up. Trigger axes use their advertised ranges with separate press and release thresholds (25% and 15% by default). Seek actions repeat every 250 ms after a 350 ms delay. Terminal input requests explicit keyboard event types when supported.
 
 Handlers return whether an event requires an immediate redraw. `Run` performs that redraw in one place. Timer ticks update playback and render at the interval supplied by `Output.FrameInterval(scene.Video)`. Outputs can implement `FrameNotifier` to request an immediate redraw when a video frame arrives. Shutdown cancels the session context before waiting for decoder completion, so callbacks cannot block after event dispatch stops.
 
@@ -117,7 +119,7 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 
 The controller methods span lifecycle, seeking, and event files because those responsibilities have distinct transitions. The smaller state, process, and presentation types each live with their methods.
 
-A seek starts with a destination preview and a 0.5-second deadline. When the deadline expires, `seekPreparing` captures the user's pause preference, pauses the original decoder if needed, and prepares a replacement. A ready replacement waits behind a start gate until the original decoder ends. Further arrow presses cancel the replacement and enter `seekRetargeting`, which shows the destination again and renews the deadline without overwriting the original pause preference. The controller opens the gate only after preparation succeeds and the original decoder has released its output. Position feedback then restores the user's pause preference.
+A seek starts with a destination preview and a 0.5-second deadline. When the deadline expires, `seekPreparing` captures the user's pause preference, pauses the original decoder if needed, and prepares a replacement. A ready replacement waits behind a start gate until the original decoder ends. Further seek actions cancel the replacement and enter `seekRetargeting`, which shows the destination again and renews the deadline without overwriting the original pause preference. The controller opens the gate only after preparation succeeds and the original decoder has released its output. Position feedback then restores the user's pause preference.
 
 ## Controller contract
 
@@ -131,6 +133,8 @@ A seek starts with a destination preview and a 0.5-second deadline. When the dea
 - `Close()` cancels and waits for the tracked active and pending decoders.
 
 `PlaybackEvent` identifies the decoder and one event kind: prepared, position, paused, buffering, or ended. Each `playbackProcess` groups its identifier, cancellation function, completion channel, asynchronous cleanup signal, preparation gate, and readiness flag. A `playbackLaunch` function connects the controller to real decoding. Tests supply a deterministic function that records launch requests and cancellation.
+
+Playback input uses separate `controls`, `seek-backward`, `seek-forward`, `track-previous`, and `track-next` actions. The browser maps directions to `controls` only during playback. Video seeks use the existing replacement-stream controller. Music sends relative ten-second commands through the optional `audioSeeker` decoder interface. MPlayer and the Python audio helper implement that interface. Decoder progress remains the source of actual playback position, including after a paused audio seek.
 
 The controller has no dependency on `platform`, `videoout`, terminal input, fonts, or canvas drawing. `playbackDriver` wires `AcquireVideo` and `ReleaseVideo` callbacks to the selected output adapter. It sends `PlaybackEvent` values through a dedicated channel directly to the browser loop. Decoder feedback no longer shares the browsing and artwork result queue or allocates an event pointer per update. Progress can be dropped when the decoder event queue is full. Lifecycle events wait for delivery unless the application is shutting down.
 

@@ -14,6 +14,7 @@ type launchOptions struct {
 	wait, browse                        bool
 	player, audioPlayer, terminalPlayer string
 	config, stateDir                    string
+	inputConfig                         string
 }
 
 // parseOptions reads arguments without the executable name. Each call uses a
@@ -32,6 +33,7 @@ func parseOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.terminalPlayer, "terminal-player", "", "Python helper for video in the headless framebuffer")
 	flags.BoolVar(&o.browse, "browse", false, "browse Jellyfin with terminal keyboard input")
 	flags.StringVar(&o.config, "config", "jellyfin.conf", "Jellyfin configuration path")
+	flags.StringVar(&o.inputConfig, "input-config", os.Getenv("MISTERFIN_INPUT_CONFIG"), "controller bindings JSON (default: input.json beside Jellyfin configuration)")
 	flags.StringVar(&o.stateDir, "state-dir", "", "Go session directory (default: user config directory/misterfin-go)")
 	if err := flags.Parse(args); err != nil {
 		return o, err

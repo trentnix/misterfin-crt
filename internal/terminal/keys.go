@@ -37,7 +37,7 @@ func (d *Decoder) Feed(b []byte, now time.Time) []string {
 					break
 				}
 				seq := string(d.pending[2 : end+1])
-				key := map[string]string{"A": "up", "B": "down", "C": "next", "D": "previous", "5~": "previous", "6~": "next"}[seq]
+				key := sequenceAction(seq)
 				if key != "" {
 					keys = append(keys, key)
 				}
@@ -49,7 +49,7 @@ func (d *Decoder) Feed(b []byte, now time.Time) []string {
 			continue
 		}
 		d.pending = d.pending[1:]
-		key := map[byte]string{9: "select", 'q': "quit", 'Q': "quit", 'a': "back", 'A': "back", 'z': "back", 'Z': "back", 127: "back", 8: "back", 'b': "open", 'B': "open", 'x': "open", 'X': "open", 13: "open", 10: "open", 'r': "retry", 'R': "retry", 'j': "down", 'k': "up"}[c]
+		key := characterAction(rune(c))
 		if key != "" {
 			keys = append(keys, key)
 		}

@@ -24,7 +24,7 @@ func (p *screenPainter) music() {
 		if s.Playback.Paused {
 			action = "B:play"
 		}
-		center(c, bottom-12, "LEFT/RIGHT: previous/next track", dimColor, 1)
+		center(c, bottom-12, "LB/RB or [ ]:track   LT/RT or J/L:10s", dimColor, 1)
 		center(c, bottom, action+"   A:stop", dimColor, 1)
 	}
 	if s.Notice != "" {

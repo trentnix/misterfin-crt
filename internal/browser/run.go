@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"misterfin-go/internal/input"
+	"misterfin-go/internal/input/evdev"
 	"misterfin-go/internal/playback"
 	"misterfin-go/internal/videoout"
 )
@@ -18,10 +19,10 @@ import (
 // must close output after Run returns. Cancellation and user exit stop pending work and
 // wait for tracked decoders and the input reader. Final server reporting may
 // still be running when a seek handoff enabled asynchronous cleanup.
-func Run(ctx context.Context, configPath, stateDir string, player playback.Options, output videoout.Output, renderer Renderer) error {
+func Run(ctx context.Context, configPath, stateDir string, player playback.Options, output videoout.Output, renderer Renderer, bindings evdev.Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	keys, done, err := input.Read(ctx, player.Headless)
+	keys, done, err := input.Read(ctx, player.Headless, bindings)
 	if err != nil {
 		output.Clear()
 		return err

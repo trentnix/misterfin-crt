@@ -21,9 +21,12 @@ type event struct {
 }
 
 type device struct {
-	fd   int
-	name string
-	held map[uint16]string
+	fd       int
+	name     string
+	held     map[uint16]string
+	triggers map[uint16]*triggerAxis
+	bindings Profile
+	axes     map[uint16]*mappedAxis
 }
 
 // action ignores MiSTer's synthetic action keys. Its arrow echoes are needed
@@ -70,10 +73,18 @@ func action(name string, kind, code uint16, value int32) string {
 		return "up"
 	case 108:
 		return "down"
-	case 105, 310, 104:
+	case 105:
 		return "previous"
-	case 106, 311, 109:
+	case 106:
 		return "next"
+	case 310, 104, 26:
+		return "track-previous" // LB, Page Up, [
+	case 311, 109, 27:
+		return "track-next" // RB, Page Down, ]
+	case 312, 36:
+		return "seek-backward" // Digital LT, J
+	case 313, 38:
+		return "seek-forward" // Digital RT, L
 	case 305, 28, 45, 48:
 		return "open" // BTN_EAST, Enter, X, as in C
 	case 304, 1, 158, 14, 44, 30:
@@ -97,10 +108,14 @@ func (d *device) accept(e event) string {
 	if e.Type == 3 {
 		code |= 0x8000
 	}
-	key := action(d.name, e.Type, e.Code, e.Value)
 	if e.Type == 1 && e.Value == 2 {
 		return ""
 	} // use our own navigation repeat
+	key := d.mappedAction(e)
+	// Never re-enable synthetic action echoes through a broad device profile.
+	if d.name == "MiSTer virtual input" && (e.Type != 1 || (e.Code != 103 && e.Code != 108 && e.Code != 105 && e.Code != 106)) {
+		key = ""
+	}
 	if key == "" {
 		delete(d.held, code)
 		return ""
@@ -137,7 +152,7 @@ func (n *navigation) update(held, pressed map[string]bool, now time.Time) []stri
 		n.repeats = make(map[string]navigationRepeat)
 	}
 	var keys []string
-	for _, key := range []string{"up", "down", "previous", "next"} {
+	for _, key := range []string{"up", "down", "previous", "next", "track-previous", "track-next", "seek-backward", "seek-forward"} {
 		repeat, active := n.repeats[key]
 		if !active && (held[key] || pressed[key]) {
 			keys = append(keys, key)
@@ -145,7 +160,9 @@ func (n *navigation) update(held, pressed map[string]bool, now time.Time) []stri
 		} else if held[key] && !now.Before(repeat.next) {
 			keys = append(keys, key+"-repeat")
 			interval := repeatSlow
-			if repeat.count >= repeatRampAfter {
+			if key == "seek-backward" || key == "seek-forward" {
+				interval = 250 * time.Millisecond
+			} else if repeat.count >= repeatRampAfter {
 				interval = repeatFast
 			} else {
 				repeat.count++
@@ -161,10 +178,10 @@ func (n *navigation) update(held, pressed map[string]bool, now time.Time) []stri
 }
 
 func direction(key string) bool {
-	return key == "up" || key == "down" || key == "previous" || key == "next"
+	return key == "up" || key == "down" || key == "previous" || key == "next" || key == "track-previous" || key == "track-next" || key == "seek-backward" || key == "seek-forward"
 }
 
-func openDevices(devices map[string]*device) {
+func openDevices(devices map[string]*device, config Config) {
 	paths, _ := filepath.Glob("/dev/input/event*")
 	for _, path := range paths {
 		if devices[path] != nil {
@@ -181,15 +198,19 @@ func openDevices(devices map[string]*device) {
 			syscall.Close(fd)
 			continue
 		}
-		devices[path] = &device{fd: fd, name: strings.TrimRight(string(name[:]), "\x00"), held: make(map[uint16]string)}
+		devices[path] = &device{fd: fd, name: strings.TrimRight(string(name[:]), "\x00"), held: make(map[uint16]string), triggers: discoverTriggers(fd)}
+		devices[path].configure(config)
 	}
 }
 
 // Read owns all event descriptors and rescans for hotplugged controllers.
 // The terminal is not read here, so virtual joystick echoes cannot fire twice.
-func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
+func Read(ctx context.Context, config Config) (<-chan string, <-chan struct{}, error) {
+	if err := config.Validate(); err != nil {
+		return nil, nil, err
+	}
 	devices := make(map[string]*device)
-	openDevices(devices)
+	openDevices(devices, config)
 	if len(devices) == 0 {
 		return nil, nil, errors.New("cannot open hardware input devices")
 	}
@@ -224,7 +245,7 @@ func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
 				return
 			case now := <-ticker.C:
 				if !now.Before(scan) {
-					openDevices(devices)
+					openDevices(devices, config)
 					scan = now.Add(2 * time.Second)
 				}
 				pressed := make(map[string]bool)

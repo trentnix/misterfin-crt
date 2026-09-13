@@ -11,9 +11,9 @@ import (
 // MiSTer. It returns an action channel and a completion channel. The caller must
 // cancel ctx and wait for completion before releasing input resources. Channels
 // close when the reader exits. An error means no reader was started.
-func Read(ctx context.Context, headless bool) (<-chan string, <-chan struct{}, error) {
+func Read(ctx context.Context, headless bool, config evdev.Config) (<-chan string, <-chan struct{}, error) {
 	if headless {
 		return terminal.Read(ctx)
 	}
-	return evdev.Read(ctx)
+	return evdev.Read(ctx, config)
 }

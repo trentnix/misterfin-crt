@@ -166,6 +166,8 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                     parts = line.decode("ascii", errors="ignore").split()
                     if len(parts) == 2 and parts[0] == "pause" and parts[1] in ("true", "false"):
                         mpv.send(handle, "set", "pause", "yes" if parts[1] == "true" else "no")
+                    elif audio_only and len(parts) == 2 and parts[0] == "seek" and parts[1] in ("-10", "10"):
+                        mpv.send(handle, "seek", parts[1], "relative+exact")
                     next_report = 0.0
                 if len(control_buffer) > 1024:
                     control_buffer = b""

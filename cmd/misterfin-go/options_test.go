@@ -38,3 +38,15 @@ func TestLaunchOptionsUseEnvironmentWithoutRetainingPreviousParse(t *testing.T) 
 		t.Fatalf("help: %v", err)
 	}
 }
+
+func TestInputConfigFlagOverridesEnvironment(t *testing.T) {
+	t.Setenv("MISTERFIN_INPUT_CONFIG", "/tmp/controller.json")
+	o, err := parseOptions(nil)
+	if err != nil || o.inputConfig != "/tmp/controller.json" {
+		t.Fatalf("environment default: %+v: %v", o, err)
+	}
+	o, err = parseOptions([]string{"-input-config", "/tmp/other-controller.json"})
+	if err != nil || o.inputConfig != "/tmp/other-controller.json" {
+		t.Fatalf("explicit path: %+v: %v", o, err)
+	}
+}

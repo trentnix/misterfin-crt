@@ -3,6 +3,7 @@ misterfin-arm
 misterfin-preview
 mplayer-arm
 jellyfin.conf
+/input.json
 token.conf
 device.conf
 crash.log

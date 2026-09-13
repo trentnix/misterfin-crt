@@ -49,7 +49,7 @@ func (m *playbackState) HideControls() {
 	m.SeekControls = false
 }
 
-// seekVideo accumulates arrow presses against the pending destination. It only
+// seekVideo accumulates seek actions against the pending destination. It only
 // updates UI intent. The controller starts the request after the deadline.
 func (m *playbackState) seekVideo(item *jellyfin.Item, key string, now time.Time) {
 	if !m.PlayingVideo || !m.ProgressSeen || item == nil || jellyfin.IsLive(*item) {
@@ -64,7 +64,7 @@ func (m *playbackState) seekVideo(item *jellyfin.Item, key string, now time.Time
 		target = *m.SeekTarget
 	}
 	step := int64(30 * 10000000)
-	if key == "previous" {
+	if key == "seek-backward" {
 		step = -step
 	}
 	target = max(int64(0), target+step)
@@ -102,7 +102,7 @@ func (m *playbackState) finishSeekControls(now time.Time) {
 	}
 }
 
-// ToggleControls treats Up as a show/hide action, including a pinned seek menu.
+// ToggleControls handles a show/hide action, including a pinned seek menu.
 func (m *playbackState) ToggleControls(now time.Time) {
 	if m.ControlsVisible(now) {
 		m.HideControls()

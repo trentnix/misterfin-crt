@@ -14,12 +14,12 @@ import (
 // Read temporarily disables line buffering and echo. Signal keys keep their
 // normal meaning. The goroutine restores the terminal before closing done.
 func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
-	fd, err := syscall.Open("/dev/tty", syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
+	fd, err := syscall.Open("/dev/tty", syscall.O_RDWR|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
 	if err == syscall.ENXIO {
 		// A Scripts launcher can supply a terminal on stdin without assigning
 		// a controlling terminal. Reopen stdin to own our descriptor and its
 		// nonblocking flags. TCGETS below still rejects pipes and regular files.
-		fd, err = syscall.Open("/proc/self/fd/0", syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
+		fd, err = syscall.Open("/proc/self/fd/0", syscall.O_RDWR|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("open keyboard terminal: %w", err)
@@ -37,6 +37,10 @@ func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
 		syscall.Close(fd)
 		return nil, nil, fmt.Errorf("configure keyboard terminal: %w", e)
 	}
+	// Request explicit press/repeat/release events from supporting terminals.
+	// Unsupported terminals keep their legacy encoding. Write to the owned tty,
+	// since the harness redirects stdout to its log.
+	_, _ = syscall.Write(fd, []byte("\x1b[>3u"))
 	out := make(chan string, 32)
 	done := make(chan struct{})
 	go func() {
@@ -44,6 +48,7 @@ func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
 		defer close(out)
 		defer syscall.Close(fd)
 		defer syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), syscall.TCSETS, uintptr(unsafe.Pointer(&old)))
+		defer func() { _, _ = syscall.Write(fd, []byte("\x1b[<u")) }()
 		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
 		var decoder Decoder

@@ -75,7 +75,7 @@ func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time) [
 		action = "B:play"
 	}
 	if p.Seekable {
-		action = "LEFT/RIGHT:30s   " + action
+		action = "LT/RT or J/L:30s   " + action
 	}
 	center(c, bottom, action+"   A:stop", dimColor, 1)
 	return c.Pixels

@@ -16,13 +16,30 @@ func (s *browserSession) handleKey(key string) bool {
 		return false
 	}
 	photo := s.model.Current().Detail != nil && s.model.Current().Detail.Type == "Photo"
-	if strings.HasSuffix(key, "-repeat") {
-		if key == "up-repeat" && (s.controller.running || photo) {
+	playing := s.controller.running || s.model.MusicQueueActive()
+	repeated := strings.HasSuffix(key, "-repeat")
+	key = strings.TrimSuffix(key, "-repeat")
+	if repeated {
+		if playing && (menuDirection(key) || key == "track-previous" || key == "track-next") {
 			return false
 		}
-		key = strings.TrimSuffix(key, "-repeat")
+		if key == "open" || key == "back" || key == "select" || (photo && key == "up") {
+			return false
+		}
 	}
-	if s.controller.running {
+	if playing && menuDirection(key) {
+		key = "controls"
+	}
+	if !playing {
+		// Shoulder keys retain their existing page navigation outside playback.
+		switch key {
+		case "track-previous":
+			key = "previous"
+		case "track-next":
+			key = "next"
+		}
+	}
+	if playing {
 		if s.model.MusicQueueActive() {
 			return s.handleMusicKey(key)
 		}
@@ -61,11 +78,11 @@ func (s *browserSession) handleMusicKey(key string) bool {
 		s.media.pending = false
 		s.media.queued = nil
 		s.media.nextTrack = 0
-	case "open", "up":
+	case "open", "controls", "seek-backward", "seek-forward":
 		s.controller.Key(key, now)
-	case "previous", "next":
+	case "track-previous", "track-next":
 		s.media.nextTrack = -1
-		if key == "next" {
+		if key == "track-next" {
 			s.media.nextTrack = 1
 		}
 		s.navigateMedia(s.media.nextTrack)
@@ -137,4 +154,9 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 	}
 
 	return true
+}
+
+// menuDirection interprets directional navigation only while media is playing.
+func menuDirection(key string) bool {
+	return key == "up" || key == "down" || key == "previous" || key == "next"
 }

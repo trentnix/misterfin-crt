@@ -125,7 +125,7 @@ func receiveNeighbor(t *testing.T, s *browserSession) result {
 func TestMusicQueueSurvivesDecoderCompletion(t *testing.T) {
 	s := setupMusicSession(t)
 	now := time.Now()
-	s.controller.Key("up", now)
+	s.controller.Key("controls", now)
 	if !s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id}) {
 		t.Fatal("track completion did not request a redraw")
 	}
@@ -153,7 +153,11 @@ func TestMusicQueueSurvivesDecoderCompletion(t *testing.T) {
 
 func TestTrackSelectionWaitsForDecoderExit(t *testing.T) {
 	s := setupMusicSession(t)
-	s.handleMusicKey("next")
+	s.handleKey("track-next-repeat")
+	if s.media.pending {
+		t.Fatal("held shoulder changed tracks")
+	}
+	s.handleKey("track-next")
 	s.handleNeighbor(receiveNeighbor(t, s))
 	if s.media.queued == nil || s.model.Current().Detail.ID != "first" {
 		t.Fatal("neighbor selection did not wait for the active decoder")
@@ -167,5 +171,63 @@ func TestTrackSelectionWaitsForDecoderExit(t *testing.T) {
 	s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id})
 	if s.model.MusicQueueActive() || len(s.model.Stack) != 1 || s.model.Current().Selected != 1 {
 		t.Fatal("stop did not restore the selected track in the list")
+	}
+}
+
+func TestPlaybackDirectionsOnlyToggleMenu(t *testing.T) {
+	for _, kind := range []string{"Movie", "Episode", "TvChannel", "Audio"} {
+		for _, key := range []string{"up", "down", "previous", "next"} {
+			t.Run(kind+"/"+key, func(t *testing.T) {
+				s := testSession(t)
+				s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{Type: kind}})
+				s.controller.item.Type = kind
+				s.controller.running = true
+				s.controller.state.ProgressSeen = true
+				s.controller.state.PlayingVideo = kind != "Audio"
+				if kind == "Audio" {
+					s.model.StartMusicQueue()
+				}
+				s.handleKey(key)
+				if !s.controller.Snapshot(time.Now()).ControlsVisible {
+					t.Fatal("direction did not show menu")
+				}
+				for i := 0; i < 10; i++ {
+					s.handleKey(key + "-repeat")
+				}
+				if !s.controller.Snapshot(time.Now()).ControlsVisible {
+					t.Fatal("held direction toggled menu")
+				}
+				s.handleKey(key)
+				if s.controller.Snapshot(time.Now()).ControlsVisible || s.controller.state.SeekTarget != nil || s.media.pending {
+					t.Fatal("direction changed playback or failed to hide menu")
+				}
+			})
+		}
+	}
+}
+
+func TestMusicSeekingDoesNotChangeTrackOrShowControls(t *testing.T) {
+	s := testSession(t)
+	s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{Type: "Audio"}})
+	s.model.StartMusicQueue()
+	s.controller.item.Type = "Audio"
+	s.controller.running = true
+	s.controller.state.ProgressSeen = true
+	for _, tc := range []struct {
+		key     string
+		seconds int
+	}{{"seek-backward", -10}, {"seek-forward", 10}, {"seek-forward-repeat", 10}} {
+		s.handleKey(tc.key)
+		select {
+		case c := <-s.controller.controls:
+			if c.Kind != "seek" || c.Seconds != tc.seconds {
+				t.Fatal(c)
+			}
+		default:
+			t.Fatal("seek command missing")
+		}
+	}
+	if s.media.pending || s.controller.Snapshot(time.Now()).ControlsVisible {
+		t.Fatal("seeking changed track or showed menu")
 	}
 }

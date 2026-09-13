@@ -25,6 +25,12 @@ type decoder interface {
 	refresh(decoderControl)
 }
 
+// audioSeeker is implemented by decoders with a controllable, seekable audio
+// source. Video keeps its existing server-side stream replacement path.
+type audioSeeker interface {
+	seek(decoderControl, int) error
+}
+
 // decoderInput selects the source transport before the decoder starts.
 // URL input uses the authenticated local proxy so audio can request byte ranges.
 type decoderInput uint8

@@ -72,15 +72,19 @@ func (c *PlaybackController) Snapshot(now time.Time) PlaybackPresentation {
 // Key receives normalized browser actions. During a seek, retargeting, menu toggling, and
 // stopping are accepted. Music track navigation is handled by the browser.
 func (c *PlaybackController) Key(key string, now time.Time) {
-	if c.seekPhase != seekInactive && key != "back" && key != "up" {
-		if key == "previous" || key == "next" {
+	if c.seekPhase != seekInactive && key != "back" && key != "controls" {
+		if key == "seek-backward" || key == "seek-forward" {
 			c.retargetSeek(key, now)
 		}
 		return
 	}
 	switch key {
-	case "previous", "next":
-		c.state.seekVideo(&c.item, key, now)
+	case "seek-backward", "seek-forward":
+		if c.item.Type == "Audio" {
+			c.seekAudio(key)
+		} else {
+			c.state.seekVideo(&c.item, key, now)
+		}
 	case "back":
 		c.stopByUser()
 	case "open":
@@ -91,7 +95,7 @@ func (c *PlaybackController) Key(key string, now time.Time) {
 		} else {
 			c.sendCommand("pause")
 		}
-	case "up":
+	case "controls":
 		c.state.ToggleControls(now)
 	}
 }
@@ -143,4 +147,20 @@ func (c *PlaybackController) Close() {
 	c.pending.stop()
 	c.active.wait()
 	c.pending.wait()
+}
+
+// seekAudio uses the decoder's seekable audio source without replacing the
+// player or changing pause state. Progress feedback supplies the actual position.
+func (c *PlaybackController) seekAudio(key string) {
+	if !c.running || !c.state.ProgressSeen {
+		return
+	}
+	seconds := 10
+	if key == "seek-backward" {
+		seconds = -seconds
+	}
+	select {
+	case c.controls <- playback.Control{Kind: "seek", Seconds: seconds}:
+	default:
+	}
 }

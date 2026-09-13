@@ -7,6 +7,6 @@ import (
 	"errors"
 )
 
-func Read(context.Context) (<-chan string, <-chan struct{}, error) {
+func Read(context.Context, Config) (<-chan string, <-chan struct{}, error) {
 	return nil, nil, errors.New("hardware input requires Linux")
 }

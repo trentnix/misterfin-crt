@@ -2,6 +2,22 @@
 
 The Go client can start and resume movies, episodes, videos, and music videos through Jellyfin's progressive MPEG-2/MP3 transcode endpoint. Desktop playback opens FFplay in a separate window by default, with optional video inside Ghostty through libmpv. The MiSTer path launches the patched `mplayer-arm` executable and passes Go-rendered overlays to its framebuffer output driver while MPlayer owns `/dev/fb0`. Live TV channels use the C client’s negotiated stream setup. The C application remains unchanged.
 
+## Playback controls
+
+These are the default bindings. [Input configuration](GO_INPUT.md) supports per-device controller layouts, button overrides, and analog axis mappings.
+
+| Action | Xbox controller | Keyboard |
+| --- | --- | --- |
+| Show or hide the menu | Any D-pad direction | Any arrow key |
+| Seek backward or forward | LT / RT | J / L |
+| Previous or next music track | LB / RB | [ / ] or Page Up / Page Down |
+| Pause or resume | B | Enter or B |
+| Stop and return | A | Escape or A |
+
+Menu toggles and track changes act once per press. Triggers repeat seeking after a 350 ms hold, then every 250 ms. Video seeks retain 30-second steps, the destination preview, and the 0.5-second delay after the last seek action. Music seeks move 10 seconds within the existing player and preserve pause state. Live TV does not seek. Shoulder buttons have no action during video. Browsing and photo navigation keep their directional controls.
+
+Supporting terminals use [Kitty keyboard event reporting](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) to distinguish presses from repeats and releases. Ghostty therefore keeps menu toggles and track changes from repeating while a key is held. Other terminals retain legacy input, which cannot distinguish repeated presses from a held key. The application restores the terminal's keyboard mode when it exits.
+
 ## Desktop use
 
 FFplay must be installed and available as `ffplay` on `PATH`. Run the browser against a real Jellyfin server:
@@ -10,9 +26,9 @@ FFplay must be installed and available as `ffplay` on `PATH`. Run the browser ag
 python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
 ```
 
-Use `--pal` for PAL. Open a movie's details, then press B or Enter to play. If Jellyfin has an unwatched resume position, playback starts there. During playback, B or Enter in Ghostty pauses or resumes without adding instructions. Up reveals the controls in Ghostty for three seconds. A stops playback and returns to details. Any keypress in the FFplay window closes the video window. Q or Ctrl+C in Ghostty stops playback and exits the browser.
+Use `--pal` for PAL. Open a movie's details, then press B or Enter to play. If Jellyfin has an unwatched resume position, playback starts there. During playback, B or Enter in Ghostty pauses or resumes without adding instructions. Any arrow toggles the controls in Ghostty. The menu expires after three seconds. A stops playback and returns to details. Any keypress in the FFplay window closes the video window. Q or Ctrl+C in Ghostty stops playback and exits the browser.
 
-With the default FFplay mode, video appears in its own window and Ghostty shows the title and artwork. Up reveals the controls in Ghostty. Keep keyboard focus in Ghostty when using those controls. The inherited mock-server demo supplies browsing data and artwork but does not serve playable videos. Automated decoding tests use a generated video fixture instead.
+With the default FFplay mode, video appears in its own window and Ghostty shows the title and artwork. Any arrow toggles the controls in Ghostty. Keep keyboard focus in Ghostty when using those controls. The inherited mock-server demo supplies browsing data and artwork but does not serve playable videos. Automated decoding tests use a generated video fixture instead.
 
 ## Video inside Ghostty
 
@@ -25,7 +41,7 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --config
 
 Open a video's details and press B or Enter. Video replaces the browser image inside Ghostty. Audio plays through the desktop audio output.
 
-B or Enter pauses or resumes without a pause overlay. Up reveals the title, playback time, and controls over the video for three seconds. Pausing or resuming hides the menu immediately. A stops playback and restores the details screen. Q exits.
+B or Enter pauses or resumes without a pause overlay. Any arrow toggles the title, playback time, and controls over the video. The menu expires after three seconds. Pausing or resuming hides the menu immediately. A stops playback and restores the details screen. Q exits.
 
 The inline mode defaults to 60 terminal presentations per second. Use `--fps 25` to select a lower limit. The mock demo does not supply playable media.
 
@@ -45,11 +61,11 @@ The photo request uses Jellyfin's primary image at the logical framebuffer dimen
 
 Browse Music → artist → album, then select a track with B or Enter to start playback. Tracks advance automatically in list order, including across pages. The queue stops at the end of the album or at a non-audio item. A stops playback and returns to the track list with the current track selected. Q exits.
 
-B or Enter pauses or resumes music without adding a pause overlay or instructions. Up reveals the controls for three seconds. Left and Right immediately select the previous or next track, whether the controls are visible or hidden. Up toggles the menu. Music controls do not seek within a track. B or Enter hides the controls immediately. The clean-pause and timeout behavior follows commit `bb31e83` and [the C pause UI](../src/pause_ui.c). That commit changed video controls. The Go music controls apply the same clean-pause behavior, and Up reveals photo navigation as requested.
+B or Enter pauses or resumes music without adding a pause overlay or instructions. Any direction toggles the controls for three seconds. LB/RB or brackets select the previous or next track immediately, whether the menu is visible or hidden. LT/RT or J/L seek within the track. B or Enter hides the controls immediately. The clean-pause behavior follows commit `bb31e83` and [the C pause UI](../src/pause_ui.c).
 
 Music uses the C client's `/Audio/{id}/stream?static=true` request, with a unique play session ID. It streams the original audio and reports `DirectStream`, including pause state and playback positions. Each newly selected track starts at the beginning. Session progress and completion use the existing reporting and user-data endpoints.
 
-The Ghostty harness uses libmpv for controllable audio in both video modes. The decoder reads from a private loopback HTTP address. Go forwards byte-range requests to the fixed Jellyfin audio URL, which keeps the original stream seekable without exposing server credentials to the player. The adapter closes when the track ends or playback is canceled. The direct Go binary accepts `-audio-player tools/ghostty/video_player.py` for the same controls. Without an audio helper, direct headless use retains the FFplay fallback with pause control. On MiSTer, MPlayer uses the same audio adapter, native slave commands, and the C volume reduction and 48 kHz resampling filter.
+The Ghostty harness uses libmpv for controllable audio in both video modes. The decoder reads from a private loopback HTTP address. Go forwards byte-range requests to the fixed Jellyfin audio URL, which keeps the original stream seekable without exposing server credentials to the player. The adapter closes when the track ends or playback is canceled. The direct Go binary accepts `-audio-player tools/ghostty/video_player.py` for the same controls. Without an audio helper, direct headless use retains the FFplay fallback with pause control. That fallback cannot seek audio and shows a notice if seeking is requested. On MiSTer, MPlayer uses the same audio adapter, native slave commands, and the C volume reduction and 48 kHz resampling filter.
 
 Shuffle, repeat modes, and visualizers remain pending. Photo and music controls are covered by desktop tests. Physical CRT playback remains unverified.
 
@@ -57,7 +73,7 @@ On a resumable library video’s details screen, B or Enter resumes the saved po
 
 ## Video seeking
 
-During movie, episode, video, or music-video playback, Left and Right seek backward or forward by 30 seconds. When the playback menu is hidden, two quick presses reveal a compact overlay showing the destination time. When seeking starts with the menu open, the destination and loading status stay in that menu through retargeting and stream handoff. The menu stays visible until playback starts again, then its three-second timeout restarts. Further Right presses add 30 seconds to that destination, and Left presses subtract 30 seconds. Repeated presses accumulate, and the client waits 0.5 seconds after the last press before preparing the replacement stream. At that point, the current decoder pauses so playback does not continue beneath the “Seeking…” overlay. If Left or Right is pressed while that replacement is loading, the client cancels it, restores the updated destination-time overlay for another 0.5 seconds, and then prepares the new replacement under the “Seeking…” overlay. The overlay changes to “Loading…” when the replacement player starts. The last decoded frame remains visible beneath each overlay. The replacement resumes automatically unless playback was already paused before seeking. Targets stay between the beginning and one second before the known end. Seeking is available after the first playback position arrives. Live TV and music retain their existing controls.
+During movie, episode, video, or music-video playback, LT/RT or J/L seek backward or forward by 30 seconds. When the playback menu is hidden, two quick presses reveal a compact overlay showing the destination time. When seeking starts with the menu open, the destination and loading status stay in that menu through retargeting and stream handoff. The menu stays visible until playback starts again, then its three-second timeout restarts. Further forward-seek presses add 30 seconds to that destination, and backward-seek presses subtract 30 seconds. Repeated presses accumulate, and the client waits 0.5 seconds after the last press before preparing the replacement stream. At that point, the current decoder pauses so playback does not continue beneath the “Seeking…” overlay. If LT/RT or J/L is pressed while that replacement is loading, the client cancels it, restores the updated destination-time overlay for another 0.5 seconds, and then prepares the new replacement under the “Seeking…” overlay. The overlay changes to “Loading…” when the replacement player starts. The last decoded frame remains visible beneath each overlay. The replacement resumes automatically unless playback was already paused before seeking. Targets stay between the beginning and one second before the known end. Seeking is available after the first playback position arrives. Live TV does not seek. Music uses the direct ten-second seeking path described above.
 
 The client requests a new progressive stream with an explicit `startTimeTicks` while the old decoder is still shutting down, matching the C implementation's server-side seek method while shortening the handoff. When the replacement stream is ready, the old decoder stops and its Jellyfin stop/save reports finish asynchronously. The new offset overrides Jellyfin's saved resume position. The loading overlay covers startup, and subsequent progress includes the new offset. If the video was paused, the client pauses the replacement player when its first position arrives. A cancels a pending seek and stops playback.
 
@@ -136,6 +152,6 @@ The native player uses video geometry from Live TV playback negotiation when ava
 
 The Go MPlayer adapter decodes into a clean frame in RAM. Before each framebuffer row is written, the adapter blends the latest Go overlay into that row in RAM. Scanout never sees a bare video write followed by a separate menu paint. Overlay publication can run at 30 Hz independently of video presentation. Paused refreshes reuse the clean frame to prevent accumulated transparency and restore video when controls hide. `tools/test_native_overlay.py` tests the patched C adapter against memory-backed framebuffer pages.
 
-Up shows or dismisses the menu during video, music, and photo viewing, including while seeking. MiSTer reads controllers and keyboards directly through Linux input events, matching the C client’s button mapping. MiSTer’s synthetic action keys are ignored, so Xbox Y no longer acts as SELECT. Ghostty continues to use terminal keyboard input.
+Any direction shows or dismisses the menu during video and music playback, including while seeking. Photos retain Up to toggle controls and Left/Right to navigate. MiSTer reads controllers and keyboards directly through Linux input events, matching the C client’s button mapping. MiSTer’s synthetic action keys are ignored, so Xbox Y no longer acts as SELECT. Ghostty continues to use terminal keyboard input.
 
 On MiSTer, the framebuffer adapter keeps the console in graphics mode for the app’s lifetime. The Go-specific MPlayer restores the console mode it inherited when playback ends, so loading and cancellation do not reveal startup console text. The app restores the original console mode when it closes.

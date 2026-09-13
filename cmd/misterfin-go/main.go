@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"misterfin-go/internal/browser"
+	"misterfin-go/internal/input"
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/playback"
 	"misterfin-go/internal/videoout"
@@ -42,6 +43,10 @@ func run() (err error) {
 
 // runBrowser is the composition root: concrete output selection belongs here.
 func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err error) {
+	bindings, err := input.LoadConfig(o.inputConfig, o.config)
+	if err != nil {
+		return err
+	}
 	if o.stateDir == "" {
 		dir, e := os.UserConfigDir()
 		if e != nil {
@@ -62,7 +67,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 		FrameOutput: o.output, Headless: o.headless != "", Device: o.device,
 		Width: g.OutputWidth, Height: g.OutputHeight,
 	}
-	return browser.Run(ctx, o.config, o.stateDir, player, video, browser.NewRenderer())
+	return browser.Run(ctx, o.config, o.stateDir, player, video, browser.NewRenderer(), bindings)
 
 }
 

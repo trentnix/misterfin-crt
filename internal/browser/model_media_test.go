@@ -64,9 +64,9 @@ func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {
 
 func TestPhotoControlsAreIndependentOfPlayback(t *testing.T) {
 	f := newControllerFixture(t)
-	f.c.Key("up", f.now)
-	f.c.Key("next", f.now)
-	f.c.Key("next", f.now)
+	f.c.Key("controls", f.now)
+	f.c.Key("seek-forward", f.now)
+	f.c.Key("seek-forward", f.now)
 	playback := f.c.Snapshot(f.now)
 	m := New()
 	m.Current().Location.Kind = "items"

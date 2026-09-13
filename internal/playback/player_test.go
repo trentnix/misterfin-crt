@@ -354,7 +354,7 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 	if exec.Command(python, "-c", "import ctypes.util,sys;sys.exit(not ctypes.util.find_library('mpv'))").Run() != nil {
 		t.Skip("libmpv unavailable")
 	}
-	clip, err := exec.Command(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "8", "-c:a", "pcm_s16le", "-f", "wav", "pipe:1").Output()
+	clip, err := exec.Command(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "40", "-c:a", "pcm_s16le", "-f", "wav", "pipe:1").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +371,7 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/Items/track":
-			fmt.Fprint(w, `{"Id":"track","Type":"Audio","RunTimeTicks":80000000}`)
+			fmt.Fprint(w, `{"Id":"track","Type":"Audio","RunTimeTicks":400000000}`)
 		case "/Audio/track/stream":
 			http.ServeContent(w, r, "track.wav", time.Time{}, bytes.NewReader(clip))
 		default:
@@ -390,10 +390,12 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 	defer cancel()
 	controls := make(chan Control, 4)
 	first, paused, resumed, advanced := true, false, false, false
+	seekStage := 0
 	err = Run(ctx, c, jellyfin.Item{ID: "track", Type: "Audio"}, Options{Headless: true, AudioPlayer: wrapper, Controls: controls, Paused: func(value bool) {
 		if value {
 			paused = true
-			time.AfterFunc(200*time.Millisecond, func() { controls <- Control{Kind: "pause"} })
+			seekStage = 1
+			controls <- Control{Kind: "seek", Seconds: 10}
 		} else {
 			resumed = true
 		}
@@ -402,12 +404,21 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 			first = false
 			controls <- Control{Kind: "pause"}
 		}
+		if paused && !resumed {
+			if seekStage == 1 && ticks >= 10*10000000 {
+				seekStage = 2
+				controls <- Control{Kind: "seek", Seconds: -10}
+			} else if seekStage == 2 && ticks < 2*10000000 {
+				seekStage = 3
+				controls <- Control{Kind: "pause"}
+			}
+		}
 		if resumed && ticks >= 10000000 {
 			advanced = true
 			cancel()
 		}
 	})
-	if err != nil || !paused || !resumed || !advanced {
+	if err != nil || !paused || !resumed || !advanced || seekStage != 3 {
 		t.Fatalf("audio controls failed: pause=%v resume=%v advanced=%v error=%v", paused, resumed, advanced, err)
 	}
 	mu.Lock()

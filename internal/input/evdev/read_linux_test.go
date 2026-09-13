@@ -114,3 +114,56 @@ func TestNavigationAcceleratesAndResets(t *testing.T) {
 		})
 	}
 }
+
+func TestPlaybackButtonsAndTriggerHysteresis(t *testing.T) {
+	for code, want := range map[uint16]string{310: "track-previous", 311: "track-next", 312: "seek-backward", 313: "seek-forward", 26: "track-previous", 27: "track-next", 36: "seek-backward", 38: "seek-forward"} {
+		if got := action("Xbox", 1, code, 1); got != want {
+			t.Fatalf("code %d: %s", code, got)
+		}
+		if got := action("MiSTer virtual input", 1, code, 1); got != "" {
+			t.Fatal("virtual action duplicated physical button")
+		}
+	}
+	for _, bounds := range [][2]int32{{0, 255}, {0, 1023}, {-32768, 32767}} {
+		axis := &triggerAxis{min: bounds[0], max: bounds[1]}
+		d := device{name: "Xbox", held: make(map[uint16]string), triggers: map[uint16]*triggerAxis{2: axis}}
+		value := func(percent int32) int32 { return bounds[0] + (bounds[1]-bounds[0])*percent/100 }
+		if d.accept(event{Type: 3, Code: 2, Value: value(10)}) != "" {
+			t.Fatal("light touch triggered seek")
+		}
+		if d.accept(event{Type: 3, Code: 2, Value: value(30)}) != "seek-backward" {
+			t.Fatal("trigger press missing")
+		}
+		for _, percent := range []int32{24, 26, 20, 100} {
+			if d.accept(event{Type: 3, Code: 2, Value: value(percent)}) != "" {
+				t.Fatal("axis noise duplicated press")
+			}
+		}
+		d.accept(event{Type: 3, Code: 2, Value: value(5)})
+		if len(d.held) != 0 {
+			t.Fatal("released trigger remained held")
+		}
+		if d.accept(event{Type: 3, Code: 2, Value: value(30)}) != "seek-backward" {
+			t.Fatal("second trigger press missing")
+		}
+	}
+}
+
+func TestSeekHoldRepeatsWithoutNavigationAcceleration(t *testing.T) {
+	var n navigation
+	now := time.Unix(0, 0)
+	held := map[string]bool{"seek-forward": true}
+	n.update(held, held, now)
+	for _, ms := range []int{350, 600, 850, 1100, 1350, 1600, 1850, 2100, 2350} {
+		if got := n.update(held, nil, now.Add(time.Duration(ms-1)*time.Millisecond)); len(got) != 0 {
+			t.Fatal("seek accelerated")
+		}
+		if got := n.update(held, nil, now.Add(time.Duration(ms)*time.Millisecond)); len(got) != 1 || got[0] != "seek-forward-repeat" {
+			t.Fatal(got)
+		}
+	}
+	n.update(nil, nil, now.Add(3*time.Second))
+	if got := n.update(nil, nil, now.Add(4*time.Second)); len(got) != 0 {
+		t.Fatal("released trigger kept seeking")
+	}
+}

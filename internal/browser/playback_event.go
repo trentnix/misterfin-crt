@@ -21,6 +21,7 @@ const (
 	PlaybackBuffering
 	PlaybackEnded
 	PlaybackVideoStarted
+	PlaybackControlFailed
 )
 
 // Handle applies feedback from a tracked decoder. It returns true only when the
@@ -50,6 +51,10 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 						c.state.finishSeekControls(now)
 					}
 				}
+			}
+		case PlaybackControlFailed:
+			if event.Err != nil {
+				c.notice = event.Err.Error()
 			}
 		case PlaybackPaused:
 			c.state.Paused = event.Value

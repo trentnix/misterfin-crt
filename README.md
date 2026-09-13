@@ -12,7 +12,7 @@ Try the local demo from Ghostty:
 python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
-Use `--pal` for PAL. The `--go` flag by itself opens the static test frame. Use `--browse --config jellyfin.conf` to connect to a real Jellyfin server.
+Use `--pal` for PAL. The `--go` flag by itself opens the static test frame. Use `--browse --config jellyfin.conf` to connect to a real Jellyfin server. Controller bindings can be customized per device in [input.json](docs/GO_INPUT.md).
 
 MiSTerFin-derived material remains under [CC BY-NC 4.0](LICENSE). Copyright © 2026 Pudding Studio. Third-party components retain their [separate licenses](docs/THIRD_PARTY.md). This adaptation is not an official Pudding Studio release.
 

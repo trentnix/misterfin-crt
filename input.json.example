@@ -1,0 +1,20 @@
+{
+  "profiles": [
+    {
+      "match": "*Xbox*",
+      "buttons": {
+        "304": "back",
+        "305": "open",
+        "310": "track-previous",
+        "311": "track-next",
+        "312": "seek-backward",
+        "313": "seek-forward",
+        "314": "select"
+      },
+      "axes": {
+        "2": { "rest": "minimum", "positive": "seek-backward" },
+        "5": { "rest": "minimum", "positive": "seek-forward" }
+      }
+    }
+  ]
+}

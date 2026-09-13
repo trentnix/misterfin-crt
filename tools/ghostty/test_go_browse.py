@@ -296,7 +296,7 @@ class BrowseIntegrationTests(unittest.TestCase):
                       for path, body in self.reports):
             self.assertLess(time.monotonic(), deadline, "restart retained the saved resume offset")
             time.sleep(0.02)
-        self.key(b"\x1b[C\x1b[C\x1b[C")
+        self.key(b"lll")
         self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=920000000)
         deadline = time.monotonic() + 22
         while not any(path == "/Sessions/Playing" and body.get("PositionTicks") == 940000000
@@ -315,7 +315,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         initial_stream = next(r for r in self.requests
                               if urlparse(r).path == "/Videos/movie-tricky-0/stream")
         initial_session = parse_qs(urlparse(initial_stream).query)["playSessionId"][0]
-        self.key(b"\x1b[C\x1b[C")
+        self.key(b"ll")
         deadline = time.monotonic() + 5
         while not any(path == "/Sessions/Playing/Progress" and body.get("IsPaused") and
                       body.get("PlaySessionId") == initial_session for path, body in self.reports):
@@ -331,7 +331,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertTrue(any(path == "/Sessions/Playing/Progress" and body.get("IsPaused")
                             for path, body in self.reports))
         self.reports.clear()
-        self.key(b"\x1b[D")
+        self.key(b"j")
         self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=340000000)
         deadline = time.monotonic() + 5
         while not any(path == "/Sessions/Playing/Progress" and body.get("IsPaused")
@@ -339,7 +339,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, "seek did not restore pause")
             time.sleep(0.02)
         # Back cancels a pending seek without starting another stream.
-        self.key(b"\x1b[Ca")
+        self.key(b"la")
         time.sleep(0.9)
         streams = [r for r in self.requests if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
         self.assertEqual(len(streams), 3)
@@ -356,17 +356,17 @@ class BrowseIntegrationTests(unittest.TestCase):
         gate = threading.Event()
         self.video_response_gate = gate
         self.addCleanup(gate.set)
-        self.key(b"\x1b[C\x1b[C")
+        self.key(b"ll")
         self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=620000000)
 
-        self.key(b"\x1b[C")
+        self.key(b"l")
         time.sleep(0.2)
         targets = [int(parse_qs(urlparse(r).query).get("startTimeTicks", ["0"])[0])
                    for r in self.requests
                    if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
         self.assertNotIn(920000000, targets, "retarget skipped the destination-time delay")
         self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=920000000)
-        self.key(b"\x1b[D")
+        self.key(b"j")
         time.sleep(0.2)
         targets = [int(parse_qs(urlparse(r).query).get("startTimeTicks", ["0"])[0])
                    for r in self.requests
@@ -496,14 +496,14 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(self.frame.read_bytes()[220 * 640 * 4:], bytes(20 * 640 * 4))
         self.key(b"b")
         time.sleep(0.1)
-        self.key(b"\x1b[C")  # Hidden controls must not consume navigation.
+        self.key(b"]")  # Hidden controls must not consume navigation.
         self.wait_request("/Audio/artist-000-album0-t02/stream", static="true")
-        self.key(b"\x1b[C")  # The next move must also take one press.
+        self.key(b"]")  # The next move must also take one press.
         self.wait_request("/Audio/artist-000-album0-t03/stream", static="true")
-        self.key(b"\x1b[D")
+        self.key(b"[")
         deadline = time.monotonic() + 5
         while sum(urlparse(r).path == "/Audio/artist-000-album0-t02/stream" for r in self.requests) < 2:
-            self.assertLess(time.monotonic(), deadline, "Left did not change tracks immediately")
+            self.assertLess(time.monotonic(), deadline, "Left bracket did not change tracks immediately")
             time.sleep(0.02)
         self.key(b"a")
         deadline = time.monotonic() + 5

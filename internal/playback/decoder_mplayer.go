@@ -90,3 +90,9 @@ func (d mplayerDecoder) refresh(c decoderControl) {
 }
 
 var _ decoder = mplayerDecoder{}
+
+// seek preserves pause state while moving within a direct-play audio source.
+func (d mplayerDecoder) seek(c decoderControl, seconds int) error {
+	_, err := fmt.Fprintf(c.stdin, "pausing_keep seek %d 0\n", seconds)
+	return err
+}

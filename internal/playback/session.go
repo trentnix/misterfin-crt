@@ -34,7 +34,7 @@ func (s *playbackSession) closeLive() {
 }
 
 func (s *playbackSession) update(seconds float64, position func(int64), startup *time.Timer) {
-	if s.state.IsPaused && s.started {
+	if s.state.IsPaused && s.started && s.item.Type != "Audio" {
 		return
 	}
 	s.state.PositionTicks = s.start + int64(seconds*10000000)
@@ -76,6 +76,22 @@ func (s *playbackSession) control(p *playerProcess, o Options, control Control, 
 			o.Paused(paused)
 		}
 		s.report(false)
+	case "seek":
+		if s.item.Type != "Audio" || !s.started || (control.Seconds != -10 && control.Seconds != 10) {
+			return
+		}
+		seeker, ok := p.decoder.(audioSeeker)
+		var err error
+		if !ok {
+			err = errors.New("music seeking requires the audio helper or MPlayer")
+		} else if seeker.seek(p.control, control.Seconds) != nil {
+			err = errors.New("cannot seek music")
+		} else {
+			p.poll()
+		}
+		if err != nil && o.ControlError != nil {
+			o.ControlError(err)
+		}
 	case "refresh":
 		if s.state.IsPaused {
 			p.refresh()

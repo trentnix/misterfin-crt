@@ -2,8 +2,9 @@ package playback
 
 // Control requests an action on the active decoder. Unknown kinds are ignored.
 type Control struct {
-	// Kind is "pause" (toggle playback) or "refresh" (repaint paused native video).
-	Kind string
+	// Kind is "pause", "refresh", or "seek" (relative audio seek).
+	Kind    string
+	Seconds int // Signed offset for seek. Video seeks use stream replacement.
 }
 
 // Options configures one call to [Run]. The caller must keep referenced values
@@ -33,6 +34,8 @@ type Options struct {
 	// Paused reports a successfully issued pause or resume command, rather
 	// than an acknowledgment that the decoder has completed the transition.
 	Paused func(bool)
+	// ControlError reports an unsupported or failed decoder command without ending playback.
+	ControlError func(error)
 	// Buffering forwards explicit decoder buffering feedback when available.
 	Buffering func(bool)
 	// VideoStarted reports the decoder's first presented video frame when the

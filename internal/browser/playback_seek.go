@@ -14,7 +14,7 @@ const (
 	seekRetargeting           // Obsolete request canceled. Destination preview is visible.
 )
 
-// Tick starts preparation after the latest arrow press has settled for 0.5s.
+// Tick starts preparation after the latest seek action has settled for 0.5s.
 // It does not restart an already preparing request on each animation tick.
 func (c *PlaybackController) Tick(now time.Time) {
 	if !c.running || c.state.SeekTarget == nil {
