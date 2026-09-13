@@ -2,7 +2,7 @@
 
 MiSTerFin CRT is a Jellyfin client for MiSTer FPGA, designed for CRT televisions. It supports movies, TV, live TV, music, and photos.
 
-I built MiSTerFin CRT to make Jellyfin enjoyable to use on my CRT. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. The interface is designed for that screen.
+I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set.
 
 ![MiSTerFin CRT library carousel](docs/images/screenshots/home-carousel.png)
 
@@ -52,10 +52,8 @@ The harness builds the client automatically. See the [development harness guide]
 - [Builds and tests](docs/GO_BUILD.md)
 - [Rendering architecture](docs/GO_RENDERING.md)
 
-Possible future outputs include an SDL desktop window, direct Linux display through DRM/KMS, and a web browser. These are ideas, not scheduled features.
-
 ## Origins and license
 
-MiSTerFin CRT is heavily based on [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio. It began as a Go port that included trentnix's [C changes](https://github.com/trentnix/MiSTerFin). Trentnix maintains the project independently.
+I started MiSTerFin CRT as a Go port of [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio, including my [C changes](https://github.com/trentnix/MiSTerFin). I maintain it independently. It remains heavily based on MiSTerFin, an excellent project.
 
-Original MiSTerFin material is copyright © 2026 Pudding Studio. MiSTerFin CRT additions and modifications by trentnix are copyright © 2026 trentnix. This material is distributed under [CC BY-NC 4.0](LICENSE). Third-party components retain their [separate licenses](docs/THIRD_PARTY.md), including GPL terms for the patched MPlayer.
+Original MiSTerFin material is copyright © 2026 Pudding Studio. My additions and modifications are copyright © 2026 trentnix. I distribute the application under [CC BY-NC 4.0](LICENSE), except for components covered by [separate licenses](docs/THIRD_PARTY.md), including the GPL-licensed MPlayer.
