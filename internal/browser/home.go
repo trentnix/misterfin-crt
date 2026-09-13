@@ -17,7 +17,6 @@ type homeState struct {
 	items           []jellyfin.Item
 	err             error
 	loading, loaded bool
-	initialFocus    bool
 }
 
 func (s *browserSession) refreshHome() {
@@ -58,13 +57,6 @@ func (s *browserSession) handleHome(r result) bool {
 		s.status = "Session rejected. Press R to sign in again."
 	}
 	s.syncHomeViews()
-	if s.home.initialFocus && len(s.model.Stack) == 1 && len(s.home.items) > 0 {
-		v := s.model.Current()
-		v.Selected = 0
-		v.Target = 0
-		v.centerSelection(s.model.Rows)
-	}
-	s.home.initialFocus = false
 	s.seedHomeArtwork()
 	if item := s.model.Current().Item(); item != nil && item.ID == continueID {
 		s.selection.key = ""
@@ -101,7 +93,9 @@ func (s *browserSession) syncHomeViews() {
 
 func (s *browserSession) homeLibraries(page jellyfin.Page) jellyfin.Page {
 	items := make([]jellyfin.Item, 0, len(page.Items)+1)
-	if len(s.home.items) > 0 || s.home.err != nil {
+	// Reserve Continue before its first response so startup never presents a
+	// library and then changes focus when the slower feed arrives.
+	if !s.home.loaded || len(s.home.items) > 0 || s.home.err != nil {
 		items = append(items, jellyfin.Item{ID: continueID, Name: "Continue", Type: "Folder", IsFolder: true})
 	}
 	for _, item := range page.Items {
@@ -144,7 +138,7 @@ func replaceHomePage(v *View, page jellyfin.Page, rows int) {
 }
 
 func (s *browserSession) seedHomeArtwork() {
-	if s.selection.loader == nil {
+	if s.selection.loader == nil || !s.home.loaded {
 		return
 	}
 	total := len(s.home.items)

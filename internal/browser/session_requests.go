@@ -27,7 +27,7 @@ func (s *browserSession) authenticate() {
 	if s.home.cancel != nil {
 		s.home.cancel()
 	}
-	s.home = homeState{generation: s.home.generation + 1, initialFocus: true}
+	s.home = homeState{generation: s.home.generation + 1}
 	s.requests.cancel()
 	s.selection.cancel()
 	s.selection.generation++

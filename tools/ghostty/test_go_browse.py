@@ -33,7 +33,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             mock.ITEMS["movie-tricky-0"]["UserData"]["PlaybackPositionTicks"] = 600000000
         if self._testMethodName == "test_music_advances_and_preserves_last_track":
             mock.CHILDREN["artist-000-album0"] = mock.CHILDREN["artist-000-album0"][:2]
-        if self._testMethodName == "test_combined_continue_watching":
+        if self._testMethodName in ("test_combined_continue_watching", "test_continue_card_is_selected_before_feed_arrives"):
             for item_id in ("movie-tricky-0", "series-000-s1e01"):
                 mock.ITEMS[item_id]["UserData"]["PlaybackPositionTicks"] = 600000000
                 mock.ITEMS[item_id]["UserData"]["LastPlayedDate"] = "2026-09-12T12:00:00Z"
@@ -47,7 +47,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.reports = []
         self.delay_items = False
         self.home_gate = threading.Event()
-        if self._testMethodName != "test_slow_continue_watching_does_not_block_libraries":
+        if self._testMethodName not in ("test_slow_continue_watching_does_not_block_libraries", "test_continue_card_is_selected_before_feed_arrives"):
             self.home_gate.set()
         self.addCleanup(self.home_gate.set)
         self.video_response_gate = None
@@ -79,7 +79,7 @@ class BrowseIntegrationTests(unittest.TestCase):
                     return self._send(self._query_result(ids, query))
                 if path in ("/UserItems/Resume", "/Shows/NextUp"):
                     test.home_gate.wait(timeout=5)
-                    if test._testMethodName != "test_combined_continue_watching":
+                    if test._testMethodName not in ("test_combined_continue_watching", "test_continue_card_is_selected_before_feed_arrives"):
                         return self._send({"Items": [], "TotalRecordCount": 0})
                     if path == "/UserItems/Resume":
                         ids = ["movie-tricky-0", "series-000-s1e01"]
@@ -250,17 +250,30 @@ class BrowseIntegrationTests(unittest.TestCase):
 
     def test_slow_continue_watching_does_not_block_libraries(self):
         self.assertFalse(self.home_gate.is_set())
-        self.key(b"b")
+        self.key(b"\x1b[Cb")  # Browse Movies while the first Continue card loads.
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.home_gate.set()
         self.key(b"b")
         self.wait_request("/Items/movie-tricky-0")
 
+    def test_continue_card_is_selected_before_feed_arrives(self):
+        self.assertFalse(self.home_gate.is_set())
+        self.key(b"b")  # The initial selection must already be Continue.
+        time.sleep(.5)
+        self.assertFalse(any(urlparse(request).path == "/Items" and
+                             parse_qs(urlparse(request).query).get("ParentId") == ["view-movies"]
+                             for request in self.requests), "startup opened Movies instead of Continue")
+        self.home_gate.set()
+        self.wait_request("/Shows/NextUp", enableResumable="false")
+        time.sleep(.2)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.assertFalse(any("misterfin-go%3Acontinue" in request for request in self.requests))
+
     def test_combined_continue_watching(self):
         self.wait_request("/UserItems/Resume", MediaTypes="Video")
         self.wait_request("/Shows/NextUp", enableResumable="false")
-        # The combined card is first. Left also handles arrival after libraries.
-        self.key(b"\x1b[D")
+        # Continue is the initial selection, independent of response order.
         time.sleep(0.15)
         self.key(b"b")
         time.sleep(0.25)

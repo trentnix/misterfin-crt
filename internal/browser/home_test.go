@@ -83,18 +83,83 @@ func TestContinueLabels(t *testing.T) {
 	}
 }
 
-func TestHomeInitialFocusDoesNotStealNavigation(t *testing.T) {
-	for _, initial := range []bool{true, false} {
+func TestHomeInitialCardDoesNotStealNavigation(t *testing.T) {
+	for _, navigate := range []bool{true, false} {
 		s := testSession(t)
-		s.home.initialFocus = initial
-		s.model.Current().Page = jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}
+		s.home.loading = true
+		req := s.model.Load(0)
+		s.handlePage(result{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
+		if s.model.Current().Item().ID != continueID {
+			t.Fatal("first carousel frame did not select Continue")
+		}
+		if navigate {
+			s.model.Key("next")
+		}
 		s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
-		want := "movies"
-		if initial {
-			want = continueID
+		want := continueID
+		if navigate {
+			want = "movies"
 		}
 		if s.model.Current().Item().ID != want {
 			t.Fatal("unexpected home selection", s.model.Current().Item())
 		}
+	}
+}
+
+func TestHomeFeedCanArriveBeforeLibraries(t *testing.T) {
+	s := testSession(t)
+	req := s.model.Load(0)
+	s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
+	s.handlePage(result{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
+	if s.model.Current().Item().ID != continueID {
+		t.Fatal("completed feed was not selected on the first carousel frame")
+	}
+}
+
+func TestInitialContinueCanOpenWhileLoading(t *testing.T) {
+	s := testSession(t)
+	s.home.loading = true
+	s.model.Current().Page = s.homeLibraries(jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}})
+	req := s.model.Key("open")
+	if req == nil || req.Location.Kind != "continue" {
+		t.Fatal("initial placeholder did not open Continue")
+	}
+	s.syncHomeViews()
+	if !s.model.Current().Loading {
+		t.Fatal("pending Continue list did not indicate loading")
+	}
+	s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
+	if s.model.Current().Loading || s.model.Current().Item().ID != "episode" {
+		t.Fatal("pending Continue list did not receive the feed")
+	}
+}
+
+func TestEmptyInitialContinueRemovesPlaceholder(t *testing.T) {
+	for _, navigate := range []bool{false, true} {
+		s := testSession(t)
+		s.model.Current().Page = s.homeLibraries(jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}})
+		if navigate {
+			s.model.Key("next")
+		}
+		s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{}}})
+		if len(s.model.Current().Page.Items) != 1 || s.model.Current().Item().ID != "movies" {
+			t.Fatal("empty Continue did not leave the library selected")
+		}
+	}
+}
+
+func TestPendingContinueDoesNotPublishZeroCount(t *testing.T) {
+	s := testSession(t)
+	s.selection.loader = newSelectionLoader(nil, 640, 240)
+	s.seedHomeArtwork()
+	if s.selection.loader.libraries.cached(continueID).count != nil {
+		t.Fatal("pending feed was presented as an empty feed")
+	}
+	s.home.loaded = true
+	s.home.items = []jellyfin.Item{homeEpisode("episode", "next")}
+	s.seedHomeArtwork()
+	count := s.selection.loader.libraries.cached(continueID).count
+	if count == nil || *count != 1 {
+		t.Fatal("completed feed count was not published")
 	}
 }

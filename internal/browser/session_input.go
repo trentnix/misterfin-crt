@@ -129,7 +129,6 @@ func (s *browserSession) handlePhotoKey(key string) {
 }
 
 func (s *browserSession) handleBrowseKey(key string) bool {
-	s.home.initialFocus = false
 	if key == "select" && canShuffle(*s.model.Current()) {
 		s.startShuffle()
 		return true

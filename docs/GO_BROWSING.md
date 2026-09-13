@@ -54,7 +54,7 @@ Item details fetch the overview, year, rating, runtime, and watched/resume state
 
 ## Continue Watching
 
-The first home card is labeled `Continue` to fit the C carousel's name width. It opens a `Continue Watching` list containing unfinished videos and the next unwatched episodes of series in progress. Empty results hide the card. On launch, the card becomes selected when it is ready. Once navigation begins, a late feed preserves the currently selected library.
+The first home card is labeled `Continue` to fit the C carousel's name width. It opens a `Continue Watching` list containing unfinished videos and the next unwatched episodes of series in progress. Continue occupies the first carousel position while its initial feed loads and shows `Loading...` instead of an item count. Feed arrival fills the card without changing selection, so startup does not briefly select another library. Browsing other libraries and opening Continue remain available while the request runs. Empty results remove the card and preserve the selected library, or select the first library if Continue was selected.
 
 Each series appears once. A resumable episode takes precedence over its next episode. If several episodes are resumable, the most recently played episode wins. Entries show the series and episode title, with `Resume · 12:34 · S1 E3` or `Next · S1 E4` beneath them. Movies show their resume position. Opening an entry uses the existing details screen, resume/play behavior, and SELECT/Tab restart action.
 

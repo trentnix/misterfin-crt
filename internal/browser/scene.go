@@ -22,6 +22,7 @@ type Scene struct {
 	PhotoCount     string
 	Artwork        Artwork
 	LibraryCount   *int
+	LibraryLoading bool // The selected home card is waiting for its initial feed.
 
 	// Controls borrows immutable labels from the last active input device.
 	Controls control.Labels

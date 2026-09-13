@@ -40,7 +40,9 @@ func (p *screenPainter) carousel() [][]controlHint {
 				color = titleColor
 			}
 			c.TextScaled(x, cy-10, name, color, w, 2)
-			if i == v.Selected && p.scene.LibraryCount != nil {
+			if i == v.Selected && p.scene.LibraryLoading {
+				c.Text(w/2-textWidth("Loading...", 1)/2, cy+12, "Loading...", dimColor, w)
+			} else if i == v.Selected && p.scene.LibraryCount != nil {
 				label := "items"
 				switch v.Page.Items[i].CollectionType {
 				case "movies":
