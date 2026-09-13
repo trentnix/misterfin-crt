@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"misterfin-go/internal/musicviz"
 	"misterfin-go/internal/ui"
 	"misterfin-go/internal/videoout"
 )
@@ -9,6 +10,7 @@ import (
 // borrowed until the next draw, matching Output.Present's synchronous contract.
 // Artwork from artworkLoader is immutable after publication.
 type RasterRenderer struct {
+	music     musicviz.Renderer
 	canvas    *ui.Canvas
 	cache     sceneCache
 	overlay   *ui.Canvas
@@ -21,7 +23,7 @@ func NewRenderer() *RasterRenderer { return &RasterRenderer{} }
 func (r *RasterRenderer) Render(w, h int, s Scene) videoout.Frame {
 	r.prepare(w, h)
 	anim := r.animation.advance(s, visibleRows(w, h))
-	f := videoout.Frame{UI: renderScene(r.canvas, &r.cache, s, anim), Video: s.Video}
+	f := videoout.Frame{UI: renderSceneWithMusic(r.canvas, &r.cache, s, anim, &r.music), Video: s.Video}
 	if s.Video {
 		clear(r.overlay.Pixels)
 		f.Overlay = renderVideoOverlayOn(r.overlay, s.Playback, s.Now, s.Controls)

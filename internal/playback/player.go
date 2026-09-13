@@ -4,6 +4,7 @@ package playback
 import (
 	"context"
 	"errors"
+	"os"
 
 	"misterfin-go/internal/jellyfin"
 )
@@ -22,6 +23,22 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	decoder, executable, err := resolveDecoder(o, item)
 	if err != nil {
 		return err
+	}
+	if item.Type == "Audio" && o.Levels != nil {
+		switch d := decoder.(type) {
+		case mplayerDecoder:
+			file, e := os.CreateTemp("", "misterfin-go-audio-*")
+			if e == nil {
+				o.audioExport = file.Name()
+				file.Close()
+				defer os.Remove(o.audioExport)
+				d.export = o.audioExport
+				decoder = d
+			}
+		case pythonDecoder:
+			d.levels = true
+			decoder = d
+		}
 	}
 	session, err := preparePlayback(ctx, c, item, o)
 	if err != nil || session == nil {

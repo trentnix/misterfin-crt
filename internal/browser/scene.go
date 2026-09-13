@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"misterfin-go/internal/input/control"
+	"misterfin-go/internal/musicviz"
 )
 
 // Scene is the input to a renderer, separate from the mutable navigation model.
@@ -25,6 +26,13 @@ type Scene struct {
 	// Controls borrows immutable labels from the last active input device.
 	Controls control.Labels
 
+	// Music contains immutable preset data. MusicFrame is a copied audio snapshot.
+	Music                *musicviz.Library
+	MusicIndex           int
+	MusicFrame           musicviz.Frame
+	MusicLabel           bool
+	MusicMessage         string
+	Shuffle              bool
 	Audio                bool
 	Video                bool
 	PhotoControlsVisible bool

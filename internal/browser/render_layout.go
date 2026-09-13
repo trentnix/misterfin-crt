@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 
+	"misterfin-go/internal/musicviz"
 	"misterfin-go/internal/ui"
 )
 
@@ -43,6 +44,7 @@ func runtime(ticks int64) string {
 // It computes shared CRT layout once and dispatches drawing without owning
 // persistent state. Methods run synchronously during Render.
 type screenPainter struct {
+	visualizer                   *musicviz.Renderer
 	canvas                       *ui.Canvas
 	cache                        *sceneCache
 	scene                        Scene

@@ -71,6 +71,8 @@ func (s *browserSession) handleKey(key string) bool {
 func (s *browserSession) handleMusicKey(key string) bool {
 	now := time.Now()
 	switch key {
+	case "select":
+		s.cycleMusicBackground()
 	case "back":
 		s.controller.Key("back", now)
 		s.media.cancel()
@@ -78,6 +80,11 @@ func (s *browserSession) handleMusicKey(key string) bool {
 		s.media.pending = false
 		s.media.queued = nil
 		s.media.nextTrack = 0
+		if !s.controller.running {
+			s.shuffle = shuffleQueue{}
+			s.model.ReturnToParent()
+			s.loadSelection()
+		}
 	case "open", "controls", "seek-backward", "seek-forward":
 		s.controller.Key(key, now)
 	case "track-previous", "track-next":
@@ -95,7 +102,11 @@ func (s *browserSession) handlePendingMediaKey(key string) bool {
 		s.media.cancel()
 		s.media.generation++
 		s.media.pending = false
-		s.model.ReturnToParent()
+		if s.shuffle.library == "" || s.model.MusicQueueActive() {
+			s.model.ReturnToParent()
+		}
+		s.shuffle = shuffleQueue{}
+		s.model.Notice = ""
 		s.loadSelection()
 	}
 	return false
@@ -119,6 +130,10 @@ func (s *browserSession) handlePhotoKey(key string) {
 
 func (s *browserSession) handleBrowseKey(key string) bool {
 	s.home.initialFocus = false
+	if key == "select" && canShuffle(*s.model.Current()) {
+		s.startShuffle()
+		return true
+	}
 	if key == "retry" && s.model.Current().Detail == nil && (s.model.Current().Location.Kind == "continue" || (s.model.Current().Item() != nil && s.model.Current().Item().ID == continueID)) {
 		s.refreshHome()
 		return true

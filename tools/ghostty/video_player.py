@@ -40,6 +40,24 @@ def bind(lib, name, restype, *args):
     return fn
 
 
+class Node(C.Structure):
+    pass
+
+
+class NodeList(C.Structure):
+    _fields_ = [("num", C.c_int), ("values", C.POINTER(Node)),
+                ("keys", C.POINTER(C.c_char_p))]
+
+
+class NodeValue(C.Union):
+    _fields_ = [("string", C.c_char_p), ("flag", C.c_int),
+                ("int64", C.c_int64), ("double", C.c_double),
+                ("list", C.POINTER(NodeList))]
+
+
+Node._fields_ = [("u", NodeValue), ("format", C.c_int)]
+
+
 class MPV:
     def __init__(self):
         self.lib = C.CDLL(ctypes.util.find_library("mpv") or "libmpv.so.2")
@@ -49,6 +67,7 @@ class MPV:
         self.command = bind(self.lib, "mpv_command", C.c_int, C.c_void_p, C.POINTER(C.c_char_p))
         self.wait = bind(self.lib, "mpv_wait_event", C.POINTER(Event), C.c_void_p, C.c_double)
         self.property = bind(self.lib, "mpv_get_property", C.c_int, C.c_void_p, C.c_char_p, C.c_int, C.c_void_p)
+        self.free_node = bind(self.lib, "mpv_free_node_contents", None, C.POINTER(Node))
         self.destroy = bind(self.lib, "mpv_terminate_destroy", None, C.c_void_p)
         self.render_create = bind(self.lib, "mpv_render_context_create", C.c_int, C.POINTER(C.c_void_p), C.c_void_p, C.POINTER(RenderParam))
         self.callback_type = C.CFUNCTYPE(None, C.c_void_p)
@@ -56,6 +75,32 @@ class MPV:
         self.update = bind(self.lib, "mpv_render_context_update", C.c_uint64, C.c_void_p)
         self.render = bind(self.lib, "mpv_render_context_render", C.c_int, C.c_void_p, C.POINTER(RenderParam))
         self.free = bind(self.lib, "mpv_render_context_free", None, C.c_void_p)
+
+    def audio_levels(self, handle):
+        """Read a complete metadata snapshot through libmpv's node API."""
+        node = Node()
+        if self.property(handle, b"af-metadata/music", 6, C.byref(node)) < 0:
+            return (0.0, 0.0)
+        values = {}
+        try:
+            if node.format == 8 and node.u.list:
+                entries = node.u.list.contents
+                for i in range(entries.num):
+                    value = entries.values[i]
+                    if value.format == 1 and value.u.string:
+                        values[entries.keys[i]] = value.u.string
+        finally:
+            self.free_node(C.byref(node))
+        levels = []
+        for channel in (1, 2):
+            key = f"lavfi.astats.{channel}.RMS_level".encode()
+            try:
+                db = float(values.get(key, values.get(b"lavfi.astats.1.RMS_level", b"-inf")))
+                value = min(1.0, 10 ** (min(0.0, db) / 20)) if math.isfinite(db) else 0.0
+            except ValueError:
+                value = 0.0
+            levels.append(value)
+        return levels
 
     def send(self, handle, *args):
         values = (C.c_char_p * (len(args) + 1))(*(arg.encode() for arg in args), None)
@@ -78,7 +123,7 @@ def publish_frame(output, source, width, height):
             os.unlink(path)
 
 
-def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False, status=False):
+def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False, status=False, audio_levels=False):
     mpv = MPV()
     handle = mpv.create()
     if not handle:
@@ -141,6 +186,7 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                     raise RuntimeError("cannot enable playback buffering")
         if audio_only and mpv.option(handle, b"vid", b"no") < 0:
             raise RuntimeError("cannot disable video")
+        meter_enabled = audio_only and audio_levels and mpv.option(handle, b"af", b"@music:lavfi=[astats=metadata=1:reset=1:measure_perchannel=RMS_level:measure_overall=none]") >= 0
         if mpv.initialize(handle) < 0:
             raise RuntimeError("cannot initialize libmpv")
         if not audio_only:
@@ -152,6 +198,7 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
             previous[sig] = signal.signal(sig, lambda *_: stop.set())
         if mpv.send(handle, "loadfile", source, "replace") < 0:
             raise RuntimeError("cannot open media pipe")
+        next_levels = 0.0
         next_report = 0.0
         control_buffer = b""
         control_open = controls or (audio_only and source != "fd://3")
@@ -178,6 +225,10 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                     raise RuntimeError("video decoding failed")
                 break
             now = time.monotonic()
+            if meter_enabled and now >= next_levels:
+                left, right = mpv.audio_levels(handle)
+                print(f"ANS_AUDIO_LEVELS={left:.6f},{right:.6f}", flush=True)
+                next_levels = now + 0.05
             if now >= next_report:
                 if status:
                     buffering = C.c_int()
@@ -210,6 +261,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--audio-only", action="store_true")
+    parser.add_argument("--audio-levels", action="store_true")
     parser.add_argument("--source", default="fd://3")
     parser.add_argument("--controls", action="store_true")
     parser.add_argument("--status", action="store_true")
@@ -228,7 +280,7 @@ def main():
         source = urlparse(args.source)
         if not args.audio_only or source.scheme != "http" or source.hostname != "127.0.0.1" or source.username or source.password or source.query or source.fragment:
             parser.error("--source must identify the local audio proxy")
-    play(args.output, args.width, args.height, args.audio, args.audio_only, args.source, args.controls, args.status)
+    play(args.output, args.width, args.height, args.audio, args.audio_only, args.source, args.controls, args.status, args.audio_levels)
 
 
 if __name__ == "__main__":

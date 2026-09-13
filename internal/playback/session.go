@@ -108,10 +108,32 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 	defer report.Stop()
 	startup := time.NewTimer(30 * time.Second)
 	defer startup.Stop()
+	var audioTimer *time.Ticker
+	var audioTick <-chan time.Time
+	if o.audioExport != "" {
+		audioTimer = time.NewTicker(50 * time.Millisecond)
+		audioTick = audioTimer.C
+		defer audioTimer.Stop()
+	}
 	controls := o.Controls
 	videoStarted := p.videoStarted
 	for {
 		select {
+		case <-audioTick:
+			levels := AudioLevels{}
+			if !s.state.IsPaused {
+				levels = audioExport(o.audioExport)
+			}
+			if o.Levels != nil {
+				o.Levels(levels)
+			}
+		case levels := <-p.levels:
+			if s.state.IsPaused {
+				levels = AudioLevels{}
+			}
+			if o.Levels != nil {
+				o.Levels(levels)
+			}
 		case <-videoStarted:
 			videoStarted = nil
 			if o.VideoStarted != nil {

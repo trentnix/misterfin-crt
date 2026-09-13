@@ -1,6 +1,9 @@
 package browser
 
-import "misterfin-go/internal/jellyfin"
+import (
+	"misterfin-go/internal/jellyfin"
+	"misterfin-go/internal/musicviz"
+)
 
 // resultKind identifies the worker that produced a result. Request generation
 // checks remain with each handler, beside the state they protect.
@@ -12,6 +15,9 @@ const (
 	selectionResult
 	neighborResult
 	homeResult
+	shuffleResult
+	musicConfigResult
+	musicAssetsResult
 )
 
 // result carries one worker result, selected by kind. Page and authentication
@@ -19,6 +25,8 @@ const (
 // mediaGeneration. Home refreshes use homeGeneration. Fields for other kinds are ignored. Workers must
 // stop mutating referenced data before sending a result.
 type result struct {
+	music               *musicviz.Library
+	musicIndex          int
 	request             Request
 	page                jellyfin.Page
 	err                 error
@@ -35,6 +43,12 @@ type result struct {
 
 func (s *browserSession) handleResult(r result) bool {
 	switch r.kind {
+	case musicAssetsResult:
+		return s.handleMusicAssets(r)
+	case musicConfigResult:
+		return s.handleMusicConfig(r)
+	case shuffleResult:
+		return s.handleShuffle(r)
 	case homeResult:
 		return s.handleHome(r)
 	case authResult:

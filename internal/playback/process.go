@@ -20,6 +20,7 @@ type playerProcess struct {
 	writer       *os.File
 	source       *mediaSource
 	positions    chan float64
+	levels       chan AudioLevels
 	buffering    chan bool
 	videoStarted chan struct{}
 	done         chan error
@@ -46,7 +47,8 @@ func startProcess(ctx context.Context, executable string, args []string, source 
 	cmd.ExtraFiles = []*os.File{reader}
 	p := &playerProcess{decoder: decoder, cmd: cmd, writer: writer, source: source, positions: make(chan float64, 16), buffering: make(chan bool, 16), done: make(chan error, 1), copyDone: make(chan struct{})}
 	p.videoStarted = make(chan struct{}, 1)
-	output := &positionWriter{positions: p.positions, buffering: p.buffering, videoStarted: p.videoStarted}
+	p.levels = make(chan AudioLevels, 1)
+	output := &positionWriter{levels: p.levels, positions: p.positions, buffering: p.buffering, videoStarted: p.videoStarted}
 	cmd.Stdout, cmd.Stderr = output, output
 	p.commands, err = cmd.StdinPipe()
 	if err != nil {

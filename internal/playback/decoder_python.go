@@ -12,6 +12,7 @@ import (
 type pythonDecoder struct {
 	script, output string
 	width, height  int
+	levels         bool
 }
 
 func (d pythonDecoder) executable() string { return "python3" }
@@ -27,6 +28,9 @@ func (d pythonDecoder) args(item jellyfin.Item, source string) []string {
 	var args []string
 	if item.Type == "Audio" {
 		args = []string{d.script, "--audio-only"}
+		if d.levels {
+			args = append(args, "--audio-levels")
+		}
 	} else {
 		args = []string{d.script, "--controls", "--status", "--output", d.output, "--width", strconv.Itoa(d.width), "--height", strconv.Itoa(d.height)}
 	}

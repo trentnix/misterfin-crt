@@ -18,6 +18,12 @@ func (p *screenPainter) list() string {
 	v := &p.scene.View
 	s := p.scene
 	hint := "B:select  A:back"
+	if canShuffle(*v) {
+		label := s.Controls.Name("select")
+		if label != "" {
+			hint = "B:select  " + label + ":shuffle library  A:back"
+		}
+	}
 
 	cache.backdrop(c, art, false, func(layer *ui.Canvas) {
 		if art.Backdrop != nil {

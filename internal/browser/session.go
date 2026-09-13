@@ -23,6 +23,8 @@ type browserSession struct {
 	home                 homeState
 	selection            selectionState
 	media                mediaNavigation
+	shuffle              shuffleQueue
+	music                musicPresentation
 	events               chan result
 	controller           *PlaybackController
 	driver               playbackDriver
@@ -52,6 +54,7 @@ func newBrowserSession(ctx context.Context, configPath, stateDir string, player 
 		return s.driver.launch(s.client, item, offset, gate, prepared, controls)
 	})
 	s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
+	s.loadMusicConfig()
 	s.ticker = time.NewTicker(s.frameInterval)
 	return s
 }

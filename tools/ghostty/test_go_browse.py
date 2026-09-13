@@ -55,6 +55,10 @@ class BrowseIntegrationTests(unittest.TestCase):
             def do_GET(self):
                 test.requests.append(self.path)
                 path = urlparse(self.path).path
+                query = parse_qs(urlparse(self.path).query)
+                if path == "/Items" and query.get("SortBy") == ["Random"]:
+                    ids = ["artist-000-album0-t01", "artist-001-album0-t01"]
+                    return self._send(self._query_result(ids, query))
                 if path in ("/UserItems/Resume", "/Shows/NextUp"):
                     test.home_gate.wait(timeout=5)
                     if test._testMethodName != "test_combined_continue_watching":
@@ -108,6 +112,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.addCleanup(self.server.server_close)
         self.addCleanup(worker.join)
         self.addCleanup(self.server.shutdown)
+        (self.directory / "music.json").write_text(json.dumps({"default":"Off", "meters":False, "backgrounds":[{"name":"Off","type":"none"}]}))
         config = self.directory / "jellyfin.conf"
         config.write_text(f"http://127.0.0.1:{self.server.server_port}\nmock-api-key\nmockuser\n")
         self.frame = self.directory / "frame.raw"
@@ -577,6 +582,26 @@ class BrowseIntegrationTests(unittest.TestCase):
             time.sleep(0.02)
         playing = [body for path, body in self.reports if path == "/Sessions/Playing"]
         self.assertEqual(playing[0]["PlayMethod"], "DirectStream")
+        self.assertIsNone(self.process.poll())
+
+    def test_whole_library_shuffle_and_return(self):
+        self.key(b"\x1b[C\x1b[Cb")
+        self.wait_request("/Items", ParentId="view-music")
+        self.key(b"\x1b[B")  # Preserve the second artist while shuffling.
+        self.key(b"\t")
+        self.wait_request("/Items", ParentId="view-music", SortBy="Random", IncludeItemTypes="Audio")
+        self.wait_request("/Audio/artist-000-album0-t01/stream")
+        self.key(b"]")
+        self.wait_request("/Audio/artist-001-album0-t01/stream")
+        self.key(b"[")
+        deadline = time.monotonic() + 5
+        while sum(urlparse(r).path == "/Audio/artist-000-album0-t01/stream" for r in self.requests) < 2:
+            self.assertLess(time.monotonic(), deadline, "shuffle previous did not return to the played track")
+            time.sleep(.02)
+        self.key(b"a")
+        time.sleep(.2)
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="artist-001")
         self.assertIsNone(self.process.poll())
 
     def test_music_advances_and_preserves_last_track(self):

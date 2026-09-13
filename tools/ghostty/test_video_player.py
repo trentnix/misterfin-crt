@@ -89,6 +89,22 @@ class VideoTests(unittest.TestCase):
             self.assertGreater(positions[-1], 1.0)
             self.assertEqual(output.read_bytes(), b"browser frame")
 
+    def test_audio_levels_measure_stereo_signal(self):
+        clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                                       "aevalsrc=0.5*sin(440*2*PI*t)|0.1*sin(880*2*PI*t):s=48000",
+                                       "-t", "2", "-f", "wav", "pipe:1"])
+        result = subprocess.run([sys.executable, "-c", BOOTSTRAP, str(HELPER),
+                                 "--audio-only", "--audio", "null", "--audio-levels"],
+                                input=clip, capture_output=True, timeout=8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        levels = [tuple(map(float, line.split(b"=")[1].split(b",")))
+                  for line in result.stdout.splitlines() if line.startswith(b"ANS_AUDIO_LEVELS=")]
+        active = [(left, right) for left, right in levels if left > 0.1]
+        self.assertGreater(len(active), 5)
+        for left, right in active:
+            self.assertAlmostEqual(left, 0.3535, delta=0.03)
+            self.assertAlmostEqual(right, 0.0707, delta=0.015)
+
     def test_audio_pause_resume(self):
         clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
                                         "sine=frequency=440:sample_rate=44100", "-t", "8",

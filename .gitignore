@@ -4,6 +4,7 @@ misterfin-preview
 mplayer-arm
 jellyfin.conf
 /input.json
+/music.json
 token.conf
 device.conf
 crash.log

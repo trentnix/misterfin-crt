@@ -15,6 +15,8 @@ type Item struct {
 	ID                                             string `json:"Id"`
 	Name, Type, CollectionType, SeriesID, Overview string
 	SeriesName                                     string
+	Artists                                        []string
+	Album                                          string
 	IndexNumber, ParentIndexNumber                 *int
 	// ContinueAction is local presentation metadata, never sent to Jellyfin.
 	ContinueAction                 string `json:"-"`

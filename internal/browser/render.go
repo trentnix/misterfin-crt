@@ -4,6 +4,7 @@ import (
 	"image"
 	"time"
 
+	"misterfin-go/internal/musicviz"
 	"misterfin-go/internal/ui"
 )
 
@@ -21,9 +22,13 @@ func render(w, h int, m *Model, status string, art Artwork, artError string, ani
 // renderScene selects exactly one screen. Browsing screens share footer and
 // notice drawing. Media and connection screens supply their own chrome.
 func renderScene(c *ui.Canvas, cache *sceneCache, s Scene, anim Animation) []byte {
+	return renderSceneWithMusic(c, cache, s, anim, nil)
+}
+
+func renderSceneWithMusic(c *ui.Canvas, cache *sceneCache, s Scene, anim Animation, music *musicviz.Renderer) []byte {
 	sy := safeY(c.Width, c.Height)
 	p := screenPainter{
-		canvas: c, cache: cache, scene: s, animation: anim,
+		canvas: c, cache: cache, scene: s, animation: anim, visualizer: music,
 		width: c.Width, height: c.Height, safeY: sy, bottom: c.Height - 8 - sy,
 	}
 	switch {

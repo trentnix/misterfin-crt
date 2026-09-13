@@ -11,6 +11,9 @@ type Control struct {
 // unchanged until Run returns. All callbacks are optional and run synchronously
 // on Run's goroutine. They must return promptly and must not wait for Run to end.
 type Options struct {
+	// Levels receives disposable stereo audio levels on the playback loop.
+	Levels      func(AudioLevels)
+	audioExport string
 	// StartTicks overrides the saved video position in 100-nanosecond ticks.
 	// Nil resumes normally. A pointer to zero restarts. Audio and Live TV ignore it.
 	StartTicks *int64

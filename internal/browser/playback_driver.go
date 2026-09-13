@@ -33,6 +33,12 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 	finished := make(chan struct{})
 	cleanup := make(chan struct{})
 	options := d.options
+	options.Levels = func(levels playback.AudioLevels) {
+		select {
+		case d.events <- PlaybackEvent{Kind: PlaybackLevels, ID: id, Levels: levels}:
+		default:
+		}
+	}
 	options.StartTicks = offset
 	options.Start = gate
 	options.AsyncCleanup = cleanup

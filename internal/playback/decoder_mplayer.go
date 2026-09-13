@@ -14,6 +14,7 @@ import (
 // configuration only. The shared playerProcess owns the running child and pipes.
 type mplayerDecoder struct {
 	player, device string
+	export         string
 	width, height  int
 }
 
@@ -36,7 +37,11 @@ func (d mplayerDecoder) args(item jellyfin.Item, source string) []string {
 		source = "/dev/fd/3"
 	}
 	if item.Type == "Audio" {
-		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", "volume=-3,lavcresample=48000", source}
+		filter := "volume=-3,lavcresample=48000"
+		if d.export != "" {
+			filter += ",export=" + d.export + ":512"
+		}
+		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", filter, source}
 	}
 	// Match the C client's item_dar fallback for channels without video metadata.
 	dar := 16.0 / 9

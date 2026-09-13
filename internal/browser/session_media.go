@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"misterfin-go/internal/jellyfin"
+	"misterfin-go/internal/playback"
 )
 
 // mediaNavigation owns adjacent-photo and music-queue work. It is separate
@@ -21,6 +22,10 @@ type mediaNavigation struct {
 // Only one neighbor request runs at a time. The displayed item remains selected
 // until a matching result arrives and any current decoder has stopped.
 func (s *browserSession) navigateMedia(direction int) {
+	if s.shuffle.library != "" {
+		s.navigateShuffle(direction)
+		return
+	}
 	parent, ok := s.model.Parent()
 	if !ok || s.model.Current().Detail == nil || s.media.pending {
 		return
@@ -41,6 +46,7 @@ func (s *browserSession) navigateMedia(direction int) {
 }
 
 func (s *browserSession) startPlayback(startTicks *int64, paused bool) {
+	s.music.levels = playback.AudioLevels{}
 	selected := *s.model.Current().Detail
 	if selected.Type != "Audio" {
 		s.output.Clear()
@@ -58,6 +64,13 @@ func (s *browserSession) startPlayback(startTicks *int64, paused bool) {
 // handlePlayback applies decoder feedback, then handles item completion.
 // Seek handoffs stay inside the controller and do not advance the music queue.
 func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
+	if event.Kind == PlaybackLevels {
+		if s.controller.running && event.ID == s.controller.active.id {
+			s.music.levels = event.Levels
+			s.music.levelTime = time.Now()
+		}
+		return false
+	}
 	ended := s.controller.Handle(event, time.Now())
 	if s.controller.notice != "" {
 		s.model.Notice = s.controller.notice
@@ -89,6 +102,7 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		s.navigateMedia(direction)
 	} else {
 		wasAudio := s.model.MusicQueueActive()
+		s.shuffle = shuffleQueue{}
 		s.model.EndMusicQueue()
 		if (wasAudio && s.controller.stoppedByUser) || (s.model.Current().Detail != nil && jellyfin.IsLive(*s.model.Current().Detail)) {
 			s.model.ReturnToParent()

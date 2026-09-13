@@ -1,14 +1,19 @@
 package browser
 
-import "time"
+import (
+	"time"
+
+	"misterfin-go/internal/playback"
+)
 
 // PlaybackEvent carries decoder feedback without browser navigation or artwork.
 type PlaybackEvent struct {
-	Kind  PlaybackEventKind
-	ID    int   // Decoder generation assigned by the launch bridge.
-	Ticks int64 // Position including the requested stream offset.
-	Value bool  // Used by PlaybackPaused and PlaybackBuffering.
-	Err   error // Used by PlaybackEnded.
+	Kind   PlaybackEventKind
+	ID     int // Decoder generation assigned by the launch bridge.
+	Levels playback.AudioLevels
+	Ticks  int64 // Position including the requested stream offset.
+	Value  bool  // Used by PlaybackPaused and PlaybackBuffering.
+	Err    error // Used by PlaybackEnded.
 }
 
 // PlaybackEventKind identifies which fields of [PlaybackEvent] are meaningful.
@@ -22,6 +27,7 @@ const (
 	PlaybackEnded
 	PlaybackVideoStarted
 	PlaybackControlFailed
+	PlaybackLevels
 )
 
 // Handle applies feedback from a tracked decoder. It returns true only when the

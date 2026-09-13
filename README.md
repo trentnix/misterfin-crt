@@ -522,3 +522,5 @@ MiSTerFin also stands on some excellent open-source work — stb_image, font8x8,
 
 | <a href="https://pudding.studio"><img src=".github/images/pudding.gif" width="100"></a> | *made over the weekends at pudding*<br>https://pudding.studio |
 |:---:|:---|
+
+Music supports album playback, whole-library shuffle, stereo level meters, and configurable animated backgrounds. See [music controls and configuration](docs/GO_MUSIC.md).

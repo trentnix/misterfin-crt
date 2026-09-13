@@ -14,6 +14,7 @@ type positionWriter struct {
 	mu           sync.Mutex
 	pending      string
 	positions    chan float64
+	levels       chan AudioLevels
 	buffering    chan bool
 	videoStarted chan struct{}
 }
@@ -38,6 +39,13 @@ func (p *positionWriter) Write(data []byte) (int, error) {
 			if line == "ANS_BUFFERING=true" || line == "ANS_BUFFERING=false" {
 				select {
 				case p.buffering <- line == "ANS_BUFFERING=true":
+				default:
+				}
+				continue
+			}
+			if levels, ok := parseAudioLevels(line); ok {
+				select {
+				case p.levels <- levels:
 				default:
 				}
 				continue

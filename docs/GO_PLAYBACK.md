@@ -155,3 +155,7 @@ The Go MPlayer adapter decodes into a clean frame in RAM. Before each framebuffe
 Any direction shows or dismisses the menu during video and music playback, including while seeking. Photos retain Up to toggle controls and Left/Right to navigate. MiSTer reads controllers and keyboards directly through Linux input events, matching the C client’s button mapping. MiSTer’s synthetic action keys are ignored, so Xbox Y no longer acts as SELECT. Ghostty continues to use terminal keyboard input.
 
 On MiSTer, the framebuffer adapter keeps the console in graphics mode for the app’s lifetime. The Go-specific MPlayer restores the console mode it inherited when playback ends, so loading and cancellation do not reveal startup console text. The app restores the original console mode when it closes.
+
+## Music backgrounds and shuffle
+
+Music supports whole-library shuffle from the artist list, stereo level meters, and configurable backgrounds. SELECT/Tab starts shuffle while browsing artists and cycles backgrounds during music playback. See [music playback and configuration](GO_MUSIC.md).
