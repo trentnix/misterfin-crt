@@ -2,7 +2,7 @@
 """
 Generate mplayer bitmap font from font8x8_basic data.
 
-Reads src/font8x8.h, outputs assets/font/:
+Reads docker/font8x8.h, outputs assets/font/:
   font.desc       — mplayer font description
   font-alpha.raw  — alpha map (mhwanh indexed format)
   font-bitmap.raw — bitmap map (mhwanh indexed format)
@@ -36,7 +36,7 @@ IMG_W     = NUM_CHARS * CHAR_W  # total atlas width
 IMG_H     = CHAR_H              # total atlas height
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC    = os.path.join(ROOT, "src", "font8x8.h")
+SRC    = os.path.join(ROOT, "docker", "font8x8.h")
 OUTDIR = os.path.join(ROOT, "assets", "font")
 
 def set_target(scale_x, scale_y, dirname):

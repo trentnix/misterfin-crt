@@ -20,7 +20,7 @@ import re, struct, os
 
 # ASCII printable + Latin-1 Supplement (accented Latin, U+00A0-U+00FF), so
 # subtitles show accents instead of missing glyphs — matches the two ranges
-# the on-screen UI font now covers (src/font8x8.h: basic + ext_latin).
+# the on-screen UI font now covers (docker/font8x8.h: basic + ext_latin).
 CODES     = list(range(0x20, 0x7F)) + list(range(0xA0, 0x100))
 NUM_CHARS = len(CODES)   # 95 + 96 = 191
 
@@ -47,7 +47,7 @@ COVER_THRESH = 128        # confirmed on hardware: mplayer's font renderer has n
                            # position than naive nearest-neighbor would).
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC    = os.path.join(ROOT, "src", "font8x8.h")
+SRC    = os.path.join(ROOT, "docker", "font8x8.h")
 OUTDIR = os.path.join(ROOT, "assets", "subfont")
 
 IMG_W = NUM_CHARS * TARGET_W

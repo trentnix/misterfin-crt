@@ -22,12 +22,11 @@ wget -q https://mplayerhq.hu/MPlayer/releases/MPlayer-$MPLAYER_VER.tar.xz
 tar xf MPlayer-$MPLAYER_VER.tar.xz
 # Apply vsync patch: wait for blanking interval before each frame write to
 # eliminate tearing. The flag file it checks, /tmp/misterdvd_vsync, is
-# intentionally left as-is (not ours to rename — src/main.c's own VSYNC_FLAG
-# writes/checks that exact path, and this binary is what watches for it).
+# retains the C baseline's path for compatibility with the output driver.
 cp /build/vo_fbdev.c MPlayer-$MPLAYER_VER/libvo/vo_fbdev.c
 # The session-message banner in vo_fbdev.c renders text with the app's own
-# 8x8 font — docker/font8x8.h is a copy of src/font8x8.h (public domain;
-# kept in docker/ because this directory is the whole build context).
+# 8x8 font. docker/font8x8.h also supplies the font atlas generators.
+# Keep it in docker/ so the player build context remains self-contained.
 cp /build/font8x8.h MPlayer-$MPLAYER_VER/libvo/font8x8.h
 cd MPlayer-$MPLAYER_VER
 

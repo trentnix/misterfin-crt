@@ -61,7 +61,7 @@ The photo request uses Jellyfin's primary image at the logical framebuffer dimen
 
 Browse Music → artist → album, then select a track with B or Enter to start playback. Tracks advance automatically in list order, including across pages. The queue stops at the end of the album or at a non-audio item. A stops playback and returns to the track list with the current track selected. Q exits.
 
-B or Enter pauses or resumes music without adding a pause overlay or instructions. Any direction toggles the controls for three seconds. LB/RB or brackets select the previous or next track immediately, whether the menu is visible or hidden. LT/RT or J/L seek within the track. B or Enter hides the controls immediately. The clean-pause behavior follows commit `bb31e83` and [the C pause UI](../src/pause_ui.c).
+B or Enter pauses or resumes music without adding a pause overlay or instructions. Any direction toggles the controls for three seconds. LB/RB or brackets select the previous or next track immediately, whether the menu is visible or hidden. LT/RT or J/L seek within the track. B or Enter hides the controls immediately. The clean-pause behavior follows commit `bb31e83` and the C pause UI (`git show c-baseline:src/pause_ui.c`).
 
 Music uses the C client's `/Audio/{id}/stream?static=true` request, with a unique play session ID. It streams the original audio and reports `DirectStream`, including pause state and playback positions. Each newly selected track starts at the beginning. Session progress and completion use the existing reporting and user-data endpoints.
 
@@ -137,11 +137,11 @@ Generated-media libmpv tests cover PAL and NTSC frame sizes, letterboxing, posit
 The browser integration test uses a controlled player process and mock HTTP server to exercise details → playback → stop → details → library navigation. Inline tests verify video pause/resume, menu reveal, clean-frame restoration after hiding or expiry, pause session reports, and return to browsing. Concurrent HTTP handling allows the media connection and API requests to proceed independently.
 
 ```sh
-make -f Makefile.port test
-make -f Makefile.port test-browse
+make test
+make test-browse
 go test -race ./...
 go vet ./...
-make -f Makefile.port arm
+make arm
 ```
 
 Host tests with and without cgo, race checks, `go vet`, Ghostty helper tests, nine browser integration tests, and the ARM cross-build passed. A five-second Live TV stream from the configured Jellyfin server decoded through the inline helper with muted audio and produced a 640×240 frame. The client then stopped and ran its cleanup. Mock-server tests verify the exact C negotiation profile, URL handling, cancellation during negotiation, tuner release on failure or stop, session identifiers, and absence of channel resume writes. Generated FLAC tests verify original-audio decoding with FFplay and libmpv, position feedback, and direct-stream reporting. Photo tests cover the C image query, decoded-size limits, PAL and NTSC aspect ratio, and returning to the parent folder. Browser tests cover clean music pause/resume, control reveal, track changes, automatic advancement, photo navigation, and restored folder selection. Additional tests cover byte-range forwarding, hidden-control expiry, cross-page navigation, and pause/resume through the complete Go/libmpv audio path. Physical CRT playback remains unverified.

@@ -1,0 +1,25 @@
+name: Go validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Install playback test dependencies
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libmpv-dev
+      - name: Build and test
+        run: make host test test-browse
+      - name: Check Go code
+        run: go vet ./...

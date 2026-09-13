@@ -1,16 +1,16 @@
 # Ghostty interactive harness
 
-This helper presents MiSTerFin's existing desktop framebuffer inside Ghostty. MiSTerFin still reads the terminal directly, so the helper does not translate or intercept input.
+This helper presents MiSTerFin-Go's desktop framebuffer inside Ghostty. MiSTerFin still reads the terminal directly, so the helper does not translate or intercept input.
 
 From the repository root, run:
 
 ```bash
-python3 tools/ghostty/ghostty_harness.py --ntsc
+python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
 Use `--pal` for the 640x288 layout. PAL is the default. The helper builds the host binary before launch. Pass `--no-build` to use the existing binary.
 
-## Go prototype
+## Browsing
 
 To browse the local demo, run:
 
@@ -51,24 +51,11 @@ python3 tools/ghostty/ghostty_harness.py --go --ntsc
 
 Use `--go --pal` for PAL. The test frame displays color bars, a grayscale ramp, and a white border. Press Ctrl+C to exit. It needs no Jellyfin configuration and uses the same C framebuffer adapter as the browser, with allocated headless memory in place of `/dev/fb0`.
 
-The default command without `--go`, `--browse`, or `--demo` continues to run the C client. The navigation keys and browsing features below apply to that client.
-
-## C client controls
-
-Keys match the desktop harness:
-
-- Arrow keys navigate.
-- `B`, Enter, or `X` confirms, matching the on-screen B label.
-- `A`, Escape, Backspace, or `Z` goes back, matching the on-screen A label.
-- Tab is Select.
-- Home or `P` is Start.
-- Page Up or `[` is the left shoulder button.
-- Page Down or `]` is the right shoulder button.
-- `Q` exits.
+Without `--browse` or `--demo`, the helper shows the Go test frame. The `--go` flag remains accepted for existing commands.
 
 The helper writes MiSTerFin's stdout and stderr to `/tmp/misterfin-ghostty.log` so terminal output cannot corrupt the image. Pass `--log PATH` to choose another location.
 
-The C artwork cache defaults to `/tmp/misterfin-cache`. Go stores persistent carousel collages separately under `/tmp/misterfin-cache/misterfin-go/gridcache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERFIN_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
+The artwork cache defaults to `/tmp/misterfin-cache`. Carousel collages use its `misterfin-go/gridcache` directory. Covers, backdrops, and logos use `misterfin-go/covercache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERFIN_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
 
 Ghostty must report `TERM=xterm-ghostty`. The `--force` option permits another terminal that implements the Kitty graphics protocol.
 
@@ -76,7 +63,7 @@ The viewer double-buffers terminal images to avoid flicker. It uploads a complet
 
 The presentation cap defaults to 20 FPS, or 60 FPS with `--inline-video`. Change the cap with `--fps NUMBER`. The presenter wakes when the Go frame file is complete, then uploads changed frames up to the configured cap. Upload time counts toward each interval. If an upload overruns a deadline, the presenter skips expired slots rather than building a backlog. This cap affects the terminal preview and does not change the decoder's playback clock.
 
-Video playback remains unavailable in the desktop harness because `mplayer` opens `/dev/fb0` directly. Browsing, artwork, menus, setup, and metadata use the headless framebuffer and are visible.
+Add `--inline-video` to a real-server browsing command to play video inside Ghostty. Inline playback requires libmpv and FFmpeg. Without that flag, video opens in a separate FFplay window. See [desktop playback setup](../../docs/GO_PLAYBACK.md).
 
 Run the helper tests with:
 

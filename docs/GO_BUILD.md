@@ -1,20 +1,20 @@
-# Go framebuffer prototype
+# Go build and framebuffer validation
 
-For the subsequent Ghostty browsing milestone, see [GO_BROWSING.md](GO_BROWSING.md). The sections below record the initial framebuffer milestone.
+See [GO_BROWSING.md](GO_BROWSING.md) for browser setup. Build commands below apply to the current client. The hardware and validation records describe the initial framebuffer milestone. The C source and tests referenced in those records are available at the `c-baseline` tag.
 
-Host rendering, ARM cross-compilation, and hardware framebuffer drawing now work. On September 12, 2026, the Go build passed framebuffer drawing and restoration checks on a MiSTer with a rebuilt kernel. Direct CRT confirmation and authenticated browser/playback checks remain pending. The C baseline is unchanged.
+Host rendering, ARM cross-compilation, and hardware framebuffer drawing now work. On September 12, 2026, the Go build passed framebuffer drawing and restoration checks on a MiSTer with a rebuilt kernel. Direct CRT confirmation and authenticated browser/playback checks remain pending. The C baseline remains available in Git.
 
 ## Build and run on Linux
 
 The prototype uses Go 1.26 and a C compiler. Validation used Go 1.26.4 on Linux amd64. There are no external Go module dependencies.
 
 ```sh
-make -f Makefile.port host
-make -f Makefile.port test
-make -f Makefile.port headless
+make host
+make test
+make headless
 ```
 
-The headless target writes `build/go-frame.raw` and `build/go-frame.png`. The image contains eight color bars, a grayscale ramp, and a white perimeter. The raw frame uses the inherited harness's BGRX8888 format and `tools/raw_to_png.py`. The inherited interactive `tools/run-local.sh` still launches the C application.
+The headless target writes `build/go-frame.raw` and `build/go-frame.png`. The image contains eight color bars, a grayscale ramp, and a white perimeter. The raw frame uses BGRX8888 and `tools/raw_to_png.py`. The root Makefile builds Go. `Makefile.port` remains a compatibility entry point for existing commands.
 
 To build and display the Go test frame inside Ghostty, run:
 
@@ -22,7 +22,7 @@ To build and display the Go test frame inside Ghostty, run:
 python3 tools/ghostty/ghostty_harness.py --go --ntsc
 ```
 
-Use `--go --pal` for PAL. Press Ctrl+C to exit. The harness supplies `-wait` so the frame remains visible until interrupted. Use `--browse` or `--demo` for the subsequent Go browser. Without a Go mode flag, the Ghostty harness continues to run the C client with its existing controls.
+Use `--go --pal` for PAL. Press Ctrl+C to exit. The harness supplies `-wait` so the frame remains visible until interrupted. Use `--browse` or `--demo` for the subsequent Go browser. Without a browsing flag, the Ghostty harness displays the same Go test frame. The `--go` flag remains accepted for compatibility.
 
 The existing environment variables also work:
 
@@ -40,9 +40,9 @@ Flags override the environment. No Jellyfin configuration, assets, or external p
 Validation used Zig 0.14.1 and the C baseline's target, `arm-linux-gnueabihf.2.31 -mcpu=cortex_a9`. The wrapper passes cgo's compiler and linker arguments to Zig unchanged.
 
 ```sh
-make -f Makefile.port arm
+make arm
 # If Zig is outside PATH:
-ZIG=/absolute/path/to/zig make -f Makefile.port arm
+ZIG=/absolute/path/to/zig make arm
 file build/misterfin-go-arm
 readelf -l build/misterfin-go-arm
 readelf --version-info build/misterfin-go-arm

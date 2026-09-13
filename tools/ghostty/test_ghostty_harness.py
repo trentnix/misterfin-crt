@@ -35,19 +35,16 @@ class ConversionTests(unittest.TestCase):
 class LaunchOptionsTests(unittest.TestCase):
     def test_demo_selects_go_browser(self):
         args = HARNESS.parse_args(["--demo", "--ntsc"])
-        self.assertTrue(args.go)
         self.assertTrue(args.browse)
         self.assertTrue(args.demo)
         self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
 
     def test_browse_preserves_explicit_config(self):
         args = HARNESS.parse_args(["--browse", "--config", "/tmp/jellyfin.conf"])
-        self.assertTrue(args.go)
         self.assertEqual(args.config, Path("/tmp/jellyfin.conf"))
 
     def test_inline_video_rate_can_be_overridden(self):
         args = HARNESS.parse_args(["--browse", "--inline-video"])
-        self.assertTrue(args.go)
         self.assertEqual(args.fps, 60)
         args = HARNESS.parse_args(["--browse", "--inline-video", "--fps", "25"])
         self.assertEqual(args.fps, 25)
@@ -58,14 +55,13 @@ class LaunchOptionsTests(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     HARNESS.parse_args(["--fps", value])
 
-    def test_c_client_remains_default(self):
+    def test_go_test_frame_is_default(self):
         args = HARNESS.parse_args([])
-        self.assertFalse(args.go)
-        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "misterfin")
+        self.assertFalse(args.browse)
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
 
-    def test_go_selects_separate_binary(self):
+    def test_legacy_go_flag_still_selects_test_frame(self):
         args = HARNESS.parse_args(["--go", "--ntsc"])
-        self.assertTrue(args.go)
         self.assertTrue(args.ntsc)
         self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
 

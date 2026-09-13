@@ -250,7 +250,7 @@ def next_frame_deadline(previous: float, now: float, interval: float) -> float:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Navigate MiSTerFin inside Ghostty using the desktop harness."
+        description="Navigate MiSTerFin-Go inside Ghostty using the desktop harness."
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--ntsc", action="store_true", help="use the 640x240 layout")
@@ -264,7 +264,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--go",
         action="store_true",
-        help="run the Go prototype (test frame unless --browse or --demo is selected)",
+        help="compatibility flag (Go is always used)",
     )
     parser.add_argument("--inline-video", action="store_true", help="play video inside Ghostty using libmpv (requires --browse)")
     parser.add_argument("--browse", action="store_true", help="browse Jellyfin with the Go client")
@@ -274,7 +274,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--binary",
         type=Path,
-        help="override the selected C or Go host binary",
+        help="override the Go host binary",
     )
     parser.add_argument("--no-build", action="store_true", help="do not run make first")
     parser.add_argument(
@@ -299,17 +299,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         if args.config or args.state_dir:
             parser.error("--demo uses temporary configuration and session files")
         args.browse = True
-    if args.browse:
-        args.go = True
     if (args.config or args.state_dir) and not args.browse:
         parser.error("--config and --state-dir require --browse")
     if args.binary is None:
-        args.binary = REPO_ROOT / ("build/misterfin-go" if args.go else "misterfin")
+        args.binary = REPO_ROOT / "build/misterfin-go"
     return args
 
 
 def start_demo(directory: Path, cleanup: ExitStack) -> Path:
-    """Reuse the C harness's mock Jellyfin data on an ephemeral loopback port."""
+    """Serve mock Jellyfin data on an ephemeral loopback port."""
     spec = importlib.util.spec_from_file_location("mock_jellyfin", REPO_ROOT / "tools/mock-jellyfin.py")
     assert spec and spec.loader
     mock = importlib.util.module_from_spec(spec)
@@ -369,9 +367,7 @@ def run(args: argparse.Namespace) -> int:
         return 2
 
     if not args.no_build:
-        build = ["make", "--no-print-directory"]
-        if args.go:
-            build += ["-f", "Makefile.port", "host"]
+        build = ["make", "--no-print-directory", "host"]
         completed = subprocess.run(build, cwd=REPO_ROOT)
         if completed.returncode:
             return completed.returncode
@@ -416,7 +412,7 @@ def run(args: argparse.Namespace) -> int:
                     command += ["-config", str(config.resolve())]
                 if state_dir:
                     command += ["-state-dir", str(state_dir.resolve())]
-            elif args.go:
+            else:
                 command.append("-wait")
 
             with args.log.open("wb") as log, open("/dev/tty", "wb", buffering=0) as tty, FrameWatch(frame_path) as frame_watch:

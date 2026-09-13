@@ -101,11 +101,11 @@ Go then writes collages under `$HOME/.cache/misterfin-go/gridcache`. The harness
 ## Validation
 
 ```sh
-make -f Makefile.port test
-make -f Makefile.port test-browse
+make test
+make test-browse
 go test -race ./...
 go vet ./...
-make -f Makefile.port arm
+make arm
 ```
 
 The HTTP tests and demo require loopback sockets. A sandbox that prohibits sockets must allow those tests to run outside that restriction.
