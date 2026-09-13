@@ -279,3 +279,9 @@ Video playback must have access to both MiSTer CPU cores. Main_MiSTer pins Scrip
 ## Music effects
 
 `Scene` carries an immutable `musicviz.Library`, the selected background index, and a copied stereo audio measurement. `RasterRenderer` owns `musicviz.Renderer`, which advances the selected `musicviz.Effect` and draws into the same canvas as the music screen. The screen painter retains ownership of layout, progress, meters, and controls. File loading runs in a browser worker. Decoder measurements arrive as generation-tagged events. Effects never read files, control playback, or choose an output backend. See [music configuration](GO_MUSIC.md).
+
+## Ordinary artwork persistence
+
+`artworkLoader` checks its bounded decoded-memory cache, then `artworkDiskCache`, before requesting an image from Jellyfin. `artworkDiskCache` stores covers, backdrops, and logos under the shared configurable cache root. `cache_paths.go` resolves root and account partitions for both artwork and collages. `artwork_cache_format.go` preserves decoded RGBA pixels with a version and checksum, including logo transparency. Image tags and parent backdrop ownership determine identity. Photos keep their existing memory-only path because their requested dimensions depend on output geometry.
+
+Image workers own disk I/O and pruning. Immediate selection snapshots remain memory-only. Retry invalidates a revision without waiting for file reads or pixel writes. Workers remove invalidated files and check their revision before publishing replacements. A canceled or superseded request cannot repopulate the memory cache or replace a newer disk entry. Artwork persistence does not add filesystem work to rendering or playback.

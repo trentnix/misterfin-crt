@@ -27,26 +27,15 @@ type mosaicDiskCache struct {
 // mosaicCacheRoot follows the C cache-root override while keeping Go files in
 // their own subdirectory. Native defaults to the SD card, desktop to user cache.
 func mosaicCacheRoot(headless bool) string {
-	root := os.Getenv("MISTERFIN_CACHE_ROOT")
-	if root == "" {
-		root = "/media/fat"
-		if headless {
-			var err error
-			root, err = os.UserCacheDir()
-			if err != nil {
-				return ""
-			}
-		}
-	}
-	return filepath.Join(root, "misterfin-go", "gridcache")
+	return browserCacheRoot(headless, "gridcache")
 }
 
 func newMosaicDiskCache(root, server, user string) *mosaicDiskCache {
-	if root == "" || server == "" || user == "" {
+	dir := accountCacheDir(root, server, user)
+	if dir == "" {
 		return nil
 	}
-	namespace := sha256.Sum256([]byte(strings.TrimRight(server, "/") + "\x00" + user))
-	return &mosaicDiskCache{dir: filepath.Join(root, fmt.Sprintf("%x", namespace)), known: make(map[string]uint32)}
+	return &mosaicDiskCache{dir: dir, known: make(map[string]uint32)}
 }
 
 func mosaicFileName(id, collection string) string {

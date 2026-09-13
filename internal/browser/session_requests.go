@@ -98,6 +98,7 @@ func (s *browserSession) handleAuth(r result) bool {
 		s.selection.key = ""
 		s.selection.loader = newSelectionLoader(s.client, s.geometry.Width, s.geometry.Height)
 		s.selection.loader.disk = newMosaicDiskCache(mosaicCacheRoot(s.driver.options.Headless), s.client.Config.Server, s.client.Session.UserID)
+		s.selection.loader.artwork.disk = newArtworkDiskCache(browserCacheRoot(s.driver.options.Headless, "covercache"), s.client.Config.Server, s.client.Session.UserID)
 		s.status = ""
 		s.load(s.model.Load(0))
 		s.refreshHome()

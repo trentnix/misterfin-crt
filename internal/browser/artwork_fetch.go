@@ -33,6 +33,16 @@ func (l *artworkLoader) fetchImage(ctx context.Context, item jellyfin.Item, kind
 	if im := l.cache.cached(key); im != nil {
 		return im, nil
 	}
+	disk := l.disk
+	if kind == "Photo" {
+		disk = nil
+	}
+	revision := disk.revision(key)
+	if im := disk.load(key, revision); im != nil && ctx.Err() == nil {
+		if l.remember(ctx, key, disk, revision, im) {
+			return im, nil
+		}
+	}
 	var im image.Image
 	var err error
 	if kind == "Photo" {
@@ -49,7 +59,9 @@ func (l *artworkLoader) fetchImage(ctx context.Context, item jellyfin.Item, kind
 				im = rgba
 			}
 		}
-		l.cache.remember(key, im)
+		if l.remember(ctx, key, disk, revision, im) {
+			disk.save(ctx, key, revision, im)
+		}
 	}
 	return im, err
 }

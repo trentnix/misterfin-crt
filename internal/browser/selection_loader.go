@@ -97,5 +97,5 @@ func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData 
 func (l *selectionLoader) forget(item jellyfin.Item) {
 	l.libraries.forget(item.ID)
 	l.libraries.remember(item.ID, func(value *cachedLibrary) { value.discardMosaic = true })
-	l.artwork.cache.forget(item)
+	l.artwork.forget(item)
 }
