@@ -71,6 +71,7 @@ func (c *PlaybackController) launchPendingSeek(target int64) {
 func (c *PlaybackController) activatePendingSeek(now time.Time) {
 	c.active = c.pending
 	c.subtitleRequest = 0
+	c.picturePending = false
 	c.subtitleLoading = false
 	if c.active.tracks != nil {
 		c.tracks = *c.active.tracks

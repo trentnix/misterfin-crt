@@ -62,7 +62,10 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 		video = native.New(d, native.OverlayPath)
 	}
 	defer func() { err = errors.Join(err, video.Close()) }()
+	preferences := playback.NewPreferences(o.stateDir)
+	defer func() { err = errors.Join(err, preferences.Close()) }()
 	player := playback.Options{
+		Preferences: preferences,
 		AudioPlayer: o.audioPlayer, Player: o.player, TerminalPlayer: o.terminalPlayer,
 		FrameOutput: o.output, Headless: o.headless != "", Device: o.device,
 		Width: g.OutputWidth, Height: g.OutputHeight,

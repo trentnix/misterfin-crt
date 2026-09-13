@@ -8,6 +8,7 @@ import (
 
 // PlaybackEvent carries decoder feedback without browser navigation or artwork.
 type PlaybackEvent struct {
+	Picture  playback.PictureResult
 	Tracks   playback.VideoTracks
 	Subtitle playback.SubtitleResult
 	Kind     PlaybackEventKind
@@ -33,6 +34,7 @@ const (
 	PlaybackCleanupDone
 	PlaybackTrackInfo
 	PlaybackSubtitle
+	PlaybackPicture
 )
 
 // Handle applies feedback from a tracked decoder. It returns true only when the
@@ -43,6 +45,19 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 		return false
 	}
 	switch event.Kind {
+	case PlaybackPicture:
+		if !c.running || c.stoppedByUser || event.ID != c.active.id || event.Picture.Request != c.pictureRequest || c.seekPhase != seekInactive {
+			return false
+		}
+		c.picturePending = false
+		if event.Picture.Err != nil {
+			c.trackOptions.Picture = c.tracks.Picture
+			c.notice = event.Picture.Err.Error()
+		} else {
+			c.tracks.Picture = event.Picture.Mode
+			c.trackOptions.Picture = event.Picture.Mode
+			c.notice = ""
+		}
 	case PlaybackTrackInfo:
 		if event.ID == c.pending.id {
 			info := event.Tracks
@@ -61,10 +76,13 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 		} else {
 			c.tracks.Selection.SubtitleIndex = event.Subtitle.Index
 			c.tracks.Text = event.Subtitle.Text
+			picture := c.trackOptions.Picture
 			c.trackOptions = c.tracks.TrackOptions
+			if c.picturePending {
+				c.trackOptions.Picture = picture
+			}
 			c.notice = ""
 			c.picker.visible = false
-			c.state.RevealControls(now)
 		}
 	case PlaybackCleanupDone:
 		if event.ID == c.active.id {

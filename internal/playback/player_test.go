@@ -40,7 +40,7 @@ func TestMPlayerCRTAspect(t *testing.T) {
 	json.Unmarshal([]byte(`{"MediaStreams":[{"Type":"Video","Width":720,"Height":576,"AspectRatio":"16:9"}]}`), &item)
 	for _, h := range []int{240, 288} {
 		args := mplayerDecoder{width: 640, height: h, device: "/dev/fb0"}.args(item, "")
-		want := fmt.Sprintf("scale=640:%d,expand=640:%d,dsize=640:%d", h*3/4, h, h)
+		want := fmt.Sprintf("misterfin=640:%d:1.777777778:0", h)
 		if !strings.Contains(strings.Join(args, " "), want) {
 			t.Fatalf("args %v", args)
 		}

@@ -40,6 +40,8 @@ type PlaybackController struct {
 	pausedForSeek        bool  // Whether we must resume the original if preparation fails.
 	pauseOnFirstPosition bool  // Restore user pause after the replacement starts.
 	notice               string
+	pictureRequest       int
+	picturePending       bool
 }
 
 func newPlaybackController(launch playbackLaunch) *PlaybackController {
@@ -61,6 +63,8 @@ func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused boo
 	c.tracks = playback.VideoTracks{TrackOptions: playback.TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
 	c.trackOptions = c.tracks.TrackOptions
 	c.picker = trackPicker{}
+	c.pictureRequest = 0
+	c.picturePending = false
 	c.subtitleDelay = 0
 	c.subtitleRequest = 0
 	c.subtitleLoading = false

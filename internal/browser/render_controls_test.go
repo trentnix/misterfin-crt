@@ -164,3 +164,29 @@ func TestTrackMenuAndSubtitlesUseSharedOverlay(t *testing.T) {
 		}
 	}
 }
+
+func TestViewTabsSharePanelBoundsAndOpacity(t *testing.T) {
+	f := trackFixture(t)
+	f.c.openTracks()
+	for _, height := range []int{240, 288} {
+		var want []byte
+		for tab := 0; tab < 3; tab++ {
+			f.c.picker.tab = tab
+			frame := renderVideoOverlayOn(ui.NewOverlay(640, height), f.c.Snapshot(f.now), f.now, control.KeyboardLabels())
+			// At x=13 only the panel background is drawn, so this column captures
+			// both its vertical extent and opacity independently of the tab's text.
+			column := make([]byte, height)
+			for y := 0; y < height; y++ {
+				column[y] = frame[(y*640+13)*4+3]
+			}
+			if tab == 0 {
+				want = column
+			} else if !bytes.Equal(column, want) {
+				t.Fatal("View tabs use different panel bounds or opacity")
+			}
+			if frame[((height/4)*640+13)*4+3] != 225 {
+				t.Fatal("panel no longer covers the full View area")
+			}
+		}
+	}
+}

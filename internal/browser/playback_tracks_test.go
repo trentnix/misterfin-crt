@@ -163,7 +163,7 @@ func TestSessionDirectionsNavigateOnlyWhilePickerOpen(t *testing.T) {
 		t.Fatal("Back stopped instead of closing picker")
 	}
 	s.handleKey("up")
-	if f.c.state.ControlsVisible(time.Now()) {
+	if !f.c.state.ControlsVisible(time.Now()) {
 		t.Fatal("normal directional menu toggle did not return")
 	}
 }
@@ -189,5 +189,55 @@ func TestOffCancelsPendingSubtitleAndRejectsQueuedReply(t *testing.T) {
 	c.Handle(PlaybackEvent{Kind: PlaybackSubtitle, ID: 1, Subtitle: playback.SubtitleResult{Index: -1, Request: second.Request}}, f.now)
 	if c.subtitleLoading || c.tracks.Selection.SubtitleIndex != -1 {
 		t.Fatal("Off did not settle")
+	}
+}
+
+func TestViewNavigationAndBackDoNotRevealPlaybackControls(t *testing.T) {
+	for _, paused := range []bool{false, true} {
+		for _, visible := range []bool{false, true} {
+			for _, closeKey := range []string{"back", "select"} {
+				for tab := 0; tab < 3; tab++ {
+					f := trackFixture(t)
+					c := f.c
+					c.state.Paused = paused
+					if visible {
+						c.state.RevealControls(f.now)
+					}
+					c.Key("select", f.now)
+					for n := 0; n < tab; n++ {
+						c.Key("next", f.now)
+					}
+					c.Key("down", f.now)
+					c.Key("up", f.now)
+					if c.Snapshot(f.now).ControlsVisible {
+						t.Fatal("View navigation activated playback controls")
+					}
+					c.Key(closeKey, f.now)
+					p := c.Snapshot(f.now)
+					if p.Tracks != nil || p.ControlsVisible || !c.running || c.state.Paused != paused || f.calls[0].canceled {
+						t.Fatal("View dismissal changed playback or revealed controls")
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestSubtitleCompletionAfterBackLeavesControlsAlone(t *testing.T) {
+	for _, reopen := range []bool{false, true} {
+		f := trackFixture(t)
+		c := f.c
+		c.Key("select", f.now)
+		c.Key("down", f.now)
+		c.Key("open", f.now)
+		request := <-c.controls
+		c.Key("back", f.now)
+		if reopen {
+			c.Key("controls", f.now)
+		}
+		c.Handle(PlaybackEvent{Kind: PlaybackSubtitle, ID: 1, Subtitle: playback.SubtitleResult{Request: request.Request, Index: 12}}, f.now)
+		if p := c.Snapshot(f.now); p.Tracks != nil || p.ControlsVisible != reopen {
+			t.Fatal("late subtitle completion changed overlay visibility")
+		}
 	}
 }

@@ -22,7 +22,7 @@ func TestCollectionQueries(t *testing.T) {
 		{"musicvideos", "Recursive=true&IncludeItemTypes=MusicVideo", "ProductionYear,RunTimeTicks", "true"},
 		{"music", "", "ProductionYear,RunTimeTicks,ChildCount", "true"},
 		{"homevideos", "IncludeItemTypes=Folder,PhotoAlbum,Video,Photo", "ProductionYear,RunTimeTicks", "false"},
-		{"mixed", "IncludeItemTypes=Folder,PhotoAlbum,Movie,Series,Season,Episode,Video,MusicVideo,Audio,MusicAlbum,MusicArtist,Photo,Book,AudioBook,BoxSet,Playlist,Trailer,Recording", "ProductionYear,RunTimeTicks", "false"},
+		{"mixed", "", "ProductionYear,RunTimeTicks", "false"},
 		{"tvshows", "", "ProductionYear,RunTimeTicks,ChildCount,RecursiveItemCount", "true"},
 		{"plugin-defined", "", "ProductionYear,RunTimeTicks,ChildCount,RecursiveItemCount", "true"},
 	} {

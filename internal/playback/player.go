@@ -26,6 +26,14 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			o.CleanupDone()
 		}
 	}()
+	if o.Preferences != nil && o.Tracks == nil && item.Type != "Audio" && !jellyfin.IsLive(item) {
+		o.savedTracks = o.Preferences.load(preferenceKey(c, item.ID))
+		if o.savedTracks != nil {
+			// Resolve the decoder with the remembered picture mode. Stream
+			// indexes are validated against refreshed metadata during preparation.
+			o.Tracks = &TrackOptions{Picture: o.savedTracks.Picture}
+		}
+	}
 	decoder, executable, err := resolveDecoder(o, item)
 	if err != nil {
 		return err
@@ -47,6 +55,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		}
 	}
 	o.burnText = !decoder.clientSubtitles()
+	_, o.livePicture = decoder.(pictureSetter)
 	session, err := preparePlayback(ctx, c, item, o)
 	if err != nil || session == nil {
 		return err

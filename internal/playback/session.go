@@ -21,6 +21,16 @@ type playbackSession struct {
 	state           jellyfin.PlayState
 	played, started bool
 	reporter        *progressReporter
+	preferences     *Preferences
+	preferenceKey   string
+}
+
+// rememberChoices saves only choices used by a running recorded video.
+// Preparation failures and canceled replacements must not replace saved choices.
+func (s *playbackSession) rememberChoices() {
+	if s.started && !s.liveTV && s.item.Type != "Audio" {
+		s.preferences.save(s.preferenceKey, s.tracks)
+	}
 }
 
 // finish follows decoder, output, and source cleanup. Stop/save and tuner
@@ -67,6 +77,7 @@ func (s *playbackSession) update(seconds float64, position func(int64), startup 
 		s.started = true
 		startup.Stop()
 		s.reporter.start(s.state)
+		s.rememberChoices()
 	}
 }
 
@@ -80,6 +91,13 @@ func (s *playbackSession) report(save bool) {
 
 func (s *playbackSession) control(p *playerProcess, o Options, control Control, startup *time.Timer) {
 	switch control.Kind {
+	case "picture":
+		setter, ok := p.decoder.(pictureSetter)
+		if !ok || s.liveTV || s.item.Type == "Audio" || control.Picture > PictureZoom43 || setter.setPicture(p.control, control.Picture, control.Request) != nil {
+			if o.Picture != nil {
+				o.Picture(PictureResult{Request: control.Request, Err: errors.New("cannot change picture mode")})
+			}
+		}
 	case "pause":
 		paused := !s.state.IsPaused
 		if p.pause(paused) != nil {
@@ -147,6 +165,14 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 	videoStarted := p.videoStarted
 	for {
 		select {
+		case result := <-p.pictures:
+			if result.Err == nil {
+				s.tracks.Picture = result.Mode
+				s.rememberChoices()
+			}
+			if o.Picture != nil {
+				o.Picture(result)
+			}
 		case result := <-loader.results:
 			if result.serial != loader.serial {
 				continue
@@ -157,6 +183,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 				index := result.Index
 				s.state.SubtitleStreamIndex = &index
 				s.report(false)
+				s.rememberChoices()
 			}
 			if o.Subtitle != nil {
 				o.Subtitle(result)

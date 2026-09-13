@@ -41,7 +41,15 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 		default:
 		}
 	}
-	options.Tracks = &tracks
+	// New playback restores per-item choices. Replacements carry the current
+	// controller choices so seeking never reloads an older saved selection.
+	options.Tracks = nil
+	if prepared {
+		options.Tracks = &tracks
+	}
+	options.Picture = func(result playback.PictureResult) {
+		d.send(PlaybackEvent{Kind: PlaybackPicture, ID: id, Picture: result})
+	}
 	options.TrackInfo = func(info playback.VideoTracks) { d.send(PlaybackEvent{Kind: PlaybackTrackInfo, ID: id, Tracks: info}) }
 	options.Subtitle = func(result playback.SubtitleResult) {
 		d.send(PlaybackEvent{Kind: PlaybackSubtitle, ID: id, Subtitle: result})

@@ -8,11 +8,13 @@ import (
 	"misterfin-go/internal/subtitles"
 )
 
-// TrackOptions preserves selected streams and downloaded text across handoffs.
-// Text is immutable. A nil Options.Tracks starts with server-default audio and no subtitles.
+// TrackOptions preserves streams, downloaded text, and picture mode across handoffs.
+// Text is immutable. Without saved or explicit choices, playback uses default
+// audio, no subtitles, and Original.
 type TrackOptions struct {
 	Selection jellyfin.TrackSelection
 	Text      *subtitles.Track
+	Picture   PictureMode
 }
 
 // VideoTracks describes the source and the current decoder's subtitle capability.
@@ -22,6 +24,7 @@ type VideoTracks struct {
 	SourceID        string
 	Streams         []jellyfin.MediaStream
 	ClientSubtitles bool
+	LivePicture     bool // Decoder supports changing fit without replacing the stream.
 }
 
 // Stream looks up a Jellyfin index without assuming indexes are contiguous.
@@ -45,8 +48,14 @@ func videoTracks(item jellyfin.Item, o Options) (VideoTracks, error) {
 	if len(t.Streams) > 256 {
 		return t, errors.New("too many media streams")
 	}
-	if o.Tracks != nil {
+	if o.savedTracks != nil {
+		t.TrackOptions = o.savedTracks.restore(t)
+	} else if o.Tracks != nil {
 		t.TrackOptions = *o.Tracks
+	}
+	t.LivePicture = o.livePicture
+	if t.Picture != PictureOriginal && t.Picture != PictureZoom43 {
+		return t, errors.New("unsupported picture mode")
 	}
 	if t.Selection.AudioIndex >= 0 {
 		if _, ok := t.Stream("Audio", t.Selection.AudioIndex); !ok {

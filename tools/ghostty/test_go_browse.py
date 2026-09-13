@@ -37,6 +37,11 @@ class BrowseIntegrationTests(unittest.TestCase):
             for item_id in ("movie-tricky-0", "series-000-s1e01"):
                 mock.ITEMS[item_id]["UserData"]["PlaybackPositionTicks"] = 600000000
                 mock.ITEMS[item_id]["UserData"]["LastPlayedDate"] = "2026-09-12T12:00:00Z"
+        if self._testMethodName == "test_mixed_library_movie_series_and_folder_navigation":
+            mock.VIEWS = [{"Id": "view-mixed", "Name": "Nostalgia"}]
+            mock.CHILDREN["view-mixed"] = ["movie-tricky-0", "series-000", "mixed-folder"]
+            mock.ITEMS["mixed-folder"] = mock.base_item("mixed-folder", "More titles", "Folder")
+            mock.CHILDREN["mixed-folder"] = ["movie-tricky-1"]
         self.movie_ids = mock.CHILDREN["view-movies"]
         self.requests = []
         self.reports = []
@@ -54,10 +59,21 @@ class BrowseIntegrationTests(unittest.TestCase):
             def log_message(self, *_args):
                 pass
 
+            def _send(self, payload, content_type="application/json", status=200):
+                try:
+                    return super()._send(payload, content_type, status)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # App restart can cancel in-flight home and artwork requests.
+
             def do_GET(self):
                 test.requests.append(self.path)
                 path = urlparse(self.path).path
                 query = parse_qs(urlparse(self.path).query)
+                if (test._testMethodName == "test_mixed_library_movie_series_and_folder_navigation"
+                        and path == "/Items" and query.get("ParentId") == ["view-mixed"]
+                        and "MusicArtist" in query.get("IncludeItemTypes", [""])[0].split(",")):
+                    # Reproduce the unrelated artist rows returned by the real server.
+                    return self._send(self._query_result(["artist-001"], query))
                 if path == "/Items" and query.get("SortBy") == ["Random"]:
                     ids = ["artist-000-album0-t01", "artist-001-album0-t01"]
                     return self._send(self._query_result(ids, query))
@@ -133,13 +149,15 @@ class BrowseIntegrationTests(unittest.TestCase):
             player.write_text("#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf 'ANS_TIME_POSITION=3\\n'\n")
         player.chmod(0o700)
         player_args = ["-player", str(player)]
-        if self._testMethodName in ("test_inline_playback_owns_frame_until_stop", "test_video_track_selection"):
+        if self._testMethodName in ("test_inline_playback_owns_frame_until_stop", "test_video_track_selection", "test_video_picture_selection", "test_video_choices_survive_stop_and_app_restart", "test_view_back_returns_to_clean_video"):
             player.write_text("import argparse, pathlib, time\n"
                               "p=argparse.ArgumentParser()\n"
                               "p.add_argument('--controls',action='store_true')\n"
                               "p.add_argument('--status',action='store_true')\n"
+                              "p.add_argument('--zoom-4-3',action='store_true')\n"
                               "for name in ('output','width','height'): p.add_argument('--'+name)\n"
                               "a=p.parse_args()\n"
+                              "with (pathlib.Path(a.output).parent/'picture-modes').open('a') as log: log.write(str(a.zoom_4_3)+'\\n')\n"
                               "pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
                               "print('ANS_TIME_POSITION=2',flush=True)\n"
                               "time.sleep(30)\n")
@@ -502,6 +520,59 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"a")
         self.assertIsNone(self.process.poll())
 
+    def test_view_back_returns_to_clean_video(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+        clean = bytes([23]) * 640 * 240 * 4
+        def wait_frame(predicate, message):
+            deadline = time.monotonic() + 2
+            while not predicate(self.read_frame()):
+                self.assertLess(time.monotonic(), deadline, message)
+                time.sleep(.02)
+
+        wait_frame(lambda frame: frame == clean, "video did not start")
+        for tab in range(3):
+            self.key(b"\x1b[A")  # Show playback controls before entering View.
+            self.key(b"\t" + b"\x1b[C" * (tab > 0))
+            wait_frame(lambda frame: frame[(40 * 640 + 13) * 4] < 10, "View did not open")
+            self.key(b"\x1b[B\x1b[Aa")
+            wait_frame(lambda frame: frame == clean, "Back revealed playback controls")
+        self.assertIsNone(self.process.poll())
+
+    def test_video_picture_selection(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+
+        def wait_modes(expected):
+            log = self.directory / "picture-modes"
+            deadline = time.monotonic() + 5
+            while not log.exists() or log.read_text().splitlines() != expected:
+                self.assertLess(time.monotonic(), deadline, "decoder did not receive expected picture modes")
+                time.sleep(.02)
+            time.sleep(.15)  # Deliver the decoder's first position to the controller.
+
+        wait_modes(["False"])
+        self.key(b"\t\x1b[C\x1b[C\x1b[Bb")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=20000000)
+        wait_modes(["False", "True"])
+        self.key(b"\t")  # Picture selection keeps Options open.
+        self.key(b"l")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=340000000)
+        wait_modes(["False", "True", "True"])
+        self.key(b"\t\x1b[Ab")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=360000000)
+        wait_modes(["False", "True", "True", "False"])
+        self.key(b"\t")
+        self.key(b"a")
+
     def test_video_track_selection(self):
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
@@ -537,6 +608,80 @@ class BrowseIntegrationTests(unittest.TestCase):
                           subtitleStreamIndex=7, subtitleMethod="Encode", startTimeTicks=360000000)
         self.key(b"a")
 
+    def test_video_choices_survive_stop_and_app_restart(self):
+        def wait_for(predicate, message):
+            deadline = time.monotonic() + 5
+            while not predicate():
+                self.assertIsNone(self.process.poll())
+                self.assertLess(time.monotonic(), deadline, message)
+                time.sleep(.02)
+
+        def open_movie():
+            self.key(b"b")
+            self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+            self.key(b"b")
+            self.wait_request("/Items/movie-tricky-0")
+            self.key(b"b")
+
+        def stop_video():
+            self.reports.clear()
+            self.key(b"a")
+            wait_for(lambda: any(path.endswith("/Stopped") for path, _ in self.reports),
+                     "playback did not stop")
+            time.sleep(.15)
+
+        def verify_restored():
+            self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2)
+            self.wait_request("/Videos/movie-tricky-0/movie-tricky-0/Subtitles/4/Stream.srt")
+            wait_for(lambda: any(body.get("SubtitleStreamIndex") == 4 for _, body in self.reports),
+                     "saved text subtitles were not restored")
+            log = self.directory / "picture-modes"
+            wait_for(lambda: log.read_text().splitlines()[-1] == "True",
+                     "saved Zoom mode did not reach the decoder")
+
+        open_movie()
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+        self.key(b"\t\x1b[Bb")  # Text subtitle.
+        self.wait_request("/Videos/movie-tricky-0/movie-tricky-0/Subtitles/4/Stream.srt")
+        self.key(b"\t\x1b[C\x1b[B\x1b[Bb")  # Alternate audio.
+        self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2)
+        self.key(b"\t\x1b[C\x1b[Bb")  # Zoom.
+        wait_for(lambda: (self.directory / "picture-modes").read_text().splitlines() == ["False", "False", "True"],
+                 "Zoom did not start")
+        time.sleep(.15)
+        self.key(b"\t")  # Close Picture before stopping.
+        stop_video()
+        self.requests.clear()
+        self.reports.clear()
+        (self.directory / "picture-modes").write_text("")
+        self.key(b"b")  # Immediate resume.
+        verify_restored()
+        stop_video()
+
+        self.stop()
+        self.assertEqual(self.process.returncode, 0, "shutdown did not flush choices")
+        self.requests.clear()
+        self.reports.clear()
+        (self.directory / "picture-modes").write_text("")
+        master, slave = pty.openpty()
+        self.master = master
+        self.addCleanup(os.close, master)
+
+        def terminal_session():
+            os.setsid()
+            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+
+        self.process = subprocess.Popen(
+            self.process.args, stdin=slave, stdout=self.log, stderr=self.log,
+            preexec_fn=terminal_session,
+            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache")},
+        )
+        os.close(slave)
+        self.wait_request("/UserViews")
+        open_movie()
+        verify_restored()
+        stop_video()
+
     def test_video_loading_and_buffering_animation(self):
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
@@ -563,6 +708,25 @@ class BrowseIntegrationTests(unittest.TestCase):
 
     def test_inline_playback_owns_frame_until_stop(self):
         self.test_playback_stop_returns_to_details()
+
+    def test_mixed_library_movie_series_and_folder_navigation(self):
+        self.key(b"b")
+        query = self.wait_request("/Items", ParentId="view-mixed", StartIndex=0, Limit=64)
+        self.assertNotIn("IncludeItemTypes", query)
+        self.assertNotIn("Recursive", query)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"a\x1b[Bb")
+        self.wait_request("/Shows/series-000/Seasons")
+        self.key(b"b")
+        self.wait_request("/Shows/series-000/Episodes", seasonId="series-000-s1")
+        self.key(b"aa\x1b[Bb")
+        query = self.wait_request("/Items", ParentId="mixed-folder", StartIndex=0, Limit=64)
+        self.assertNotIn("IncludeItemTypes", query)
+        self.assertNotIn("Recursive", query)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-1")
+        self.assertFalse(any(urlparse(r).path == "/Items/artist-001" for r in self.requests))
 
     def test_live_tv_uses_channels_endpoint(self):
         self.key(b"\x1b[C\x1b[C\x1b[Cb")

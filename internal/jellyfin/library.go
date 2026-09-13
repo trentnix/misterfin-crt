@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-// ItemsQuery preserves the C baseline's collection-specific field costs.
+// ItemsQuery preserves collection-specific field costs and folder hierarchy.
 func ItemsQuery(user, parent, collection string, start, limit int) url.Values {
 	q := url.Values{"userId": {user}, "ParentId": {parent}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"}, "Fields": {"ProductionYear,RunTimeTicks,ChildCount,RecursiveItemCount"}, "EnableUserData": {"true"}, "ImageTypeLimit": {"1"}, "EnableImageTypes": {"Primary,Backdrop"}, "StartIndex": {strconv.Itoa(max(0, start))}, "Limit": {strconv.Itoa(limit)}}
 	switch collection {
@@ -26,9 +26,11 @@ func ItemsQuery(user, parent, collection string, start, limit int) url.Values {
 		q.Set("EnableUserData", "false")
 		if collection == "homevideos" {
 			q.Set("IncludeItemTypes", "Folder,PhotoAlbum,Video,Photo")
-		} else {
-			q.Set("IncludeItemTypes", "Folder,PhotoAlbum,Movie,Series,Season,Episode,Video,MusicVideo,Audio,MusicAlbum,MusicArtist,Photo,Book,AudioBook,BoxSet,Playlist,Trailer,Recording")
 		}
+		// Mixed libraries use their actual children without a type whitelist.
+		// Including MusicArtist can pull unrelated artist entries into the
+		// result on Jellyfin, despite ParentId. Explicit Folder filtering can
+		// also expose the library's backing folder as an extra row.
 	}
 	return q
 }

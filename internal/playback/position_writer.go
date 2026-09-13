@@ -1,6 +1,8 @@
 package playback
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -17,6 +19,7 @@ type positionWriter struct {
 	levels       chan AudioLevels
 	buffering    chan bool
 	videoStarted chan struct{}
+	pictures     chan PictureResult
 }
 
 // Write accepts concurrent decoder stdout and stderr writes. It retains partial
@@ -29,6 +32,30 @@ func (p *positionWriter) Write(data []byte) (int, error) {
 		if b == '\r' || b == '\n' {
 			line := strings.TrimSpace(p.pending)
 			p.pending = ""
+			if strings.HasPrefix(line, "ANS_PICTURE_MODE=") {
+				var request, mode int
+				if n, err := fmt.Sscanf(line, "ANS_PICTURE_MODE=%d,%d", &request, &mode); n == 2 && err == nil && request > 0 && mode >= -1 && mode <= 1 {
+					result := PictureResult{Request: request, Mode: PictureMode(max(0, mode))}
+					if mode < 0 {
+						result.Err = errors.New("cannot change picture mode")
+					}
+					select {
+					case p.pictures <- result:
+					default:
+						// Picture replies carry state. Keep the newest reply if a
+						// burst fills the queue, so the latest request can settle.
+						select {
+						case <-p.pictures:
+						default:
+						}
+						select {
+						case p.pictures <- result:
+						default:
+						}
+					}
+				}
+				continue
+			}
 			if line == "ANS_VIDEO_STARTED=true" {
 				select {
 				case p.videoStarted <- struct{}{}:

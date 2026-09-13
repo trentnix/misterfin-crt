@@ -26,10 +26,10 @@ class VideoTests(unittest.TestCase):
             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "3",
             "-c:v", "mpeg2video", "-c:a", "mp3", "-f", "mpegts", "pipe:1"])
 
-    def start(self, directory, height, status=False):
+    def start(self, directory, height, status=False, zoom=False):
         output = Path(directory) / "frame.raw"
         process = subprocess.Popen([sys.executable, "-c", BOOTSTRAP, str(HELPER),
-                                    "--output", str(output), "--height", str(height), "--audio", "null"] + (["--status"] if status else []),
+                                    "--output", str(output), "--height", str(height), "--audio", "null"] + (["--status"] if status else []) + (["--zoom-4-3"] if zoom else []),
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.addCleanup(self.reap, process)
         return process, output
@@ -72,6 +72,33 @@ class VideoTests(unittest.TestCase):
                 self.assertGreater(pixel(height // 2)[0], 200)
                 self.assertLess(max(pixel(height // 2)[1:]), 20)
                 self.assertLess(max(pixel(height * 15 // 16)), 10)
+
+    def test_zoom_removes_baked_side_bars_without_stretching(self):
+        # A 4:3 blue picture inside a 16:9 file. Original retains all four bars.
+        # Zoom must remove them while preserving the centered red square's shape.
+        clip = subprocess.check_output([
+            "ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+            "color=c=blue:s=240x180:r=25,drawbox=x=90:y=60:w=60:h=60:color=red:t=fill,pad=320:180:40:0:black",
+            "-t", "1", "-c:v", "mpeg2video", "-f", "mpegts", "pipe:1"])
+        for height in (240, 288):
+            for zoom in (False, True):
+                with self.subTest(height=height, zoom=zoom), tempfile.TemporaryDirectory() as directory:
+                    process, output = self.start(directory, height, zoom=zoom)
+                    _, stderr = process.communicate(clip, timeout=10)
+                    self.assertEqual(process.returncode, 0, stderr)
+                    frame = output.read_bytes()
+                    def pixel(x, y):
+                        offset = (y * 640 + x) * 4
+                        return frame[offset:offset + 3]
+                    for x, y in ((16, height // 2), (320, height // 16)):
+                        if zoom:
+                            self.assertGreater(pixel(x, y)[0], 200)
+                        else:
+                            self.assertLess(max(pixel(x, y)), 10)
+                    red_width = sum(pixel(x, height // 2)[2] > 180 for x in range(640))
+                    red_height = sum(pixel(320, y)[2] > 180 for y in range(height))
+                    # Logical rows become tall CRT pixels on the 4:3 screen.
+                    self.assertAlmostEqual(red_width / (red_height * 480 / height), 1, delta=0.04)
 
     def test_audio_only_keeps_browser_frame(self):
         clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",

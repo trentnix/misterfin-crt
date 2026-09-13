@@ -49,6 +49,8 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 		if err != nil {
 			return nil, err
 		}
+		// Decoder geometry must describe the same source as the transcode request.
+		item.MediaStreams = tracks.Streams
 		burn := -1
 		if sub, ok := tracks.Stream("Subtitle", tracks.Selection.SubtitleIndex); ok && (!sub.TextSubtitle() || !tracks.ClientSubtitles) {
 			burn = sub.Index
@@ -89,5 +91,6 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 	return &playbackSession{
 		client: c, item: item, start: start, streamURL: streamURL,
 		live: live, liveTV: liveTV, state: state, played: item.UserData.Played, tracks: tracks,
+		preferences: o.Preferences, preferenceKey: preferenceKey(c, item.ID),
 	}, nil
 }

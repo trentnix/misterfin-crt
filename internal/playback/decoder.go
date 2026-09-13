@@ -76,16 +76,20 @@ func selectDecoder(o Options, item jellyfin.Item) (decoder, error) {
 		return nil, errors.New("terminal playback requires 640x240 or 640x288 headless output and no player override")
 	}
 	script := o.TerminalPlayer
+	picture := PictureOriginal
+	if o.Tracks != nil {
+		picture = o.Tracks.Picture
+	}
 	if item.Type == "Audio" && o.AudioPlayer != "" && o.Player == "" {
 		script = o.AudioPlayer
 	}
 	if script != "" {
-		return pythonDecoder{script: script, output: o.FrameOutput + ".video", width: o.Width, height: o.Height}, nil
+		return pythonDecoder{script: script, output: o.FrameOutput + ".video", width: o.Width, height: o.Height, picture: picture}, nil
 	}
 	if o.Headless {
-		return ffplayDecoder{player: o.Player}, nil
+		return ffplayDecoder{player: o.Player, picture: picture}, nil
 	}
-	return mplayerDecoder{player: o.Player, device: o.Device, width: o.Width, height: o.Height}, nil
+	return mplayerDecoder{player: o.Player, device: o.Device, width: o.Width, height: o.Height, picture: picture}, nil
 }
 
 // resolveDecoder locates the selected executable before playback preparation.

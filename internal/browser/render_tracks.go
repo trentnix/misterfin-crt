@@ -18,16 +18,17 @@ func drawTrackMenu(c *ui.Canvas, menu *TrackMenu, labels control.Labels) {
 	}
 	controls := controlRows(w, hints)
 	c.Shade(12, sy-4, w-24, h-2*sy+12, 225)
-	for i, title := range []string{"Subtitles", "Audio"} {
-		x := w/4 - textWidth(title, 1)/2 + i*w/2
+	tabY := sy + 4
+	for i, title := range []string{"Subtitles", "Audio", "Picture"} {
+		x := w*(2*i+1)/6 - textWidth(title, 1)/2
 		color := uint32(dimColor)
 		if menu.Tab == i {
 			color = titleColor
-			c.Rect(x-6, sy+12, textWidth(title, 1)+12, 2, titleColor)
+			c.Rect(x-6, tabY+12, textWidth(title, 1)+12, 2, titleColor)
 		}
-		c.Text(x, sy, title, color, w-24)
+		c.Text(x, tabY, title, color, w-24)
 	}
-	top := sy + 24
+	top := tabY + 24
 	footer := controlsTop(bottom, controls) - 6
 	if menu.Delay != "" {
 		footer -= 12

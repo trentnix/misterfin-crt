@@ -2,11 +2,12 @@ package playback
 
 // Control requests an action on the active decoder. Unknown kinds are ignored.
 type Control struct {
-	// Kind is "pause", "refresh", "subtitle", or "seek" (relative audio seek).
+	// Kind is "pause", "refresh", "subtitle", "picture", or "seek" (relative audio seek).
 	Kind    string
-	Request int // Correlates asynchronous subtitle replies with the latest selection.
-	Index   int // Jellyfin stream index for a subtitle request.
-	Seconds int // Signed offset for seek. Video seeks use stream replacement.
+	Request int         // Correlates subtitle or picture replies with the latest selection.
+	Index   int         // Jellyfin stream index for a subtitle request.
+	Seconds int         // Signed offset for seek. Video seeks use stream replacement.
+	Picture PictureMode // Requested live picture mode.
 }
 
 // Options configures one call to [Run]. The caller must keep referenced values
@@ -14,13 +15,21 @@ type Control struct {
 // they run synchronously on Run's goroutine. Callbacks must return promptly and
 // must not wait for Run to end.
 type Options struct {
-	// Tracks carries recorded-video choices across stream replacements.
-	Tracks *TrackOptions
+	// Preferences remembers per-video choices across playback and app restarts.
+	// Nil disables persistence. The caller owns its lifetime.
+	Preferences *Preferences
+	// Tracks carries recorded-video choices across stream replacements. Nil
+	// restores saved choices, or uses defaults when none have been saved.
+	Tracks      *TrackOptions
+	savedTracks *videoPreference
 	// TrackInfo publishes source metadata before the decoder start gate.
 	TrackInfo func(VideoTracks)
 	// Subtitle reports an asynchronous text selection on the playback loop.
 	Subtitle func(SubtitleResult)
-	burnText bool // Decoder cannot display the shared Go overlay on its video.
+	// Picture reports the native decoder's acknowledgment of a live mode change.
+	Picture     func(PictureResult)
+	livePicture bool
+	burnText    bool // Decoder cannot display the shared Go overlay on its video.
 
 	// Levels receives disposable stereo audio levels on the playback loop.
 	Levels      func(AudioLevels)

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Launch from MiSTer's Scripts menu so Main_MiSTer enables framebuffer output.
-# The temporary binary and session must be prepared again after a reboot.
+# The temporary binaries must be prepared again after a reboot.
+# Login and playback choices persist on the SD card.
 set -eu
 
 # Address the active virtual console directly. Scripts stdout can point at a
@@ -34,5 +35,5 @@ taskset -p 3 "$$" >/dev/null
 
 "$binary" -browse \
     -config /media/fat/misterfin/jellyfin.conf \
-    -state-dir /tmp/misterfin-go-state \
+    -state-dir /media/fat/misterfin-go/state \
     -player "$player"

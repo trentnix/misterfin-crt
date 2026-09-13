@@ -1,16 +1,44 @@
-# Video subtitles and audio tracks
+# Video options
 
-Recorded movies, episodes, videos, and music videos support subtitle and audio-track selection. Press SELECT during playback to open Tracks. The default keyboard key is Tab. The Xbox default is View/Back. The playback controls show the configured button label when the item has subtitles or multiple audio tracks. Live TV and music do not use this picker.
+Recorded movies, episodes, videos, and music videos support subtitles, audio-track selection, and picture modes. Press SELECT during playback to open Options. The default keyboard key is Tab. The Xbox default is View/Back. The playback controls show the configured button label for every recorded video. Live TV and music do not use this picker.
 
 ## Controls
 
-- Left/Right selects the Subtitles or Audio tab.
+- Left/Right moves between the Subtitles, Audio, and Picture tabs.
 - Up/Down selects a row. Held directions scroll the picker.
-- B/Enter applies the selected track.
-- A/Esc or SELECT/Tab closes the picker without stopping playback.
+- B/Enter applies the selected choice.
+- A/Esc or SELECT/Tab closes the picker without stopping playback or showing the playback controls.
 - Outside the picker, any direction retains its existing show/hide-controls behavior.
 
 Subtitles includes an Off row. Audio includes Server default. Track descriptions use Jellyfin's display title, language, codec, and available title/forced information. The active choice has an asterisk. Long lists scroll within the CRT safe area. Input profiles configure the physical buttons and displayed names as described in [GO_INPUT.md](GO_INPUT.md).
+
+## Remembered choices
+
+Go remembers picture mode, audio track, and subtitle selection for each movie or episode. Stopping and resuming, restarting from the beginning, and restarting the application preserve those choices. Choosing Original, Server default, or Off replaces the previous choice. A video without saved choices starts with Original, server-default audio, and subtitles Off. Preferences are local to this Go installation and separate for each Jellyfin server and user.
+
+Choices are saved under `playback` in the Go state directory alongside `session.json`. The existing `--state-dir` option selects that directory. Saved records contain the media source and selected stream metadata, with no credentials or subtitle text. Missing or changed tracks fall back to server-default audio or subtitles Off. Replacing a media source resets track choices while preserving picture mode. Text subtitles are downloaded again when playback reopens.
+
+The MiSTer test launcher uses `/media/fat/misterfin-go/state`, so choices survive reboot. Ghostty uses the Go user configuration directory by default. A custom state directory must use persistent storage if choices must survive a reboot.
+
+A background writer coalesces changes and replaces each record atomically. The in-memory copy supports immediate resume before a disk write completes. Only started playback and successful live changes update preferences, so canceled preparation and failed replacements leave previous choices intact. Shutdown flushes pending writes and reports failures. Subtitle timing adjustments remain limited to the current playback session.
+
+## Picture modes
+
+Picture offers Original and Zoom. Original is the default and preserves the entire picture with its correct aspect ratio. Zoom enlarges widescreen video and crops its sides. Scaling uses the encoded frame's display aspect ratio, so black bars within that frame can remain. Zoom does not detect the boundaries of the visible picture or guarantee that it fills the screen. Sources at or narrower than 4:3 keep their original fit.
+
+On MiSTer, changing picture mode updates the running player without seeking, reopening the stream, or changing pause state. The Picture tab stays open and uses the same full-screen panel as Subtitles and Audio. A paused comparison redraws exactly the same decoded frame. Playing video continues normally. The active marker follows the player's acknowledgment. Failed requests leave the preceding mode active.
+
+The choice survives seeking, audio changes, subtitle changes, and reopening the video. Inline Ghostty and separate-window FFplay still use the existing stream handoff for picture changes. Their Picture tab also stays open, but applying a different mode still reloads the stream at the current position.
+
+`playback.PictureMode` describes the shared choice. Native playback advertises `VideoTracks.LivePicture` and accepts a semantic picture control. MPlayer receives `pausing_keep_force misterfin_picture <mode> <request>` and replies with `ANS_PICTURE_MODE=<request>,<mode>`. A mode of -1 reports failure. The browser matches replies to the decoder generation and request. Other decoders retain the handoff fallback without native-player checks in the UI.
+
+The Go-specific `vf_misterfin` filter owns CRT scaling and a retained planar source frame. Original scales the full picture and adds black bars. Zoom crops the source's sides before the same single scaling pass. Two reusable scaler contexts avoid rebuilding scaling state on repeated toggles. Source rows are aligned for ARM. Cached input supports paused redraws without decoding another frame. The filter preserves source timestamps and keeps framebuffer geometry fixed, so mode changes do not reopen output or change the audio clock. Live TV keeps its existing scaling chain.
+
+Inline libmpv uses full panscan on its square-pixel 4:3 render surface. FFplay crops using the decoded sample aspect ratio. All players apply picture fitting before shared UI composition. Go-rendered controls and subtitles retain their normal size. Server-burned subtitles remain part of the video and can be cropped.
+
+Validation includes the Go suites with cgo enabled and disabled, race checks, `go vet`, host/ARM builds, 38 Python renderer/player tests, and 21 browser integration tests. Native filter tests cover geometry, padded input strides, 100 repeated toggles, stable timestamps, and no output reconfiguration. A playback-session test confirms native picture requests open only one media stream. On MiSTer, four live toggles while paused retained position 1.5 seconds. Captured Original frames matched byte for byte after toggling, as did repeated Zoom frames.
+
+A generated 720×576 benchmark with null output measured about 4.21 seconds for 300 frames through the preceding Original filter chain and 4.82 seconds through the new chain. Retaining a source frame adds about 2 milliseconds per frame in that test. Zoom measured about 6.09 seconds. These measurements establish the scaling cost for that fixture. They do not establish CRT timing or playback performance for every source. The deployed test player must be checked with the maintainer's media.
 
 ## Text subtitles
 
@@ -30,7 +58,7 @@ The existing playback handoff prepares the replacement while retaining the prece
 
 A separate FFplay window cannot display Go overlay pixels over its video. That decoder therefore requests server burn-in for text subtitles too. The picker remains in Ghostty. MiSTer and inline Ghostty receive the same Go-rendered subtitle pixels without decoder-specific UI logic.
 
-Selections apply to the current playback session. Starting an item from its details screen resets to server-default audio and subtitles Off. Jellyfin start/progress reports include the selected stream indexes and media source ID.
+Starting an item from its details screen restores its saved selections after validating them against current source metadata. Jellyfin start/progress reports include the selected stream indexes and media source ID.
 
 ## Implementation
 
@@ -41,5 +69,7 @@ Selections apply to the current playback session. Starting an item from its deta
 ## Validation
 
 Tests cover stream indexes that differ from row positions, source selection, text extraction authorization, markup and overlapping cues, cancellation, stale replies, Off during a pending download, failure recovery, pause restoration, selection persistence across seeks, and picker input routing. An integration test drives the Go binary through text selection, audio replacement, seeking, Off, and image-subtitle burn-in requests.
+
+Persistence tests cover immediate reopen, application restart, restart from the beginning, account and item isolation, changed streams, damaged records, and unwritable storage. A browser integration test restores Zoom, alternate audio, and text subtitles after both stopping and restarting the app. Native protocol tests check that acknowledged picture changes update saved choices.
 
 The maintainer's Jellyfin server returned Akira's alternate audio and PGS tracks. A real SubRip export from another movie parsed into 1,819 cues. Those server checks establish metadata and text extraction. The maintainer subsequently confirmed that subtitle and audio-track selection works in testing. That confirmation covers the tested setup and media, not every subtitle format or source.

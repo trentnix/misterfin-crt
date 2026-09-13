@@ -13,6 +13,7 @@ type pythonDecoder struct {
 	script, output string
 	width, height  int
 	levels         bool
+	picture        PictureMode
 }
 
 func (d pythonDecoder) executable() string { return "python3" }
@@ -33,6 +34,9 @@ func (d pythonDecoder) args(item jellyfin.Item, source string) []string {
 		}
 	} else {
 		args = []string{d.script, "--controls", "--status", "--output", d.output, "--width", strconv.Itoa(d.width), "--height", strconv.Itoa(d.height)}
+		if d.picture.zooms(item) {
+			args = append(args, "--zoom-4-3")
+		}
 	}
 	if source != "" {
 		args = append(args, "--source", source)

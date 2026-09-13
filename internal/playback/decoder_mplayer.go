@@ -3,9 +3,6 @@ package playback
 import (
 	"fmt"
 	"io"
-	"math"
-	"strconv"
-	"strings"
 
 	"misterfin-go/internal/jellyfin"
 )
@@ -16,6 +13,7 @@ type mplayerDecoder struct {
 	player, device string
 	export         string
 	width, height  int
+	picture        PictureMode
 }
 
 func (d mplayerDecoder) executable() string {
@@ -43,27 +41,7 @@ func (d mplayerDecoder) args(item jellyfin.Item, source string) []string {
 		}
 		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", filter, source}
 	}
-	// Match the C client's item_dar fallback for channels without video metadata.
-	dar := 16.0 / 9
-	for _, stream := range item.MediaStreams {
-		if stream.Type == "Video" {
-			if stream.Width > 0 && stream.Height > 0 {
-				dar = float64(stream.Width) / float64(stream.Height)
-			}
-			parts := strings.Split(stream.AspectRatio, ":")
-			if len(parts) == 2 {
-				a, e1 := strconv.ParseFloat(parts[0], 64)
-				b, e2 := strconv.ParseFloat(parts[1], 64)
-				if e1 == nil && e2 == nil && a > 0 && b > 0 {
-					dar = a / b
-				}
-			}
-			break
-		}
-	}
-	if math.IsNaN(dar) || math.IsInf(dar, 0) || dar < 0.1 || dar > 10 {
-		dar = 16.0 / 9
-	}
+	dar := displayAspectRatio(item)
 	par := float64(d.width) * 3 / float64(d.height*4)
 	w := d.width
 	h := int(float64(w)/(dar*par) + 0.5)
@@ -72,6 +50,10 @@ func (d mplayerDecoder) args(item jellyfin.Item, source string) []string {
 		w = int(float64(h)*dar*par + 0.5)
 	}
 	filter := fmt.Sprintf("scale=%d:%d,expand=%d:%d,dsize=%d:%d", max(2, w/2*2), max(2, h/2*2), d.width, d.height, d.width, d.height)
+	if !jellyfin.IsLive(item) {
+		filter = fmt.Sprintf("misterfin=%d:%d:%.9f:%d", d.width, d.height, dar, d.picture)
+	}
+
 	// Match the C player's audio-clock correction. Recorded video smooths ALSA
 	// delay measurements. Live TV reacts sooner to broadcast timing changes.
 	autosync := "30"
