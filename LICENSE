@@ -1,13 +1,22 @@
 Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
 
+Original MiSTerFin material:
 Copyright © 2026 Pudding Studio (https://pudding.studio)
+
+MiSTerFin CRT additions and modifications by trentnix:
+Copyright © 2026 trentnix (https://github.com/trentnix)
+
+The trentnix notice covers trentnix's copyrightable contributions. Existing rights in inherited material remain with their respective holders.
+
+These contributions use CC BY-NC 4.0 except where a component's separate license applies. Third-party components and modifications to them retain the licenses described in docs/THIRD_PARTY.md, including GPL terms for the patched MPlayer.
 
 You are free to:
   Share — copy and redistribute the material in any medium or format
   Adapt — remix, transform, and build upon the material
 
 Under the following terms:
-  Attribution   — You must give appropriate credit to Pudding Studio,
+  Attribution   — When sharing, you must give appropriate credit to the
+                  applicable creators, retain supplied copyright notices,
                   provide a link to the license, and indicate if changes
                   were made.
   NonCommercial — You may not use the material for commercial purposes.

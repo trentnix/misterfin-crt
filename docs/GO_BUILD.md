@@ -1,6 +1,6 @@
 # Go build and framebuffer validation
 
-See [GO_BROWSING.md](GO_BROWSING.md) for browser setup. Build commands below apply to the current client. The hardware and validation records describe the initial framebuffer milestone. The C source and tests referenced in those records are available at the `c-baseline` tag.
+See [GO_BROWSING.md](GO_BROWSING.md) for browser setup. Build commands below apply to the current client. The hardware and validation records describe the initial framebuffer milestone. The C source and tests referenced in those records are preserved in the MiSTerFin integration repository identified in [GO_PORT_PLAN.md](GO_PORT_PLAN.md#status-and-provenance).
 
 Host rendering, ARM cross-compilation, and hardware framebuffer drawing now work. On September 12, 2026, the Go build passed framebuffer drawing and restoration checks on a MiSTer with a rebuilt kernel. Direct CRT confirmation and authenticated browser/playback checks remain pending. The C baseline remains available in Git.
 
@@ -141,7 +141,7 @@ DDR, raw SPI page flipping, interlaced playback compensation, and player handoff
 - The inherited `make test` passed through authentication and pause UI after allowing its localhost HTTP server outside the network sandbox. It stopped at `tests/test_sfx.c:57`, whose assertion requires a host without `libasound`. This desktop has ALSA. The remaining hero, cache sweep, and 13 Ghostty tests passed when run separately. The baseline test was not changed.
 - Initial physical MiSTer execution and headless output passed on Linux `6.18.38-MiSTer` with glibc 2.31. The September 12 rebuilt-kernel retest also passed hardware framebuffer drawing and restoration after timeout, SIGINT, and SIGTERM. Direct CRT confirmation and authenticated browser/playback checks remain pending.
 
-The `c-baseline` tag still points to `19d99fa5f479692e45ea7b5dddc42e42fb1782a9`.
+The reference C commit is `19d99fa5f479692e45ea7b5dddc42e42fb1782a9` in the MiSTerFin integration repository.
 
 ## Rename an existing Go installation
 

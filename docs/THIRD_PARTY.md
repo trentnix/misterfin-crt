@@ -1,6 +1,6 @@
 # Third-party code and components
 
-MiSTerFin-derived application code remains under [CC BY-NC 4.0](../LICENSE), with Pudding Studio's copyright notices retained. Third-party components keep their own terms.
+MiSTerFin-derived application code remains under [CC BY-NC 4.0](../LICENSE). The license file includes separate copyright notices for Pudding Studio's original material and trentnix's additions and modifications. Third-party components and modifications to them keep the terms listed below.
 
 ## Bundled code
 
@@ -15,11 +15,11 @@ The native adapter in `internal/platform/adapter_linux.c` derives framebuffer ge
 - **[Zaparoo Project](https://zaparoo.org)** and **[Izzie Walton's interlaced Menu core](https://github.com/iwalton3/Menu_MiSTer/releases/tag/v0.0.1)** provide alternative display environments described in the inherited hardware compatibility guide. Those projects retain their own licenses. A reference in that guide does not establish support in the Go client.
 - Desktop playback uses externally installed FFmpeg tools and, for inline video, libmpv. Those components retain their own licenses and are not included in the Go executable.
 
-## Preserved C baseline
+## Original C application
 
-The `c-baseline` tag retains the original application, documentation, and third-party notices. The removed `src/stb_image.h` contains **[stb_image](https://github.com/nothings/stb) v2.30**, by Sean Barrett and contributors, dual-licensed MIT / public domain and used by the C client as public domain. The Go client uses Go image decoders instead.
+The [MiSTerFin integration repository](https://github.com/trentnix/MiSTerFin) preserves the C application. [GO_PORT_PLAN.md](GO_PORT_PLAN.md#status-and-provenance) identifies the local merged branch and exact reference commit. The removed `src/stb_image.h` contains **[stb_image](https://github.com/nothings/stb) v2.30**, by Sean Barrett and contributors, dual-licensed MIT / public domain and used by the C client as public domain. The Go client uses Go image decoders instead.
 
-Historical references to `src/` identify files at that tag. For example, `git show c-baseline:src/fb.c` displays the original framebuffer implementation.
+Historical references to `src/` identify files in that C source checkout. The original framebuffer implementation is `src/fb.c`.
 
 ## Reference and inspiration
 

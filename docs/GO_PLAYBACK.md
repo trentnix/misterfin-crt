@@ -61,7 +61,7 @@ The photo request uses Jellyfin's primary image at the logical framebuffer dimen
 
 Browse Music → artist → album, then select a track with B or Enter to start playback. Tracks advance automatically in list order, including across pages. The queue stops at the end of the album or at a non-audio item. A stops playback and returns to the track list with the current track selected. Q exits.
 
-B or Enter pauses or resumes music without adding a pause overlay or instructions. Any direction toggles the controls for three seconds. LB/RB or brackets select the previous or next track immediately, whether the menu is visible or hidden. LT/RT or J/L seek within the track. B or Enter hides the controls immediately. The clean-pause behavior follows commit `bb31e83` and the C pause UI (`git show c-baseline:src/pause_ui.c`).
+B or Enter pauses or resumes music without adding a pause overlay or instructions. Any direction toggles the controls for three seconds. LB/RB or brackets select the previous or next track immediately, whether the menu is visible or hidden. LT/RT or J/L seek within the track. B or Enter hides the controls immediately. The clean-pause behavior follows commit `bb31e83` and the C pause UI (`src/pause_ui.c` in the C integration repository at `19d99fa5f479692e45ea7b5dddc42e42fb1782a9`).
 
 Music uses the C client's `/Audio/{id}/stream?static=true` request, with a unique play session ID. It streams the original audio and reports `DirectStream`, including pause state and playback positions. Each newly selected track starts at the beginning. Session progress and completion use the existing reporting and user-data endpoints.
 

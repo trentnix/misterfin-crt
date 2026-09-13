@@ -2,7 +2,7 @@
 
 A Jellyfin client for movies, TV, live TV, music, and photos. It runs on MiSTer FPGA and in Ghostty on Linux, with the same interface on both.
 
-The UI is built explicitly for CRT output. Maintainer trentnix uses a CRT for testing and everyday use.
+I built MiSTerFin CRT to make Jellyfin enjoyable to use on my CRT. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. The interface is designed for that screen.
 
 ![MiSTerFin CRT library carousel](docs/images/screenshots/home-carousel.png)
 
@@ -71,6 +71,6 @@ Possible future outputs include an SDL desktop window, direct Linux display thro
 
 ## Origins and license
 
-Maintained independently by trentnix, based on [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio and the maintainer's [C changes](https://github.com/trentnix/MiSTerFin). This is not an official Pudding Studio release. The original C application is preserved at `c-baseline`.
+MiSTerFin CRT is heavily based on [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio. It began as a Go port that included trentnix's [C changes](https://github.com/trentnix/MiSTerFin). Trentnix maintains the project independently.
 
-MiSTerFin-derived material remains under [CC BY-NC 4.0](LICENSE), copyright © 2026 Pudding Studio. Third-party components retain their [separate licenses](docs/THIRD_PARTY.md), including GPL terms for the patched MPlayer.
+Original MiSTerFin material is copyright © 2026 Pudding Studio. MiSTerFin CRT additions and modifications by trentnix are copyright © 2026 trentnix. This material is distributed under [CC BY-NC 4.0](LICENSE). Third-party components retain their [separate licenses](docs/THIRD_PARTY.md), including GPL terms for the patched MPlayer.
