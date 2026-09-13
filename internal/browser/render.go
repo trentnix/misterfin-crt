@@ -42,15 +42,16 @@ func renderSceneWithMusic(c *ui.Canvas, cache *sceneCache, s Scene, anim Animati
 		p.music()
 	default:
 		var hint string
+		var controls [][]controlHint
 		switch {
 		case s.View.Detail != nil:
-			hint = p.details()
+			controls = p.details()
 		case s.Root && !s.ListMode:
 			hint = p.carousel()
 		default:
 			hint = p.list()
 		}
-		p.footer(hint)
+		p.footer(hint, controls)
 	}
 	return c.Pixels
 }

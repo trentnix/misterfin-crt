@@ -6,8 +6,40 @@ import (
 	"time"
 
 	"misterfin-go/internal/input/control"
+	"misterfin-go/internal/jellyfin"
 	"misterfin-go/internal/ui"
 )
+
+func TestPreviewUsesSharedButtonBadges(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		for _, tc := range []struct {
+			name, kind string
+			position   int64
+			labels     control.Labels
+			want       []controlHint
+		}{
+			{"play", "Movie", 0, control.KeyboardLabels(), []controlHint{{"Enter", "Play"}, {"Esc", "Back"}}},
+			{"resume episode", "Episode", 900000000, control.KeyboardLabels(), []controlHint{{"Enter", "Resume"}, {"Tab", "Restart"}, {"Esc", "Back"}}},
+			{"custom controller", "Movie", 900000000, control.Labels{"open": "Cross", "select": "Touchpad", "back": "Circle"}, []controlHint{{"Cross", "Resume"}, {"Touchpad", "Restart"}, {"Circle", "Back"}}},
+			{"unbound restart", "Movie", 900000000, control.Labels{"open": "Cross", "back": "Circle"}, []controlHint{{"Cross", "Resume"}, {"Circle", "Back"}}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				item := jellyfin.Item{Name: "Preview", Type: tc.kind, RunTimeTicks: 6000000000}
+				item.UserData.PlaybackPositionTicks = tc.position
+				s := Scene{View: View{Detail: &item}, Controls: tc.labels, Now: time.Unix(100, 0)}
+				got := renderScene(ui.New(640, height), nil, s, Animation{})
+				want := ui.New(640, height)
+				rows := controlRows(640, tc.want)
+				bottom := height - 8 - safeY(640, height)
+				drawControls(want, bottom, rows)
+				start := controlsTop(bottom, rows) * 640 * 4
+				if !bytes.Equal(got[start:], want.Pixels[start:]) {
+					t.Fatal("preview did not render the expected shared badges")
+				}
+			})
+		}
+	}
+}
 
 func TestControlLabelsReachSharedVideoRenderer(t *testing.T) {
 	p := PlaybackPresentation{Active: true, ControlsVisible: true, Seekable: true, Title: "Episode"}

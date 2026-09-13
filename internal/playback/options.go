@@ -8,8 +8,9 @@ type Control struct {
 }
 
 // Options configures one call to [Run]. The caller must keep referenced values
-// unchanged until Run returns. All callbacks are optional and run synchronously
-// on Run's goroutine. They must return promptly and must not wait for Run to end.
+// unchanged until Run returns. All callbacks are optional. Except for CleanupDone,
+// they run synchronously on Run's goroutine. Callbacks must return promptly and
+// must not wait for Run to end.
 type Options struct {
 	// Levels receives disposable stereo audio levels on the playback loop.
 	Levels      func(AudioLevels)
@@ -23,12 +24,17 @@ type Options struct {
 	// Start gates decoder launch. Nil starts immediately. The caller closes
 	// or sends on the channel to proceed. Context cancellation aborts the wait.
 	Start <-chan struct{}
-	// AsyncCleanup permits final progress reporting to outlive Run when this
+	// AsyncCleanup permits final reporting and tuner release to outlive Run when this
 	// channel can be received from at teardown. Nil keeps reporting synchronous.
-	// The caller normally closes it during a seek handoff. Decoder and stream
+	// The caller closes it when stopping or handing off a seek. Decoder and stream
 	// cleanup still complete before Run returns. Pending routine reports are
 	// canceled during the handoff. Stop/save use a fresh bounded context.
 	AsyncCleanup <-chan struct{}
+	// CleanupDone runs once after final reports and tuner release, or before Run
+	// returns if preparation failed before a session was created.
+	// With AsyncCleanup enabled it can run on a background goroutine after Run
+	// returns. It must not access mutable caller state without synchronization.
+	CleanupDone func()
 	// AudioPlayer selects a Python audio helper when Player is empty.
 	AudioPlayer string
 	// Controls supplies decoder actions. Nil disables actions. Closing the

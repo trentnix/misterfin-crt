@@ -64,6 +64,19 @@ func (s *browserSession) startPlayback(startTicks *int64, paused bool) {
 // handlePlayback applies decoder feedback, then handles item completion.
 // Seek handoffs stay inside the controller and do not advance the music queue.
 func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
+	if event.Kind == PlaybackCleanupDone {
+		s.controller.Handle(event, time.Now())
+		// A stopped item can become visible before its resume save completes.
+		// Refresh it after cleanup, without disturbing a newer playback session.
+		if !s.controller.running && event.ID == s.controller.active.id && s.controller.item.Type != "Audio" && !jellyfin.IsLive(s.controller.item) {
+			s.refreshHome()
+			if detail := s.model.Current().Detail; detail != nil && detail.ID == s.controller.item.ID {
+				s.selection.key = ""
+				s.loadSelection()
+			}
+		}
+		return false
+	}
 	if event.Kind == PlaybackLevels {
 		if s.controller.running && event.ID == s.controller.active.id {
 			s.music.levels = event.Levels

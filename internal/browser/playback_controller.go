@@ -22,10 +22,11 @@ type PlaybackController struct {
 
 	// The active decoder may be stopping while a replacement is being prepared.
 	// A zero process ID means that slot has no decoder.
-	active        playbackProcess
-	pending       playbackProcess
-	running       bool // Remains true across a seek, even between decoder processes.
-	stoppedByUser bool
+	active          playbackProcess
+	pending         playbackProcess
+	running         bool // Remains true across a seek, even between decoder processes.
+	stoppedByUser   bool
+	cleanupComplete bool // Final resume save has finished for the active process.
 
 	seekPhase            seekPhase
 	pendingTarget        int64 // Offset requested by the pending replacement.
@@ -45,10 +46,17 @@ func newPlaybackController(launch playbackLaunch) *PlaybackController {
 // Start begins a new item after the preceding item has finished. A nil offset
 // resumes from Jellyfin's saved position. A pointer to zero requests a restart.
 func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused bool, now time.Time) {
+	// Reopening immediately must not read the old server resume position while
+	// the preceding Stop is still saving the position we already know locally.
+	if offset == nil && item.ID == c.item.ID && c.stoppedByUser && !c.cleanupComplete && c.state.ProgressSeen && item.Type != "Audio" && !jellyfin.IsLive(item) {
+		resume := c.state.PositionTicks
+		offset = &resume
+	}
 	c.item = item
 	c.pauseOnFirstPosition = paused
 	c.seekPhase = seekInactive
 	c.stoppedByUser = false
+	c.cleanupComplete = false
 	c.notice = ""
 	c.state = playbackState{
 		PlayingVideo: item.Type != "Audio",
@@ -105,7 +113,7 @@ func (c *PlaybackController) stopByUser() {
 	c.state.HideControls()
 	c.clearSeek()
 	c.cancelPendingSeek()
-	c.active.stop()
+	c.active.stopWithAsyncCleanup()
 	if c.active.id == 0 {
 		// No completion event will arrive if the old decoder already stopped.
 		c.finishVideo()

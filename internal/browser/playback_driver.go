@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"sync"
 
 	"misterfin-go/internal/jellyfin"
 	"misterfin-go/internal/playback"
@@ -17,6 +18,7 @@ type playbackDriver struct {
 	output   videoout.Output
 	events   chan PlaybackEvent
 	sequence int
+	cleanup  sync.WaitGroup // Application shutdown joins detached server cleanup.
 }
 
 func (d *playbackDriver) send(event PlaybackEvent) {
@@ -42,6 +44,11 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 	options.StartTicks = offset
 	options.Start = gate
 	options.AsyncCleanup = cleanup
+	d.cleanup.Add(1)
+	options.CleanupDone = func() {
+		defer d.cleanup.Done()
+		d.send(PlaybackEvent{Kind: PlaybackCleanupDone, ID: id})
+	}
 	options.Controls = controls
 	options.AcquireVideo = d.output.Acquire
 	options.ReleaseVideo = d.output.Release

@@ -17,9 +17,15 @@ import (
 // in 100-nanosecond ticks synchronously on Run's goroutine and must return promptly.
 // Canceling ctx stops preparation or playback. Cancellation during preparation or
 // monitoring returns nil. Setup errors can still be returned during cancellation.
-// With Options.AsyncCleanup enabled, final server reporting may outlive Run.
+// With Options.AsyncCleanup enabled, final reporting and tuner release may outlive Run.
 // Returned errors exclude stream URLs and raw decoder diagnostics.
 func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options, position func(int64)) (resultErr error) {
+	cleanupOwned := false
+	defer func() {
+		if !cleanupOwned && o.CleanupDone != nil {
+			o.CleanupDone()
+		}
+	}()
 	decoder, executable, err := resolveDecoder(o, item)
 	if err != nil {
 		return err
@@ -44,12 +50,12 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	if err != nil || session == nil {
 		return err
 	}
-	defer session.closeLive()
 	mediaCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	session.reporter = newProgressReporter(ctx, c, session.liveTV)
+	cleanupOwned = true
 	defer func() {
-		failed := session.reporter.finish(session.state, session.started, session.played, resultErr != nil, o.AsyncCleanup)
+		failed := session.finish(resultErr != nil, o)
 		if resultErr == nil && ctx.Err() == nil && failed {
 			resultErr = errors.New("playback ended, but Jellyfin progress reporting failed")
 		}

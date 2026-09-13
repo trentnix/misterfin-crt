@@ -28,6 +28,7 @@ const (
 	PlaybackVideoStarted
 	PlaybackControlFailed
 	PlaybackLevels
+	PlaybackCleanupDone
 )
 
 // Handle applies feedback from a tracked decoder. It returns true only when the
@@ -38,6 +39,10 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 		return false
 	}
 	switch event.Kind {
+	case PlaybackCleanupDone:
+		if event.ID == c.active.id {
+			c.cleanupComplete = true
+		}
 	case PlaybackPrepared:
 		c.replacementReady(event.ID, now)
 	case PlaybackEnded:

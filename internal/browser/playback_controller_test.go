@@ -46,6 +46,49 @@ func expectCommand(t *testing.T, q chan playback.Control, kind string) {
 	}
 }
 
+func TestStopDetachesReportsButWaitsForDecoder(t *testing.T) {
+	f := newControllerFixture(t)
+	f.c.Key("back", f.now)
+	f.c.Key("back", f.now) // Repeated Stop must not close the cleanup signal twice.
+	if !f.calls[0].canceled {
+		t.Fatal("Stop did not cancel decoding")
+	}
+	select {
+	case <-f.calls[0].cleanup:
+	default:
+		t.Fatal("Stop still waits for server reporting")
+	}
+	if !f.c.Snapshot(f.now).Active {
+		t.Fatal("browser reclaimed output before the decoder exited")
+	}
+	if !f.c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now) || f.c.Snapshot(f.now).Active {
+		t.Fatal("decoder completion did not return to browsing")
+	}
+}
+
+func TestImmediateReopenUsesPositionPendingSave(t *testing.T) {
+	for _, saved := range []bool{false, true} {
+		f := newControllerFixture(t)
+		f.c.Key("back", f.now)
+		f.c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
+		if saved {
+			f.c.Handle(PlaybackEvent{Kind: PlaybackCleanupDone, ID: 1}, f.now)
+		}
+		f.c.Start(f.c.item, nil, false, f.now)
+		offset := f.calls[1].offset
+		if saved && offset != nil {
+			t.Fatal("completed cleanup should allow the normal server resume lookup")
+		}
+		if !saved && (offset == nil || *offset != 20000000) {
+			t.Fatal("immediate reopen lost the position still being saved")
+		}
+		f.c.Handle(PlaybackEvent{Kind: PlaybackCleanupDone, ID: 1}, f.now)
+		if f.c.cleanupComplete {
+			t.Fatal("old cleanup changed the new session")
+		}
+	}
+}
+
 func TestFirstVideoFrameClearsLoadingBeforePosition(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c

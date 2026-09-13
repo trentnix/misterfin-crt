@@ -8,16 +8,28 @@ import (
 	"misterfin-go/internal/ui"
 )
 
-// details draws metadata and returns the appropriate play or resume hint.
-func (p *screenPainter) details() string {
+// details draws metadata and reserves space for the preview's button badges.
+func (p *screenPainter) details() [][]controlHint {
 	c := p.canvas
 	cache := p.cache
 	art := p.scene.Artwork
 	w, h := p.width, p.height
 	sy := p.safeY
 	v := &p.scene.View
+	labels := p.scene.Controls
+	action := "Play"
+	if resumableVideo(v.Detail) {
+		action = "Resume"
+	}
+	hints := []controlHint{hint(labels, "open", action)}
+	if resumableVideo(v.Detail) {
+		hints = append(hints, hint(labels, "select", "Restart"))
+	}
+	hints = append(hints, hint(labels, "back", "Back"))
+	rows := controlRows(w, hints)
+	extra := max(0, len(rows)-1) * controlRowHeight
 
-	hero := max(80, min(150, h-88))
+	hero := max(80, min(150, h-88)-extra)
 	full := max(h*3/4, hero)
 	cache.backdrop(c, art, true, func(layer *ui.Canvas) {
 		layer.Rect(0, 0, w, full, 0x181818)
@@ -33,7 +45,7 @@ func (p *screenPainter) details() string {
 	} else {
 		center(c, cy-4, truncate(itemTitle(*v.Detail), w-48, 1), 0xffffff, 1)
 	}
-	ty := max(hero+4, h-8-sy-34-50)
+	ty := max(hero+4, h-8-sy-34-50-extra)
 	metadataX := 24
 	if v.Detail.ProductionYear > 0 {
 		year := fmt.Sprint(v.Detail.ProductionYear)
@@ -53,11 +65,14 @@ func (p *screenPainter) details() string {
 	} else {
 		c.Text(w-24-textWidth(s, 1), ty, s, col, w-24)
 	}
-	c.Wrap(24, ty+16, w-48, 3, v.Detail.Overview, 0xcccccc)
-	hint := "B:play  A:back"
-	if resumableVideo(v.Detail) {
-		hint = "B:resume  SELECT:restart  A:back"
+	overviewBottom := controlsTop(p.bottom, rows) - 4
+	if p.footerMessage() != "" {
+		overviewBottom -= 12
+	}
+	lines := min(3, (overviewBottom-(ty+16))/10)
+	if lines > 0 {
+		c.Wrap(24, ty+16, w-48, lines, v.Detail.Overview, 0xcccccc)
 	}
 
-	return hint
+	return rows
 }

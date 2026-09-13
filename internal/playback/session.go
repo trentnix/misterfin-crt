@@ -22,6 +22,26 @@ type playbackSession struct {
 	reporter        *progressReporter
 }
 
+// finish follows decoder, output, and source cleanup. Stop/save and tuner
+// release remain ordered, but an explicit handoff lets them outlive Run.
+func (s *playbackSession) finish(failed bool, o Options) bool {
+	reportFailed := s.reporter.finish(s.state, s.started, s.played, failed, o.AsyncCleanup)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		<-s.reporter.done
+		s.closeLive()
+		if o.CleanupDone != nil {
+			o.CleanupDone()
+		}
+	}()
+	select {
+	case <-o.AsyncCleanup:
+	case <-done:
+	}
+	return reportFailed
+}
+
 // closeLive releases a negotiated tuner with a fresh bounded context, even
 // after the playback context has been canceled. Non-live sessions need no release.
 func (s *playbackSession) closeLive() {

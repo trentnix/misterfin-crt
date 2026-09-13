@@ -25,7 +25,7 @@ func (p *playbackProcess) stop() {
 }
 
 // stopWithAsyncCleanup cancels decoding without waiting for Jellyfin stop/save
-// reports before the handoff. The cleanup signal must be closed at most once.
+// or tuner release before the handoff. The cleanup signal closes at most once.
 func (p *playbackProcess) stopWithAsyncCleanup() {
 	if p.cleanup != nil {
 		close(p.cleanup)

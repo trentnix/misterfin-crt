@@ -21,7 +21,15 @@ func playbackHints(labels control.Labels, paused bool) []controlHint {
 	return []controlHint{hint(labels, "open", action), hint(labels, "back", "Stop")}
 }
 
-const controlRowHeight = 20
+const (
+	controlRowHeight   = 20
+	controlBottomInset = 5
+)
+
+// controlsTop returns the top edge of the first row's button badges.
+func controlsTop(bottom int, rows [][]controlHint) int {
+	return bottom - controlBottomInset - max(0, len(rows)-1)*controlRowHeight - 3
+}
 
 func (h controlHint) width() int { return textWidth(h.key, 1) + 12 + 8 + textWidth(h.description, 1) }
 
@@ -57,8 +65,9 @@ func controlRows(width int, groups ...[]controlHint) [][]controlHint {
 }
 
 // drawControls aligns badges and descriptions on each baseline. The final row
-// sits at bottom, inside the same CRT safe area used by the rest of the UI.
+// sits above bottom by controlBottomInset for clearance at the lower screen edge.
 func drawControls(c *ui.Canvas, bottom int, rows [][]controlHint) {
+	bottom -= controlBottomInset
 	for i, row := range rows {
 		width := max(0, len(row)-1) * 20
 		for _, h := range row {

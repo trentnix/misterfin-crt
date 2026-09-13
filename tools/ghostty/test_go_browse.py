@@ -46,6 +46,8 @@ class BrowseIntegrationTests(unittest.TestCase):
             self.home_gate.set()
         self.addCleanup(self.home_gate.set)
         self.video_response_gate = None
+        self.stop_report_gate = threading.Event()
+        self.stop_report_gate.set()
         test = self
 
         class Handler(mock.Handler):
@@ -94,6 +96,8 @@ class BrowseIntegrationTests(unittest.TestCase):
                 length = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(length)) if length else {}
                 test.reports.append((urlparse(self.path).path, body))
+                if urlparse(self.path).path == "/Sessions/Playing/Stopped":
+                    test.stop_report_gate.wait(timeout=5)
                 if urlparse(self.path).path.endswith("/PlaybackInfo"):
                     payload = json.dumps({"PlaySessionId": "live-session", "MediaSources": [{
                         "Id": "live-source", "LiveStreamId": "live-tuner",
@@ -345,6 +349,40 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(0.1)
         self.key(b"\x1b[Cb")
         self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
+
+    def test_stop_keeps_browser_responsive_during_slow_save(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream")
+        deadline = time.monotonic() + 5
+        while not any(path == "/Sessions/Playing" for path, _ in self.reports):
+            self.assertLess(time.monotonic(), deadline, "playback did not start")
+            time.sleep(0.01)
+        self.stop_report_gate.clear()
+        self.addCleanup(self.stop_report_gate.set)
+        before = sum(urlparse(path).path == "/Items/movie-tricky-0" for path in self.requests)
+        started = time.monotonic()
+        self.key(b"a")
+        while sum(urlparse(path).path == "/Items/movie-tricky-0" for path in self.requests) == before:
+            self.assertLess(time.monotonic() - started, 1, "Stop waited for the blocked server report")
+            time.sleep(0.01)
+        self.assertFalse(any(path.endswith("/UserData") for path, _ in self.reports))
+        # Navigate away while stop/save is still blocked on the server.
+        self.key(b"aa")
+        time.sleep(0.1)
+        self.key(b"\x1b[Cb")
+        self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
+        self.assertLess(time.monotonic() - started, 1, "server cleanup blocked navigation")
+        self.process.terminate()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.process.wait(timeout=0.15)
+        self.stop_report_gate.set()
+        self.process.wait(timeout=2)
+        saves = [body for path, body in self.reports if path.endswith("/UserData")]
+        self.assertEqual(saves[-1]["PlaybackPositionTicks"], 20000000)
 
     def test_select_restarts_resumable_video(self):
         self.key(b"b")

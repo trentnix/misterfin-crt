@@ -70,5 +70,6 @@ func (s *browserSession) close() {
 	s.selection.cancel()
 	s.media.cancel()
 	s.controller.Close()
+	s.driver.cleanup.Wait()
 	s.output.Clear()
 }

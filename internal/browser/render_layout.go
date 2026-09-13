@@ -86,23 +86,21 @@ func (p *screenPainter) header(title string) {
 }
 
 // footer draws browsing hints, request errors, and modal notices in that order.
-func (p *screenPainter) footer(hint string) {
+func (p *screenPainter) footer(hint string, controls [][]controlHint) {
 	c := p.canvas
-	selectionError := p.scene.SelectionError
 	w, h := p.width, p.height
 	bottom := p.bottom
-	v := &p.scene.View
 	s := p.scene
-	center(c, bottom, hint, dimColor, 1)
-	message := selectionError
-	if v.Loading || (v.fetching && v.Scroll+visibleRows(w, h) > len(v.Page.Items)) {
-		message = "Loading..."
+	messageY := bottom - 14
+	if len(controls) > 0 {
+		drawControls(c, bottom, controls)
+		messageY = controlsTop(bottom, controls) - 12
+	} else {
+		center(c, bottom, hint, dimColor, 1)
 	}
-	if v.Error != "" {
-		message = v.Error + "  R:retry"
-	}
+	message := p.footerMessage()
 	if message != "" {
-		center(c, bottom-14, truncate(message, w-48, 1), 0xff6060, 1)
+		center(c, messageY, truncate(message, w-48, 1), 0xff6060, 1)
 	}
 	if s.ExitConfirm || s.Notice != "" {
 		message := s.Notice
@@ -115,4 +113,16 @@ func (p *screenPainter) footer(hint string) {
 		c.Shade((w-width)/2-12, h/2-8*scale-12, width+24, 16*scale+24, 210)
 		center(c, h/2-4*scale, message, titleColor, scale)
 	}
+}
+
+// footerMessage supplies the status text that browsing layouts reserve room for.
+func (p *screenPainter) footerMessage() string {
+	v := &p.scene.View
+	if v.Error != "" {
+		return v.Error + "  R:retry"
+	}
+	if v.Loading || (v.fetching && v.Scroll+visibleRows(p.width, p.height) > len(v.Page.Items)) {
+		return "Loading..."
+	}
+	return p.scene.SelectionError
 }

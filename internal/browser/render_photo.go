@@ -15,7 +15,7 @@ func (p *screenPainter) photo() {
 	if s.PhotoControlsVisible {
 		c.Shade(0, 0, w, sy+12, 175)
 		rows := controlRows(w, []controlHint{hint(s.Controls, "previous", "Previous"), hint(s.Controls, "next", "Next"), hint(s.Controls, "back", "Back")})
-		top := bottom - max(0, len(rows)-1)*controlRowHeight - 6
+		top := controlsTop(bottom, rows) - 3
 		c.Shade(0, top, w, h-top, 175)
 		count := s.PhotoCount
 		c.Text(24, sy, truncate(v.Detail.Name, w-60-textWidth(count, 1), 1), 0xffffff, w-24)

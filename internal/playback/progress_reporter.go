@@ -102,7 +102,12 @@ func (r *progressReporter) finish(state jellyfin.PlayState, started, played, fai
 	r.mu.Unlock()
 	r.notify()
 	if !asynchronous {
-		<-r.done
+		select {
+		case <-r.done:
+		case <-async:
+			// Stop can arrive after natural completion began final reporting.
+			r.cancel()
+		}
 	}
 	return r.failed.Load()
 }

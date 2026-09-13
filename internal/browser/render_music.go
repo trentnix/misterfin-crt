@@ -76,7 +76,8 @@ func (p *screenPainter) music() {
 		c.Rect(24, progressY, int(min(s.Playback.PositionTicks, v.Detail.RunTimeTicks)*int64(w-48)/v.Detail.RunTimeTicks), 3, titleColor)
 	}
 	if s.Playback.ControlsVisible {
-		c.Shade(0, menuTop, w, h-menuTop, 210)
+		top := controlsTop(bottom, rows) - 3
+		c.Shade(0, top, w, h-top, 210)
 		drawControls(c, bottom, rows)
 	}
 	if s.Notice != "" {
