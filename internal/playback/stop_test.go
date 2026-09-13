@@ -68,7 +68,7 @@ func TestStopReleasesOutputBeforeSlowServerCleanup(t *testing.T) {
 			returned := make(chan error, 1)
 			go func() {
 				returned <- Run(ctx, client, jellyfin.Item{ID: "item", Type: kind}, Options{
-					Player: player, Width: 640, Height: 240, AsyncCleanup: fast,
+					VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: player}, Width: 640, Height: 240, AsyncCleanup: fast,
 					AcquireVideo: func() {}, ReleaseVideo: func() { close(released) },
 					CleanupDone: func() { close(cleaned) },
 				}, func(ticks int64) { position <- ticks })
@@ -136,7 +136,7 @@ func TestStopCanDetachReportingAlreadyInProgress(t *testing.T) {
 func TestCleanupDoneRunsWhenPreparationCannotStart(t *testing.T) {
 	calls := 0
 	err := Run(context.Background(), nil, jellyfin.Item{Type: "Movie"}, Options{
-		TerminalPlayer: "inline", Player: "native", // Invalid combination fails before HTTP.
+		VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "inline", Player: "native"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "inline", Player: "native"}, // Invalid combination fails before HTTP.
 		CleanupDone: func() { calls++ },
 	}, func(int64) {})
 	if err == nil || calls != 1 {

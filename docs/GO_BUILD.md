@@ -54,6 +54,22 @@ Go 1.26 requires Linux 3.2 or later, according to the [Go minimum requirements](
 
 If the build environment restricts cache writes, set `GOCACHE` and `ZIG_GLOBAL_CACHE_DIR` to writable directories. The local validation used `/tmp/misterfin-crt-cache` and `/tmp/misterfin-crt-zig-cache`.
 
+## Continuous integration
+
+[Go validation](../.github/workflows/ci.yml) runs on pushes, pull requests, and manual requests. It uses Ubuntu 24.04 and the Go version in `go.mod`. The job builds the host client, runs `go vet`, tests Go with and without cgo, runs the Go race detector, and exercises playback, native C adapters, and the headless browser harness. FFmpeg and libmpv provide real decoding in the playback tests. Tests generate their own media and use local test servers, so they do not need a Jellyfin account or a MiSTer.
+
+To run the same checks locally, install a C compiler, Python 3, FFmpeg, and libmpv, then run:
+
+```sh
+make host
+go vet ./...
+make test
+go test -race ./...
+make test-browse
+```
+
+The workflow has read-only repository permissions and a 15-minute timeout. A newer revision cancels superseded runs for the same branch or pull request. Separate steps and named Python tests identify which check failed. CI does not replace the ARM build or on-device checks described below.
+
 ## Hardware validation
 
 ### September 12 retest with rebuilt kernel

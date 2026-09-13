@@ -14,35 +14,35 @@ import (
 // browserSession owns one browser run. Only the event loop mutates its state.
 // Workers capture their inputs and return results through channels.
 type browserSession struct {
-	ctx                  context.Context
-	configPath, stateDir string
-	model                *Model
-	client               *jellyfin.Client
-	status               string
-	requests             requestState
-	home                 homeState
-	selection            selectionState
-	media                mediaNavigation
-	shuffle              shuffleQueue
-	music                musicPresentation
-	events               chan result
-	controller           *PlaybackController
-	driver               playbackDriver
-	output               videoout.Output
-	renderer             Renderer
-	geometry             platform.Geometry
-	ticker               *time.Ticker
-	frameInterval        time.Duration
-	lastVideoOverlay     []byte
-	controls             control.Labels
+	ctx              context.Context
+	config           Config
+	model            *Model
+	client           *jellyfin.Client
+	status           string
+	requests         requestState
+	home             homeState
+	selection        selectionState
+	media            mediaNavigation
+	shuffle          shuffleQueue
+	music            musicPresentation
+	events           chan result
+	controller       *PlaybackController
+	driver           playbackDriver
+	output           videoout.Output
+	renderer         Renderer
+	geometry         platform.Geometry
+	ticker           *time.Ticker
+	frameInterval    time.Duration
+	lastVideoOverlay []byte
+	controls         control.Labels
 }
 
 // newBrowserSession wires state, decoding, and frame pacing without starting
 // network requests. The caller must cancel ctx before calling close. The caller
 // retains ownership of output and renderer, which must not be used concurrently.
-func newBrowserSession(ctx context.Context, configPath, stateDir string, player playback.Options, output videoout.Output, renderer Renderer) *browserSession {
+func newBrowserSession(ctx context.Context, config Config, player playback.Options, output videoout.Output, renderer Renderer) *browserSession {
 	s := &browserSession{
-		ctx: ctx, configPath: configPath, stateDir: stateDir,
+		ctx: ctx, config: config,
 		model: New(), output: output, renderer: renderer, geometry: output.Geometry(),
 		events: make(chan result, 16), frameInterval: time.Second / 60,
 		requests:  requestState{cancel: func() {}},

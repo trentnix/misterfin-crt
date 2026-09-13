@@ -259,16 +259,46 @@ class VideoTests(unittest.TestCase):
                                         "--controls", "--audio", "null", "--output", str(output)],
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
             self.addCleanup(self.reap, process)
-            self.assertTrue(select.select([process.stdout], [], [], 3)[0])
-            self.assertTrue(process.stdout.readline().startswith(b"ANS_TIME_POSITION="))
+            def sample(deadline):
+                self.assertIsNone(process.poll(), "helper exited before pause/resume completed")
+                remaining = deadline - time.monotonic()
+                self.assertGreater(remaining, 0, "timed out waiting for video feedback")
+                self.assertTrue(select.select([process.stdout], [], [], remaining)[0],
+                                "no video position feedback")
+                line = process.stdout.readline()
+                self.assertTrue(line.startswith(b"ANS_TIME_POSITION="), line)
+                return float(line.split(b"=")[1]), output.read_bytes()
+
+            sample(time.monotonic() + 3)
             process.stdin.write(b"pause true\n")
-            time.sleep(0.3)
-            paused = output.read_bytes()
-            time.sleep(0.4)
-            self.assertEqual(output.read_bytes(), paused)
+            # Command handling, position reports, and frame publication run
+            # independently. Wait for both position and pixels to settle instead
+            # of assuming the pause and last render finish within 300 ms.
+            deadline = time.monotonic() + 3
+            paused = sample(deadline)
+            stable_since = time.monotonic()
+            while time.monotonic() - stable_since < .5:
+                current = sample(deadline)
+                if current != paused:
+                    paused = current
+                    stable_since = time.monotonic()
+                self.assertLess(time.monotonic(), deadline, "video did not settle after pause")
+
+            # Once settled, playback must stay paused. Compare pixels as a bool
+            # so a failure does not dump two megabytes of framebuffer contents.
+            deadline = time.monotonic() + .5
+            while time.monotonic() < deadline:
+                position, frame = sample(time.monotonic() + 3)
+                self.assertEqual(position, paused[0], "playback position advanced while paused")
+                self.assertTrue(frame == paused[1], "video frame changed while paused")
+
             process.stdin.write(b"pause false\n")
-            time.sleep(0.4)
-            self.assertNotEqual(output.read_bytes(), paused)
+            deadline = time.monotonic() + 3
+            while True:
+                position, frame = sample(deadline)
+                if position > paused[0] + .2 and frame != paused[1]:
+                    break
+                self.assertLess(time.monotonic(), deadline, "video did not resume")
             process.terminate()
             process.wait(timeout=2)
             self.assertEqual(process.returncode, 0)

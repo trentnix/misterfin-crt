@@ -148,7 +148,7 @@ done
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(ctx, client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{
-			Player: player, Width: 640, Height: 240, Device: "/dev/fb0", Controls: controls,
+			VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: player}, Width: 640, Height: 240, Device: "/dev/fb0", Controls: controls,
 			Paused: func(value bool) { paused <- value }, Buffering: func(value bool) { buffering <- value },
 		}, func(ticks int64) { positions <- ticks })
 	}()
@@ -299,7 +299,7 @@ func TestFastCompletionPreservesInitialReportAndSurfacesReportingFailure(t *test
 	}))
 	defer server.Close()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
-	err := Run(context.Background(), client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{Headless: true, Player: player}, func(int64) {})
+	err := Run(context.Background(), client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, func(int64) {})
 	if err == nil || err.Error() != "playback ended, but Jellyfin progress reporting failed" {
 		t.Fatalf("reporting failure was lost at EOF: %v", err)
 	}

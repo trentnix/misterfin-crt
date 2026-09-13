@@ -143,22 +143,6 @@ func TestMosaicDiskBudgetAndEntryLimit(t *testing.T) {
 	}
 }
 
-func TestMosaicCacheLocations(t *testing.T) {
-	t.Setenv("MISTERFIN_CACHE_ROOT", "")
-	if got := mosaicCacheRoot(false); got != "/media/fat/misterfin-crt/gridcache" {
-		t.Fatal(got)
-	}
-	root := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", root)
-	if got := mosaicCacheRoot(true); got != filepath.Join(root, "misterfin-crt", "gridcache") {
-		t.Fatal(got)
-	}
-	t.Setenv("MISTERFIN_CACHE_ROOT", root)
-	if got := mosaicCacheRoot(false); got != filepath.Join(root, "misterfin-crt", "gridcache") {
-		t.Fatal(got)
-	}
-}
-
 func BenchmarkMosaicDiskRestore(b *testing.B) {
 	c := newMosaicDiskCache(b.TempDir(), "server", "user")
 	covers := make([]mosaicCover, 12)

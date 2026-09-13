@@ -40,14 +40,14 @@ func (s *browserSession) authenticate() {
 	s.requests.cancel = stop
 	s.status = "Connecting to Jellyfin..."
 	go func() {
-		c, err := jellyfin.LoadConfig(s.configPath)
+		c, err := jellyfin.LoadConfig(s.config.ConfigPath)
 		var jf *jellyfin.Client
 		if err == nil {
 			var session jellyfin.Session
-			session, err = jellyfin.LoadSession(s.stateDir, c.Server)
+			session, err = jellyfin.LoadSession(s.config.StateDir, c.Server)
 			if err == nil {
 				jf = jellyfin.NewClient(c, session)
-				err = jf.Authenticate(work, s.stateDir, func(code string) {
+				err = jf.Authenticate(work, s.config.StateDir, func(code string) {
 					s.send(work, result{kind: authResult, request: Request{Generation: generation}, code: code})
 				})
 			}
@@ -97,8 +97,8 @@ func (s *browserSession) handleAuth(r result) bool {
 		s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
 		s.selection.key = ""
 		s.selection.loader = newSelectionLoader(s.client, s.geometry.Width, s.geometry.Height)
-		s.selection.loader.disk = newMosaicDiskCache(mosaicCacheRoot(s.driver.options.Headless), s.client.Config.Server, s.client.Session.UserID)
-		s.selection.loader.artwork.disk = newArtworkDiskCache(browserCacheRoot(s.driver.options.Headless, "covercache"), s.client.Config.Server, s.client.Session.UserID)
+		s.selection.loader.disk = newMosaicDiskCache(s.config.MosaicCacheDir, s.client.Config.Server, s.client.Session.UserID)
+		s.selection.loader.artwork.disk = newArtworkDiskCache(s.config.ArtworkCacheDir, s.client.Config.Server, s.client.Session.UserID)
 		s.status = ""
 		s.load(s.model.Load(0))
 		s.refreshHome()

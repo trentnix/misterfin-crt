@@ -24,7 +24,9 @@ A background writer coalesces changes and replaces each record atomically. The i
 
 ## Picture modes
 
-Picture offers Original and Zoom. Original is the default and preserves the entire picture with its correct aspect ratio. Zoom enlarges widescreen video and crops its sides. Scaling uses the encoded frame's display aspect ratio, so black bars within that frame can remain. Zoom does not detect the boundaries of the visible picture or guarantee that it fills the screen. Sources at or narrower than 4:3 keep their original fit.
+Picture offers Original and, for sources wider than 4:3, Zoom. Original is the default and preserves the entire picture with its correct aspect ratio. Zoom enlarges widescreen video and crops its sides.
+
+Scaling uses the encoded frame's display aspect ratio, so black bars within that frame can remain. Zoom does not detect the boundaries of the visible picture or guarantee that it fills the screen. Sources at or narrower than 4:3 show only Original. The Picture tab stays visible and explains why Zoom is unavailable. A previously saved Zoom choice resolves to Original for those sources.
 
 On MiSTer and inline Ghostty, changing picture mode updates the running player without seeking, reopening the stream, or changing pause state. The Picture tab uses the same full-screen panel as Subtitles and Audio and closes after a successful change. A paused comparison redraws exactly the same decoded frame. Playing video continues normally. The active marker follows the player's acknowledgment. Failed live requests leave the preceding mode active and the picker open.
 

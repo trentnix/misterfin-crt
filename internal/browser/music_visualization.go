@@ -24,7 +24,7 @@ type musicPresentation struct {
 func (s *browserSession) loadMusicConfig() {
 	path := os.Getenv("MISTERFIN_MUSIC_CONFIG")
 	if path == "" {
-		path = filepath.Join(filepath.Dir(s.configPath), "music.json")
+		path = filepath.Join(filepath.Dir(s.config.ConfigPath), "music.json")
 	}
 	go func() {
 		library, err := musicviz.LoadPresets(path)

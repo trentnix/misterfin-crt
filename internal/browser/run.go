@@ -5,32 +5,32 @@ import (
 	"errors"
 	"time"
 
-	"misterfin-crt/internal/input"
-	"misterfin-crt/internal/input/evdev"
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/videoout"
 )
 
-// Run owns input and session lifetime. The loop serializes actions, worker
-// results, and playback events. Handlers request redraws without presenting.
+// Run owns the browser session and borrows input, output, and renderer. The loop
+// serializes actions, worker results, playback events, and presentation. Handlers
+// request redraws without presenting. Decoder callbacks may acquire and release
+// output concurrently. The caller must keep renderer, output, and values
+// referenced by player valid until Run returns.
 //
-// Run borrows output and renderer. Rendering and presentation are serial.
-// Decoder callbacks may acquire and release output concurrently. The caller
-// must close output after Run returns. Cancellation and user exit stop pending work and
-// wait for tracked decoders and the input reader. Final server reporting may
-// still be running when a seek handoff enabled asynchronous cleanup.
-func Run(ctx context.Context, configPath, stateDir string, player playback.Options, output videoout.Output, renderer Renderer, bindings evdev.Config) error {
+// keys supplies semantic actions and immutable binding labels from any input
+// source. Nil disables input. Closing keys while ctx is active returns an
+// "input closed" error. Run does not close keys or cancel its caller's context.
+//
+// Cancellation and user exit stop pending work and wait for tracked decoders
+// and detached server cleanup. The caller must cancel and join its input reader,
+// then close output after Run returns.
+func Run(ctx context.Context, config Config, player playback.Options, output videoout.Output, renderer Renderer, keys <-chan control.Event) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	keys, done, err := input.Read(ctx, player.Headless, bindings)
-	if err != nil {
-		output.Clear()
-		return err
-	}
-	s := newBrowserSession(ctx, configPath, stateDir, player, output, renderer)
-	defer func() { cancel(); s.close(); <-done }()
+	s := newBrowserSession(ctx, config, player, output, renderer)
+	defer func() { cancel(); s.close() }()
 	var frames <-chan struct{}
 	if notifier, ok := output.(videoout.FrameNotifier); ok {
+		var err error
 		frames, err = notifier.FrameUpdates()
 		if err != nil {
 			return err

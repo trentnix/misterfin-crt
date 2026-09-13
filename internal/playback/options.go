@@ -54,8 +54,6 @@ type Options struct {
 	// With AsyncCleanup enabled it can run on a background goroutine after Run
 	// returns. It must not access mutable caller state without synchronization.
 	CleanupDone func()
-	// AudioPlayer selects a Python audio helper when Player is empty.
-	AudioPlayer string
 	// Controls supplies decoder actions. Nil disables actions. Closing the
 	// channel disables further actions without stopping playback.
 	Controls <-chan Control
@@ -74,19 +72,20 @@ type Options struct {
 	// Audio invokes neither callback. ReleaseVideo requires AcquireVideo.
 	AcquireVideo func()
 	ReleaseVideo func()
-	// Player overrides the default executable. Native playback defaults to
-	// mplayer-arm. Headless playback defaults to FFplay.
-	Player string
-	// TerminalPlayer selects the Python inline decoder for headless video.
-	// It requires FrameOutput and cannot be combined with Player.
-	TerminalPlayer string
-	// FrameOutput is the browser's raw frame path. The inline decoder publishes
-	// clean video frames beside it with the ".video" suffix.
+	// VideoDecoder selects the protocol for movies, episodes, and other video,
+	// including Live TV. The caller resolves executable overrides and helpers.
+	VideoDecoder DecoderConfig
+	// AudioDecoder independently selects the protocol for Audio items. It does
+	// not inherit VideoDecoder. Its zero value selects MPlayer.
+	AudioDecoder DecoderConfig
+	// FrameOutput is required for Python video. It is the complete path where
+	// the decoder publishes clean BGRX frames, with no suffix added by playback.
+	// The output backend must read the same path. Audio ignores this field.
 	FrameOutput string
-	// Headless selects desktop player commands instead of native MiSTer commands.
-	Headless bool
 	// Device names the native framebuffer, normally /dev/fb0.
 	Device string
-	// Width and Height describe the physical output pixels, not UI layout pixels.
+	// Width and Height describe physical output pixels. MPlayer requires a width
+	// of 640 and a height of 240, 288, 480, or 576. Python video requires 640x240
+	// or 640x288. Height also selects Jellyfin's NTSC (240/480) or PAL stream profile.
 	Width, Height int
 }

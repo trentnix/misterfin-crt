@@ -14,10 +14,10 @@ arm:
 test:
 	CGO_ENABLED=1 $(GO) test ./...
 	CGO_ENABLED=0 $(GO) test ./...
-	python3 -m unittest tools/ghostty/test_ghostty_harness.py tools/ghostty/test_video_player.py tools/test_native_overlay.py tools/test_native_picture.py tools/test_mplayer_timing.py
+	python3 -m unittest -v tools/ghostty/test_ghostty_harness.py tools/ghostty/test_video_player.py tools/test_native_overlay.py tools/test_native_picture.py tools/test_mplayer_timing.py
 
 test-browse: host
-	python3 -m unittest tools/ghostty/test_go_browse.py
+	python3 -m unittest -v tools/ghostty/test_go_browse.py
 
 headless: host
 	./build/misterfin-crt -headless 640x288 -output build/go-frame.raw

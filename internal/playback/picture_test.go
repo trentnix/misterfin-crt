@@ -43,8 +43,8 @@ func TestZoomAcrossDecodersAndNarrowPictures(t *testing.T) {
 		item := jellyfin.Item{Type: "Episode", MediaStreams: []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: tc.aspect}}}
 		for _, options := range []Options{
 
-			{Headless: true},
-			{Headless: true, Width: 640, Height: 240, FrameOutput: "frame", TerminalPlayer: "video.py"},
+			{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}},
+			{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 240, FrameOutput: "frame"},
 		} {
 			for _, mode := range []PictureMode{PictureOriginal, PictureZoom43} {
 				options.Tracks = &TrackOptions{Picture: mode}
@@ -93,7 +93,7 @@ func TestNativePictureProtocolAndAcknowledgments(t *testing.T) {
 }
 
 func TestInlinePictureUsesLiveControlProtocol(t *testing.T) {
-	d, err := selectDecoder(Options{Headless: true, Width: 640, Height: 240, FrameOutput: "frame", TerminalPlayer: "video.py"}, jellyfin.Item{Type: "Movie"})
+	d, err := selectDecoder(Options{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, jellyfin.Item{Type: "Movie"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestNativePictureRequestStaysInCurrentSession(t *testing.T) {
 	preferences := NewPreferences(t.TempDir())
 	defer preferences.Close()
 	go func() {
-		done <- Run(ctx, client, jellyfin.Item{ID: "film", Type: "Movie"}, Options{Preferences: preferences, Width: 640, Height: 240, Player: path, Controls: controls, TrackInfo: func(v VideoTracks) { info <- v }, Picture: func(v PictureResult) { pictures <- v }}, func(p int64) { positions <- p })
+		done <- Run(ctx, client, jellyfin.Item{ID: "film", Type: "Movie"}, Options{Preferences: preferences, Width: 640, Height: 240, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Controls: controls, TrackInfo: func(v VideoTracks) { info <- v }, Picture: func(v PictureResult) { pictures <- v }}, func(p int64) { positions <- p })
 	}()
 	select {
 	case v := <-info:

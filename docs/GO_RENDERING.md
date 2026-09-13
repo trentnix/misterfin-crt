@@ -1,6 +1,6 @@
 # Playback controller and rendering
 
-`PlaybackController` is a concrete Go struct in `internal/browser/playback_controller.go`. It owns the current item, active and pending decoder resources, seek debounce, cancellation, pause restoration, and playback notices. `browser.Run` owns input and session lifetime and dispatches actions, timer ticks, worker results, and typed decoder events. `browserSession` owns navigation, request cancellation, selection loading, media navigation, and presentation. Its handlers coordinate those responsibilities with the controller.
+`PlaybackController` is a concrete Go struct in `internal/browser/playback_controller.go`. It owns the current item, active and pending decoder resources, seek debounce, cancellation, pause restoration, and playback notices. `browser.Run` borrows an input event channel, owns session lifetime, and dispatches actions, timer ticks, worker results, and typed decoder events. `browserSession` owns navigation, request cancellation, selection loading, media navigation, and presentation. Its handlers coordinate those responsibilities with the controller.
 
 `Model` owns the navigation stack, music queue presentation, and photo menu timer. `PlaybackController` exclusively owns its private `playbackState`. The model and controller share no mutable playback state.
 
@@ -24,7 +24,9 @@ flowchart TD
     MiSTer --> Overlay["Overlay publication to patched MPlayer"]
 ```
 
-`cmd/misterfin-crt/main.go` selects both the renderer and output backend. `browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
+`cmd/misterfin-crt/browser.go` selects the renderer, output backend, input reader, and audio and video decoders at startup. It opens input and cancels and joins the reader after the browser returns. `paths.go` resolves configuration, session, and cache paths into `browser.Config`. The browser receives those paths and semantic input events without selecting hardware. Playback receives explicit `DecoderConfig` values without using the display mode to choose a protocol. Existing command-line flags still select the same defaults.
+
+`browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
 
 ## Event loop ownership
 
@@ -78,10 +80,12 @@ The terminal presenter uploads the next image before changing any visible placem
 
 Each backend lives in its own subpackage and exports `New` and a concrete `Backend` type implementing `videoout.Output`. The shared `videoout` package has no dependency on its implementations. Application wiring selects the implementation.
 
-- [`main.go`](../cmd/misterfin-crt/main.go): signal handling, display lifetime, output selection, and application wiring.
+- [`main.go`](../cmd/misterfin-crt/main.go): signal handling and display lifetime.
+- [`browser.go`](../cmd/misterfin-crt/browser.go): input ownership, decoder selection, output selection, and browser wiring.
+- [`paths.go`](../cmd/misterfin-crt/paths.go): storage defaults and the cache-root override.
 - [`options.go`](../cmd/misterfin-crt/options.go): command-line parsing and mode validation before resources open.
 - [`preview.go`](../cmd/misterfin-crt/preview.go): test-frame display and its optional wait.
-- [`run.go`](../internal/browser/run.go): input lifetime, event dispatch, and the single redraw decision.
+- [`run.go`](../internal/browser/run.go): session lifetime, event dispatch, and the single redraw decision.
 - [`session.go`](../internal/browser/session.go): session state, construction, and cleanup.
 - [`session_requests.go`](../internal/browser/session_requests.go): authentication and listing requests, cancellation, and generation checks.
 - [`session_selection.go`](../internal/browser/session_selection.go): selected metadata and images, loading, error handling, and stale-result rejection.
@@ -191,12 +195,14 @@ The query fields, endpoints, redirect policy, and authentication fallback order 
 
 The private `decoder` interface separates executable protocols from process and session ownership. Each implementation supplies its executable, arguments, input transport, and pause, poll, and refresh behavior. Implementations hold immutable launch configuration. `decoderControl` lends them stdin and process-group signaling without transferring ownership of the child process.
 
-- [`decoder.go`](../internal/playback/decoder.go): the interface, source transport choices, option validation, helper precedence, and executable lookup.
+- [`decoder.go`](../internal/playback/decoder.go): the interface, source transport choices, protocol validation, and executable lookup.
 - [`decoder_mplayer.go`](../internal/playback/decoder_mplayer.go): MPlayer slave commands, CRT aspect correction, audio filters, and synchronization arguments.
 - [`decoder_ffplay.go`](../internal/playback/decoder_ffplay.go): FFplay arguments and process-group pause/resume signals.
 - [`decoder_python.go`](../internal/playback/decoder_python.go): Python helper arguments, explicit pause/resume commands, and the clean video frame destination.
 
-`Options` remains the application-facing configuration. Selection converts its decoder fields into one implementation before session preparation. The shared lifecycle, source loader, and monitoring loop do not branch on `Headless` or `TerminalPlayer`. They retain source authentication, startup gating, cancellation, feedback, and Jellyfin reporting. MPlayer and the Python helper use a local range-capable proxy for audio. Other streams use file descriptor 3.
+`Options.VideoDecoder` and `Options.AudioDecoder` hold independently selected `DecoderConfig` values. Startup resolves executable overrides and helper precedence. Playback validates the selected protocol and converts it into one implementation before session preparation. The playback package has no `Headless` setting.
+
+The shared lifecycle retains source authentication, startup gating, cancellation, feedback, and Jellyfin reporting. MPlayer and the Python helper use a local range-capable proxy for audio. Other streams use file descriptor 3.
 
 The Go-specific MPlayer build also applies `docker/mplayer_go.patch` to dropped-frame timing. A dropped frame never reaches the output filters, so their timestamp still belongs to the previous displayed frame. The patch advances the playback timeline once for each skipped frame instead of reading that stale timestamp and counting the interval again when the next image arrives. This prevents a brief rendering delay from trapping playback in repeated frame drops and audio drift. Frame dropping, audio-clock correction, and framebuffer presentation timing retain their existing policies. The inherited C build remains unchanged.
 

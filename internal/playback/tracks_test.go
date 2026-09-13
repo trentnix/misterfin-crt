@@ -81,3 +81,31 @@ func TestSubtitleLoaderCancellationAndFailure(t *testing.T) {
 		t.Fatal("failed extraction leaked diagnostic or appeared successful")
 	}
 }
+
+func TestPictureAvailabilityUsesSelectedSourceAndNormalizesSavedZoom(t *testing.T) {
+	for _, tc := range []struct {
+		aspect string
+		zoom   bool
+	}{{"16:9", true}, {"235:100", true}, {"4:3", false}, {"1:1", false}} {
+		t.Run(tc.aspect, func(t *testing.T) {
+			item := jellyfin.Item{ID: "movie", Type: "Movie",
+				MediaStreams: []jellyfin.MediaStream{{Type: "Video", AspectRatio: "16:9"}},
+				MediaSources: []jellyfin.MediaSource{{ID: "source", MediaStreams: []jellyfin.MediaStream{
+					{Type: "Video", Width: 720, Height: 480, AspectRatio: tc.aspect},
+				}}},
+			}
+			for _, options := range []Options{
+				{savedTracks: &videoPreference{SourceID: "source", Picture: PictureZoom43}},
+				{Tracks: &TrackOptions{Picture: PictureZoom43, Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}},
+			} {
+				tracks, err := videoTracks(item, options)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tracks.CanZoom() != tc.zoom || (tracks.Picture == PictureZoom43) != tc.zoom {
+					t.Fatalf("wrong availability or effective saved choice: %+v", tracks)
+				}
+			}
+		})
+	}
+}

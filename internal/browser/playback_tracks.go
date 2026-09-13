@@ -40,10 +40,12 @@ func (c *PlaybackController) hasTracks() bool {
 
 func (c *PlaybackController) trackRows(tab int) []TrackRow {
 	if tab == 2 {
-		return []TrackRow{
-			{int(playback.PictureOriginal), "Original", c.tracks.Picture == playback.PictureOriginal},
-			{int(playback.PictureZoom43), "Zoom", c.tracks.Picture == playback.PictureZoom43},
+		zoom := c.tracks.CanZoom()
+		rows := []TrackRow{{int(playback.PictureOriginal), "Original", !zoom || c.tracks.Picture == playback.PictureOriginal}}
+		if zoom {
+			rows = append(rows, TrackRow{int(playback.PictureZoom43), "Zoom", c.tracks.Picture == playback.PictureZoom43})
 		}
+		return rows
 	}
 	kind, index, label := "Subtitle", c.tracks.Selection.SubtitleIndex, "Off"
 	if tab == 1 {
@@ -62,6 +64,7 @@ func (c *PlaybackController) openTracks() {
 	c.state.HideControls()
 	c.picker.visible = true
 	for tab := 0; tab < len(c.picker.selected); tab++ {
+		c.picker.selected[tab] = 0
 		for i, row := range c.trackRows(tab) {
 			if row.Active {
 				c.picker.selected[tab] = i
@@ -104,6 +107,8 @@ func (c *PlaybackController) trackKey(key string, now time.Time) {
 
 func (c *PlaybackController) applyTrack(now time.Time) {
 	rows := c.trackRows(c.picker.tab)
+	// Refreshed source metadata can remove Zoom while the picker is open.
+	c.picker.selected[c.picker.tab] = min(c.picker.selected[c.picker.tab], len(rows)-1)
 	index := rows[c.picker.selected[c.picker.tab]].Index
 	if c.picker.tab == 2 && c.tracks.LivePicture {
 		c.applyPicture(playback.PictureMode(index))
@@ -185,10 +190,17 @@ func (c *PlaybackController) applyPicture(mode playback.PictureMode) {
 func (c *PlaybackController) trackPresentation(p *PlaybackPresentation, now time.Time) {
 	p.TracksAvailable = c.hasTracks()
 	if c.picker.visible {
-		p.Tracks = &TrackMenu{Tab: c.picker.tab, Selected: c.picker.selected[c.picker.tab], Rows: c.trackRows(c.picker.tab), Message: c.notice}
+		rows := c.trackRows(c.picker.tab)
+		selected := min(c.picker.selected[c.picker.tab], len(rows)-1)
+		p.Tracks = &TrackMenu{Tab: c.picker.tab, Selected: selected, Rows: rows, Message: c.notice}
 		if c.picker.tab == 2 && p.Tracks.Message == "" {
 			p.Tracks.Message = "Original aspect ratio, no cropping"
-			if c.picker.selected[2] == 1 {
+			if !c.tracks.CanZoom() {
+				p.Tracks.Message = "Zoom is available for widescreen video."
+				if c.tracks.DisplayAspectRatio() == 4.0/3 {
+					p.Tracks.Message = "This video already fits the 4:3 screen."
+				}
+			} else if p.Tracks.Selected == 1 {
 				p.Tracks.Message = "Enlarge the picture, crop the sides"
 			}
 		}

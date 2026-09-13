@@ -241,3 +241,57 @@ func TestSubtitleCompletionAfterBackLeavesControlsAlone(t *testing.T) {
 		}
 	}
 }
+
+func TestPictureMenuOffersZoomOnlyForWidescreenSources(t *testing.T) {
+	for _, tc := range []struct {
+		aspect string
+		zoom   bool
+	}{{"16:9", true}, {"235:100", true}, {"4:3", false}, {"1:1", false}} {
+		t.Run(tc.aspect, func(t *testing.T) {
+			f := trackFixture(t)
+			// Encoded dimensions alone suggest widescreen. The selected source's
+			// display aspect must determine menu availability for anamorphic video.
+			f.c.tracks.Streams = []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 480, AspectRatio: tc.aspect}}
+			f.c.Key("select", f.now)
+			f.c.Key("next", f.now)
+			f.c.Key("next", f.now)
+			f.c.Key("down", f.now)
+			menu := f.c.Snapshot(f.now).Tracks
+			if menu == nil || menu.Tab != 2 || !menu.Rows[0].Active {
+				t.Fatal("Picture menu lost the original fit")
+			}
+			if tc.zoom {
+				if len(menu.Rows) != 2 || menu.Selected != 1 || menu.Rows[1].Index != int(playback.PictureZoom43) {
+					t.Fatal("widescreen source did not offer Zoom")
+				}
+			} else {
+				if len(menu.Rows) != 1 || menu.Selected != 0 {
+					t.Fatal("4:3 or narrower source offered an ineffective Zoom choice")
+				}
+				f.c.Key("open", f.now)
+				if len(f.calls) != 1 || f.c.Snapshot(f.now).Tracks != nil {
+					t.Fatal("selecting Original restarted playback or left the menu open")
+				}
+			}
+		})
+	}
+}
+
+func TestPictureMenuClampsSelectionWhenSourceMetadataChanges(t *testing.T) {
+	f := trackFixture(t)
+	f.c.Key("select", f.now)
+	f.c.Key("next", f.now)
+	f.c.Key("next", f.now)
+	f.c.Key("down", f.now)
+	info := f.c.tracks
+	info.Streams = []jellyfin.MediaStream{{Type: "Video", AspectRatio: "4:3"}}
+	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: info}, f.now)
+	menu := f.c.Snapshot(f.now).Tracks
+	if menu.Selected != 0 || len(menu.Rows) != 1 {
+		t.Fatal("removed Zoom left selection outside the available rows")
+	}
+	f.c.Key("open", f.now)
+	if len(f.calls) != 1 || f.c.Snapshot(f.now).Tracks != nil {
+		t.Fatal("metadata update caused a playback restart")
+	}
+}

@@ -24,12 +24,7 @@ type mosaicDiskCache struct {
 	known map[string]uint32
 }
 
-// mosaicCacheRoot follows the C cache-root override while keeping Go files in
-// their own subdirectory. Native defaults to the SD card, desktop to user cache.
-func mosaicCacheRoot(headless bool) string {
-	return browserCacheRoot(headless, "gridcache")
-}
-
+// newMosaicDiskCache scopes a resolved cache directory to one server and user.
 func newMosaicDiskCache(root, server, user string) *mosaicDiskCache {
 	dir := accountCacheDir(root, server, user)
 	if dir == "" {

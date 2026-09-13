@@ -224,22 +224,6 @@ func TestArtworkDiskPruning(t *testing.T) {
 	}
 }
 
-func TestArtworkCacheLocations(t *testing.T) {
-	t.Setenv("MISTERFIN_CACHE_ROOT", "")
-	if got := browserCacheRoot(false, "covercache"); got != "/media/fat/misterfin-crt/covercache" {
-		t.Fatal(got)
-	}
-	root := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", root)
-	if got := browserCacheRoot(true, "covercache"); got != filepath.Join(root, "misterfin-crt", "covercache") {
-		t.Fatal(got)
-	}
-	t.Setenv("MISTERFIN_CACHE_ROOT", root)
-	if got := browserCacheRoot(false, "covercache"); got != filepath.Join(root, "misterfin-crt", "covercache") {
-		t.Fatal(got)
-	}
-}
-
 func BenchmarkArtworkDiskRestore(b *testing.B) {
 	c := newArtworkDiskCache(b.TempDir(), "server", "user")
 	key := imageKey{"id", "Backdrop", "tag"}

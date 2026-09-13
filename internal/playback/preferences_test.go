@@ -176,7 +176,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	}
 	run := func(p *Preferences, explicit *TrackOptions, start *int64) {
 		t.Helper()
-		err := Run(context.Background(), c, item, Options{Preferences: p, Tracks: explicit, StartTicks: start, Player: path, Width: 640, Height: 240}, func(int64) {})
+		err := Run(context.Background(), c, item, Options{Preferences: p, Tracks: explicit, StartTicks: start, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, func(int64) {})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -193,7 +193,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	// its explicit defaults over the choices used by the preceding decoder.
 	ctx, cancel := context.WithCancel(context.Background())
 	defaults := TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
-	if err := Run(ctx, c, item, Options{Preferences: p, Tracks: &defaults, Player: path, Width: 640, Height: 240,
+	if err := Run(ctx, c, item, Options{Preferences: p, Tracks: &defaults, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240,
 		Start: make(chan struct{}), Ready: cancel}, func(int64) {}); err != nil {
 		t.Fatal(err)
 	}

@@ -62,34 +62,39 @@ func Supported(item jellyfin.Item) bool {
 	return false
 }
 
-// selectDecoder validates launch choices and resolves helper precedence without
-// opening a process or making network requests. Player overrides keep the native
-// or headless protocol. AudioPlayer overrides TerminalPlayer only for audio.
+// selectDecoder validates the selected protocol without opening a process or
+// making network requests. Audio and video settings are resolved by the caller.
 func selectDecoder(o Options, item jellyfin.Item) (decoder, error) {
 	if !Supported(item) {
 		return nil, errors.New("playback for this item type is not implemented")
 	}
-	if !o.Headless && (o.Width != 640 || (o.Height != 240 && o.Height != 288 && o.Height != 480 && o.Height != 576)) {
-		return nil, errors.New("MiSTer playback currently requires a 640-pixel PAL or NTSC framebuffer")
+	config := o.VideoDecoder
+	if item.Type == "Audio" {
+		config = o.AudioDecoder
 	}
-	if o.TerminalPlayer != "" && (!o.Headless || o.FrameOutput == "" || o.Player != "" || o.Width != 640 || (o.Height != 240 && o.Height != 288)) {
-		return nil, errors.New("terminal playback requires 640x240 or 640x288 headless output and no player override")
-	}
-	script := o.TerminalPlayer
 	picture := PictureOriginal
 	if o.Tracks != nil {
 		picture = o.Tracks.Picture
 	}
-	if item.Type == "Audio" && o.AudioPlayer != "" && o.Player == "" {
-		script = o.AudioPlayer
+	switch config.Kind {
+	case DecoderMPlayer:
+		if o.Width != 640 || (o.Height != 240 && o.Height != 288 && o.Height != 480 && o.Height != 576) {
+			return nil, errors.New("MiSTer playback currently requires a 640-pixel PAL or NTSC framebuffer")
+		}
+		return mplayerDecoder{player: config.Player, device: o.Device, width: o.Width, height: o.Height, picture: picture}, nil
+	case DecoderFFplay:
+		return ffplayDecoder{player: config.Player, picture: picture}, nil
+	case DecoderPython:
+		if config.Helper == "" || config.Player != "" {
+			return nil, errors.New("Python playback requires a helper script and no player override")
+		}
+		if item.Type != "Audio" && (o.FrameOutput == "" || o.Width != 640 || (o.Height != 240 && o.Height != 288)) {
+			return nil, errors.New("Python video playback requires a frame output path and 640x240 or 640x288 geometry")
+		}
+		return pythonDecoder{script: config.Helper, output: o.FrameOutput, width: o.Width, height: o.Height, picture: picture}, nil
+	default:
+		return nil, errors.New("unknown decoder protocol")
 	}
-	if script != "" {
-		return pythonDecoder{script: script, output: o.FrameOutput + ".video", width: o.Width, height: o.Height, picture: picture}, nil
-	}
-	if o.Headless {
-		return ffplayDecoder{player: o.Player, picture: picture}, nil
-	}
-	return mplayerDecoder{player: o.Player, device: o.Device, width: o.Width, height: o.Height, picture: picture}, nil
 }
 
 // resolveDecoder locates the selected executable before playback preparation.
