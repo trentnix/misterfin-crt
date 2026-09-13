@@ -67,3 +67,50 @@ func TestNavigationMergesEchoAndRepeats(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestNavigationAcceleratesAndResets(t *testing.T) {
+	for _, key := range []string{"up", "down", "previous", "next"} {
+		t.Run(key, func(t *testing.T) {
+			var n navigation
+			start := time.Unix(0, 0)
+			held := map[string]bool{key: true}
+			check := func(ms int, held, pressed map[string]bool, want string) {
+				t.Helper()
+				got := n.update(held, pressed, start.Add(time.Duration(ms)*time.Millisecond))
+				if want == "" && len(got) == 0 {
+					return
+				}
+				if len(got) != 1 || got[0] != want {
+					t.Fatalf("at %d ms: got %v, want %q", ms, got, want)
+				}
+			}
+			check(0, held, held, key)
+			// These times match the C implementation, including the transition
+			// from six slow intervals to the first fast interval.
+			for _, ms := range []int{350, 460, 570, 680, 790, 900, 1010, 1055, 1100} {
+				check(ms-1, held, nil, "")
+				check(ms, held, nil, key+"-repeat")
+			}
+			// A delayed poll emits one repeat, then schedules from that poll.
+			check(2000, held, nil, key+"-repeat")
+			check(2001, held, nil, "")
+			check(2045, held, nil, key+"-repeat")
+			// Release (also used when a device disappears) resets acceleration.
+			check(2050, nil, nil, "")
+			check(2100, held, held, key)
+			check(2449, held, nil, "")
+			check(2450, held, nil, key+"-repeat")
+			check(2495, held, nil, "")
+			check(2560, held, nil, key+"-repeat")
+			// Changing directions starts with a fresh press and delay.
+			other := "up"
+			if key == other {
+				other = "down"
+			}
+			held = map[string]bool{other: true}
+			check(2570, held, held, other)
+			check(2919, held, nil, "")
+			check(2920, held, nil, other+"-repeat")
+		})
+	}
+}

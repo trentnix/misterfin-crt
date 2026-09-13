@@ -115,25 +115,46 @@ func (d *device) accept(e event) string {
 // navigation merges physical directions and MiSTer's virtual arrow echoes.
 // One held direction produces one press and one repeat stream across devices.
 type navigation struct {
-	repeatAt map[string]time.Time
+	repeats map[string]navigationRepeat
 }
 
+// navigationRepeat follows the C client's two-stage hold timing. Scheduling
+// from the current poll avoids a burst of queued repeats after a slow frame.
+type navigationRepeat struct {
+	next  time.Time
+	count int
+}
+
+const (
+	repeatDelay     = 350 * time.Millisecond
+	repeatSlow      = 110 * time.Millisecond
+	repeatFast      = 45 * time.Millisecond
+	repeatRampAfter = 6
+)
+
 func (n *navigation) update(held, pressed map[string]bool, now time.Time) []string {
-	if n.repeatAt == nil {
-		n.repeatAt = make(map[string]time.Time)
+	if n.repeats == nil {
+		n.repeats = make(map[string]navigationRepeat)
 	}
 	var keys []string
 	for _, key := range []string{"up", "down", "previous", "next"} {
-		deadline, active := n.repeatAt[key]
+		repeat, active := n.repeats[key]
 		if !active && (held[key] || pressed[key]) {
 			keys = append(keys, key)
-			n.repeatAt[key] = now.Add(400 * time.Millisecond)
-		} else if held[key] && !now.Before(deadline) {
+			n.repeats[key] = navigationRepeat{next: now.Add(repeatDelay)}
+		} else if held[key] && !now.Before(repeat.next) {
 			keys = append(keys, key+"-repeat")
-			n.repeatAt[key] = now.Add(100 * time.Millisecond)
+			interval := repeatSlow
+			if repeat.count >= repeatRampAfter {
+				interval = repeatFast
+			} else {
+				repeat.count++
+			}
+			repeat.next = now.Add(interval)
+			n.repeats[key] = repeat
 		}
 		if !held[key] {
-			delete(n.repeatAt, key)
+			delete(n.repeats, key)
 		}
 	}
 	return keys

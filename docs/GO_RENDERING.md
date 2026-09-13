@@ -30,6 +30,8 @@ flowchart TD
 
 Only the event loop mutates `browserSession`. Workers capture their request inputs and send results through channels. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
 
+MiSTer’s `evdev.navigation` merges controller directions and virtual keyboard echoes into one press and repeat stream per direction. Held directions follow the C repeat timing: a 350 ms initial delay, six 110 ms intervals, then 45 ms intervals. Releasing a direction resets its acceleration. Late polls emit one repeat without catching up in a burst. Repeat actions retain their `-repeat` suffix so holding Up cannot repeatedly toggle playback or photo controls. Ghostty terminal input uses the desktop keyboard repeat settings.
+
 Handlers return whether an event requires an immediate redraw. `Run` performs that redraw in one place. Timer ticks update playback and render at the interval supplied by `Output.FrameInterval(scene.Video)`. Outputs can implement `FrameNotifier` to request an immediate redraw when a video frame arrives. Shutdown cancels the session context before waiting for decoder completion, so callbacks cannot block after event dispatch stops.
 
 ## Renderer contract
