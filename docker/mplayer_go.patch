@@ -1,0 +1,21 @@
+--- a/mplayer.c
++++ b/mplayer.c
+@@ -2516,6 +2516,18 @@
+         int res = generate_video_frame(sh_video, mpctx->d_video);
+         if (!res)
+             return -1;
++        if (res < 0) {
++            /* A dropped frame never reached the filters. Their timestamp
++             * still describes the previous displayed frame. Advance our
++             * timeline once so the next real PTS cannot count this gap twice. */
++            frame_time = sh_video->frametime;
++            if (sh_video->last_pts != MP_NOPTS_VALUE) {
++                sh_video->pts = sh_video->last_pts + frame_time;
++                sh_video->last_pts = sh_video->pts;
++            }
++            advance_timer(frame_time);
++            return frame_time;
++        }
+         ((vf_instance_t *)sh_video->vfilter)->control(sh_video->vfilter,
+                                                       VFCTRL_GET_PTS, &sh_video->pts);
+         ((vf_instance_t *)sh_video->vfilter)->control(sh_video->vfilter,
