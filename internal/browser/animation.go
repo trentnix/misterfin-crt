@@ -3,6 +3,8 @@ package browser
 import (
 	"math"
 	"time"
+
+	"misterfin-go/internal/jellyfin"
 )
 
 // animationState owns elapsed time and motion for one renderer instance.
@@ -11,6 +13,10 @@ type animationState struct {
 	start, last, titleSince time.Time
 	title                   string
 	value                   Animation
+	location                jellyfin.Location
+	listTitle               string
+	scroll                  float64
+	scrollReady             bool
 }
 
 func (a *animationState) advance(scene Scene, rows int) Animation {
@@ -35,10 +41,19 @@ func (a *animationState) advance(scene Scene, rows int) Animation {
 	} else {
 		a.value.Row += (row - a.value.Row) * (1 - math.Exp(-dt/0.055))
 	}
+	target := float64(scene.View.Start + scene.View.Scroll)
+	if !a.scrollReady || a.location != scene.View.Location || a.listTitle != scene.View.Title || math.Abs(target-a.scroll) > float64(rows) {
+		a.scroll = target
+	} else {
+		a.scroll += (target - a.scroll) * (1 - math.Exp(-dt/0.055))
+	}
+	a.location, a.listTitle, a.scrollReady = scene.View.Location, scene.View.Title, true
+	a.value.ScrollOffset = a.scroll - target
 	return a.value
 }
 
 // Animation contains elapsed seconds and eased selection positions for a frame.
 // Seconds drives background motion. TitleSeconds drives marquee scrolling.
 // Selection and Row are fractional item and visible-row positions.
-type Animation struct{ Seconds, TitleSeconds, Selection, Row float64 }
+// ScrollOffset is the eased displacement from the target list scroll position.
+type Animation struct{ Seconds, TitleSeconds, Selection, Row, ScrollOffset float64 }

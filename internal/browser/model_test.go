@@ -48,13 +48,13 @@ func TestPagingFailurePreservesRowsAndRetriesOffset(t *testing.T) {
 		t.Fatal("retry changed page")
 	}
 	m.Apply(*r, jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
-	if m.Current().Start != 64 {
+	if m.Current().Start != 0 || m.Current().Selected != 64 || len(m.Current().Page.Items) != 128 {
 		t.Fatal("page did not advance")
 	}
-	m.Current().Selected = 63
+	m.Current().Selected = 127
 	r = m.Key("down")
 	m.Apply(*r, jellyfin.Page{Items: []jellyfin.Item{}, TotalRecordCount: &total}, nil)
-	if m.Current().Start != 64 || m.Current().Error == "" {
+	if m.Current().Start != 0 || len(m.Current().Page.Items) != 128 || m.Current().Error == "" {
 		t.Fatal("empty page hid previous data")
 	}
 }
@@ -114,18 +114,17 @@ func TestScreenJumpAndBackwardPageBoundary(t *testing.T) {
 	total := 130
 	items := make([]jellyfin.Item, 64)
 	m.Apply(*m.Load(0), jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
-	if m.Key("next") != nil || v.Selected != 6 || v.Scroll != 1 {
+	if m.Key("next") != nil || v.Selected != 6 || v.Scroll != 3 {
 		t.Fatal("jump must move one screen")
 	}
 	v.Selected = 63
 	r := m.Key("down")
 	m.Apply(*r, jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
 	r = m.Key("up")
-	if r == nil || r.Start != 0 {
-		t.Fatal("missing previous page")
+	if r != nil {
+		t.Fatal("cached previous page caused a request")
 	}
-	m.Apply(*r, jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
-	if v.Selected != 63 || v.Scroll != 58 {
+	if v.Selected != 63 || v.Scroll != 60 {
 		t.Fatalf("backward crossing: %+v", v)
 	}
 }

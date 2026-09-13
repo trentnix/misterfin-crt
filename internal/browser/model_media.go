@@ -39,6 +39,7 @@ func (m *Model) ReturnToParent() bool {
 	m.Generation++
 	m.Stack = m.Stack[:len(m.Stack)-1]
 	m.Current().Loading = false
+	m.Current().fetching = false
 	m.Notice = ""
 	m.EndMusicQueue()
 	m.photoControlsUntil = time.Time{}

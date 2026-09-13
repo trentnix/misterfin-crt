@@ -28,6 +28,10 @@ flowchart TD
 
 ## Event loop ownership
 
+`View` retains a contiguous window of up to three server pages for paginated lists. `Model.Prefetch` requests a neighboring page within 24 rows of an edge. `retainPage` merges responses and discards distant rows while preserving the absolute selection. `centerSelection` positions the highlight near the middle except at the library ends. Loading and errors preserve existing rows. Workers never mutate published item slices.
+
+`animationState` eases the absolute list scroll position, so rebasing the page window does not create a jump. `screenPainter.list` borrows a vertical slice of the output canvas to clip moving rows. The header and footer remain fixed, and scrolling needs no intermediate image or full-frame copy.
+
 Only the event loop mutates `browserSession`. Workers capture their request inputs and send results through channels. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
 
 MiSTer’s `evdev.navigation` merges controller directions and virtual keyboard echoes into one press and repeat stream per direction. Held directions follow the C repeat timing: a 350 ms initial delay, six 110 ms intervals, then 45 ms intervals. Releasing a direction resets its acceleration. Late polls emit one repeat without catching up in a burst. Repeat actions retain their `-repeat` suffix so holding Up cannot repeatedly toggle playback or photo controls. Ghostty terminal input uses the desktop keyboard repeat settings.

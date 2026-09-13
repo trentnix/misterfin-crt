@@ -45,20 +45,27 @@ func (p *screenPainter) list() string {
 	if art.Primary != nil {
 		width = w - 24 - 175 - 10 - 24
 	}
+	// Borrow a vertical slice of the frame to clip moving rows without an
+	// intermediate image or a full-frame copy. Header and footer stay fixed.
+	top := sy + 21
+	rows := visibleRows(w, h)
+	list := *c
+	list.Height = min(rows*30, h-top)
+	list.Pixels = c.Pixels[top*w*4 : (top+list.Height)*w*4]
 	if len(v.Page.Items) > 0 {
-		c.Rect(20, sy+21+int(math.Round(anim.Row*30)), width+8, 28, 0x0d377c)
+		list.Rect(20, int(math.Round(anim.Row*30)), width+8, 28, 0x0d377c)
 	}
-	for row := 0; row < visibleRows(w, h) && v.Scroll+row < len(v.Page.Items); row++ {
-		index := v.Scroll + row
+	scroll := float64(v.Scroll) + anim.ScrollOffset
+	for index := max(0, int(math.Floor(scroll))); index < min(len(v.Page.Items), int(math.Ceil(scroll))+rows); index++ {
 		item := v.Page.Items[index]
-		y := sy + 24 + row*30
+		y := 3 + int(math.Round((float64(index)-scroll)*30))
 		color := uint32(0xcccccc)
 		if index == v.Selected {
 			color = 0xffffff
 		}
-		c.Text(24, y, truncate(itemTitle(item), width, 1), color, 24+width)
+		list.Text(24, y, truncate(itemTitle(item), width, 1), color, 24+width)
 		s, col := subtitle(item)
-		c.Text(24, y+11, truncate(s, width, 1), col, 24+width)
+		list.Text(24, y+11, truncate(s, width, 1), col, 24+width)
 	}
 	if len(v.Page.Items) == 0 && !v.Loading {
 		center(c, h/2, "Nothing here", dimColor, 1)

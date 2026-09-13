@@ -89,7 +89,7 @@ func TestMediaNavigationCrossesPagesAndSkipsOnlyForPhotos(t *testing.T) {
 	c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
 	parent := View{Page: jellyfin.Page{Items: items[:64], TotalRecordCount: &total}, Selected: 63, Location: jellyfin.Location{Kind: "items", ParentID: "folder"}}
 	next, item, err := adjacentMedia(context.Background(), c, parent, "Photo", 1, 6)
-	if err != nil || item == nil || item.ID != "65" || next.Start != 64 || next.Selected != 1 {
+	if err != nil || item == nil || item.ID != "65" || next.Start+next.Selected != 65 {
 		t.Fatal("photo did not cross page", err)
 	}
 	previous, item, err := adjacentMedia(context.Background(), c, next, "Photo", -1, 6)
@@ -111,7 +111,7 @@ func TestMediaNavigationCrossesPagesAndSkipsOnlyForPhotos(t *testing.T) {
 		items[i].Type = "Audio"
 	}
 	next, item, err = adjacentMedia(context.Background(), c, parent, "Audio", 1, 6)
-	if err != nil || item == nil || item.ID != "64" || next.Selected != 0 {
+	if err != nil || item == nil || item.ID != "64" || next.Start+next.Selected != 64 {
 		t.Fatal("album queue did not cross page")
 	}
 }

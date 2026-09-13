@@ -93,7 +93,7 @@ func (p *screenPainter) footer(hint string) {
 	s := p.scene
 	center(c, bottom, hint, dimColor, 1)
 	message := selectionError
-	if v.Loading {
+	if v.Loading || (v.fetching && v.Scroll+visibleRows(w, h) > len(v.Page.Items)) {
 		message = "Loading..."
 	}
 	if v.Error != "" {

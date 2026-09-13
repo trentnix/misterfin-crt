@@ -37,15 +37,15 @@ func adjacentMedia(ctx context.Context, c *jellyfin.Client, parent View, kind st
 			if len(page.Items) == 0 {
 				return parent, nil, nil
 			}
-			parent.Page, parent.Start = page, start
-			if index >= start+len(page.Items) {
+			parent.retainPage(start, page, index, rows)
+			if index >= parent.Start+len(parent.Page.Items) {
 				return parent, nil, nil
 			}
 		}
 		item := parent.Page.Items[index-parent.Start]
 		if item.Type == kind {
 			parent.Selected, parent.Target = index-parent.Start, index
-			parent.Scroll = max(0, parent.Selected-max(1, rows)+1)
+			parent.centerSelection(rows)
 			return parent, &item, nil
 		}
 		if kind == "Audio" {

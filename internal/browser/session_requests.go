@@ -107,6 +107,7 @@ func (s *browserSession) handlePage(r result) bool {
 		s.status = "Session rejected. Press R to sign in again."
 	} else {
 		s.loadSelection()
+		s.load(s.model.Prefetch())
 	}
 	return true
 }

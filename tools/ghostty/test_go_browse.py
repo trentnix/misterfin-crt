@@ -33,6 +33,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             mock.ITEMS["movie-tricky-0"]["UserData"]["PlaybackPositionTicks"] = 600000000
         if self._testMethodName == "test_music_advances_and_preserves_last_track":
             mock.CHILDREN["artist-000-album0"] = mock.CHILDREN["artist-000-album0"][:2]
+        self.movie_ids = mock.CHILDREN["view-movies"]
         self.requests = []
         self.reports = []
         self.delay_items = False
@@ -205,6 +206,31 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(self.frame.stat().st_size, 640 * 240 * 4)
         self.key(b"q")
         self.assertEqual(self.process.wait(timeout=3), 0)
+
+    def test_list_prefetches_before_boundary_and_reuses_previous_page(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        # Seven six-row jumps reach item 42, before the first page boundary.
+        for _ in range(7):
+            self.key(b"\x1b[C")
+            time.sleep(0.06)
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=64)
+        for _ in range(4):
+            self.key(b"\x1b[C")
+            time.sleep(0.06)
+        # Item 66 -> item 60 must use the retained previous page.
+        self.key(b"\x1b[D")
+        time.sleep(0.1)
+        self.key(b"b")
+        self.wait_request("/Items/" + self.movie_ids[60])
+        pages = []
+        for request in self.requests:
+            parsed = urlparse(request)
+            query = parse_qs(parsed.query)
+            if (parsed.path == "/Items" and query.get("ParentId") == ["view-movies"]
+                    and query.get("Limit") == ["64"]):
+                pages.append(query.get("StartIndex"))
+        self.assertEqual(pages, [["0"], ["64"]])
 
     def test_playback_stop_returns_to_details(self):
         self.key(b"b")

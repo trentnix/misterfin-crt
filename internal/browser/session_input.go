@@ -131,6 +131,7 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 		return false
 	}
 	s.loadSelection()
+	s.load(s.model.Prefetch())
 	if key == "open" && !wasDetail && s.model.Current().Detail != nil && s.model.Current().Detail.Type == "Audio" {
 		s.startPlayback(nil, false)
 	}
