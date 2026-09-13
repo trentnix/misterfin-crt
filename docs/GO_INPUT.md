@@ -4,7 +4,7 @@ Controller bindings are configurable without rebuilding. The default layout uses
 
 ## Configuration path
 
-Copy [input.json.example](../input.json.example) to `input.json` beside your `jellyfin.conf`, then edit the profile for your controller. The MiSTer test launcher uses `/media/fat/misterfin/input.json`. The configuration persists across application restarts.
+Copy [input.json.example](../input.json.example) to `input.json` beside your `jellyfin.conf`, then edit the profile for your controller. The MiSTer launcher uses `/media/fat/misterfin/input.json`. The configuration persists across application restarts.
 
 Use `-input-config /path/to/input.json` to choose another file. The `MISTERFIN_INPUT_CONFIG` environment variable supplies the flag's default and also works through the Ghostty harness. A missing default file keeps the built-in layout. An explicitly selected file must exist. Invalid configuration stops startup with an error that names the file. Restart the application after editing the configuration.
 

@@ -2,7 +2,7 @@ package browser
 
 import (
 	"bytes"
-	"misterfin-go/internal/musicviz"
+	"misterfin-crt/internal/musicviz"
 	"time"
 )
 

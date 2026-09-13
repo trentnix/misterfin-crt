@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"misterfin-go/internal/input"
-	"misterfin-go/internal/input/evdev"
-	"misterfin-go/internal/playback"
-	"misterfin-go/internal/videoout"
+	"misterfin-crt/internal/input"
+	"misterfin-crt/internal/input/evdev"
+	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/videoout"
 )
 
 // Run owns input and session lifetime. The loop serializes actions, worker

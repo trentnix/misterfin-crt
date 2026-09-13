@@ -37,7 +37,7 @@ class LaunchOptionsTests(unittest.TestCase):
         args = HARNESS.parse_args(["--demo", "--ntsc"])
         self.assertTrue(args.browse)
         self.assertTrue(args.demo)
-        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-crt")
 
     def test_browse_preserves_explicit_config(self):
         args = HARNESS.parse_args(["--browse", "--config", "/tmp/jellyfin.conf"])
@@ -58,12 +58,12 @@ class LaunchOptionsTests(unittest.TestCase):
     def test_go_test_frame_is_default(self):
         args = HARNESS.parse_args([])
         self.assertFalse(args.browse)
-        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-crt")
 
     def test_legacy_go_flag_still_selects_test_frame(self):
         args = HARNESS.parse_args(["--go", "--ntsc"])
         self.assertTrue(args.ntsc)
-        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-go")
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-crt")
 
     def test_explicit_binary_is_preserved(self):
         args = HARNESS.parse_args(["--go", "--binary", "/tmp/custom-go"])

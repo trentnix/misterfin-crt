@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestLibraryCacheBoundsAndIndependentFields(t *testing.T) {

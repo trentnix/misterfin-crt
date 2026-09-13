@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestArtworkLoaderOnlyFetchesImagesAndSharesRequestLimit(t *testing.T) {

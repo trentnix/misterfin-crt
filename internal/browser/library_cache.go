@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 const libraryCacheLimit = 32

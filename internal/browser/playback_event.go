@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/playback"
 )
 
 // PlaybackEvent carries decoder feedback without browser navigation or artwork.

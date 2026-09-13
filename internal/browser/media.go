@@ -2,8 +2,8 @@ package browser
 
 import (
 	"context"
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 )
 
 func resumableVideo(item *jellyfin.Item) bool {

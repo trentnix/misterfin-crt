@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 )
 
 // PlaybackController coordinates one item's playback on the browser event loop.

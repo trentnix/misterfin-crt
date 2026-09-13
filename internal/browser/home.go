@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
-const continueID = "misterfin-go:continue"
+const continueID = "misterfin-crt:continue"
 
 // homeState owns the combined Continue Watching snapshot and its independent
 // request. Library browsing never waits for this request or cancels it.

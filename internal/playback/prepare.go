@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // preparePlayback resolves metadata, resume position, and Live TV negotiation.

@@ -13,7 +13,7 @@ import (
 	"time"
 	"unsafe"
 
-	"misterfin-go/internal/input/control"
+	"misterfin-crt/internal/input/control"
 )
 
 type event struct {

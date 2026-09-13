@@ -5,7 +5,7 @@ import (
 	"image"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // selectionLoader coordinates metadata and images for one authenticated session.

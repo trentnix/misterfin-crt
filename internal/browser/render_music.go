@@ -59,7 +59,7 @@ func (p *screenPainter) music() {
 	if s.MusicLabel && s.Music != nil {
 		title = s.Music.Config.Backgrounds[s.MusicIndex].Name
 	}
-	p.header(title)
+	p.header(title, p.safeY)
 	if s.MusicMessage != "" {
 		center(c, sy+19, s.MusicMessage, dimColor, 1)
 	}

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/ui"
 )
 
 // details draws metadata and reserves space for the preview's button badges.

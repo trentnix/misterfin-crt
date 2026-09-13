@@ -11,7 +11,7 @@ func (p *screenPainter) status() {
 	w, h := p.width, p.height
 	bottom := p.bottom
 
-	heading := "MiSTerFin-Go"
+	heading := "MiSTerFin CRT"
 	if strings.HasPrefix(status, "Quick Connect: ") {
 		heading = "Quick Connect"
 	} else if status != "Connecting to Jellyfin..." {

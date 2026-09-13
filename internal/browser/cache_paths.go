@@ -21,7 +21,7 @@ func browserCacheRoot(headless bool, kind string) string {
 			}
 		}
 	}
-	return filepath.Join(root, "misterfin-go", kind)
+	return filepath.Join(root, "misterfin-crt", kind)
 }
 
 // accountCacheDir isolates servers and users without storing access tokens.

@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // animationState owns elapsed time and motion for one renderer instance.

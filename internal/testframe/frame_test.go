@@ -2,7 +2,7 @@ package testframe
 
 import (
 	"errors"
-	"misterfin-go/internal/platform"
+	"misterfin-crt/internal/platform"
 	"testing"
 )
 

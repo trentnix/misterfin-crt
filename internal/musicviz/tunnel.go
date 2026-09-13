@@ -3,7 +3,7 @@ package musicviz
 import (
 	"math"
 
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/ui"
 )
 
 type tunnel struct {

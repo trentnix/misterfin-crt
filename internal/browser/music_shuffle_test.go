@@ -2,7 +2,7 @@ package browser
 
 import (
 	"errors"
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 	"testing"
 )
 

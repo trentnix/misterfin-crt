@@ -1,6 +1,6 @@
 package browser
 
-import "misterfin-go/internal/videoout"
+import "misterfin-crt/internal/videoout"
 
 // Renderer turns a read-only Scene into output-independent pixels. Call Render
 // serially with positive logical dimensions. Returned Frame pixels are borrowed

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 )
 
 // mediaNavigation owns adjacent-photo and music-queue work. It is separate

@@ -16,7 +16,7 @@ from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 ROOT = Path(__file__).resolve().parents[2]
-BINARY = Path(os.environ.get("MISTERFIN_GO_TEST_BINARY", str(ROOT / "build/misterfin-go")))
+BINARY = Path(os.environ.get("MISTERFIN_CRT_TEST_BINARY", str(ROOT / "build/misterfin-crt")))
 
 
 @unittest.skipUnless(BINARY.is_file(), "build the Go host binary first")
@@ -268,7 +268,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(.2)
         self.key(b"b")
         self.wait_request("/Items/movie-tricky-0")
-        self.assertFalse(any("misterfin-go%3Acontinue" in request for request in self.requests))
+        self.assertFalse(any("misterfin-crt%3Acontinue" in request for request in self.requests))
 
     def test_combined_continue_watching(self):
         self.wait_request("/UserItems/Resume", MediaTypes="Video")
@@ -291,7 +291,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(0.2)
         self.key(b"\x1b[Bb")
         self.wait_request("/Items/series-001-s1e01")
-        self.assertFalse(any("misterfin-go%3Acontinue" in request for request in self.requests))
+        self.assertFalse(any("misterfin-crt%3Acontinue" in request for request in self.requests))
         self.assertFalse(any(urlparse(request).path == "/Items/series-000-s1e02" for request in self.requests))
 
     def test_terminal_stdin_without_controlling_terminal(self):

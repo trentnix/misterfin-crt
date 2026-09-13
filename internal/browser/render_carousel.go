@@ -18,7 +18,7 @@ func (p *screenPainter) carousel() [][]controlHint {
 		music := v.Item() != nil && v.Item().CollectionType == "music"
 		cache.mosaic(c, art.Covers, music, anim.Seconds)
 	}
-	p.header("MiSTerFin-Go")
+	p.header("MiSTerFin CRT", sy+4)
 	centers := make([]float64, len(v.Page.Items))
 	names := make([]string, len(centers))
 	for i, item := range v.Page.Items {

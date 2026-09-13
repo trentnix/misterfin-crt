@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // playbackSession owns one Jellyfin play session. Its loop updates decoder

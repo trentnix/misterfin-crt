@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"misterfin-go/internal/musicviz"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/musicviz"
+	"misterfin-crt/internal/playback"
 )
 
 // musicPresentation owns effect selection and the latest disposable audio

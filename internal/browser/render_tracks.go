@@ -3,8 +3,8 @@ package browser
 import (
 	"strings"
 
-	"misterfin-go/internal/input/control"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/ui"
 )
 
 // drawTrackMenu uses the shared overlay canvas on every video output.

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 const PageSize = 64

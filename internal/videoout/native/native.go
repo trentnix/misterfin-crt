@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-go/internal/platform"
-	"misterfin-go/internal/ui"
-	"misterfin-go/internal/videoout"
+	"misterfin-crt/internal/platform"
+	"misterfin-crt/internal/ui"
+	"misterfin-crt/internal/videoout"
 )
 
-const OverlayPath = "/tmp/misterfin_go_overlay"
+const OverlayPath = "/tmp/misterfin_crt_overlay"
 
 var overlayMagic = [8]byte{'M', 'F', 'G', 'O', 'O', 'V', '1', 0}
 

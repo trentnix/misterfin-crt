@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // playbackState belongs exclusively to PlaybackController. Decoder events and

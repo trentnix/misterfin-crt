@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/ui"
 )
 
 // TestRenderScreenPixels protects screen layout across structural changes.

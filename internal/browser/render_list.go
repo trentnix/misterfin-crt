@@ -3,7 +3,7 @@ package browser
 import (
 	"math"
 
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/ui"
 )
 
 // list draws a paginated item list and returns its configured button badges.
@@ -52,9 +52,9 @@ func (p *screenPainter) list() [][]controlHint {
 	})
 	title := v.Title
 	if s.Root {
-		title = "MiSTerFin-Go"
+		title = "MiSTerFin CRT"
 	}
-	p.header(title)
+	p.header(title, p.safeY)
 	width := w - 48
 	if art.Primary != nil {
 		width = w - 24 - 175 - 10 - 24

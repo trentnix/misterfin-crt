@@ -4,7 +4,7 @@ import (
 	"image"
 	"sync"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 const artworkBudget = 16 * 1024 * 1024

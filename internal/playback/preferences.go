@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // Preferences stores per-video choices under the application's state directory.

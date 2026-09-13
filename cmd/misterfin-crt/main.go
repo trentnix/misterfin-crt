@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"misterfin-go/internal/browser"
-	"misterfin-go/internal/input"
-	"misterfin-go/internal/platform"
-	"misterfin-go/internal/playback"
-	"misterfin-go/internal/videoout"
-	"misterfin-go/internal/videoout/companion"
-	"misterfin-go/internal/videoout/framefile"
-	"misterfin-go/internal/videoout/native"
+	"misterfin-crt/internal/browser"
+	"misterfin-crt/internal/input"
+	"misterfin-crt/internal/platform"
+	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/videoout"
+	"misterfin-crt/internal/videoout/companion"
+	"misterfin-crt/internal/videoout/framefile"
+	"misterfin-crt/internal/videoout/native"
 )
 
 func run() (err error) {
@@ -52,7 +52,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 		if e != nil {
 			return e
 		}
-		o.stateDir = filepath.Join(dir, "misterfin-go")
+		o.stateDir = filepath.Join(dir, "misterfin-crt")
 	}
 	g := d.Geometry()
 	var video videoout.Output = companion.New(d)

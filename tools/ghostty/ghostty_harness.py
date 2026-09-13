@@ -250,7 +250,7 @@ def next_frame_deadline(previous: float, now: float, interval: float) -> float:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Navigate MiSTerFin-Go inside Ghostty using the desktop harness."
+        description="Navigate MiSTerFin CRT inside Ghostty using the desktop harness."
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--ntsc", action="store_true", help="use the 640x240 layout")
@@ -302,7 +302,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if (args.config or args.state_dir) and not args.browse:
         parser.error("--config and --state-dir require --browse")
     if args.binary is None:
-        args.binary = REPO_ROOT / "build/misterfin-go"
+        args.binary = REPO_ROOT / "build/misterfin-crt"
     return args
 
 

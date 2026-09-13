@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"misterfin-go/internal/input/control"
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/platform"
-	"misterfin-go/internal/playback"
-	"misterfin-go/internal/videoout"
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/platform"
+	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/videoout"
 )
 
 // browserSession owns one browser run. Only the event loop mutates its state.

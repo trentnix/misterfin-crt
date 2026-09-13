@@ -1,9 +1,9 @@
 package browser
 
 import (
-	"misterfin-go/internal/musicviz"
-	"misterfin-go/internal/ui"
-	"misterfin-go/internal/videoout"
+	"misterfin-crt/internal/musicviz"
+	"misterfin-crt/internal/ui"
+	"misterfin-crt/internal/videoout"
 )
 
 // RasterRenderer belongs to the browser event loop. Its returned pixels are

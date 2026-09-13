@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"syscall"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // decoder defines the executable's command and control protocol. Implementations

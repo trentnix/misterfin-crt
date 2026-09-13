@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/subtitles"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/subtitles"
 )
 
 // TrackOptions preserves streams, downloaded text, and picture mode across handoffs.

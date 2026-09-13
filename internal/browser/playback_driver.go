@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
-	"misterfin-go/internal/videoout"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/videoout"
 )
 
 // playbackDriver connects the controller to external decoding. Launch runs on

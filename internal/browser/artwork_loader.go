@@ -5,7 +5,7 @@ import (
 	"image"
 	"sync"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // artworkLoader fetches and caches images for one authenticated session. It

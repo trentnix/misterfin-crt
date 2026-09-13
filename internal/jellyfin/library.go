@@ -163,7 +163,7 @@ func (c *Client) Libraries(ctx context.Context) (Page, error) {
 	}
 	channels, err := c.List(ctx, Location{Kind: "livetv"}, 0, 1)
 	if err == nil && (len(channels.Items) > 0 || channels.TotalRecordCount != nil && *channels.TotalRecordCount > 0) {
-		page.Items = append(page.Items, Item{ID: "misterfin-go:live-tv", Name: "Live TV", CollectionType: "livetv", IsFolder: true})
+		page.Items = append(page.Items, Item{ID: "misterfin-crt:live-tv", Name: "Live TV", CollectionType: "livetv", IsFolder: true})
 	}
 	total := len(page.Items)
 	page.TotalRecordCount = &total

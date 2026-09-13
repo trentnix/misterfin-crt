@@ -3,7 +3,7 @@ package browser
 import (
 	"image"
 
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/ui"
 )
 
 // sceneCache keeps one prepared backdrop and one carousel's row strips, rather

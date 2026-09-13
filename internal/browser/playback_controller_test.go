@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 )
 
 type controllerLaunch struct {

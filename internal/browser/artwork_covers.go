@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // coverImages loads a resolved sample with at most three workers. Each completed

@@ -24,7 +24,7 @@ flowchart TD
     MiSTer --> Overlay["Overlay publication to patched MPlayer"]
 ```
 
-`cmd/misterfin-go/main.go` selects both the renderer and output backend. `browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
+`cmd/misterfin-crt/main.go` selects both the renderer and output backend. `browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
 
 ## Event loop ownership
 
@@ -78,9 +78,9 @@ The terminal presenter uploads the next image before changing any visible placem
 
 Each backend lives in its own subpackage and exports `New` and a concrete `Backend` type implementing `videoout.Output`. The shared `videoout` package has no dependency on its implementations. Application wiring selects the implementation.
 
-- [`main.go`](../cmd/misterfin-go/main.go): signal handling, display lifetime, output selection, and application wiring.
-- [`options.go`](../cmd/misterfin-go/options.go): command-line parsing and mode validation before resources open.
-- [`preview.go`](../cmd/misterfin-go/preview.go): test-frame display and its optional wait.
+- [`main.go`](../cmd/misterfin-crt/main.go): signal handling, display lifetime, output selection, and application wiring.
+- [`options.go`](../cmd/misterfin-crt/options.go): command-line parsing and mode validation before resources open.
+- [`preview.go`](../cmd/misterfin-crt/preview.go): test-frame display and its optional wait.
 - [`run.go`](../internal/browser/run.go): input lifetime, event dispatch, and the single redraw decision.
 - [`session.go`](../internal/browser/session.go): session state, construction, and cleanup.
 - [`session_requests.go`](../internal/browser/session_requests.go): authentication and listing requests, cancellation, and generation checks.

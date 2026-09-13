@@ -18,7 +18,7 @@ Go remembers picture mode, audio track, and subtitle selection for each movie or
 
 Choices are saved under `playback` in the Go state directory alongside `session.json`. The existing `--state-dir` option selects that directory. Saved records contain the media source and selected stream metadata, with no credentials or subtitle text. Missing or changed tracks fall back to server-default audio or subtitles Off. Replacing a media source resets track choices while preserving picture mode. Text subtitles are downloaded again when playback reopens.
 
-The MiSTer test launcher uses `/media/fat/misterfin-go/state`, so choices survive reboot. Ghostty uses the Go user configuration directory by default. A custom state directory must use persistent storage if choices must survive a reboot.
+The MiSTer launcher uses `/media/fat/misterfin-crt/state`, so choices survive reboot. Ghostty uses the Go user configuration directory by default. A custom state directory must use persistent storage if choices must survive a reboot.
 
 A background writer coalesces changes and replaces each record atomically. The in-memory copy supports immediate resume before a disk write completes. Only started playback and successful live changes update preferences, so canceled preparation and failed replacements leave previous choices intact. Shutdown flushes pending writes and reports failures. Subtitle timing adjustments remain limited to the current playback session.
 

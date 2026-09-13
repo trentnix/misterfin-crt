@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func homeEpisode(id, action string) jellyfin.Item {

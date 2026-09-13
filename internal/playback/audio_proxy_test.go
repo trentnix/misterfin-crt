@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 	"net/http"
 	"net/http/httptest"
 	"strings"

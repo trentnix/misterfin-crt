@@ -6,7 +6,7 @@ import (
 	"errors"
 	"os"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // Run prepares a session and stream, waits for the controller's start gate, and
@@ -41,7 +41,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	if item.Type == "Audio" && o.Levels != nil {
 		switch d := decoder.(type) {
 		case mplayerDecoder:
-			file, e := os.CreateTemp("", "misterfin-go-audio-*")
+			file, e := os.CreateTemp("", "misterfin-crt-audio-*")
 			if e == nil {
 				o.audioExport = file.Name()
 				file.Close()

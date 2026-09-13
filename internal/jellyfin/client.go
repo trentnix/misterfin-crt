@@ -77,7 +77,7 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 		return nil, errors.New("invalid request URL")
 	}
 	// Quote all header values so saved credentials cannot inject header fields.
-	auth := `MediaBrowser Client="MiSTerFin-Go", Device="MiSTerFin-Go", Version="0.1", DeviceId=` + strconv.Quote(c.Session.DeviceID)
+	auth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="0.1", DeviceId=` + strconv.Quote(c.Session.DeviceID)
 	if c.Session.Token != "" {
 		auth += ", Token=" + strconv.Quote(c.Session.Token)
 	}

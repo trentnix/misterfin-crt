@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 )
 
 // handleKey routes each action to the active screen. The return value requests

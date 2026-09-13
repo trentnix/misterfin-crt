@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // shuffleQueue leaves the artist view intact. Its bounded history supports

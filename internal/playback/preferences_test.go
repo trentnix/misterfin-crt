@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func preferenceTracks() VideoTracks {

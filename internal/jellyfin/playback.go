@@ -34,7 +34,7 @@ func NewPlaySessionID() (string, error) {
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
 	}
-	return "misterfin-go-" + hex.EncodeToString(b[:]), nil
+	return "misterfin-crt-" + hex.EncodeToString(b[:]), nil
 }
 
 // OpenVideo keeps HTTP and TLS in Go. Players receive only an anonymous pipe.

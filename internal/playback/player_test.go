@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 	"net/http"
 	"net/http/httptest"
 	"os"

@@ -18,7 +18,7 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
 
 Approve the displayed Quick Connect code in another Jellyfin client. Alternatively, put the API key and username on the second and third lines. Blank lines and comments are ignored. `PAL`, `NTSC`, and `INSECURE_TLS` are recognized independently of line position. The inherited transcode-profile and `DEBUGLOG` lines are accepted but have no effect in this browsing prototype. The harness's PAL/NTSC flag controls headless geometry.
 
-Go stores its device identity and token in `misterfin-go/session.json` under `os.UserConfigDir()`, normally `$XDG_CONFIG_HOME` or `$HOME/.config` on Linux. `--state-dir` overrides that directory. Session writes use a private temporary file and atomic rename. Saved sessions are bound to the configured server URL. The C client's `token.conf` and `device.conf` are not imported or changed.
+Go stores its device identity and token in `misterfin-crt/session.json` under `os.UserConfigDir()`, normally `$XDG_CONFIG_HOME` or `$HOME/.config` on Linux. `--state-dir` overrides that directory. Session writes use a private temporary file and atomic rename. Saved sessions are bound to the configured server URL. The C client's `token.conf` and `device.conf` are not imported or changed.
 
 | Key | Action |
 | --- | --- |
@@ -68,7 +68,7 @@ The Continue card uses up to twelve covers from the current feed. Its cover meta
 
 ## Persistent artwork cache
 
-Covers, backdrops, and logos persist under `/media/fat/misterfin-go/covercache` on MiSTer, alongside the C application's separate `covercache`. The existing `MISTERFIN_CACHE_ROOT` override applies to both artwork and collages. Go appends `misterfin-go/covercache` and a server/user partition. Ghostty's default root is `/tmp/misterfin-cache`. Set `MISTERFIN_CACHE_ROOT` to persistent storage if its cache must survive a reboot.
+Covers, backdrops, and logos persist under `/media/fat/misterfin-crt/covercache` on MiSTer, alongside the C application's separate `covercache`. The existing `MISTERFIN_CACHE_ROOT` override applies to both artwork and collages. Go appends `misterfin-crt/covercache` and a server/user partition. Ghostty's default root is `/tmp/misterfin-cache`. Set `MISTERFIN_CACHE_ROOT` to persistent storage if its cache must survive a reboot.
 
 The first visit downloads each image. Later visits and application launches reuse decoded RGBA pixels without image requests or JPEG/PNG decoding. Logo transparency is preserved. Keys include the image owner, kind, Jellyfin image tag, and cache format version. Episodes can reuse their parent's backdrop. Changed tags fetch new pixels. Metadata still comes from Jellyfin, so cached images do not make the browser an offline client. Full-screen photos retain their existing memory cache and are not stored in the ordinary-artwork disk cache.
 
@@ -78,13 +78,13 @@ R invalidates the selected item's ordinary artwork and its shared parent backdro
 
 ## Persistent collage cache
 
-On MiSTer, Go saves carousel collages under `/media/fat/misterfin-go/gridcache`, alongside the C application's `/media/fat/misterfin/gridcache`. Go uses a separate format and directory. Saved collages survive application restarts and reboots. The first visit to a library still downloads its images to populate the cache.
+On MiSTer, Go saves carousel collages under `/media/fat/misterfin-crt/gridcache`, alongside the C application's `/media/fat/misterfin/gridcache`. Go uses a separate format and directory. Saved collages survive application restarts and reboots. The first visit to a library still downloads its images to populate the cache.
 
 The cache stores decoded RGBA cover images and their Jellyfin IDs and image tags. After a restart, a worker restores the saved collage before refreshing the sample metadata. Unchanged tags reuse saved pixels without image downloads or JPEG/PNG decoding. Changed tags fetch only the changed images, including when the library count remains the same. A failed metadata refresh keeps the saved collage visible. Counts continue to refresh independently.
 
 Each server/user partition retains at most 32 collages and 64 MiB. Oldest written entries are evicted first. Versioned files have size limits and checksums, and writes replace files atomically. Incomplete or canceled loads do not overwrite a usable collage. Corrupt files and unavailable storage fall back to normal loading. Unchanged collages do not rewrite the SD card.
 
-The shared `MISTERFIN_CACHE_ROOT` override places Go collages under `$MISTERFIN_CACHE_ROOT/misterfin-go/gridcache`. The Ghostty harness defaults that root to `/tmp/misterfin-cache`, so its cache survives application restarts but not a reboot. Direct headless Go runs use the user cache directory when the override is absent. Set the override to persistent storage if desktop caches must survive reboot. R invalidates the selected collage on its next worker load.
+The shared `MISTERFIN_CACHE_ROOT` override places Go collages under `$MISTERFIN_CACHE_ROOT/misterfin-crt/gridcache`. The Ghostty harness defaults that root to `/tmp/misterfin-cache`, so its cache survives application restarts but not a reboot. Direct headless Go runs use the user cache directory when the override is absent. Set the override to persistent storage if desktop caches must survive reboot. R invalidates the selected collage on its next worker load.
 
 To choose another location on MiSTer, add an export to the Go launcher before the command that starts the application. For example, if a USB drive is mounted at `/media/usb0`, use:
 
@@ -92,7 +92,7 @@ To choose another location on MiSTer, add an export to the Go launcher before th
 export MISTERFIN_CACHE_ROOT=/media/usb0
 ```
 
-Go then writes collages under `/media/usb0/misterfin-go/gridcache`. The variable selects the parent directory. Go appends `misterfin-go/gridcache` for collages or `misterfin-go/covercache` for ordinary artwork, followed by an account partition. The application must be able to write to that location. Changing the root populates a new cache and leaves the previous cache in place.
+Go then writes collages under `/media/usb0/misterfin-crt/gridcache`. The variable selects the parent directory. Go appends `misterfin-crt/gridcache` for collages or `misterfin-crt/covercache` for ordinary artwork, followed by an account partition. The application must be able to write to that location. Changing the root populates a new cache and leaves the previous cache in place.
 
 For a Ghostty cache that survives reboot, use:
 
@@ -100,7 +100,7 @@ For a Ghostty cache that survives reboot, use:
 MISTERFIN_CACHE_ROOT="$HOME/.cache" python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
 ```
 
-Go then writes collages under `$HOME/.cache/misterfin-go/gridcache`. The harness preserves an explicitly set `MISTERFIN_CACHE_ROOT`.
+Go then writes collages under `$HOME/.cache/misterfin-crt/gridcache`. The harness preserves an explicitly set `MISTERFIN_CACHE_ROOT`.
 
 ## Validation
 

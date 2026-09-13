@@ -134,7 +134,7 @@ func load(path string, decode bool) (*Library, error) {
 		case "sprites", "image":
 			files := p.Files
 			if p.Type == "sprites" && len(files) == 0 {
-				for _, root := range []string{filepath.Join(filepath.Dir(path), "assets", "toasty"), "assets/toasty", "/media/fat/misterfin/toasty"} {
+				for _, root := range []string{filepath.Join(filepath.Dir(path), "assets", "toasty"), "assets/toasty", "/media/fat/misterfin-crt/toasty", "/media/fat/misterfin/toasty"} {
 					if _, e := os.Stat(filepath.Join(root, "asset1", "asset1_1.png")); e == nil {
 						p.toastyRoot = root
 						p.pending = !decode

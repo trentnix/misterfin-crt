@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/videoout"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/videoout"
 )
 
 func testSession(t *testing.T) *browserSession {

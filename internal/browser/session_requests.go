@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // requestState owns the current authentication or listing request.

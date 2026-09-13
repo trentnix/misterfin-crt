@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // Parent returns the view beneath the current screen. Scalars are copied. Items

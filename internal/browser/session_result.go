@@ -1,8 +1,8 @@
 package browser
 
 import (
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/musicviz"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/musicviz"
 )
 
 // resultKind identifies the worker that produced a result. Request generation

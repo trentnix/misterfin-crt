@@ -1,7 +1,7 @@
 // Package testframe draws a deterministic frame in Go through the display interface.
 package testframe
 
-import "misterfin-go/internal/platform"
+import "misterfin-crt/internal/platform"
 
 func Present(d platform.Display) error {
 	g := d.Geometry()

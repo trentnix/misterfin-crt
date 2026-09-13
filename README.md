@@ -1,10 +1,10 @@
-# MiSTerFin-Go
+# MiSTerFin CRT
 
 An unofficial Go adaptation of [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio, maintained independently by trentnix. The starting point includes the improvements merged into the `local-all-features` branch of [trentnix/MiSTerFin](https://github.com/trentnix/MiSTerFin).
 
 The UI is built explicitly for CRT output. The project maintainer, trentnix, uses a CRT for both testing and everyday use.
 
-MiSTerFin-Go supports Jellyfin authentication, library browsing, Continue Watching, video and Live TV playback, photos, and music. The same Go UI renders to the MiSTer framebuffer or a Ghostty terminal. MiSTer uses a separate patched MPlayer process for playback. Ghostty can play video through libmpv with `--inline-video`, or in a separate FFplay window.
+MiSTerFin CRT supports Jellyfin authentication, library browsing, Continue Watching, video and Live TV playback, photos, and music. The same Go UI renders to the MiSTer framebuffer or a Ghostty terminal. MiSTer uses a separate patched MPlayer process for playback. Ghostty can play video through libmpv with `--inline-video`, or in a separate FFplay window.
 
 ## Try it in Ghostty
 
@@ -31,7 +31,7 @@ make test-browse
 make arm
 ```
 
-The binaries are `build/misterfin-go` and `build/misterfin-go-arm`. Existing `make -f Makefile.port` commands remain supported. CI builds and tests Go. Automated release packaging, installation, and updater integration remain pending.
+The binaries are `build/misterfin-crt` and `build/misterfin-crt-arm`. Existing `make -f Makefile.port` commands remain supported. CI builds and tests Go. A persistent MiSTer installation is available through the [manual installation guide](docs/GO_BUILD.md#install-and-launch-from-the-scripts-menu). Automated release packaging, installation, and updater integration remain pending.
 
 ## Guides
 

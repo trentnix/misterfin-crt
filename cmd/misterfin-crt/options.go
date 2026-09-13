@@ -22,7 +22,7 @@ type launchOptions struct {
 // before opening resources and returns flag.ErrHelp for a help request.
 func parseOptions(args []string) (launchOptions, error) {
 	var o launchOptions
-	flags := flag.NewFlagSet("misterfin-go", flag.ContinueOnError)
+	flags := flag.NewFlagSet("misterfin-crt", flag.ContinueOnError)
 	flags.StringVar(&o.headless, "headless", os.Getenv("MISTERFIN_FB"), "headless output geometry, for example 640x288")
 	flags.StringVar(&o.output, "output", os.Getenv("MISTERFIN_FRAME_OUT"), "headless BGRX raw output path")
 	flags.StringVar(&o.device, "device", "/dev/fb0", "Linux framebuffer device")
@@ -34,7 +34,7 @@ func parseOptions(args []string) (launchOptions, error) {
 	flags.BoolVar(&o.browse, "browse", false, "browse Jellyfin with terminal keyboard input")
 	flags.StringVar(&o.config, "config", "jellyfin.conf", "Jellyfin configuration path")
 	flags.StringVar(&o.inputConfig, "input-config", os.Getenv("MISTERFIN_INPUT_CONFIG"), "controller bindings JSON (default: input.json beside Jellyfin configuration)")
-	flags.StringVar(&o.stateDir, "state-dir", "", "Go session directory (default: user config directory/misterfin-go)")
+	flags.StringVar(&o.stateDir, "state-dir", "", "Go session directory (default: user config directory/misterfin-crt)")
 	if err := flags.Parse(args); err != nil {
 		return o, err
 	}

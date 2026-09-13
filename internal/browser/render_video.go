@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-go/internal/input/control"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/ui"
 )
 
 // videoBackdrop draws the cached companion UI while an external player owns video.

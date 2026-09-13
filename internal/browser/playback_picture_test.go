@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/playback"
 )
 
 func selectPicture(c *PlaybackController, now time.Time, mode playback.PictureMode) {

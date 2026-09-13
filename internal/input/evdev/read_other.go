@@ -5,7 +5,7 @@ package evdev
 import (
 	"context"
 	"errors"
-	"misterfin-go/internal/input/control"
+	"misterfin-crt/internal/input/control"
 )
 
 func Read(context.Context, Config) (<-chan control.Event, <-chan struct{}, error) {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/ui"
 )
 
 func TestConfigAndAnimationAssets(t *testing.T) {

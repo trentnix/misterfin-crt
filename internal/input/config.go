@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"misterfin-go/internal/input/evdev"
+	"misterfin-crt/internal/input/evdev"
 )
 
 // LoadConfig reads an optional input.json beside the Jellyfin configuration.

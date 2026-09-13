@@ -3,7 +3,7 @@ package playback
 import (
 	"syscall"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // ffplayDecoder supplies desktop commands. FFplay has no slave control pipe,
@@ -34,7 +34,7 @@ func (d ffplayDecoder) args(item jellyfin.Item, source string) []string {
 		// Account for anamorphic pixels. crop centers its output by default.
 		filter += ",crop=w='min(iw,ih*4/3/sar)':h=ih"
 	}
-	return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerFin-Go playback", "-vf", filter, "-af", "asetpts=PTS-STARTPTS", "-i", source}
+	return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerFin CRT playback", "-vf", filter, "-af", "asetpts=PTS-STARTPTS", "-i", source}
 }
 
 func (d ffplayDecoder) pause(c decoderControl, paused bool) error {

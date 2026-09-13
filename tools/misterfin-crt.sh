@@ -1,7 +1,7 @@
 #!/bin/bash
+# Install as /media/fat/Scripts/MiSTerFin-CRT.sh. Main_MiSTer does not quote paths.
 # Launch from MiSTer's Scripts menu so Main_MiSTer enables framebuffer output.
-# The temporary binaries must be prepared again after a reboot.
-# Login and playback choices persist on the SD card.
+# Binaries, login, and playback choices persist on the SD card.
 set -eu
 
 # Address the active virtual console directly. Scripts stdout can point at a
@@ -17,15 +17,15 @@ trap finish EXIT
 clear_console
 printf '\033[?25l' > /dev/tty0
 
-binary=/tmp/misterfin-go-arm
-player=/tmp/misterfin-go-mplayer-arm
+binary=/media/fat/misterfin-crt/misterfin-crt
+player=/media/fat/misterfin-crt/mplayer-arm
 if [ ! -x "$binary" ]; then
-    echo "Copy the Go ARM build to $binary before running this test."
+    echo "Install the Go ARM build at $binary before launching MiSTerFin CRT."
     exit 1
 fi
 
 if [ ! -x "$player" ]; then
-    echo "Copy the Go-specific MPlayer build to $player before running this test."
+    echo "Install the Go-specific MPlayer build at $player before launching MiSTerFin CRT."
     exit 1
 fi
 
@@ -34,6 +34,6 @@ fi
 taskset -p 3 "$$" >/dev/null
 
 "$binary" -browse \
-    -config /media/fat/misterfin/jellyfin.conf \
-    -state-dir /media/fat/misterfin-go/state \
+    -config /media/fat/misterfin-crt/jellyfin.conf \
+    -state-dir /media/fat/misterfin-crt/state \
     -player "$player"

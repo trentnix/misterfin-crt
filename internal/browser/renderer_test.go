@@ -3,8 +3,8 @@ package browser
 import (
 	"bytes"
 	"image"
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/ui"
 	"testing"
 	"time"
 )

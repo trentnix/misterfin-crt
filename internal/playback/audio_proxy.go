@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 	"net"
 	"net/http"
 	"time"

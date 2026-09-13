@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // selectionState owns the selected metadata, images, and request lifetime.

@@ -1,8 +1,8 @@
 package browser
 
 import (
-	"misterfin-go/internal/input/control"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/ui"
 )
 
 // controlHint pairs a physical input badge with a short action description.

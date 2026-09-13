@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func subtitle(i jellyfin.Item) (string, uint32) {

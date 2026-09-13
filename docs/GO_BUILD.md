@@ -27,9 +27,9 @@ Use `--go --pal` for PAL. Press Ctrl+C to exit. The harness supplies `-wait` so 
 The existing environment variables also work:
 
 ```sh
-MISTERFIN_FB=640x240 MISTERFIN_FRAME_OUT=build/go-ntsc.raw ./build/misterfin-go
+MISTERFIN_FB=640x240 MISTERFIN_FRAME_OUT=build/go-ntsc.raw ./build/misterfin-crt
 python3 tools/raw_to_png.py build/go-ntsc.raw 640 240 build/go-ntsc.png
-./build/misterfin-go -headless 1280x720 -output build/go-hdmi.raw
+./build/misterfin-crt -headless 1280x720 -output build/go-hdmi.raw
 python3 tools/raw_to_png.py build/go-hdmi.raw 1280 720 build/go-hdmi.png
 ```
 
@@ -43,16 +43,16 @@ Validation used Zig 0.14.1 and the C baseline's target, `arm-linux-gnueabihf.2.3
 make arm
 # If Zig is outside PATH:
 ZIG=/absolute/path/to/zig make arm
-file build/misterfin-go-arm
-readelf -l build/misterfin-go-arm
-readelf --version-info build/misterfin-go-arm
+file build/misterfin-crt-arm
+readelf -l build/misterfin-crt-arm
+readelf --version-info build/misterfin-crt-arm
 ```
 
 The target sets `CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7`. `GO_ARM_CC` can select another compatible C cross-compiler. The verified artifact is an ARM EABI5 executable with Cortex-A9 attributes. It requests `/lib/ld-linux-armhf.so.3` and imports `GLIBC_2.4` symbols from `libc.so.6` and `libpthread.so.0`. Cross-compilation establishes build compatibility only. It does not establish that the Go runtime or framebuffer works on a particular MiSTer.
 
 Go 1.26 requires Linux 3.2 or later, according to the [Go minimum requirements](https://go.dev/wiki/MinimumRequirements). The ELF note printed by `file` is not the Go runtime's minimum kernel requirement.
 
-If the build environment restricts cache writes, set `GOCACHE` and `ZIG_GLOBAL_CACHE_DIR` to writable directories. The local validation used `/tmp/misterfin-go-cache` and `/tmp/misterfin-go-zig-cache`.
+If the build environment restricts cache writes, set `GOCACHE` and `ZIG_GLOBAL_CACHE_DIR` to writable directories. The local validation used `/tmp/misterfin-crt-cache` and `/tmp/misterfin-crt-zig-cache`.
 
 ## Hardware validation
 
@@ -60,17 +60,17 @@ If the build environment restricts cache writes, set `GOCACHE` and `ZIG_GLOBAL_C
 
 The user supplied a kernel build containing the framebuffer fix and confirmed that the installed C MiSTerFin works again. SSH reports `Linux MiSTer 6.18.38-MiSTer #1 SMP Sat Sep 12 11:53:48 UTC 2026 armv7l GNU/Linux`. The framebuffer remains 640×240 at 32 bits per pixel.
 
-The current Go source cross-compiled successfully and was copied only to `/tmp/misterfin-go-arm`. Hardware execution completed with status 0 and reported logical and output dimensions of 640×240. A framebuffer capture showed the expected color bars, white perimeter, and grayscale ramp. The first capture differed from the host reference by 384 bytes in the console cursor rectangle at x=0–7, y=160–175. The initial restoration comparison also differed within that cursor rectangle.
+The current Go source cross-compiled successfully and was copied only to `/tmp/misterfin-crt-arm`. Hardware execution completed with status 0 and reported logical and output dimensions of 640×240. A framebuffer capture showed the expected color bars, white perimeter, and grayscale ramp. The first capture differed from the host reference by 384 bytes in the console cursor rectangle at x=0–7, y=160–175. The initial restoration comparison also differed within that cursor rectangle.
 
 With the tty2 cursor temporarily hidden, full 614400-byte framebuffer comparisons passed after timed exit, SIGINT, and SIGTERM. Each run exited with status 0. These checks establish mapping, drawing, and memory restoration. They do not establish CRT scanout quality or timing.
 
-The browser launched against the installed Jellyfin configuration with its own temporary state directory, `/tmp/misterfin-go-state`. A hardware capture confirmed the Quick Connect screen. Quick Connect sign-in succeeded. The user reported that the SSH-launched browser was not visible on the CRT. Main_MiSTer enables framebuffer scanout when launching from its Scripts menu, a step bypassed by the SSH test. A separate `MiSTerFin-Go-Test.sh` launcher was prepared for that path. Visible browser output and playback remain unverified. The first Scripts launch failed with `no such device or address`: terminal input opened `/dev/tty`, which requires a controlling terminal. The failure was reproduced on MiSTer with `setsid` and terminal stdin. The input reader now falls back to reopening stdin when `/dev/tty` returns `ENXIO`, still requiring terminal ioctls to succeed. The fallback owns its descriptor and nonblocking flags. A regression test exercises navigation and exit with terminal stdin and no controlling terminal. No desktop credentials were transferred, and the installed C client, player, launcher, kernel, and core were not replaced during this retest.
+The browser launched against the installed Jellyfin configuration with its own temporary state directory, `/tmp/misterfin-crt-state`. A hardware capture confirmed the Quick Connect screen. Quick Connect sign-in succeeded. The user reported that the SSH-launched browser was not visible on the CRT. Main_MiSTer enables framebuffer scanout when launching from its Scripts menu, a step bypassed by the SSH test. A separate `MiSTerFin-CRT-Test.sh` launcher was prepared for that path. Visible browser output and playback remain unverified. The first Scripts launch failed with `no such device or address`: terminal input opened `/dev/tty`, which requires a controlling terminal. The failure was reproduced on MiSTer with `setsid` and terminal stdin. The input reader now falls back to reopening stdin when `/dev/tty` returns `ENXIO`, still requiring terminal ioctls to succeed. The fallback owns its descriptor and nonblocking flags. A regression test exercises navigation and exit with terminal stdin and no controlling terminal. No desktop credentials were transferred, and the installed C client, player, launcher, kernel, and core were not replaced during this retest.
 
 ### Initial validation before the kernel fix
 
 Hardware was reached at `root@192.168.1.42` after `mister.local` failed to resolve. The device runs Linux `6.18.38-MiSTer`, built September 7, 2026, on a dual-core ARM Cortex-A9 with VFPv3 and NEON. GNU libc reports version 2.31, and `/lib/ld-linux-armhf.so.3` points to `ld-2.31.so`. The framebuffer reports 640×240 at 32 bits per pixel, stride 2560, and 614400 bytes of memory at physical address `0x22001000`.
 
-The ARM binary was copied to `/tmp/misterfin-go-arm`. It ran successfully in headless mode on the device. Its 640×240 raw output matched the host output byte for byte, with SHA-256 `bd3cc032d928f432ff1b49ab173289a91bfec78f310a52d0b72ffc1b53a87a01`.
+The ARM binary was copied to `/tmp/misterfin-crt-arm`. It ran successfully in headless mode on the device. Its 640×240 raw output matched the host output byte for byte, with SHA-256 `bd3cc032d928f432ff1b49ab173289a91bfec78f310a52d0b72ffc1b53a87a01`.
 
 The hardware run failed before writing any pixels. Framebuffer open and geometry ioctls succeed, but `mmap` returns `ENODEV`. A standalone C diagnostic reproduced the same failure. The kernel logged `fb0: fb_WARN_ON_ONCE(!info->fbops->fb_mmap)`. Reading the framebuffer with `dd` also failed because the read callback is absent, so the attempted before/after checksums did not validate restoration.
 
@@ -89,23 +89,33 @@ cat /sys/class/graphics/fb0/virtual_size
 cat /sys/class/graphics/fb0/bits_per_pixel
 ```
 
-After the target is confirmed, copy only `build/misterfin-go-arm` to `/tmp/misterfin-go-arm` on the device. Run the following command from a MiSTer terminal with the framebuffer available and the C client and player stopped:
+After the target is confirmed, copy only `build/misterfin-crt-arm` to `/tmp/misterfin-crt-arm` on the device. Run the following command from a MiSTer terminal with the framebuffer available and the C client and player stopped:
 
 ```sh
-/tmp/misterfin-go-arm -device /dev/fb0 -hold 10s
+/tmp/misterfin-crt-arm -device /dev/fb0 -hold 10s
 ```
 
 Confirm the color order, white perimeter, grayscale ramp, centered geometry, and restoration after the ten-second timeout. Repeat with SIGINT and SIGTERM. Record the device's output mode and reported logical/output dimensions. The adapter reports ioctl, mapping, and unsupported-layout errors instead of treating them as successful presentation. Confirm the frame visually because a successful ioctl and memory copy cannot establish visible output or timing.
 
 The prototype does not install a launcher, change a core, use `/dev/mem`, stop `Main_MiSTer`, or invoke the C updater. The separate executable and temporary hardware path permit testing alongside the C client. The display clears the framebuffer and console text on open and close. It does not restore a snapshot of the startup screen. Cleanup cannot run after SIGKILL, a crash, or power loss.
 
-## Launch the Go browser from the Scripts menu
+## Install and launch from the Scripts menu
 
-For CRT testing, copy [`tools/misterfin-go-test.sh`](../tools/misterfin-go-test.sh) to `/media/fat/Scripts/MiSTerFin-Go-Test.sh` the ARM build to `/tmp/misterfin-go-arm`, and the [Go-specific MPlayer build](GO_PLAYBACK.md#mister-use-and-remaining-work) to `/tmp/misterfin-go-mplayer-arm`. Both binaries must be executable. Launch **MiSTerFin-Go-Test** from the MiSTer Scripts menu. That path switches to tty2 and enables framebuffer output through Main_MiSTer. An SSH launch alone does not perform that setup.
+Install the ARM client, the [Go-specific MPlayer build](GO_PLAYBACK.md#mister-use-and-remaining-work), and [`tools/misterfin-crt.sh`](../tools/misterfin-crt.sh) at these paths. All three files must be executable.
 
-The test launcher uses the installed Jellyfin configuration, the temporary Go-specific player, and separate Go state at `/media/fat/misterfin-go/state`. Login and per-video playback choices persist on the SD card. Both binaries remain temporary and must be prepared again after reboot. The C player does not read Go overlays and must not be used for this test. Use a keyboard: arrows to navigate, Enter to select, Escape to go back, and Q to quit.
+| Build or source file | MiSTer installation path |
+| --- | --- |
+| `build/misterfin-crt-arm` | `/media/fat/misterfin-crt/misterfin-crt` |
+| `build/misterfin-crt-mplayer-arm` | `/media/fat/misterfin-crt/mplayer-arm` |
+| `tools/misterfin-crt.sh` | `/media/fat/Scripts/MiSTerFin-CRT.sh` |
 
-The launcher removes Main_MiSTer’s inherited CPU-1-only affinity with `taskset -p 3` before starting Go. Both the UI and decoder can then use both Cortex-A9 cores. The launcher clears the active virtual console directly at startup and exit. It hides the console cursor while running and restores it on exit. It does not replace the C launcher or client.
+The binaries and launcher reside on the SD card and survive reboot. The launcher reads `/media/fat/misterfin-crt/jellyfin.conf` and adjacent `input.json` and `music.json` files. Copy an existing configuration and any referenced music assets into this directory when migrating an installation. Go login and playback choices remain separate at `/media/fat/misterfin-crt/state`. Artwork caches remain under `/media/fat/misterfin-crt/covercache` and `/media/fat/misterfin-crt/gridcache`, unless `MISTERFIN_CACHE_ROOT` overrides their location. This installation does not replace the C client, player, or launcher.
+
+Launch **MiSTerFin-CRT** from the MiSTer Scripts menu. The launcher filename must contain no spaces because Main_MiSTer inserts its path into an unquoted shell command. That path switches to tty2 and enables framebuffer output through Main_MiSTer. An SSH launch alone does not perform that setup. Use a keyboard or the configured controller. The keyboard defaults include arrows to navigate, Enter to select, Escape to go back, and Q to quit.
+
+When replacing installed binaries, copy each new build to a temporary filename in the installation directory, set its executable permission, then rename it over the installed path. Update the Go client and its Go-specific MPlayer together when their protocol changes. The C player cannot display Go overlays or handle the live picture command. Automatic installation and release updates remain separate work.
+
+The launcher removes Main_MiSTer’s inherited CPU-1-only affinity with `taskset -p 3` before starting Go. Both the UI and decoder can then use both Cortex-A9 cores. The launcher clears the active virtual console directly at startup and exit. It hides the console cursor while running and restores it on exit.
 
 ## Platform contract and audit
 
@@ -132,3 +142,11 @@ DDR, raw SPI page flipping, interlaced playback compensation, and player handoff
 - Initial physical MiSTer execution and headless output passed on Linux `6.18.38-MiSTer` with glibc 2.31. The September 12 rebuilt-kernel retest also passed hardware framebuffer drawing and restoration after timeout, SIGINT, and SIGTERM. Direct CRT confirmation and authenticated browser/playback checks remain pending.
 
 The `c-baseline` tag still points to `19d99fa5f479692e45ea7b5dddc42e42fb1782a9`.
+
+## Rename an existing Go installation
+
+MiSTerFin CRT uses `misterfin-crt` for its executable, module, saved-state directory, and cache directory. The repository is [trentnix/misterfin-crt](https://github.com/trentnix/misterfin-crt).
+
+Stop the old application before migrating saved data. On MiSTer, copy `state`, `covercache`, and `gridcache` from `/media/fat/misterfin-go` to `/media/fat/misterfin-crt`. Copy `jellyfin.conf`, optional `input.json` and `music.json`, and any referenced music assets from the existing configuration directory. Install both new binaries together because the shared overlay path has changed. Replace the Scripts menu launcher with `tools/misterfin-crt.sh`. Keep the previous installation until the new one is verified.
+
+On desktop, move the `misterfin-go` directory under the user configuration directory to `misterfin-crt` to retain the Jellyfin login and playback choices. Move its cache directory under the user cache directory or `MISTERFIN_CACHE_ROOT` the same way. Ghostty defaults to `/tmp/misterfin-cache` as the cache root. An explicit `--state-dir` continues to use exactly the supplied path. If a destination already exists, reconcile its contents before migrating to avoid overwriting newer saved data.

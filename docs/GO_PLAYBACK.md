@@ -87,7 +87,7 @@ Media requests allow up to 60 seconds for Jellyfin to return response headers. E
 
 Video output shows a centered animated loading indicator while Jellyfin prepares the stream and the player starts. The indicator clears when the player reports playback progress. Inline Ghostty video enables caching for the media pipe and reports libmpv's `paused-for-cache` property through the helper's optional `--status` protocol. A cache stall shows an animated buffering indicator over the last frame. Resuming playback restores the clean frame. User pause suppresses both indicators and keeps the existing clean pause behavior.
 
-FFplay does not expose the same cache signal through the current adapter. Its buffering indicator is an estimate based on three seconds without advancing playback position. The indicator appears in Ghostty, while FFplay owns its separate video window. On MiSTer, the native output backend scales and publishes the same overlay through `/tmp/misterfin_go_overlay`. The Go-specific MPlayer `vo_fbdev` driver validates the file, composites its cropped BGRA pixels after decoding each frame, and keeps a clean copy beneath the overlay for paused redraws.
+FFplay does not expose the same cache signal through the current adapter. Its buffering indicator is an estimate based on three seconds without advancing playback position. The indicator appears in Ghostty, while FFplay owns its separate video window. On MiSTer, the native output backend scales and publishes the same overlay through `/tmp/misterfin_crt_overlay`. The Go-specific MPlayer `vo_fbdev` driver validates the file, composites its cropped BGRA pixels after decoding each frame, and keeps a clean copy beneath the overlay for paused redraws.
 
 ## Live TV
 
@@ -109,18 +109,18 @@ After playback ends, the browser refreshes the details and reuses cached artwork
 
 ## MiSTer use and remaining work
 
-The September 12 kernel build fixed framebuffer access. The user confirmed visible browser output and playback on MiSTer. Launch from the Scripts menu so Main_MiSTer enables CRT output. The test launcher uses `/tmp/misterfin-go-mplayer-arm`, separate from the installed C player. The C player cannot display Go playback overlays or accept the live picture command.
+The September 12 kernel build fixed framebuffer access. The user confirmed visible browser output and playback on MiSTer. Launch from the Scripts menu so Main_MiSTer enables CRT output. The installed launcher uses `/media/fat/misterfin-crt/mplayer-arm`, separate from the C player. Both Go binaries persist on the SD card. The C player cannot display Go playback overlays or accept the live picture command.
 
-The hardware path uses `/media/fat/misterfin-go/mplayer-arm`, separate from the C client’s player. Hardware video uses the C player’s `-framedrop` policy and `-autosync 30` for recorded media (`-autosync 1` for live channels). These settings let MPlayer correct video lag against the audio clock. The player does not force `-fps` or change playback speed. It currently supports 640-pixel-wide PAL and NTSC framebuffers, including doubled 480/576-line output. It uses the source display aspect ratio for letterboxing, ALSA audio, and the Go-specific framebuffer output driver. Recorded video uses the `misterfin` scaling filter for live Original/Zoom changes. The existing Live TV filter chain is unchanged. The output driver consumes the same Go-rendered loading, buffering, seeking, and playback-control overlays as the headless backend. Build it with `docker/Dockerfile.misterfin-go`, which applies `docker/vo_fbdev_go.patch` to a private build copy without changing the preserved C player source. The direct Go binary accepts `-player` to override the executable path. In headless mode the executable must accept FFplay arguments. On hardware it must accept MPlayer arguments and include the Go overlay adapter.
+The hardware path uses `/media/fat/misterfin-crt/mplayer-arm`, separate from the C client’s player. Hardware video uses the C player’s `-framedrop` policy and `-autosync 30` for recorded media (`-autosync 1` for live channels). These settings let MPlayer correct video lag against the audio clock. The player does not force `-fps` or change playback speed. It currently supports 640-pixel-wide PAL and NTSC framebuffers, including doubled 480/576-line output. It uses the source display aspect ratio for letterboxing, ALSA audio, and the Go-specific framebuffer output driver. Recorded video uses the `misterfin` scaling filter for live Original/Zoom changes. The existing Live TV filter chain is unchanged. The output driver consumes the same Go-rendered loading, buffering, seeking, and playback-control overlays as the headless backend. Build it with `docker/Dockerfile.misterfin-crt`, which applies `docker/vo_fbdev_go.patch` to a private build copy without changing the preserved C player source. The direct Go binary accepts `-player` to override the executable path. In headless mode the executable must accept FFplay arguments. On hardware it must accept MPlayer arguments and include the Go overlay adapter.
 
 ```sh
-docker build -f docker/Dockerfile.misterfin-go -t misterfin-go-mplayer docker
-docker run --name misterfin-go-mplayer-build misterfin-go-mplayer
-docker cp misterfin-go-mplayer-build:/build/mplayer-arm build/misterfin-go-mplayer-arm
-docker rm misterfin-go-mplayer-build
+docker build -f docker/Dockerfile.misterfin-crt -t misterfin-crt-mplayer docker
+docker run --name misterfin-crt-mplayer-build misterfin-crt-mplayer
+docker cp misterfin-crt-mplayer-build:/build/mplayer-arm build/misterfin-crt-mplayer-arm
+docker rm misterfin-crt-mplayer-build
 ```
 
-Update the Go client and Go-specific MPlayer together. The native output backend keeps the loading animation moving until MPlayer presents its first frame. Both processes coordinate that handoff through `/tmp/misterfin_go_overlay.lock`. An older player does not claim the lock and must not be paired with the updated client.
+Update the Go client and Go-specific MPlayer together. The native output backend keeps the loading animation moving until MPlayer presents its first frame. Both processes coordinate that handoff through `/tmp/misterfin_crt_overlay.lock`. An older player does not claim the lock and must not be paired with the updated client.
 
 MPlayer signals its first presented frame immediately so the loading label clears without waiting for the next position poll. Position reports still determine seeking and Jellyfin resume data.
 

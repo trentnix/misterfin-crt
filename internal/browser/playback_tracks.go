@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 )
 
 // trackPicker owns navigation within the recorded-video Options menu.

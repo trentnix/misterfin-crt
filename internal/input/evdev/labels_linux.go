@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"misterfin-go/internal/input/control"
+	"misterfin-crt/internal/input/control"
 )
 
 func keyCapabilities(fd int) [96]byte {

@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-go/internal/input/control"
-	"misterfin-go/internal/musicviz"
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/musicviz"
 )
 
 // Scene is the input to a renderer, separate from the mutable navigation model.
@@ -73,7 +73,7 @@ func (s Scene) title() string {
 		return "Now playing"
 	}
 	if s.Root {
-		return "MiSTerFin-Go"
+		return "MiSTerFin CRT"
 	}
 	return s.View.Title
 }

@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"testing"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestDecoderSelectionAndInput(t *testing.T) {
@@ -18,8 +18,8 @@ func TestDecoderSelectionAndInput(t *testing.T) {
 		executable, script string
 		input              decoderInput
 	}{
-		{name: "native video", kind: "Movie", options: Options{Width: 640, Height: 240}, executable: "/media/fat/misterfin-go/mplayer-arm", input: inputPipe},
-		{name: "native audio", kind: "Audio", options: Options{Width: 640, Height: 288}, executable: "/media/fat/misterfin-go/mplayer-arm", input: inputURL},
+		{name: "native video", kind: "Movie", options: Options{Width: 640, Height: 240}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: inputPipe},
+		{name: "native audio", kind: "Audio", options: Options{Width: 640, Height: 288}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: inputURL},
 		{name: "native override", kind: "Episode", options: Options{Width: 640, Height: 480, Player: "custom-mplayer"}, executable: "custom-mplayer", input: inputPipe},
 		{name: "desktop video", kind: "Movie", options: Options{Headless: true}, executable: "ffplay", input: inputPipe},
 		{name: "desktop audio", kind: "Audio", options: Options{Headless: true}, executable: "ffplay", input: inputPipe},

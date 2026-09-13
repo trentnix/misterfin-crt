@@ -132,7 +132,7 @@ static int ban_clip_top(void) { return in_height; }
 static void memcpy_pic2(uint8_t *d, uint8_t *s, int w, int h, int ds, int ss, int unused) {
     for (int y = 0; y < h; y++) memcpy(d + y * ds, s + y * ss, w);
 }
-''' + adapter.replace('"/tmp/misterfin_go_overlay"', '"overlay"') + draw.replace('"/tmp/misterdvd_vsync"', '"vsync"') + r'''
+''' + adapter.replace('"/tmp/misterfin_crt_overlay"', '"overlay"') + draw.replace('"/tmp/misterdvd_vsync"', '"vsync"') + r'''
 static void publish(void) {
     uint8_t header[40] = {'M','F','G','O','O','V','1',0};
     header[8] = 4; header[12] = 2;

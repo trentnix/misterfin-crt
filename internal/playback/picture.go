@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // PictureResult acknowledges one live request. Err leaves the preceding mode active.

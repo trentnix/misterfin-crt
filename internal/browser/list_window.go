@@ -1,6 +1,6 @@
 package browser
 
-import "misterfin-go/internal/jellyfin"
+import "misterfin-crt/internal/jellyfin"
 
 const prefetchRows = 24
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // loadLibrary lets counts arrive while cover sampling and images are pending.

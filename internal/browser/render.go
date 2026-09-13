@@ -4,8 +4,8 @@ import (
 	"image"
 	"time"
 
-	"misterfin-go/internal/musicviz"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/musicviz"
+	"misterfin-crt/internal/ui"
 )
 
 // Render draws one uncached navigation frame and returns an owned BGRX buffer.

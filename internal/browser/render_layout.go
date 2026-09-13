@@ -3,8 +3,8 @@ package browser
 import (
 	"fmt"
 
-	"misterfin-go/internal/musicviz"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/musicviz"
+	"misterfin-crt/internal/ui"
 )
 
 const titleColor = 0xffe040
@@ -59,8 +59,8 @@ func (p *screenPainter) clock() {
 
 // header draws the scrolling title, clips both copies to the safe area, and
 // paints the clock. The marquee scratch layer preserves existing pixel output.
-func (p *screenPainter) header(title string) {
-	c, w, h, sy, anim := p.canvas, p.width, p.height, p.safeY, p.animation
+func (p *screenPainter) header(title string, titleY int) {
+	c, w, h, sy, anim := p.canvas, p.width, p.height, titleY, p.animation
 
 	end := w - 84
 	x := 24

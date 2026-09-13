@@ -1,6 +1,6 @@
 # Ghostty interactive harness
 
-This helper presents MiSTerFin-Go's desktop framebuffer inside Ghostty. MiSTerFin still reads the terminal directly, so the helper does not translate or intercept input.
+This helper presents MiSTerFin CRT's desktop framebuffer inside Ghostty. MiSTerFin still reads the terminal directly, so the helper does not translate or intercept input.
 
 From the repository root, run:
 
@@ -26,7 +26,7 @@ To browse a real Jellyfin server, create a `jellyfin.conf` containing its URL, t
 python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
 ```
 
-The browser displays a Quick Connect code. Approve that code in Jellyfin to sign in. The existing three-line server URL, API key, and username format also works. Go saves its session separately under the user configuration directory in `misterfin-go/session.json`. It does not read or overwrite the C client's token or device files. `--state-dir PATH` selects another Go session directory.
+The browser displays a Quick Connect code. Approve that code in Jellyfin to sign in. The existing three-line server URL, API key, and username format also works. Go saves its session separately under the user configuration directory in `misterfin-crt/session.json`. It does not read or overwrite the C client's token or device files. `--state-dir PATH` selects another Go session directory.
 
 Go browser controls:
 
@@ -55,7 +55,7 @@ Without `--browse` or `--demo`, the helper shows the Go test frame. The `--go` f
 
 The helper writes MiSTerFin's stdout and stderr to `/tmp/misterfin-ghostty.log` so terminal output cannot corrupt the image. Pass `--log PATH` to choose another location.
 
-The artwork cache defaults to `/tmp/misterfin-cache`. Carousel collages use its `misterfin-go/gridcache` directory. Covers, backdrops, and logos use `misterfin-go/covercache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERFIN_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
+The artwork cache defaults to `/tmp/misterfin-cache`. Carousel collages use its `misterfin-crt/gridcache` directory. Covers, backdrops, and logos use `misterfin-crt/covercache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERFIN_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
 
 Ghostty must report `TERM=xterm-ghostty`. The `--force` option permits another terminal that implements the Kitty graphics protocol.
 

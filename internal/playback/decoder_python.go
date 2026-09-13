@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // pythonDecoder speaks the helper's line protocol for inline video and audio.

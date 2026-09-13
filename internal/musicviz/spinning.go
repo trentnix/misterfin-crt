@@ -4,7 +4,7 @@ import (
 	"image"
 	"math"
 
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/ui"
 )
 
 // spinning caches a small square cover and rotates samples inside a disc mask.

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/input/control"
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/ui"
 )
 
 func TestPreviewUsesSharedButtonBadges(t *testing.T) {

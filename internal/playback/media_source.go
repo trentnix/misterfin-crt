@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // mediaSource owns either an authenticated stream or a local audio proxy.

@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // progressReport is an owned snapshot. Initial start/progress and final stop/save

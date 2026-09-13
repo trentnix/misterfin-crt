@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {

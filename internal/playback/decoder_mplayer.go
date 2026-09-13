@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // mplayerDecoder owns MiSTer's slave commands and CRT scaling policy. It holds
@@ -20,7 +20,7 @@ func (d mplayerDecoder) executable() string {
 	if d.player != "" {
 		return d.player
 	}
-	return "/media/fat/misterfin-go/mplayer-arm"
+	return "/media/fat/misterfin-crt/mplayer-arm"
 }
 
 func (d mplayerDecoder) input(item jellyfin.Item) decoderInput {

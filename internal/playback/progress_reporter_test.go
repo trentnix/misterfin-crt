@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func awaitReportSignal(t *testing.T, signal <-chan struct{}) {

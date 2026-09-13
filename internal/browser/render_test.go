@@ -4,7 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 	"testing"
 	"time"
 )

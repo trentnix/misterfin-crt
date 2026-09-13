@@ -4,9 +4,9 @@ package input
 import (
 	"context"
 
-	"misterfin-go/internal/input/control"
-	"misterfin-go/internal/input/evdev"
-	"misterfin-go/internal/terminal"
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/input/evdev"
+	"misterfin-crt/internal/terminal"
 )
 
 // Read selects terminal keys for headless output and direct evdev events for

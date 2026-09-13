@@ -7,7 +7,7 @@ import (
 	"image/draw"
 	"sync"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // fetchImage reuses tagged artwork before acquiring a request slot and checks

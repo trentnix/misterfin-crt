@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/ui"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/ui"
 )
 
 func windowPage(start, total int) jellyfin.Page {

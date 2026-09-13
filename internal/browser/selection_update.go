@@ -1,6 +1,6 @@
 package browser
 
-import "misterfin-go/internal/jellyfin"
+import "misterfin-crt/internal/jellyfin"
 
 // selectionData is the selected item's presentation data. Library counts remain
 // separate from images. The browser loop applies progressive results here.

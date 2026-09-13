@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
-	"misterfin-go/internal/subtitles"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/subtitles"
 )
 
 func trackFixture(t *testing.T) *controllerFixture {

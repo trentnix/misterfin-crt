@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestStopReleasesOutputBeforeSlowServerCleanup(t *testing.T) {

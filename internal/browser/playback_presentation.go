@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	"misterfin-go/internal/jellyfin"
+	"misterfin-crt/internal/jellyfin"
 )
 
 // PlaybackPresentation is a value snapshot. It contains no decoder handles,

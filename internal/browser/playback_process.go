@@ -3,8 +3,8 @@ package browser
 import (
 	"context"
 
-	"misterfin-go/internal/jellyfin"
-	"misterfin-go/internal/playback"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 )
 
 // playbackProcess holds one decoder's lifecycle resources. Only the controller
