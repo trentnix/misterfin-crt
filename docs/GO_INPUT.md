@@ -4,11 +4,11 @@ Controller bindings are configurable without rebuilding. The default layout uses
 
 ## Configuration path
 
-Copy [input.json.example](../input.json.example) to `input.json` beside your `jellyfin.conf`, then edit the profile for your controller. The MiSTer launcher uses `/media/fat/misterfin/input.json`. The configuration persists across application restarts.
+Copy [input.json.example](../input.json.example) to `input.json` beside your `jellyfin.conf`, then edit the profile for your controller. The MiSTer launcher uses `/media/fat/misterfin-crt/input.json`. The configuration persists across application restarts.
 
 Use `-input-config /path/to/input.json` to choose another file. The `MISTERFIN_INPUT_CONFIG` environment variable supplies the flag's default and also works through the Ghostty harness. A missing default file keeps the built-in layout. An explicitly selected file must exist. Invalid configuration stops startup with an error that names the file. Restart the application after editing the configuration.
 
-Profiles configure Linux hardware input, including controllers and physical keyboards on MiSTer. Ghostty reads terminal key sequences and keeps the keyboard bindings documented in the playback guide. Playback and photo overlays show the bindings of the last physical input device used. Ghostty overlays show keyboard keys. Browsing hints still describe the default layout.
+Profiles configure Linux hardware input, including controllers and physical keyboards on MiSTer. Ghostty reads terminal key sequences and keeps the keyboard bindings documented in the playback guide. Playback and photo overlays show the bindings of the last physical input device used. Ghostty overlays show keyboard keys. Browsing hints use the same effective bindings.
 
 ## Device profiles
 

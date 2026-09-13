@@ -24,7 +24,7 @@ During music playback, SELECT/Tab cycles backgrounds. The screen briefly shows t
 
 These are Go implementations of the C client's background choices. Their motion and layouts are not pixel-identical ports. Nebula and the spinning bars currently use stereo RMS levels, not the C waveform or frequency analysis. Toasty reuses the existing asset files, resized during loading, with Go's movement and layering.
 
-Default Toasty assets are found under `assets/toasty` beside the configuration file, `assets/toasty` in the working directory, or `/media/fat/misterfin/toasty`. The default cycle omits Toasty when those assets are absent. Explicitly configured missing assets produce a configuration error.
+Default Toasty assets are found under `assets/toasty` beside the configuration file, `assets/toasty` in the working directory, `/media/fat/misterfin-crt/toasty`, or the legacy `/media/fat/misterfin/toasty` directory. The default cycle omits Toasty when those assets are absent. Explicitly configured missing assets produce a configuration error.
 
 ## Configuration
 
