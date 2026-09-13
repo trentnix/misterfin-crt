@@ -72,7 +72,9 @@ Artwork is cached under `/tmp/misterfin-cache` by default. Set `MISTERFIN_CACHE_
 
 Ghostty must report `TERM=xterm-ghostty`. The `--force` option permits another terminal that implements the Kitty graphics protocol.
 
-The viewer double-buffers terminal images to avoid flicker. It uploads a complete frame under an alternate image ID, places the new frame over the current frame, and only then deletes the old frame. MiSTerFin's 640x240 and 640x288 framebuffers use non-square CRT pixels, so the viewer fits them into a physical 4:3 rectangle using the terminal's cell geometry. The viewer caps presentation at 20 FPS by default and skips duplicate frames. Change the cap with `--fps NUMBER`. This cap only affects the terminal preview. It does not change MiSTerFin's own frame loop.
+The viewer double-buffers terminal images to avoid flicker. It uploads a complete frame under an alternate image ID, then places the new frame and deletes the old frame within one synchronized terminal update. The upload stays outside that update so the current image remains visible while data transfers. MiSTerFin's 640x240 and 640x288 framebuffers use non-square CRT pixels, so the viewer fits them into a physical 4:3 rectangle using the terminal's cell geometry. The viewer skips duplicate frames.
+
+The presentation cap defaults to 20 FPS, or 60 FPS with `--inline-video`. Change the cap with `--fps NUMBER`. The presenter wakes when the Go frame file is complete, then uploads changed frames up to the configured cap. Upload time counts toward each interval. If an upload overruns a deadline, the presenter skips expired slots rather than building a backlog. This cap affects the terminal preview and does not change the decoder's playback clock.
 
 Video playback remains unavailable in the desktop harness because `mplayer` opens `/dev/fb0` directly. Browsing, artwork, menus, setup, and metadata use the headless framebuffer and are visible.
 

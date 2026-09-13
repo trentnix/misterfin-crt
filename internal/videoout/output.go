@@ -1,7 +1,11 @@
 // Package videoout presents shared UX frames through the selected output backend.
 package videoout
 
-import "misterfin-go/internal/platform"
+import (
+	"time"
+
+	"misterfin-go/internal/platform"
+)
 
 // Frame describes what the UX wants to display, without choosing an output path.
 // UI is a full BGRX browser frame. During video playback, Overlay contains
@@ -22,6 +26,10 @@ type Frame struct {
 type Output interface {
 	// Geometry returns logical UI and physical output dimensions.
 	Geometry() platform.Geometry
+	// FrameInterval supplies the positive presentation interval for the current
+	// mode. Outputs that composite video must sample faster than overlay-only
+	// outputs. This cadence does not change the decoder's playback clock.
+	FrameInterval(video bool) time.Duration
 	// Present consumes borrowed pixels synchronously. Implementations must not
 	// retain the slices after returning unless they copy them.
 	Present(Frame) error
@@ -35,4 +43,11 @@ type Output interface {
 	// Close releases backend resources without closing the underlying display.
 	// The caller must stop decoder activity before closing the backend.
 	Close() error
+}
+
+// FrameNotifier optionally wakes the UI loop when an output's video source
+// changes. Timer-driven drawing still animates overlays. Notifications coalesce
+// when drawing falls behind, so presentation always uses the latest frame.
+type FrameNotifier interface {
+	FrameUpdates() (<-chan struct{}, error)
 }

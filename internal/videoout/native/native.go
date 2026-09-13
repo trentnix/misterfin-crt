@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/ui"
@@ -72,6 +73,16 @@ func (o *Backend) removeLocked() {
 	}
 }
 func (o *Backend) Geometry() platform.Geometry { return o.d.Geometry() }
+
+// FrameInterval keeps browser motion at 60 Hz and overlay publication at 30 Hz.
+// MPlayer presents video on its own clock independently of this interval.
+func (o *Backend) FrameInterval(video bool) time.Duration {
+	if video {
+		return time.Second / 30
+	}
+	return time.Second / 60
+}
+
 func (o *Backend) Present(f videoout.Frame) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()

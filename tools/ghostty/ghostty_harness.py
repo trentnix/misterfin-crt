@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import argparse
 import base64
+import ctypes as C
 from contextlib import ExitStack
 import fcntl
 import importlib.util
+import math
 import os
 from pathlib import Path
 import shutil
+import select
 import signal
 import struct
 import subprocess
@@ -25,9 +28,12 @@ from typing import BinaryIO, Iterable
 
 ESC = b"\x1b"
 ST = ESC + b"\\"
+SYNC_BEGIN = ESC + b"[?2026h"
+SYNC_END = ESC + b"[?2026l"
 IMAGE_IDS = (0x4D465001, 0x4D465002)
 PLACEMENT_ID = 1
 DEFAULT_FPS = 20.0
+VIDEO_FPS = 60.0
 DISPLAY_ASPECT = 4.0 / 3.0
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -116,6 +122,51 @@ def read_complete_frame(path: Path, expected_size: int) -> bytes | None:
     return frame
 
 
+class FrameWatch:
+    """Wait for complete frame writes or atomic replacements on Linux."""
+
+    CLOSE_WRITE = 0x00000008
+    MOVED_TO = 0x00000080
+    OVERFLOW = 0x00004000
+
+    def __init__(self, path: Path):
+        libc = C.CDLL(None, use_errno=True)
+        init = libc.inotify_init1
+        init.argtypes, init.restype = [C.c_int], C.c_int
+        add = libc.inotify_add_watch
+        add.argtypes, add.restype = [C.c_int, C.c_char_p, C.c_uint32], C.c_int
+        self.fd = init(os.O_CLOEXEC | os.O_NONBLOCK)
+        if self.fd < 0:
+            raise OSError(C.get_errno(), "cannot watch terminal frames")
+        self.name = os.fsencode(path.name)
+        if add(self.fd, os.fsencode(path.parent), self.CLOSE_WRITE | self.MOVED_TO) < 0:
+            error = C.get_errno()
+            os.close(self.fd)
+            self.fd = -1
+            raise OSError(error, "cannot watch terminal frame directory")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        if self.fd >= 0:
+            os.close(self.fd)
+            self.fd = -1
+
+    def wait(self, timeout: float) -> bool:
+        if not select.select([self.fd], [], [], timeout)[0]:
+            return False
+        events = os.read(self.fd, 65536)
+        changed = False
+        offset = 0
+        while offset + 16 <= len(events):
+            _, mask, _, size = struct.unpack_from("=iIII", events, offset)
+            name = events[offset + 16:offset + 16 + size].rstrip(b"\0")
+            changed = changed or name == self.name or bool(mask & self.OVERFLOW)
+            offset += 16 + size
+        return changed
+
+
 class GhosttyPresenter:
     def __init__(self, tty: BinaryIO, width: int, height: int):
         self.tty = tty
@@ -159,16 +210,18 @@ class GhosttyPresenter:
         for chunk in kitty_chunks(control, rgb):
             self.write(chunk)
 
-        self.write(b"\x1b[H")
         placement = (
             f"a=p,i={image_id},p={PLACEMENT_ID},c={columns},r={rows},C=1,q=2"
         )
-        for chunk in kitty_chunks(placement):
-            self.write(chunk)
-
         old_image_id = self.image_id
+        # Upload stays outside the synchronized update so Ghostty can keep
+        # showing the old image. Commit placement and removal as one update.
+        update = [SYNC_BEGIN, b"\x1b[H"]
+        update.extend(kitty_chunks(placement))
+        update.extend(kitty_chunks(f"a=d,d=I,i={old_image_id},q=2"))
+        update.append(SYNC_END)
+        self.write(b"".join(update))
         self.image_id = image_id
-        self.delete_image(old_image_id)
 
     def show(self, frame: bytes) -> None:
         columns, rows, pixel_width, pixel_height = terminal_geometry(self.tty)
@@ -187,6 +240,14 @@ class GhosttyPresenter:
             self.replace_image(next_image_id, rgb, image_columns, image_rows)
 
 
+def next_frame_deadline(previous: float, now: float, interval: float) -> float:
+    """Keep the presentation clock steady and skip expired slots after a stall."""
+    deadline = previous + interval
+    if deadline <= now:
+        deadline += (math.floor((now - deadline) / interval) + 1) * interval
+    return deadline
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Navigate MiSTerFin inside Ghostty using the desktop harness."
@@ -198,7 +259,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--fps",
         type=float,
         default=None,
-        help=f"maximum terminal presentation rate (default: {DEFAULT_FPS:g}, or 30 with --inline-video)",
+        help=f"maximum terminal presentation rate (default: {DEFAULT_FPS:g}, or {VIDEO_FPS:g} with --inline-video)",
     )
     parser.add_argument(
         "--go",
@@ -229,11 +290,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     args = parser.parse_args(argv)
     if args.fps is None:
-        args.fps = 30 if args.inline_video else DEFAULT_FPS
+        args.fps = VIDEO_FPS if args.inline_video else DEFAULT_FPS
     if args.inline_video and (not args.browse or args.demo):
         parser.error("--inline-video requires --browse with a real Jellyfin server")
-    if args.fps <= 0:
-        parser.error("--fps must be greater than zero")
+    if not math.isfinite(args.fps) or args.fps <= 0:
+        parser.error("--fps must be finite and greater than zero")
     if args.demo:
         if args.config or args.state_dir:
             parser.error("--demo uses temporary configuration and session files")
@@ -358,7 +419,7 @@ def run(args: argparse.Namespace) -> int:
             elif args.go:
                 command.append("-wait")
 
-            with args.log.open("wb") as log, open("/dev/tty", "wb", buffering=0) as tty:
+            with args.log.open("wb") as log, open("/dev/tty", "wb", buffering=0) as tty, FrameWatch(frame_path) as frame_watch:
                 presenter = GhosttyPresenter(tty, width, height)
                 presenter.enter()
                 try:
@@ -371,19 +432,25 @@ def run(args: argparse.Namespace) -> int:
                         stderr=log,
                     )
                     previous_frame: bytes | None = None
-                    next_frame_at = 0.0
+                    next_frame_at = time.monotonic()
+                    pending_frame = True
 
                     while process.poll() is None and not stopping:
                         now = time.monotonic()
-                        if now < next_frame_at:
-                            time.sleep(min(next_frame_at - now, 0.01))
+                        timeout = min(max(0.0, next_frame_at - now), 0.05) if pending_frame else 0.05
+                        pending_frame = frame_watch.wait(timeout) or pending_frame
+                        now = time.monotonic()
+                        if not pending_frame or now < next_frame_at:
                             continue
 
+                        pending_frame = False
                         frame = read_complete_frame(frame_path, frame_size)
                         if frame is not None and frame != previous_frame:
                             presenter.show(frame)
                             previous_frame = frame
-                        next_frame_at = time.monotonic() + frame_interval
+                            # Limit uploads from their start time. An arriving
+                            # video frame need not wait for an unrelated tick.
+                            next_frame_at = next_frame_deadline(now, time.monotonic(), frame_interval)
                 finally:
                     if process is not None:
                         # Allow Go to finish bounded Live TV negotiation and tuner cleanup.

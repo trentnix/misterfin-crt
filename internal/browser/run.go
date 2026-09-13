@@ -28,6 +28,13 @@ func Run(ctx context.Context, configPath, stateDir string, player playback.Optio
 	}
 	s := newBrowserSession(ctx, configPath, stateDir, player, output, renderer)
 	defer func() { cancel(); s.close(); <-done }()
+	var frames <-chan struct{}
+	if notifier, ok := output.(videoout.FrameNotifier); ok {
+		frames, err = notifier.FrameUpdates()
+		if err != nil {
+			return err
+		}
+	}
 	s.authenticate()
 	if err := s.draw(); err != nil {
 		return err
@@ -39,6 +46,9 @@ func Run(ctx context.Context, configPath, stateDir string, player playback.Optio
 			return nil
 		case <-s.ticker.C:
 			s.controller.Tick(time.Now())
+		case <-frames:
+			// The output has a newly published video frame. Draw it now using
+			// the same scene and renderer as timer-driven animation updates.
 		case key, ok := <-keys:
 			if !ok {
 				if ctx.Err() != nil {

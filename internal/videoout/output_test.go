@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/videoout"
@@ -211,6 +212,16 @@ func TestBackendsPresentBrowserAndLoadingFrames(t *testing.T) {
 			t.Cleanup(func() { _ = o.Close() })
 			if o.Geometry() != d.geometry {
 				t.Fatal("backend changed display geometry")
+			}
+			if o.FrameInterval(false) != time.Second/60 {
+				t.Fatal("browser presentation lost its 60 Hz cadence")
+			}
+			videoInterval := time.Second / 30
+			if name == "frameFile" {
+				videoInterval = time.Second / 60
+			}
+			if o.FrameInterval(true) != videoInterval {
+				t.Fatal("output cadence does not match its video ownership")
 			}
 			browser := []byte{20, 40, 60, 0}
 			presentBrowser := func() {

@@ -48,9 +48,15 @@ class LaunchOptionsTests(unittest.TestCase):
     def test_inline_video_rate_can_be_overridden(self):
         args = HARNESS.parse_args(["--browse", "--inline-video"])
         self.assertTrue(args.go)
-        self.assertEqual(args.fps, 30)
+        self.assertEqual(args.fps, 60)
         args = HARNESS.parse_args(["--browse", "--inline-video", "--fps", "25"])
         self.assertEqual(args.fps, 25)
+
+    def test_nonfinite_rates_are_rejected(self):
+        for value in ("nan", "inf", "0", "-1"):
+            with self.subTest(value=value), patch("sys.stderr", io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    HARNESS.parse_args(["--fps", value])
 
     def test_c_client_remains_default(self):
         args = HARNESS.parse_args([])
@@ -66,6 +72,22 @@ class LaunchOptionsTests(unittest.TestCase):
     def test_explicit_binary_is_preserved(self):
         args = HARNESS.parse_args(["--go", "--binary", "/tmp/custom-go"])
         self.assertEqual(args.binary, Path("/tmp/custom-go"))
+
+
+class TimingTests(unittest.TestCase):
+    def test_upload_cost_does_not_slow_the_presentation_clock(self):
+        deadline = 10.0
+        for _ in range(60):
+            # Eight milliseconds of upload work must fit within each interval,
+            # rather than adding another eight milliseconds to every interval.
+            deadline = HARNESS.next_frame_deadline(deadline, deadline + 0.008, 1 / 60)
+        self.assertAlmostEqual(deadline, 11.0)
+
+    def test_stall_skips_expired_slots_without_a_catchup_burst(self):
+        deadline = HARNESS.next_frame_deadline(10.0, 10.075, 1 / 60)
+        self.assertAlmostEqual(deadline, 10 + 5 / 60)
+        self.assertGreater(deadline, 10.075)
+        self.assertLessEqual(deadline - 10.075, 1 / 60)
 
 
 class ProtocolTests(unittest.TestCase):
@@ -106,6 +128,16 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn(b"a=p", second_output)
         self.assertIn(b"a=d", second_output)
         self.assertLess(second_output.index(b"a=p"), second_output.index(b"a=d"))
+
+        # Uploading is invisible. Both visible mutations must commit inside
+        # one synchronized update, with no intermediate placement on screen.
+        begin = second_output.index(HARNESS.SYNC_BEGIN)
+        end = second_output.index(HARNESS.SYNC_END)
+        self.assertLess(second_output.index(b"a=t"), begin)
+        self.assertLess(begin, second_output.index(b"a=p"))
+        self.assertLess(second_output.index(b"a=d"), end)
+        self.assertEqual(second_output.count(HARNESS.SYNC_BEGIN), 1)
+        self.assertEqual(second_output.count(HARNESS.SYNC_END), 1)
 
     def test_placement_enforces_the_four_by_three_cell_rectangle(self):
         tty = io.BytesIO()
@@ -150,6 +182,30 @@ class FrameReadTests(unittest.TestCase):
             self.assertIsNone(HARNESS.read_complete_frame(path, 5))
 
 
+class FrameWatchTests(unittest.TestCase):
+    def test_notifies_after_a_complete_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "frame"
+            with HARNESS.FrameWatch(path) as watcher:
+                with path.open("wb") as source:
+                    source.write(b"frame")
+                    source.flush()
+                    self.assertFalse(watcher.wait(0))
+                self.assertTrue(watcher.wait(0.5))
+                self.assertEqual(HARNESS.read_complete_frame(path, 5), b"frame")
+            self.assertEqual(watcher.fd, -1)
+
+    def test_follows_replacements_and_ignores_other_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "frame"
+            temporary = Path(directory) / "next"
+            with HARNESS.FrameWatch(path) as watcher:
+                for value in (b"first", b"second"):
+                    temporary.write_bytes(value)
+                    self.assertFalse(watcher.wait(0.1))
+                    temporary.replace(path)
+                    self.assertTrue(watcher.wait(0.5))
+                    self.assertEqual(path.read_bytes(), value)
 class ChildEnvironmentTests(unittest.TestCase):
     def test_desktop_cache_root_is_set_by_default(self):
         with patch.dict("os.environ", {}, clear=True):

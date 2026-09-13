@@ -2,6 +2,8 @@
 package companion
 
 import (
+	"time"
+
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/ui"
 	"misterfin-go/internal/videoout"
@@ -22,6 +24,16 @@ func (o *Backend) Close() error {
 	return nil
 }
 func (o *Backend) Geometry() platform.Geometry { return o.d.Geometry() }
+
+// FrameInterval follows browser motion at 60 Hz and playback controls at 30 Hz.
+// The separate player window owns video presentation.
+func (o *Backend) FrameInterval(video bool) time.Duration {
+	if video {
+		return time.Second / 30
+	}
+	return time.Second / 60
+}
+
 func (o *Backend) Present(f videoout.Frame) error {
 	if !f.Video {
 		return o.d.Present(f.UI)

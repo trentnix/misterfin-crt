@@ -8,13 +8,8 @@ import (
 // draw owns frame pacing and the paused-overlay refresh check.
 func (s *browserSession) draw() error {
 	now := time.Now()
-	// Browser motion follows the C client's 60 Hz timeline. Video owns its
-	// decoding cadence and only needs the existing 30 Hz overlay updates.
 	scene := sceneFromModel(s.model, s.controller.Snapshot(now), s.status, s.selection.current, s.selection.err, now)
-	interval := time.Second / 60
-	if scene.Video {
-		interval = time.Second / 30
-	}
+	interval := s.output.FrameInterval(scene.Video)
 	if interval != s.frameInterval {
 		s.frameInterval = interval
 		s.ticker.Reset(interval)

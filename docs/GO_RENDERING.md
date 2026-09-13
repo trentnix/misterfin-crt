@@ -30,7 +30,7 @@ flowchart TD
 
 Only the event loop mutates `browserSession`. Workers capture their request inputs and send results through channels. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
 
-Handlers return whether an event requires an immediate redraw. `Run` performs that redraw in one place. Timer ticks still update playback and render at the existing browser or video cadence. Shutdown cancels the session context before waiting for decoder completion, so callbacks cannot block after event dispatch stops.
+Handlers return whether an event requires an immediate redraw. `Run` performs that redraw in one place. Timer ticks update playback and render at the interval supplied by `Output.FrameInterval(scene.Video)`. Outputs can implement `FrameNotifier` to request an immediate redraw when a video frame arrives. Shutdown cancels the session context before waiting for decoder completion, so callbacks cannot block after event dispatch stops.
 
 ## Renderer contract
 
@@ -46,6 +46,10 @@ The output split remains downstream of shared UI drawing. Ghostty composites cle
 
 `videoout.Frame` contains a full BGRX `UI` frame, a straight-alpha BGRA `Overlay`, and a `Video` flag. `Video` expresses UX intent and stays true while loading or seeking, even when no decoder owns the display. The backend borrows pixel slices for the duration of `Present`. `Output.Geometry()` supplies the layout dimensions.
 
+`Output.FrameInterval(video)` supplies the presentation cadence. Browser screens use 60 Hz. The frame-file backend also keeps a 60 Hz animation timer, while native and companion backends retain 30 Hz overlay updates because their players present video independently.
+
+The frame-file backend implements `FrameNotifier` and watches atomic decoder publications with inotify. A new frame wakes the shared event loop immediately instead of waiting for the animation timer. Notifications coalesce when rendering falls behind. The watcher closes with the output backend, and the timer remains available for loading and paused overlays.
+
 For browsing, photos, and music, each backend presents `UI` through its internal `platform.Presenter`. During video playback, the Ghostty `framefile` backend reads clean frames from its decoder file and composites `Overlay`. If no valid frame exists, it uses black. The native backend publishes the overlay for patched MPlayer and continues presenting the overlay over black until MPlayer has its first video frame. The companion backend composites the overlay over `UI` while a separate player window displays video.
 
 `Acquire` and `Release` bracket the external decoder's lifetime. Each backend coordinates the actual display handoff. On MiSTer, Go takes an advisory lock while presenting each loading frame. MPlayer takes the same lock just before presenting its first frame and retains it until output teardown or process exit. Go then only publishes overlays until `Release`. The lock prevents simultaneous framebuffer writes without adding waits to subsequent video frames.
@@ -55,6 +59,10 @@ The lock file remains in place across decoder lifetimes so both processes always
 The native driver emits `ANS_VIDEO_STARTED=true` once after writing its first frame. `positionWriter` passes that signal through `Options.VideoStarted` to the browser's `PlaybackVideoStarted` event. The controller clears loading immediately without waiting for MPlayer's one-second position poll or inventing a position. Decoders without this signal retain the existing position-based fallback. First-frame state resets for every replacement decoder, and stale decoder events cannot clear loading for its replacement.
 
 `Clear` discards stale playback output before a new item and after playback ends. The application creates the backend once and closes it before closing the underlying display. Backends accept `platform.Presenter`, which exposes only geometry and presentation. `platform.Display` adds `Close` for the application that owns the device. A new presenter can therefore implement pixel delivery without pretending to own display resources. The browser does not select a display path per frame.
+
+The Ghostty harness watches completed Go frame writes. It uploads changed frames on arrival, subject to the configured presentation cap. Upload time counts toward that cap, and expired slots are skipped after stalls. Decoder frames, Go composition, and terminal uploads no longer wait for independent polling ticks.
+
+The terminal presenter uploads the next image before changing any visible placement. It then places the new image and removes the old one inside a single [synchronized-output update](https://ghostty.org/docs/help/synchronized-output), preventing intermediate screen states during the swap. The pixel payload remains opaque RGB and does not blend consecutive video frames.
 
 ## Source map
 
@@ -234,7 +242,9 @@ The cache retains one prepared background and one carousel set. It compares immu
 
 Complete-frame `BenchmarkBrowserFrame` measurements on the MiSTer ARM CPU were approximately 19.2 ms for a list and 36.9 ms for a carousel before caching. After caching, both measured approximately 3.0 ms. Per-frame allocations dropped from approximately 659–666 KB to 43 KB. These benchmarks exercise drawing with prepared local artwork, including animated positions. They exclude network loading, framebuffer vsync/copy, and physical input latency. First draws after cache invalidation still prepare artwork.
 
-Browser animations now request updates at 60 Hz, matching the C carousel timeline. Video overlays retain 30 Hz polling. The native MPlayer adapter retains clean decoded pixels in RAM and blends the latest overlay before writing each framebuffer row. The overlay remains present on every video frame, even when the UI has not changed. The native player retains the C adapter’s vsync wait in the decode path, before MPlayer schedules presentation. Video backdrops are cached instead of rescaled at the overlay update rate. Hardware framebuffer presentation still waits for vsync, so the physical display determines the achieved cadence. Pixel comparisons pass on MiSTer for cached versus fresh frames across animation, image replacement, transparency, subimages, and PAL/NTSC geometry changes.
+Browser animations now request updates at 60 Hz, matching the C carousel timeline. Native video overlays retain 30 Hz polling. The native MPlayer adapter retains clean decoded pixels in RAM and blends the latest overlay before writing each framebuffer row. The overlay remains present on every video frame, even when the UI has not changed. The native player retains the C adapter’s vsync wait in the decode path, before MPlayer schedules presentation. Video backdrops are cached instead of rescaled at the overlay update rate.
+
+Hardware framebuffer presentation still waits for vsync, so the physical display determines the achieved cadence. Pixel comparisons pass on MiSTer for cached versus fresh frames across animation, image replacement, transparency, subimages, and PAL/NTSC geometry changes.
 
 Selection tests cover progressive details and covers, slow counts, independent metadata expiry, warm-cache reuse, bounded metadata retention, retry invalidation, canceled debounce, and stale results. Image tests cover the shared request limit across concurrent loads, image-only requests, RGBA normalization, and retained images after cancellation.
 

@@ -23,9 +23,17 @@ python3 tools/ghostty/video_player.py --check
 python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --config jellyfin.conf
 ```
 
-Open a video's details and press B or Enter. Video replaces the browser image inside Ghostty. Audio plays through the desktop audio output. B or Enter pauses or resumes without a pause overlay. Up reveals the title, playback time, and controls over the video for three seconds. Pausing or resuming hides the menu immediately. A stops playback and restores the details screen. Q exits. The inline mode defaults to 30 terminal presentations per second. Use `--fps 25` to select a lower limit. The mock demo does not supply playable media.
+Open a video's details and press B or Enter. Video replaces the browser image inside Ghostty. Audio plays through the desktop audio output.
 
-The Python helper uses libmpv's [software rendering API](https://github.com/mpv-player/mpv/blob/v0.37.0/libmpv/render.h). libmpv handles decoding, audio, and presentation timing. A dedicated render thread writes complete BGRX frames atomically to a separate decoder frame file, using the output path with `.video` appended. Rendering at 640×480 before sampling PAL or NTSC rows preserves the harness's physical 4:3 aspect ratio and source letterboxing. The browser produces one straight-alpha BGRA overlay without knowing which video output is active. The headless output backend reads each clean decoder frame, composites the overlay, and presents the result. The menu never modifies the decoder frame, so hiding or expiring it restores the clean picture even while paused. Terminal presentation can drop frames if uploads cannot keep up. Visible smoothness and audible synchronization still need interactive Ghostty validation.
+B or Enter pauses or resumes without a pause overlay. Up reveals the title, playback time, and controls over the video for three seconds. Pausing or resuming hides the menu immediately. A stops playback and restores the details screen. Q exits.
+
+The inline mode defaults to 60 terminal presentations per second. Use `--fps 25` to select a lower limit. The mock demo does not supply playable media.
+
+The Python helper uses libmpv's [software rendering API](https://github.com/mpv-player/mpv/blob/v0.37.0/libmpv/render.h). libmpv handles decoding, audio, and presentation timing. A dedicated render thread writes complete BGRX frames atomically to a separate decoder frame file, using the output path with `.video` appended. Rendering at 640×480 before sampling PAL or NTSC rows preserves the harness's physical 4:3 aspect ratio and source letterboxing.
+
+The browser produces one straight-alpha BGRA overlay without knowing which video output is active. The headless output backend reads each clean decoder frame, composites the overlay, and presents the result. The menu never modifies the decoder frame, so hiding or expiring it restores the clean picture even while paused.
+
+The frame-file backend wakes on decoder frame publication, and the terminal presenter wakes when Go completes the composed frame. The terminal presenter defaults to a 60 Hz cap, counts upload time toward each interval, and skips expired slots after a stall. Terminal presentation can still drop frames if uploads cannot keep up. Visible smoothness and audible synchronization still need interactive Ghostty validation.
 
 The Go process retains stream ownership and session reporting. The helper receives media on descriptor 3, reads pause commands from a separate standard-input pipe, and returns numeric playback positions. The direct Go binary accepts `-terminal-player tools/ghostty/video_player.py` with `-browse`, a 640×240 or 640×288 `-headless` geometry, and `-output`. The terminal helper cannot be combined with `-player`. MiSTer does not need Python or libmpv.
 
