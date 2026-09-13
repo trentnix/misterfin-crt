@@ -1,6 +1,6 @@
 # MiSTerFin CRT
 
-A Jellyfin client for movies, TV, live TV, music, and photos. It runs on MiSTer FPGA and in Ghostty on Linux, with the same interface on both.
+MiSTerFin CRT is a Jellyfin client for MiSTer FPGA, designed for CRT televisions. It supports movies, TV, live TV, music, and photos.
 
 I built MiSTerFin CRT to make Jellyfin enjoyable to use on my CRT. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. The interface is designed for that screen.
 
@@ -28,36 +28,21 @@ http://your-jellyfin-server:8096
 
 Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Connect code in Jellyfin. The launcher filename must contain no spaces. Login, playback choices, and artwork caches persist on the SD card.
 
-## Run in Ghostty
+## Controls
 
-Requires Linux, Ghostty, Go 1.26, a C compiler, Python 3, libmpv, and FFmpeg.
+Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
-```bash
-git clone https://github.com/trentnix/misterfin-crt.git
-cd misterfin-crt
-```
+Controller bindings and button labels are [configurable](docs/GO_INPUT.md). The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Music backgrounds and meters are also [configurable](docs/GO_MUSIC.md).
 
-Create `jellyfin.conf` in the repository directory with your server URL, as shown above. Then run:
+## Local development and testing
 
-```bash
-python3 tools/ghostty/ghostty_harness.py --browse --config jellyfin.conf --ntsc --inline-video
-```
-
-The harness builds the client automatically. Approve the Quick Connect code in Jellyfin. Use `--pal` instead of `--ntsc` for the PAL layout.
-
-To try browsing without a server or playable media:
+I use the Ghostty harness on Linux to develop and test the interface without MiSTer hardware. It also helps verify that the architecture supports different display pipelines while reusing the same UI and application logic. From the repository directory, run the browsing demo:
 
 ```bash
 python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
-See the [Ghostty guide](tools/ghostty/README.md) for setup and options.
-
-## Controls
-
-Use arrows to navigate, Enter to select or pause, Escape to go back or stop, and Q to quit. During video or music playback, any arrow shows or hides controls. J/L seeks, and brackets change music tracks. On-screen hints show the available actions.
-
-MiSTer controller bindings and button labels are [configurable](docs/GO_INPUT.md). Music backgrounds and meters are also [configurable](docs/GO_MUSIC.md).
+The harness builds the client automatically. See the [development harness guide](tools/ghostty/README.md) for dependencies, connecting to Jellyfin, and testing playback.
 
 ## More information
 
