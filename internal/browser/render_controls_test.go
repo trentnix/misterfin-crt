@@ -92,3 +92,47 @@ func TestControlRowsFitSafeAreaAndOmitUnboundActions(t *testing.T) {
 		t.Fatal("unbound actions advertised", rows)
 	}
 }
+
+func TestBrowsingUsesConfiguredBadges(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		for _, tc := range []struct {
+			name                      string
+			root, list, empty, failed bool
+			collection                string
+			labels                    control.Labels
+			want                      []controlHint
+		}{
+			{name: "keyboard carousel", root: true, labels: control.KeyboardLabels(), want: []controlHint{{"Left/Right", "Browse"}, {"Enter", "Select"}, {"Tab", "List"}, {"Esc", "Exit"}}},
+			{name: "controller library", want: []controlHint{{"B", "Select"}, {"A", "Back"}}},
+			{name: "root list", root: true, list: true, want: []controlHint{{"B", "Select"}, {"View", "Carousel"}, {"A", "Exit"}}},
+			{name: "music shuffle", collection: "music", labels: control.KeyboardLabels(), want: []controlHint{{"Enter", "Select"}, {"Tab", "Shuffle all"}, {"Esc", "Back"}}},
+			{name: "empty library", empty: true, want: []controlHint{{"A", "Back"}}},
+			{name: "custom retry", failed: true, labels: control.Labels{"open": "Cross", "back": "Circle", "retry": "Triangle"}, want: []controlHint{{"Cross", "Select"}, {"Triangle", "Retry"}, {"Circle", "Back"}}},
+			{name: "unbound actions", root: true, labels: control.Labels{"next": "Right", "back": "Esc"}, want: []controlHint{{"Right", "Browse"}, {"Esc", "Exit"}}},
+			{name: "wrapped custom labels", collection: "music", failed: true, labels: control.Labels{"open": "First button", "select": "Other button", "retry": "Retry button", "back": "Final button"}, want: []controlHint{{"First button", "Select"}, {"Other button", "Shuffle all"}, {"Retry button", "Retry"}, {"Final button", "Back"}}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				total := 1234
+				v := View{Title: "Library", Location: jellyfin.Location{Collection: tc.collection}, Page: jellyfin.Page{TotalRecordCount: &total}}
+				if !tc.empty {
+					for i := 0; i < visibleRows(640, height); i++ {
+						v.Page.Items = append(v.Page.Items, jellyfin.Item{Name: "Selected item", Type: "MusicArtist"})
+					}
+				}
+				if tc.failed {
+					v.Error = "Could not load library"
+				}
+				s := Scene{View: v, Root: tc.root, ListMode: tc.list, Controls: tc.labels, Now: time.Unix(100, 0)}
+				got := renderScene(ui.New(640, height), nil, s, Animation{})
+				want := ui.New(640, height)
+				rows := controlRows(640, tc.want)
+				bottom := height - 8 - safeY(640, height)
+				drawControls(want, bottom, rows)
+				start := controlsTop(bottom, rows) * 640 * 4
+				if !bytes.Equal(got[start:], want.Pixels[start:]) {
+					t.Fatal("browsing badges differ or overlap list content, count, or error")
+				}
+			})
+		}
+	}
+}

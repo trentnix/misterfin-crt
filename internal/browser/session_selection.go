@@ -48,7 +48,7 @@ func (s *browserSession) loadSelection() {
 	}
 	s.selection.current = s.selection.loader.snapshot(*item, root)
 	if item.ID == continueID && s.home.err != nil {
-		s.selection.err = "Continue Watching incomplete. R:retry"
+		s.selection.err = "Continue Watching incomplete."
 	}
 	selected := *item
 	generation := s.selection.generation
@@ -71,11 +71,11 @@ func (s *browserSession) handleSelection(r result) bool {
 	if r.update.err != nil {
 		switch r.update.kind {
 		case selectionDetails:
-			s.selection.err = "Details unavailable. R:retry"
+			s.selection.err = "Details unavailable."
 		case selectionCount:
-			s.selection.err = "Library count unavailable. R:retry"
+			s.selection.err = "Library count unavailable."
 		default:
-			s.selection.err = "Artwork unavailable. R:retry"
+			s.selection.err = "Artwork unavailable."
 		}
 	} else {
 		switch r.update.kind {

@@ -89,7 +89,7 @@ func (m *Model) Apply(req Request, page jellyfin.Page, err error) bool {
 			if err != nil {
 				v.Error = err.Error()
 			} else {
-				v.Error = "No items returned for this page. Press R to retry."
+				v.Error = "No items returned for this page."
 			}
 		}
 		return true
@@ -145,7 +145,7 @@ func (m *Model) Key(key string) *Request {
 		}
 		m.Generation++
 		if v.Loading {
-			v.Error = "Loading canceled. Press R to retry."
+			v.Error = "Loading canceled."
 		}
 		if len(m.Stack) == 1 && v == m.Current() && !v.Loading {
 			m.ExitConfirm = true

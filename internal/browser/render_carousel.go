@@ -5,7 +5,7 @@ import (
 )
 
 // carousel draws library names over cached artwork strips and returns its controls.
-func (p *screenPainter) carousel() string {
+func (p *screenPainter) carousel() [][]controlHint {
 	c := p.canvas
 	cache := p.cache
 	art := p.scene.Artwork
@@ -57,7 +57,14 @@ func (p *screenPainter) carousel() string {
 			}
 		}
 	}
-	hint := "LEFT/RIGHT: browse   B:select   SELECT:list view   A:exit"
-
-	return hint
+	labels := p.scene.Controls
+	hints := []controlHint{pairedHint(labels, "previous", "next", "Browse")}
+	if v.Item() != nil {
+		hints = append(hints, hint(labels, "open", "Select"))
+	}
+	hints = append(hints, hint(labels, "select", "List"), hint(labels, "back", "Exit"))
+	if v.Error != "" || p.scene.SelectionError != "" {
+		hints = append(hints, hint(labels, "retry", "Retry"))
+	}
+	return controlRows(w, hints)
 }

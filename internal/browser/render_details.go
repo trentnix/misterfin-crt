@@ -25,6 +25,9 @@ func (p *screenPainter) details() [][]controlHint {
 	if resumableVideo(v.Detail) {
 		hints = append(hints, hint(labels, "select", "Restart"))
 	}
+	if v.Error != "" || p.scene.SelectionError != "" {
+		hints = append(hints, hint(labels, "retry", "Retry"))
+	}
 	hints = append(hints, hint(labels, "back", "Back"))
 	rows := controlRows(w, hints)
 	extra := max(0, len(rows)-1) * controlRowHeight

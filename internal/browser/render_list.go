@@ -6,24 +6,33 @@ import (
 	"misterfin-go/internal/ui"
 )
 
-// list draws a paginated item list and returns its navigation hint.
-func (p *screenPainter) list() string {
+// list draws a paginated item list and returns its configured button badges.
+func (p *screenPainter) list() [][]controlHint {
 	c := p.canvas
 	cache := p.cache
 	art := p.scene.Artwork
 	w, h := p.width, p.height
 	sy := p.safeY
-	bottom := p.bottom
 	anim := p.animation
 	v := &p.scene.View
 	s := p.scene
-	hint := "B:select  A:back"
-	if canShuffle(*v) {
-		label := s.Controls.Name("select")
-		if label != "" {
-			hint = "B:select  " + label + ":shuffle library  A:back"
-		}
+	var hints []controlHint
+	if v.Item() != nil {
+		hints = append(hints, hint(s.Controls, "open", "Select"))
 	}
+	if canShuffle(*v) {
+		hints = append(hints, hint(s.Controls, "select", "Shuffle all"))
+	}
+	back := "Back"
+	if s.Root {
+		hints = append(hints, hint(s.Controls, "select", "Carousel"))
+		back = "Exit"
+	}
+	if v.Error != "" || s.SelectionError != "" {
+		hints = append(hints, hint(s.Controls, "retry", "Retry"))
+	}
+	hints = append(hints, hint(s.Controls, "back", back))
+	controls := controlRows(w, hints)
 
 	cache.backdrop(c, art, false, func(layer *ui.Canvas) {
 		if art.Backdrop != nil {
@@ -44,7 +53,6 @@ func (p *screenPainter) list() string {
 	title := v.Title
 	if s.Root {
 		title = "MiSTerFin-Go"
-		hint = "B:select  SELECT:cover view  A:exit"
 	}
 	p.header(title)
 	width := w - 48
@@ -55,16 +63,19 @@ func (p *screenPainter) list() string {
 	// intermediate image or a full-frame copy. Header and footer stay fixed.
 	top := sy + 21
 	rows := visibleRows(w, h)
+	// Keep the same logical rows and scroll position when custom labels wrap.
+	// Compact their spacing only when the footer needs another instruction row.
+	rowHeight := max(20, min(30, (controlsTop(p.bottom, controls)-16-top)/rows))
 	list := *c
-	list.Height = min(rows*30, h-top)
+	list.Height = min(rows*rowHeight, h-top)
 	list.Pixels = c.Pixels[top*w*4 : (top+list.Height)*w*4]
 	if len(v.Page.Items) > 0 {
-		list.Rect(20, int(math.Round(anim.Row*30)), width+8, 28, 0x0d377c)
+		list.Rect(20, int(math.Round(anim.Row*float64(rowHeight))), width+8, rowHeight-2, 0x0d377c)
 	}
 	scroll := float64(v.Scroll) + anim.ScrollOffset
 	for index := max(0, int(math.Floor(scroll))); index < min(len(v.Page.Items), int(math.Ceil(scroll))+rows); index++ {
 		item := v.Page.Items[index]
-		y := 3 + int(math.Round((float64(index)-scroll)*30))
+		y := 3 + int(math.Round((float64(index)-scroll)*float64(rowHeight)))
 		color := uint32(0xcccccc)
 		if index == v.Selected {
 			color = 0xffffff
@@ -79,10 +90,5 @@ func (p *screenPainter) list() string {
 	if len(v.Page.Items) == 0 && !v.Loading {
 		center(c, h/2, "Nothing here", dimColor, 1)
 	}
-	if v.Page.TotalRecordCount != nil && *v.Page.TotalRecordCount > visibleRows(w, h) {
-		s := v.Count()
-		c.Text(w-24-textWidth(s, 1), bottom, s, dimColor, w-24)
-	}
-
-	return hint
+	return controls
 }

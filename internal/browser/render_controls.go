@@ -13,6 +13,17 @@ func hint(labels control.Labels, action, description string) controlHint {
 	return controlHint{labels.Name(action), description}
 }
 
+// pairedHint shares one badge between related directions and omits unbound keys.
+func pairedHint(labels control.Labels, first, second, description string) controlHint {
+	a, b := labels.Name(first), labels.Name(second)
+	if a == "" {
+		a = b
+	} else if b != "" && b != a {
+		a += "/" + b
+	}
+	return controlHint{a, description}
+}
+
 func playbackHints(labels control.Labels, paused bool) []controlHint {
 	action := "Pause"
 	if paused {

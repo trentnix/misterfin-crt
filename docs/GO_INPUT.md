@@ -38,7 +38,7 @@ MiSTer's synthetic action-key echoes remain filtered to prevent duplicate presse
 
 ## Overlay labels
 
-Overlay instructions come from the same effective bindings that handle input. A remapped action shows its new button or axis. Disabled actions disappear. If several inputs perform an action, the overlay shows one binding, preferring explicitly configured inputs over inherited aliases. MiSTer's virtual arrow echoes do not replace the physical controller's labels.
+Button badges on the home carousel, library lists, previews, and playback overlays come from the same effective bindings that handle input. Browsing badges show the available actions, including view switching, whole-library shuffle, and Retry when a request fails. Exit confirmation uses the same badges. A remapped action shows its new button or axis. Disabled actions disappear. If several inputs perform an action, the overlay shows one binding, preferring explicitly configured inputs over inherited aliases. MiSTer's virtual arrow echoes do not replace the physical controller's labels.
 
 Common Linux button and axis codes have default names. Unknown codes appear as `Btn 288` or `Axis 4+`. Use `button_labels` and `axis_labels` in a profile to match the names printed on your controller. Labels name physical inputs, so they follow those inputs when you change their actions.
 

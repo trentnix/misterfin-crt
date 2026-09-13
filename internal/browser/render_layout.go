@@ -86,7 +86,7 @@ func (p *screenPainter) header(title string) {
 }
 
 // footer draws browsing hints, request errors, and modal notices in that order.
-func (p *screenPainter) footer(hint string, controls [][]controlHint) {
+func (p *screenPainter) footer(controls [][]controlHint) {
 	c := p.canvas
 	w, h := p.width, p.height
 	bottom := p.bottom
@@ -95,20 +95,30 @@ func (p *screenPainter) footer(hint string, controls [][]controlHint) {
 	if len(controls) > 0 {
 		drawControls(c, bottom, controls)
 		messageY = controlsTop(bottom, controls) - 12
-	} else {
-		center(c, bottom, hint, dimColor, 1)
+	}
+	messageWidth := w - 48
+	v := &s.View
+	if v.Detail == nil && (!s.Root || s.ListMode) && v.Page.TotalRecordCount != nil && *v.Page.TotalRecordCount > visibleRows(w, h) {
+		count := v.Count()
+		countWidth := textWidth(count, 1)
+		c.Text(w-24-countWidth, messageY, count, dimColor, w-24)
+		messageWidth -= countWidth + 16
 	}
 	message := p.footerMessage()
 	if message != "" {
-		center(c, messageY, truncate(message, w-48, 1), 0xff6060, 1)
+		message = truncate(message, messageWidth, 1)
+		c.Text(24+(messageWidth-textWidth(message, 1))/2, messageY, message, 0xff6060, w-24)
 	}
-	if s.ExitConfirm || s.Notice != "" {
+	if s.ExitConfirm {
+		rows := controlRows(w, []controlHint{hint(s.Controls, "open", "Exit"), hint(s.Controls, "back", "Cancel")})
+		height := 28 + max(1, len(rows))*controlRowHeight
+		top := (h - height) / 2
+		c.Rect(12, top, w-24, height, 0x101010)
+		center(c, top+6, "Exit?", titleColor, 2)
+		drawControls(c, top+30+max(0, len(rows)-1)*controlRowHeight+controlBottomInset, rows)
+	} else if s.Notice != "" {
 		message := s.Notice
 		scale := 1
-		if s.ExitConfirm {
-			message = "Exit? [B: yes  A: no]"
-			scale = 2
-		}
 		width := textWidth(message, scale)
 		c.Shade((w-width)/2-12, h/2-8*scale-12, width+24, 16*scale+24, 210)
 		center(c, h/2-4*scale, message, titleColor, scale)
@@ -119,7 +129,7 @@ func (p *screenPainter) footer(hint string, controls [][]controlHint) {
 func (p *screenPainter) footerMessage() string {
 	v := &p.scene.View
 	if v.Error != "" {
-		return v.Error + "  R:retry"
+		return v.Error
 	}
 	if v.Loading || (v.fetching && v.Scroll+visibleRows(p.width, p.height) > len(v.Page.Items)) {
 		return "Loading..."
