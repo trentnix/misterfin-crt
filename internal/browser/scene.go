@@ -1,11 +1,15 @@
 package browser
 
-import "time"
+import (
+	"time"
+
+	"misterfin-go/internal/input/control"
+)
 
 // Scene is the input to a renderer, separate from the mutable navigation model.
-// Scalar state is copied. View items and artwork are borrowed read-only during
-// Render. Renderers may retain immutable artwork for caching, but must not retain
-// or mutate View slices or detail pointers after Render returns.
+// Scalar state is copied. View items, artwork, and control labels are borrowed
+// read-only during Render. Renderers may retain immutable artwork for caching,
+// but must not retain or mutate View slices or detail pointers after Render returns.
 type Scene struct {
 	View           View
 	Root           bool
@@ -17,6 +21,9 @@ type Scene struct {
 	PhotoCount     string
 	Artwork        Artwork
 	LibraryCount   *int
+
+	// Controls borrows immutable labels from the last active input device.
+	Controls control.Labels
 
 	Audio                bool
 	Video                bool

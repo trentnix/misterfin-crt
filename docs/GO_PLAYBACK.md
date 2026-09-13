@@ -4,7 +4,7 @@ The Go client can start and resume movies, episodes, videos, and music videos th
 
 ## Playback controls
 
-These are the default bindings. [Input configuration](GO_INPUT.md) supports per-device controller layouts, button overrides, and analog axis mappings.
+These are the default bindings. [Input configuration](GO_INPUT.md) supports per-device controller layouts, button overrides, analog axis mappings, and custom button names. Playback overlays show key badges for the active input device, omit unbound actions, and wrap long labels. Music keeps its track and seek controls on a separate row from pause and stop.
 
 | Action | Xbox controller | Keyboard |
 | --- | --- | --- |

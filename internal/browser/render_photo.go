@@ -14,11 +14,13 @@ func (p *screenPainter) photo() {
 	c.Image(art.Photo, 0, 0, w, h)
 	if s.PhotoControlsVisible {
 		c.Shade(0, 0, w, sy+12, 175)
-		c.Shade(0, bottom-4, w, h-bottom+4, 175)
+		rows := controlRows(w, []controlHint{hint(s.Controls, "previous", "Previous"), hint(s.Controls, "next", "Next"), hint(s.Controls, "back", "Back")})
+		top := bottom - max(0, len(rows)-1)*controlRowHeight - 6
+		c.Shade(0, top, w, h-top, 175)
 		count := s.PhotoCount
 		c.Text(24, sy, truncate(v.Detail.Name, w-60-textWidth(count, 1), 1), 0xffffff, w-24)
 		c.Text(w-24-textWidth(count, 1), sy, count, dimColor, w-24)
-		center(c, bottom, "LEFT/RIGHT: photos   A:back", dimColor, 1)
+		drawControls(c, bottom, rows)
 	}
 
 	if s.Notice != "" {

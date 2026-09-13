@@ -3,6 +3,7 @@ package browser
 import (
 	"time"
 
+	"misterfin-go/internal/input/control"
 	"misterfin-go/internal/ui"
 )
 
@@ -21,10 +22,10 @@ func (p *screenPainter) videoBackdrop() {
 // renderVideoOverlay returns straight-alpha BGRA pixels independent of the
 // decoder and display that will present them.
 func renderVideoOverlay(w, h int, p PlaybackPresentation, now time.Time) []byte {
-	return renderVideoOverlayOn(ui.NewOverlay(w, h), p, now)
+	return renderVideoOverlayOn(ui.NewOverlay(w, h), p, now, nil)
 }
 
-func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time) []byte {
+func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time, labels control.Labels) []byte {
 	w, h := c.Width, c.Height
 	seeking := p.ShowDestination
 	if label := p.WaitLabel; !p.ControlsVisible && (label != "" || seeking) {
@@ -53,8 +54,14 @@ func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time) [
 	}
 	sy := safeY(w, h)
 	bottom := h - 8 - sy
-	c.Shade(0, bottom-46, w, h-bottom+46, 210)
-	center(c, bottom-36, truncate(p.Title, w-48, 1), titleColor, 1)
+	hints := playbackHints(labels, p.Paused)
+	if p.Seekable {
+		hints = append([]controlHint{hint(labels, "seek-backward", "-30s"), hint(labels, "seek-forward", "+30s")}, hints...)
+	}
+	rows := controlRows(w, hints)
+	extra := max(0, len(rows)-1) * controlRowHeight
+	c.Shade(0, bottom-46-extra, w, h-bottom+46+extra, 210)
+	center(c, bottom-36-extra, truncate(p.Title, w-48, 1), titleColor, 1)
 	label := runtime(p.PositionTicks)
 	if p.HasDestination {
 		label = "Seek to " + runtime(p.DestinationTicks)
@@ -69,14 +76,7 @@ func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time) [
 	if p.Seekable && p.DurationTicks > 0 {
 		label += " / " + runtime(p.DurationTicks)
 	}
-	center(c, bottom-22, label, dimColor, 1)
-	action := "B:pause"
-	if p.Paused {
-		action = "B:play"
-	}
-	if p.Seekable {
-		action = "LT/RT or J/L:30s   " + action
-	}
-	center(c, bottom, action+"   A:stop", dimColor, 1)
+	center(c, bottom-22-extra, label, dimColor, 1)
+	drawControls(c, bottom, rows)
 	return c.Pixels
 }

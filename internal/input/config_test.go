@@ -32,6 +32,9 @@ func TestLoadConfigPathsAndValidation(t *testing.T) {
 		{`{"profiles":[{"match":"*","axes":{"0":{"rest":"minimum","negative":"back"}}}]}`, false},
 		{`{"profiles":[{"match":"*","axes":{"0":{"press":10,"release":15}}}]}`, false},
 		{`{"profiles":[{"match":"*","axes":{"0":{"release":-1}}}]}`, false},
+		{`{"profiles":[{"match":"Pad","button_labels":{"310":"L1"},"axis_labels":{"5":{"positive":"R2"}}}]}`, true},
+		{`{"profiles":[{"match":"Pad","button_labels":{"310":"Label much too long"}}]}`, false},
+		{`{"profiles":[{"match":"Pad","axis_labels":{"5":{"positive":"line\nline"}}}]}`, false},
 		{`{} {}`, false}, {`{} garbage`, false}, {`null`, false}, {``, false},
 	}
 	for _, tc := range cases {

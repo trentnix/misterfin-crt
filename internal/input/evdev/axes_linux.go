@@ -52,12 +52,15 @@ func axisRange(fd int, code uint16) (min, max int32, ok bool) {
 
 func (d *device) configure(config Config) {
 	d.bindings = config.bindings(d.name)
+	_, _, d.hats[0] = axisRange(d.fd, 16)
+	_, _, d.hats[1] = axisRange(d.fd, 17)
 	d.axes = make(map[uint16]*mappedAxis)
 	for code, binding := range d.bindings.Axes {
 		if min, max, ok := axisRange(d.fd, code); ok {
 			d.axes[code] = newMappedAxis(binding, min, max)
 		}
 	}
+	d.legend = d.labels(keyCapabilities(d.fd))
 }
 
 func (d *device) mappedAction(e event) string {

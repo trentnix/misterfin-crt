@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"misterfin-go/internal/input/control"
 )
 
 type event struct {
@@ -27,6 +29,8 @@ type device struct {
 	triggers map[uint16]*triggerAxis
 	bindings Profile
 	axes     map[uint16]*mappedAxis
+	hats     [2]bool
+	legend   control.Labels
 }
 
 // action ignores MiSTer's synthetic action keys. Its arrow echoes are needed
@@ -205,7 +209,7 @@ func openDevices(devices map[string]*device, config Config) {
 
 // Read owns all event descriptors and rescans for hotplugged controllers.
 // The terminal is not read here, so virtual joystick echoes cannot fire twice.
-func Read(ctx context.Context, config Config) (<-chan string, <-chan struct{}, error) {
+func Read(ctx context.Context, config Config) (<-chan control.Event, <-chan struct{}, error) {
 	if err := config.Validate(); err != nil {
 		return nil, nil, err
 	}
@@ -214,7 +218,7 @@ func Read(ctx context.Context, config Config) (<-chan string, <-chan struct{}, e
 	if len(devices) == 0 {
 		return nil, nil, errors.New("cannot open hardware input devices")
 	}
-	out := make(chan string, 32)
+	out := make(chan control.Event, 32)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -228,12 +232,13 @@ func Read(ctx context.Context, config Config) (<-chan string, <-chan struct{}, e
 		defer ticker.Stop()
 		var nav navigation
 		scan := time.Now().Add(2 * time.Second)
+		var active control.Labels
 		send := func(key string) bool {
 			if key == "" {
 				return true
 			}
 			select {
-			case out <- key:
+			case out <- control.Event{Action: key, Labels: active}:
 				return true
 			case <-ctx.Done():
 				return false
@@ -263,6 +268,9 @@ func Read(ctx context.Context, config Config) (<-chan string, <-chan struct{}, e
 							break
 						}
 						key := d.accept(e)
+						if key != "" && d.name != "MiSTer virtual input" {
+							active = d.legend
+						}
 						if direction(key) {
 							pressed[key] = true
 						} else if key != "" {

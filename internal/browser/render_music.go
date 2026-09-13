@@ -10,22 +10,24 @@ func (p *screenPainter) music() {
 	v := &p.scene.View
 	s := p.scene
 
+	rows := controlRows(w, []controlHint{
+		hint(s.Controls, "track-previous", "Previous"), hint(s.Controls, "track-next", "Next"),
+		hint(s.Controls, "seek-backward", "-10s"), hint(s.Controls, "seek-forward", "+10s"),
+	}, playbackHints(s.Controls, s.Playback.Paused))
+	menuTop := bottom - max(0, len(rows)-1)*controlRowHeight - 6
+	progressY := menuTop - 12
+	titleY := progressY - 32
 	p.header("Now playing")
-	c.Image(art.Primary, 24, sy+28, w-48, h-sy-98)
-	center(c, h-sy-62, truncate(v.Detail.Name, w-48, 1), titleColor, 1)
-	center(c, h-sy-46, runtime(s.Playback.PositionTicks)+" / "+runtime(v.Detail.RunTimeTicks), dimColor, 1)
-	c.Rect(24, h-sy-30, w-48, 3, 0x303030)
+	c.Image(art.Primary, 24, sy+28, w-48, max(1, titleY-10-(sy+28)))
+	center(c, titleY, truncate(v.Detail.Name, w-48, 1), titleColor, 1)
+	center(c, progressY-16, runtime(s.Playback.PositionTicks)+" / "+runtime(v.Detail.RunTimeTicks), dimColor, 1)
+	c.Rect(24, progressY, w-48, 3, 0x303030)
 	if v.Detail.RunTimeTicks > 0 {
-		c.Rect(24, h-sy-30, int(min(s.Playback.PositionTicks, v.Detail.RunTimeTicks)*int64(w-48)/v.Detail.RunTimeTicks), 3, titleColor)
+		c.Rect(24, progressY, int(min(s.Playback.PositionTicks, v.Detail.RunTimeTicks)*int64(w-48)/v.Detail.RunTimeTicks), 3, titleColor)
 	}
 	if s.Playback.ControlsVisible {
-		c.Shade(0, bottom-22, w, h-bottom+22, 210)
-		action := "B:pause"
-		if s.Playback.Paused {
-			action = "B:play"
-		}
-		center(c, bottom-12, "LB/RB or [ ]:track   LT/RT or J/L:10s", dimColor, 1)
-		center(c, bottom, action+"   A:stop", dimColor, 1)
+		c.Shade(0, menuTop, w, h-menuTop, 210)
+		drawControls(c, bottom, rows)
 	}
 	if s.Notice != "" {
 		center(c, bottom, s.Notice, dimColor, 1)

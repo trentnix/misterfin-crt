@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"misterfin-go/internal/input/control"
 	"misterfin-go/internal/jellyfin"
 	"misterfin-go/internal/platform"
 	"misterfin-go/internal/playback"
@@ -30,6 +31,7 @@ type browserSession struct {
 	ticker               *time.Ticker
 	frameInterval        time.Duration
 	lastVideoOverlay     []byte
+	controls             control.Labels
 }
 
 // newBrowserSession wires state, decoding, and frame pacing without starting

@@ -8,7 +8,7 @@ Copy [input.json.example](../input.json.example) to `input.json` beside your `je
 
 Use `-input-config /path/to/input.json` to choose another file. The `MISTERFIN_INPUT_CONFIG` environment variable supplies the flag's default and also works through the Ghostty harness. A missing default file keeps the built-in layout. An explicitly selected file must exist. Invalid configuration stops startup with an error that names the file. Restart the application after editing the configuration.
 
-Profiles configure Linux hardware input, including controllers and physical keyboards on MiSTer. Ghostty reads terminal key sequences and keeps the keyboard bindings documented in the playback guide. On-screen button hints describe the default layout.
+Profiles configure Linux hardware input, including controllers and physical keyboards on MiSTer. Ghostty reads terminal key sequences and keeps the keyboard bindings documented in the playback guide. Playback and photo overlays show the bindings of the last physical input device used. Ghostty overlays show keyboard keys. Browsing hints still describe the default layout.
 
 ## Device profiles
 
@@ -35,6 +35,38 @@ The `buttons` object maps decimal Linux `EV_KEY` codes to actions. These codes c
 Use an input-event inspector such as `evtest` on Linux to identify a controller's button codes, axis codes, and ranges. An input device name alone does not guarantee identical codes across different drivers.
 
 MiSTer's synthetic action-key echoes remain filtered to prevent duplicate presses. Virtual arrow events remain available for controllers that depend on MiSTer routing. If you remap physical directions, apply the same direction mappings to `MiSTer virtual input`, or disable that virtual device with a matching replacement profile if your controller supplies all directions directly.
+
+## Overlay labels
+
+Overlay instructions come from the same effective bindings that handle input. A remapped action shows its new button or axis. Disabled actions disappear. If several inputs perform an action, the overlay shows one binding, preferring explicitly configured inputs over inherited aliases. MiSTer's virtual arrow echoes do not replace the physical controller's labels.
+
+Common Linux button and axis codes have default names. Unknown codes appear as `Btn 288` or `Axis 4+`. Use `button_labels` and `axis_labels` in a profile to match the names printed on your controller. Labels name physical inputs, so they follow those inputs when you change their actions.
+
+```json
+{
+  "profiles": [
+    {
+      "match": "My Controller",
+      "buttons": {
+        "310": "track-previous",
+        "311": "track-next"
+      },
+      "button_labels": {
+        "310": "L1",
+        "311": "R1",
+        "304": "Cross",
+        "305": "Circle"
+      },
+      "axis_labels": {
+        "2": { "positive": "L2" },
+        "5": { "positive": "R2" }
+      }
+    }
+  ]
+}
+```
+
+Labels must contain at most 12 printable ASCII characters. Empty labels restore the built-in name. Names follow the same profile merge and replacement rules as bindings. Long labels wrap onto another instruction row inside the CRT safe area. The renderer receives resolved labels and performs no configuration or device I/O.
 
 ## Analog axes
 

@@ -12,8 +12,26 @@
         "314": "select"
       },
       "axes": {
-        "2": { "rest": "minimum", "positive": "seek-backward" },
-        "5": { "rest": "minimum", "positive": "seek-forward" }
+        "2": {
+          "rest": "minimum",
+          "positive": "seek-backward"
+        },
+        "5": {
+          "rest": "minimum",
+          "positive": "seek-forward"
+        }
+      },
+      "button_labels": {
+        "310": "LB",
+        "311": "RB"
+      },
+      "axis_labels": {
+        "2": {
+          "positive": "LT"
+        },
+        "5": {
+          "positive": "RT"
+        }
       }
     }
   ]

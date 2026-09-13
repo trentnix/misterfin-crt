@@ -57,7 +57,8 @@ func Run(ctx context.Context, configPath, stateDir string, player playback.Optio
 				}
 				return errors.New("input closed")
 			}
-			redraw = s.handleKey(key)
+			s.controls = key.Labels
+			redraw = s.handleKey(key.Action)
 			if s.model.Quit {
 				return nil
 			}

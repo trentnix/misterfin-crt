@@ -9,6 +9,7 @@ import (
 func (s *browserSession) draw() error {
 	now := time.Now()
 	scene := sceneFromModel(s.model, s.controller.Snapshot(now), s.status, s.selection.current, s.selection.err, now)
+	scene.Controls = s.controls
 	interval := s.output.FrameInterval(scene.Video)
 	if interval != s.frameInterval {
 		s.frameInterval = interval
