@@ -75,15 +75,17 @@ func (c *Client) OpenStream(ctx context.Context, streamURL string) (io.ReadClose
 }
 
 type PlayState struct {
-	ItemID        string `json:"ItemId"`
-	PlaySessionID string `json:"PlaySessionId"`
-	MediaSourceID string `json:"MediaSourceId,omitempty"`
-	LiveStreamID  string `json:"LiveStreamId,omitempty"`
-	CanSeek       *bool  `json:",omitempty"`
-	Failed        *bool  `json:",omitempty"`
-	PositionTicks int64
-	IsPaused      bool
-	PlayMethod    string
+	AudioStreamIndex    *int   `json:",omitempty"`
+	SubtitleStreamIndex *int   `json:",omitempty"`
+	ItemID              string `json:"ItemId"`
+	PlaySessionID       string `json:"PlaySessionId"`
+	MediaSourceID       string `json:"MediaSourceId,omitempty"`
+	LiveStreamID        string `json:"LiveStreamId,omitempty"`
+	CanSeek             *bool  `json:",omitempty"`
+	Failed              *bool  `json:",omitempty"`
+	PositionTicks       int64
+	IsPaused            bool
+	PlayMethod          string
 }
 
 func (c *Client) ReportPlaying(ctx context.Context, event string, state PlayState) error {

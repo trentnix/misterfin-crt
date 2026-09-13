@@ -116,3 +116,5 @@ Bindings describe intent. The browser decides how an action behaves in the curre
 | `quit` | Exit the application. |
 
 Held navigation accelerates. Held seeking repeats at a steady rate. Playback menu toggles and music track changes happen once per press, including when assigned to an analog axis.
+
+During recorded-video playback, SELECT opens the [track picker](GO_TRACKS.md). While the picker is open, directions navigate its tabs and rows, B applies a choice, and A closes it. Outside the picker, directions retain their normal menu toggle. The subtitle tab uses the seek bindings to adjust client-rendered text timing while a text track is selected.

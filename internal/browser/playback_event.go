@@ -8,12 +8,14 @@ import (
 
 // PlaybackEvent carries decoder feedback without browser navigation or artwork.
 type PlaybackEvent struct {
-	Kind   PlaybackEventKind
-	ID     int // Decoder generation assigned by the launch bridge.
-	Levels playback.AudioLevels
-	Ticks  int64 // Position including the requested stream offset.
-	Value  bool  // Used by PlaybackPaused and PlaybackBuffering.
-	Err    error // Used by PlaybackEnded.
+	Tracks   playback.VideoTracks
+	Subtitle playback.SubtitleResult
+	Kind     PlaybackEventKind
+	ID       int // Decoder generation assigned by the launch bridge.
+	Levels   playback.AudioLevels
+	Ticks    int64 // Position including the requested stream offset.
+	Value    bool  // Used by PlaybackPaused and PlaybackBuffering.
+	Err      error // Used by PlaybackEnded.
 }
 
 // PlaybackEventKind identifies which fields of [PlaybackEvent] are meaningful.
@@ -29,6 +31,8 @@ const (
 	PlaybackControlFailed
 	PlaybackLevels
 	PlaybackCleanupDone
+	PlaybackTrackInfo
+	PlaybackSubtitle
 )
 
 // Handle applies feedback from a tracked decoder. It returns true only when the
@@ -39,6 +43,29 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 		return false
 	}
 	switch event.Kind {
+	case PlaybackTrackInfo:
+		if event.ID == c.pending.id {
+			info := event.Tracks
+			c.pending.tracks = &info
+		} else if c.running && event.ID == c.active.id {
+			c.tracks = event.Tracks
+			c.trackOptions = c.tracks.TrackOptions
+		}
+	case PlaybackSubtitle:
+		if !c.running || c.stoppedByUser || event.ID != c.active.id || c.seekPhase != seekInactive || c.state.SeekTarget != nil || event.Subtitle.Request != c.subtitleRequest {
+			return false
+		}
+		c.subtitleLoading = false
+		if event.Subtitle.Err != nil {
+			c.notice = event.Subtitle.Err.Error()
+		} else {
+			c.tracks.Selection.SubtitleIndex = event.Subtitle.Index
+			c.tracks.Text = event.Subtitle.Text
+			c.trackOptions = c.tracks.TrackOptions
+			c.notice = ""
+			c.picker.visible = false
+			c.state.RevealControls(now)
+		}
 	case PlaybackCleanupDone:
 		if event.ID == c.active.id {
 			c.cleanupComplete = true

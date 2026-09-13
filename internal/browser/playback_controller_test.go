@@ -10,6 +10,7 @@ import (
 )
 
 type controllerLaunch struct {
+	tracks   playback.TrackOptions
 	offset   *int64
 	gate     <-chan struct{}
 	controls chan playback.Control
@@ -25,8 +26,8 @@ type controllerFixture struct {
 func newControllerFixture(t *testing.T) *controllerFixture {
 	t.Helper()
 	f := &controllerFixture{now: time.Unix(100, 0)}
-	f.c = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control) playbackProcess {
-		call := &controllerLaunch{offset: offset, gate: gate, controls: controls, cleanup: make(chan struct{})}
+	f.c = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
+		call := &controllerLaunch{tracks: tracks, offset: offset, gate: gate, controls: controls, cleanup: make(chan struct{})}
 		f.calls = append(f.calls, call)
 		return playbackProcess{id: len(f.calls), cancel: func() { call.canceled = true }, cleanup: call.cleanup}
 	})

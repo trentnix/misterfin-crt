@@ -28,7 +28,7 @@ func (d *playbackDriver) send(event PlaybackEvent) {
 	}
 }
 
-func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control) playbackProcess {
+func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
 	d.sequence++
 	id := d.sequence
 	ctx, stop := context.WithCancel(d.ctx)
@@ -40,6 +40,11 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 		case d.events <- PlaybackEvent{Kind: PlaybackLevels, ID: id, Levels: levels}:
 		default:
 		}
+	}
+	options.Tracks = &tracks
+	options.TrackInfo = func(info playback.VideoTracks) { d.send(PlaybackEvent{Kind: PlaybackTrackInfo, ID: id, Tracks: info}) }
+	options.Subtitle = func(result playback.SubtitleResult) {
+		d.send(PlaybackEvent{Kind: PlaybackSubtitle, ID: id, Subtitle: result})
 	}
 	options.StartTicks = offset
 	options.Start = gate

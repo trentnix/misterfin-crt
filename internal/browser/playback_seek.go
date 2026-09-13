@@ -24,6 +24,9 @@ func (c *PlaybackController) Tick(now time.Time) {
 		return
 	}
 	if c.seekPhase == seekInactive {
+		c.subtitleRequest++
+		c.subtitleLoading = false
+		c.notice = ""
 		c.pausedBeforeSeek = c.state.Paused
 		c.pausedForSeek = !c.state.Paused
 		if c.pausedForSeek {
@@ -38,6 +41,7 @@ func (c *PlaybackController) Tick(now time.Time) {
 // retargetSeek returns from Seeking to the destination preview. The original
 // pause preference survives cancellation and the renewed half-second delay.
 func (c *PlaybackController) retargetSeek(key string, now time.Time) {
+	c.state.SwitchingTracks = false
 	c.state.seekVideo(&c.item, key, now)
 	if c.state.SeekTarget == nil {
 		return
@@ -58,7 +62,7 @@ func (c *PlaybackController) launchPendingSeek(target int64) {
 	c.pendingTarget = target
 	gate := make(chan struct{})
 	// The offset belongs to this request. Later retargets must not mutate it.
-	c.pending = c.launch(c.item, &target, gate, true, c.controls)
+	c.pending = c.launch(c.item, &target, gate, true, c.controls, c.trackOptions)
 	c.pending.gate = gate
 }
 
@@ -66,6 +70,12 @@ func (c *PlaybackController) launchPendingSeek(target int64) {
 // The gate opens only after the old decoder releases the display and audio.
 func (c *PlaybackController) activatePendingSeek(now time.Time) {
 	c.active = c.pending
+	c.subtitleRequest = 0
+	c.subtitleLoading = false
+	if c.active.tracks != nil {
+		c.tracks = *c.active.tracks
+		c.trackOptions = c.tracks.TrackOptions
+	}
 	c.pending = playbackProcess{}
 	c.active.allowStart()
 	c.pauseOnFirstPosition = c.pausedBeforeSeek
@@ -83,6 +93,7 @@ func (c *PlaybackController) activatePendingSeek(now time.Time) {
 
 func (c *PlaybackController) clearSeek() {
 	c.seekPhase = seekInactive
+	c.state.SwitchingTracks = false
 	c.state.SeekTarget = nil
 	c.state.SeekInFlight = false
 }
@@ -91,6 +102,7 @@ func (c *PlaybackController) clearSeek() {
 // If that decoder already ended, the browser returns to its non-video display.
 func (c *PlaybackController) replacementFailed(err error, now time.Time) {
 	c.state.finishSeekControls(now)
+	c.trackOptions = c.tracks.TrackOptions
 	originalEnded := c.active.id == 0
 	if c.pausedForSeek && c.running && !originalEnded {
 		c.sendCommand("pause")

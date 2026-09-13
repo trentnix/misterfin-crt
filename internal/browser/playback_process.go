@@ -12,10 +12,11 @@ import (
 type playbackProcess struct {
 	id      int
 	cancel  context.CancelFunc
-	done    chan struct{} // Bridge closes when playback.Run returns.
-	cleanup chan struct{} // Closing allows server cleanup to run asynchronously.
-	gate    chan struct{} // Closing permits a prepared replacement to start decoding.
-	ready   bool          // Preparation succeeded. The decoder may still be waiting on its gate.
+	done    chan struct{}         // Bridge closes when playback.Run returns.
+	cleanup chan struct{}         // Closing allows server cleanup to run asynchronously.
+	gate    chan struct{}         // Closing permits a prepared replacement to start decoding.
+	tracks  *playback.VideoTracks // Immutable metadata received before the start gate.
+	ready   bool                  // Preparation succeeded. The decoder may still be waiting on its gate.
 }
 
 func (p *playbackProcess) stop() {
@@ -43,6 +44,7 @@ type playbackLaunch func(
 	gate <-chan struct{},
 	prepare bool,
 	controls chan playback.Control,
+	tracks playback.TrackOptions,
 ) playbackProcess
 
 // allowStart transfers a prepared decoder from waiting to running. The controller

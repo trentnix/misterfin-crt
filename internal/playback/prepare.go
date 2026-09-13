@@ -11,7 +11,7 @@ import (
 // A nil session with no error means preparation was canceled.
 func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options) (*playbackSession, error) {
 	liveTV := jellyfin.IsLive(item)
-	item, err := c.Details(ctx, item.ID)
+	item, err := c.PlaybackDetails(ctx, item.ID)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, nil
@@ -43,6 +43,19 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 	if item.Type == "Audio" {
 		streamURL = c.AudioStreamURL(item.ID, session)
 	}
+	var tracks VideoTracks
+	if !liveTV && item.Type != "Audio" {
+		tracks, err = videoTracks(item, o)
+		if err != nil {
+			return nil, err
+		}
+		burn := -1
+		if sub, ok := tracks.Stream("Subtitle", tracks.Selection.SubtitleIndex); ok && (!sub.TextSubtitle() || !tracks.ClientSubtitles) {
+			burn = sub.Index
+			tracks.Text = nil
+		}
+		streamURL = c.SelectedVideoURL(item.ID, session, start, o.Height == 240 || o.Height == 480, tracks.SourceID, tracks.Selection, burn)
+	}
 	var live jellyfin.LivePlayback
 	if liveTV {
 		live, err = c.OpenLive(ctx, item.ID, o.Height == 240 || o.Height == 480)
@@ -58,6 +71,14 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 		}
 	}
 	state := jellyfin.PlayState{ItemID: item.ID, PlaySessionID: session, PositionTicks: start}
+	if !liveTV && item.Type != "Audio" {
+		state.MediaSourceID = tracks.SourceID
+		selection := tracks.Selection
+		state.SubtitleStreamIndex = &selection.SubtitleIndex
+		if selection.AudioIndex >= 0 {
+			state.AudioStreamIndex = &selection.AudioIndex
+		}
+	}
 	if item.Type == "Audio" {
 		state.PlayMethod = "DirectStream"
 	}
@@ -67,6 +88,6 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 	}
 	return &playbackSession{
 		client: c, item: item, start: start, streamURL: streamURL,
-		live: live, liveTV: liveTV, state: state, played: item.UserData.Played,
+		live: live, liveTV: liveTV, state: state, played: item.UserData.Played, tracks: tracks,
 	}, nil
 }

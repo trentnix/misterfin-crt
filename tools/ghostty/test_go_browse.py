@@ -70,6 +70,13 @@ class BrowseIntegrationTests(unittest.TestCase):
                     else:
                         ids = ["series-000-s1e02", "series-001-s1e01"]
                     return self._send(self._query_result(ids, parse_qs(urlparse(self.path).query)))
+                if "/Subtitles/" in path:
+                    payload = b"1\n00:00:00,000 --> 00:01:00,000\nShared subtitle text"
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
                 if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
                     if (test._testMethodName == "test_select_restarts_resumable_video" and
                             parse_qs(urlparse(self.path).query).get("startTimeTicks") == ["920000000"]):
@@ -126,7 +133,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             player.write_text("#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf 'ANS_TIME_POSITION=3\\n'\n")
         player.chmod(0o700)
         player_args = ["-player", str(player)]
-        if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
+        if self._testMethodName in ("test_inline_playback_owns_frame_until_stop", "test_video_track_selection"):
             player.write_text("import argparse, pathlib, time\n"
                               "p=argparse.ArgumentParser()\n"
                               "p.add_argument('--controls',action='store_true')\n"
@@ -494,6 +501,41 @@ class BrowseIntegrationTests(unittest.TestCase):
         time.sleep(0.3)
         self.key(b"a")
         self.assertIsNone(self.process.poll())
+
+    def test_video_track_selection(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+        self.key(b"\t\x1b[Bb")
+        self.wait_request("/Videos/movie-tricky-0/movie-tricky-0/Subtitles/4/Stream.srt")
+        deadline = time.monotonic() + 3
+        while not any(body.get("SubtitleStreamIndex") == 4 for _, body in self.reports):
+            self.assertLess(time.monotonic(), deadline, "text selection did not finish")
+            time.sleep(.02)
+        streams = lambda: [parse_qs(urlparse(r).query) for r in self.requests
+                           if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
+        self.assertEqual(len(streams()), 1, "text subtitle restarted decoding")
+        self.key(b"\t\x1b[C\x1b[B\x1b[Bb")
+        self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2, startTimeTicks=20000000)
+        self.key(b"l")
+        self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2, startTimeTicks=340000000)
+        self.assertEqual(sum("/Subtitles/4/" in r for r in self.requests), 1, "seek reloaded cached text")
+        self.reports.clear()
+        self.key(b"\t\x1b[D\x1b[Ab")
+        deadline = time.monotonic() + 3
+        while not any(path.endswith("/Progress") and body.get("SubtitleStreamIndex") == -1
+                      for path, body in self.reports):
+            self.assertLess(time.monotonic(), deadline, "Off did not finish")
+            time.sleep(.02)
+        time.sleep(.15)  # Let the subtitle completion event close the picker.
+        self.assertEqual(len(streams()), 3, "Off restarted client-rendered text")
+        self.key(b"\t" + b"\x1b[B" * 4 + b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2,
+                          subtitleStreamIndex=7, subtitleMethod="Encode", startTimeTicks=360000000)
+        self.key(b"a")
 
     def test_video_loading_and_buffering_animation(self):
         self.key(b"b")

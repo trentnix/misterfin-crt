@@ -14,10 +14,11 @@ type playbackState struct {
 
 	// SeekTarget is an absolute Jellyfin position in 100-nanosecond ticks.
 	// A nil target means no seek is queued. The second press reveals the preview.
-	SeekTarget   *int64
-	SeekPresses  int
-	SeekInFlight bool // Preparation or decoder handoff is in progress.
-	SeekDeadline time.Time
+	SeekTarget      *int64
+	SeekPresses     int
+	SwitchingTracks bool // A track handoff uses loading wording rather than seeking.
+	SeekInFlight    bool // Preparation or decoder handoff is in progress.
+	SeekDeadline    time.Time
 
 	PositionTicks  int64
 	ProgressSeen   bool      // The current decoder has reported its first position.
@@ -80,6 +81,9 @@ func (m *playbackState) seekVideo(item *jellyfin.Item, key string, now time.Time
 // or a three-second position stall to distinguish loading from buffering.
 func (m *playbackState) videoWaitLabel(now time.Time) string {
 	if m.PlayingVideo && m.SeekInFlight {
+		if m.SwitchingTracks {
+			return "Loading..."
+		}
 		return "Seeking..."
 	}
 	if !m.PlayingVideo || m.Paused {

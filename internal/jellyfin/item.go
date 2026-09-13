@@ -2,10 +2,19 @@ package jellyfin
 
 import "time"
 
-// MediaStream describes source video geometry returned by Jellyfin.
+// MediaStream describes a video, audio, or subtitle stream returned by Jellyfin.
 type MediaStream struct {
-	Type, AspectRatio string
-	Width, Height     int
+	Type, AspectRatio                    string
+	Index                                int
+	Codec, Language, Title, DisplayTitle string
+	IsDefault, IsForced, IsExternal      bool
+	Width, Height                        int
+}
+
+// MediaSource identifies the file whose stream indexes Jellyfin exposes.
+type MediaSource struct {
+	ID           string `json:"Id"`
+	MediaStreams []MediaStream
 }
 
 // Item contains metadata shared by library, detail, and playback endpoints.
@@ -32,6 +41,7 @@ type Item struct {
 	Number, ChannelNumber          string
 	CurrentProgram                 struct{ Name string }
 	MediaStreams                   []MediaStream
+	MediaSources                   []MediaSource
 	UserData                       struct {
 		LastPlayedDate        *time.Time
 		Played                bool

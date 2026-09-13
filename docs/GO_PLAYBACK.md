@@ -67,9 +67,13 @@ Music uses the C client's `/Audio/{id}/stream?static=true` request, with a uniqu
 
 The Ghostty harness uses libmpv for controllable audio in both video modes. The decoder reads from a private loopback HTTP address. Go forwards byte-range requests to the fixed Jellyfin audio URL, which keeps the original stream seekable without exposing server credentials to the player. The adapter closes when the track ends or playback is canceled. The direct Go binary accepts `-audio-player tools/ghostty/video_player.py` for the same controls. Without an audio helper, direct headless use retains the FFplay fallback with pause control. That fallback cannot seek audio and shows a notice if seeking is requested. On MiSTer, MPlayer uses the same audio adapter, native slave commands, and the C volume reduction and 48 kHz resampling filter.
 
-Shuffle, repeat modes, and visualizers remain pending. Photo and music controls are covered by desktop tests. Physical CRT playback remains unverified.
+Shuffle, repeat modes, and visualizers remain pending. Photo and music controls are covered by desktop tests. The preceding checks are the original milestone validation. Subsequent maintainer testing confirmed CRT playback and overlays. See GO_TRACKS.md for the newer track-selection validation boundary.
 
 On a resumable library video’s details screen, B or Enter resumes the saved position. SELECT (Tab in Ghostty or View/Back on an Xbox controller on MiSTer) starts playback from the beginning. The restart hint appears only for an unwatched video with a saved position. Restart uses an explicit zero offset even if Jellyfin returns a saved resume position during startup.
+
+## Subtitle and audio-track selection
+
+Press SELECT/Tab during recorded-video playback to open the Subtitles/Audio picker. Text subtitles render through the shared overlay on MiSTer and inline Ghostty. Audio changes and image-subtitle selection replace the stream at the current position while preserving pause state. See [GO_TRACKS.md](GO_TRACKS.md) for controls, timing adjustment, and the separate FFplay window fallback.
 
 ## Video seeking
 
@@ -122,7 +126,7 @@ MPlayer signals its first presented frame immediately so the loading label clear
 
 Build the player against Bullseye’s glibc 2.31 toolchain, as specified by the Dockerfile. The tested MiSTer has glibc 2.31. An older saved artifact required glibc 2.35 and could not start. Rebuild the image from this Dockerfile before producing a replacement artifact.
 
-Subtitles, audio-track selection, shuffle, DDR output, and HDMI layouts remain pending. The rebuilt MPlayer ran a generated clip on MiSTer with null video and audio outputs. Slave position queries advanced during playback, held at 3.2 seconds across two paused queries, and advanced after resume. Physical overlay presentation and end-to-end movie seeking still need confirmation with this player. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.
+Subtitle and audio-track selection are implemented as described in [GO_TRACKS.md](GO_TRACKS.md). Picture modes, complete DDR/interlaced integration, and additional hardware layouts remain pending. Existing browsing, seeking, overlays, and music have been confirmed on the maintainer’s CRT. The maintainer also confirmed the new subtitle and audio-track selection works in testing. See GO_TRACKS.md for validation details.
 
 ## Rendering architecture
 
@@ -144,7 +148,7 @@ go vet ./...
 make arm
 ```
 
-Host tests with and without cgo, race checks, `go vet`, Ghostty helper tests, nine browser integration tests, and the ARM cross-build passed. A five-second Live TV stream from the configured Jellyfin server decoded through the inline helper with muted audio and produced a 640×240 frame. The client then stopped and ran its cleanup. Mock-server tests verify the exact C negotiation profile, URL handling, cancellation during negotiation, tuner release on failure or stop, session identifiers, and absence of channel resume writes. Generated FLAC tests verify original-audio decoding with FFplay and libmpv, position feedback, and direct-stream reporting. Photo tests cover the C image query, decoded-size limits, PAL and NTSC aspect ratio, and returning to the parent folder. Browser tests cover clean music pause/resume, control reveal, track changes, automatic advancement, photo navigation, and restored folder selection. Additional tests cover byte-range forwarding, hidden-control expiry, cross-page navigation, and pause/resume through the complete Go/libmpv audio path. Physical CRT playback remains unverified.
+Host tests with and without cgo, race checks, `go vet`, Ghostty helper tests, nine browser integration tests, and the ARM cross-build passed. A five-second Live TV stream from the configured Jellyfin server decoded through the inline helper with muted audio and produced a 640×240 frame. The client then stopped and ran its cleanup. Mock-server tests verify the exact C negotiation profile, URL handling, cancellation during negotiation, tuner release on failure or stop, session identifiers, and absence of channel resume writes. Generated FLAC tests verify original-audio decoding with FFplay and libmpv, position feedback, and direct-stream reporting. Photo tests cover the C image query, decoded-size limits, PAL and NTSC aspect ratio, and returning to the parent folder. Browser tests cover clean music pause/resume, control reveal, track changes, automatic advancement, photo navigation, and restored folder selection. Additional tests cover byte-range forwarding, hidden-control expiry, cross-page navigation, and pause/resume through the complete Go/libmpv audio path. The preceding checks are the original milestone validation. Subsequent maintainer testing confirmed CRT playback and overlays. See GO_TRACKS.md for the newer track-selection validation boundary.
 
 ## Live TV aspect ratio on MiSTer
 

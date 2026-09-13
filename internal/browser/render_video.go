@@ -27,6 +27,16 @@ func renderVideoOverlay(w, h int, p PlaybackPresentation, now time.Time) []byte 
 
 func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time, labels control.Labels) []byte {
 	w, h := c.Width, c.Height
+	if p.Tracks != nil {
+		drawTrackMenu(c, p.Tracks, labels)
+		return c.Pixels
+	}
+	if p.Notice != "" {
+		center(c, safeY(w, h), truncate(p.Notice, w-48, 1), titleColor, 1)
+	}
+	if !p.ControlsVisible {
+		drawSubtitle(c, p.Subtitle, h-safeY(w, h)-8)
+	}
 	seeking := p.ShowDestination
 	if label := p.WaitLabel; !p.ControlsVisible && (label != "" || seeking) {
 		// Match the display's 4:3 shape after logical CRT pixels are stretched.
@@ -58,8 +68,12 @@ func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time, l
 	if p.Seekable {
 		hints = append([]controlHint{hint(labels, "seek-backward", "-30s"), hint(labels, "seek-forward", "+30s")}, hints...)
 	}
+	if p.TracksAvailable {
+		hints = append(hints, hint(labels, "select", "Tracks"))
+	}
 	rows := controlRows(w, hints)
 	extra := max(0, len(rows)-1) * controlRowHeight
+	drawSubtitle(c, p.Subtitle, bottom-50-extra)
 	c.Shade(0, bottom-46-extra, w, h-bottom+46+extra, 210)
 	center(c, bottom-36-extra, truncate(p.Title, w-48, 1), titleColor, 1)
 	label := runtime(p.PositionTicks)

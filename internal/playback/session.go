@@ -11,6 +11,7 @@ import (
 // playbackSession owns one Jellyfin play session. Its loop updates decoder
 // state and queues snapshots to progressReporter without waiting for HTTP.
 type playbackSession struct {
+	tracks          VideoTracks
 	client          *jellyfin.Client
 	item            jellyfin.Item
 	start           int64
@@ -135,10 +136,31 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 		audioTick = audioTimer.C
 		defer audioTimer.Stop()
 	}
+	loader := subtitleLoader{results: make(chan SubtitleResult, 1)}
+	defer loader.stop()
+	if s.tracks.ClientSubtitles && s.tracks.Text == nil {
+		if sub, ok := s.tracks.Stream("Subtitle", s.tracks.Selection.SubtitleIndex); ok && sub.TextSubtitle() {
+			loader.start(ctx, s.client, s.item.ID, s.tracks.SourceID, sub.Index, 0)
+		}
+	}
 	controls := o.Controls
 	videoStarted := p.videoStarted
 	for {
 		select {
+		case result := <-loader.results:
+			if result.serial != loader.serial {
+				continue
+			}
+			if result.Err == nil {
+				s.tracks.Selection.SubtitleIndex = result.Index
+				s.tracks.Text = result.Text
+				index := result.Index
+				s.state.SubtitleStreamIndex = &index
+				s.report(false)
+			}
+			if o.Subtitle != nil {
+				o.Subtitle(result)
+			}
 		case <-audioTick:
 			levels := AudioLevels{}
 			if !s.state.IsPaused {
@@ -164,7 +186,14 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 				controls = nil
 				continue
 			}
-			s.control(p, o, control, startup)
+			if control.Kind == "subtitle" {
+				sub, ok := s.tracks.Stream("Subtitle", control.Index)
+				if s.tracks.ClientSubtitles && (control.Index == -1 || ok && sub.TextSubtitle()) {
+					loader.start(ctx, s.client, s.item.ID, s.tracks.SourceID, control.Index, control.Request)
+				}
+			} else {
+				s.control(p, o, control, startup)
+			}
 		case waiting := <-p.buffering:
 			if o.Buffering != nil {
 				o.Buffering(waiting)

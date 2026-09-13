@@ -91,8 +91,12 @@ func (c *Client) List(ctx context.Context, loc Location, start, limit int) (Page
 // Details fetches metadata, playback position, and image tags for one item.
 // It rejects a response whose item ID does not match the requested ID.
 func (c *Client) Details(ctx context.Context, id string) (Item, error) {
+	return c.details(ctx, id, "")
+}
+
+func (c *Client) details(ctx context.Context, id, extraFields string) (Item, error) {
 	var item Item
-	err := c.json(ctx, "GET", "/Items/"+url.PathEscape(id), url.Values{"userId": {c.Session.UserID}, "Fields": {"Overview,ProductionYear,RunTimeTicks,People,MediaStreams,CommunityRating"}, "EnableUserData": {"true"}, "EnableImageTypes": {"Primary,Logo,Backdrop"}}, nil, &item)
+	err := c.json(ctx, "GET", "/Items/"+url.PathEscape(id), url.Values{"userId": {c.Session.UserID}, "Fields": {"Overview,ProductionYear,RunTimeTicks,People,MediaStreams,CommunityRating" + extraFields}, "EnableUserData": {"true"}, "EnableImageTypes": {"Primary,Logo,Backdrop"}}, nil, &item)
 	if err == nil && item.ID != id {
 		err = errors.New("invalid item details")
 	}

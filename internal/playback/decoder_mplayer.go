@@ -101,3 +101,5 @@ func (d mplayerDecoder) seek(c decoderControl, seconds int) error {
 	_, err := fmt.Fprintf(c.stdin, "pausing_keep seek %d 0\n", seconds)
 	return err
 }
+
+func (d mplayerDecoder) clientSubtitles() bool { return true }

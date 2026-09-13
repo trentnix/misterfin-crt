@@ -11,14 +11,20 @@ import (
 // Call its methods from that loop only. Decoder goroutines return PlaybackEvents
 // through the launch bridge instead of mutating controller state.
 //
-// Navigation and track selection belong to the browser. Drawing and framebuffer
+// Library navigation and music queues belong to the browser. Drawing and framebuffer
 // ownership belong to the renderer and output adapters.
 type PlaybackController struct {
 	// State stays private. Rendering receives a value snapshot.
-	state    playbackState
-	item     jellyfin.Item
-	launch   playbackLaunch
-	controls chan playback.Control
+	tracks          playback.VideoTracks
+	trackOptions    playback.TrackOptions
+	picker          trackPicker
+	subtitleDelay   time.Duration
+	subtitleRequest int
+	subtitleLoading bool
+	state           playbackState
+	item            jellyfin.Item
+	launch          playbackLaunch
+	controls        chan playback.Control
 
 	// The active decoder may be stopping while a replacement is being prepared.
 	// A zero process ID means that slot has no decoder.
@@ -52,6 +58,12 @@ func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused boo
 		resume := c.state.PositionTicks
 		offset = &resume
 	}
+	c.tracks = playback.VideoTracks{TrackOptions: playback.TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
+	c.trackOptions = c.tracks.TrackOptions
+	c.picker = trackPicker{}
+	c.subtitleDelay = 0
+	c.subtitleRequest = 0
+	c.subtitleLoading = false
 	c.item = item
 	c.pauseOnFirstPosition = paused
 	c.seekPhase = seekInactive
@@ -64,7 +76,7 @@ func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused boo
 	}
 	// Commands queued for the previous item must not reach the new player.
 	c.controls = make(chan playback.Control, 16)
-	c.active = c.launch(item, offset, nil, false, c.controls)
+	c.active = c.launch(item, offset, nil, false, c.controls, c.trackOptions)
 	c.running = true
 }
 
@@ -74,12 +86,21 @@ func (c *PlaybackController) Snapshot(now time.Time) PlaybackPresentation {
 	presentation.Active = c.running
 	presentation.Audio = c.item.Type == "Audio"
 	presentation.Notice = c.notice
+	c.trackPresentation(&presentation, now)
 	return presentation
 }
 
 // Key receives normalized browser actions. During a seek, retargeting, menu toggling, and
 // stopping are accepted. Music track navigation is handled by the browser.
 func (c *PlaybackController) Key(key string, now time.Time) {
+	if c.picker.visible {
+		c.trackKey(key, now)
+		return
+	}
+	if key == "select" && c.hasTracks() && c.seekPhase == seekInactive {
+		c.openTracks()
+		return
+	}
 	if c.seekPhase != seekInactive && key != "back" && key != "controls" {
 		if key == "seek-backward" || key == "seek-forward" {
 			c.retargetSeek(key, now)
@@ -109,6 +130,7 @@ func (c *PlaybackController) Key(key string, now time.Time) {
 }
 
 func (c *PlaybackController) stopByUser() {
+	c.picker.visible = false
 	c.stoppedByUser = true
 	c.state.HideControls()
 	c.clearSeek()

@@ -7,12 +7,16 @@ import (
 )
 
 // PlaybackPresentation is a value snapshot. It contains no decoder handles,
-// mutable pointers, navigation state, or output-specific information.
+// mutable shared state or output-specific information. Tracks points to a new,
+// immutable menu snapshot that later controller events cannot change.
 type PlaybackPresentation struct {
 	// Active remains true during a seek handoff. Audio identifies the media type,
 	// independent of whether a music queue is waiting for its next track.
-	Active bool
-	Audio  bool
+	TracksAvailable bool
+	Tracks          *TrackMenu
+	Subtitle        string
+	Active          bool
+	Audio           bool
 
 	Title           string
 	PositionTicks   int64

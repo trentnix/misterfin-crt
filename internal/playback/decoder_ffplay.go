@@ -42,3 +42,5 @@ func (d ffplayDecoder) poll(decoderControl)    {}
 func (d ffplayDecoder) refresh(decoderControl) {}
 
 var _ decoder = ffplayDecoder{}
+
+func (d ffplayDecoder) clientSubtitles() bool { return false }

@@ -20,14 +20,14 @@ func (s *browserSession) handleKey(key string) bool {
 	repeated := strings.HasSuffix(key, "-repeat")
 	key = strings.TrimSuffix(key, "-repeat")
 	if repeated {
-		if playing && (menuDirection(key) || key == "track-previous" || key == "track-next") {
+		if playing && !s.controller.picker.visible && (menuDirection(key) || key == "track-previous" || key == "track-next") {
 			return false
 		}
 		if key == "open" || key == "back" || key == "select" || (photo && key == "up") {
 			return false
 		}
 	}
-	if playing && menuDirection(key) {
+	if playing && !s.controller.picker.visible && menuDirection(key) {
 		key = "controls"
 	}
 	if !playing {

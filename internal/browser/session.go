@@ -50,8 +50,8 @@ func newBrowserSession(ctx context.Context, configPath, stateDir string, player 
 		media:     mediaNavigation{cancel: func() {}},
 	}
 	s.driver = playbackDriver{ctx: ctx, options: player, output: output, events: make(chan PlaybackEvent, 16)}
-	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control) playbackProcess {
-		return s.driver.launch(s.client, item, offset, gate, prepared, controls)
+	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
+		return s.driver.launch(s.client, item, offset, gate, prepared, controls, tracks)
 	})
 	s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
 	s.loadMusicConfig()

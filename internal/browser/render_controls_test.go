@@ -136,3 +136,31 @@ func TestBrowsingUsesConfiguredBadges(t *testing.T) {
 		}
 	}
 }
+
+func TestTrackMenuAndSubtitlesUseSharedOverlay(t *testing.T) {
+	f := trackFixture(t)
+	for _, height := range []int{240, 288} {
+		f.c.openTracks()
+		p := f.c.Snapshot(f.now)
+		s := Scene{Video: true, Playback: p, Controls: control.KeyboardLabels(), Now: f.now}
+		renderer := NewRenderer()
+		frame := renderer.Render(640, height, s)
+		if !bytes.Equal(frame.Overlay, renderVideoOverlayOn(ui.NewOverlay(640, height), p, f.now, s.Controls)) {
+			t.Fatal("track picker bypassed shared renderer")
+		}
+		if bytes.Equal(frame.Overlay, make([]byte, len(frame.Overlay))) {
+			t.Fatal("track picker is invisible")
+		}
+		s.Playback.Tracks = nil
+		s.Playback.Subtitle = "A shared subtitle"
+		s.Playback.ControlsVisible = false
+		subtitle := append([]byte(nil), renderer.Render(640, height, s).Overlay...)
+		if bytes.Equal(subtitle, make([]byte, len(subtitle))) {
+			t.Fatal("hidden controls hid subtitles")
+		}
+		s.Playback.Subtitle = ""
+		if !bytes.Equal(renderer.Render(640, height, s).Overlay, make([]byte, len(subtitle))) {
+			t.Fatal("expired cue left stale pixels")
+		}
+	}
+}

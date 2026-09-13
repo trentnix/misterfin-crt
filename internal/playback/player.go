@@ -46,6 +46,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			decoder = d
 		}
 	}
+	o.burnText = !decoder.clientSubtitles()
 	session, err := preparePlayback(ctx, c, item, o)
 	if err != nil || session == nil {
 		return err
@@ -60,6 +61,9 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			resultErr = errors.New("playback ended, but Jellyfin progress reporting failed")
 		}
 	}()
+	if o.TrackInfo != nil && !session.liveTV && session.item.Type != "Audio" {
+		o.TrackInfo(session.tracks)
+	}
 	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.input(session.item))
 	if err != nil {
 		if ctx.Err() != nil {

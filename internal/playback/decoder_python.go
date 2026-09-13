@@ -55,3 +55,5 @@ func (d pythonDecoder) seek(c decoderControl, seconds int) error {
 	_, err := fmt.Fprintf(c.stdin, "seek %d\n", seconds)
 	return err
 }
+
+func (d pythonDecoder) clientSubtitles() bool { return true }

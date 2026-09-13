@@ -17,6 +17,8 @@ import (
 // Controls run serially on the playback loop. poll runs once per second.
 // refresh is requested only while paused. Unsupported poll/refresh are no-ops.
 type decoder interface {
+	// clientSubtitles reports whether shared overlay text reaches the video.
+	clientSubtitles() bool
 	executable() string
 	input(jellyfin.Item) decoderInput
 	args(item jellyfin.Item, source string) []string
