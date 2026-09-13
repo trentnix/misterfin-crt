@@ -4,7 +4,7 @@ package browser
 func (p *screenPainter) photo() {
 	c := p.canvas
 	art := p.scene.Artwork
-	artError := p.scene.ArtworkError
+	selectionError := p.scene.SelectionError
 	w, h := p.width, p.height
 	sy := p.safeY
 	bottom := p.bottom
@@ -12,7 +12,7 @@ func (p *screenPainter) photo() {
 	s := p.scene
 
 	c.Image(art.Photo, 0, 0, w, h)
-	if s.Playback.ControlsVisible {
+	if s.PhotoControlsVisible {
 		c.Shade(0, 0, w, sy+12, 175)
 		c.Shade(0, bottom-4, w, h-bottom+4, 175)
 		count := s.PhotoCount
@@ -27,7 +27,7 @@ func (p *screenPainter) photo() {
 	}
 	if art.Photo == nil {
 		message := "Loading photo..."
-		if artError != "" {
+		if selectionError != "" {
 			message = "Photo unavailable. R:retry"
 		}
 		center(c, h/2-4, message, 0xffffff, 1)

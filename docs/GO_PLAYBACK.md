@@ -92,6 +92,10 @@ docker cp misterfin-go-mplayer-build:/build/mplayer-arm build/misterfin-go-mplay
 docker rm misterfin-go-mplayer-build
 ```
 
+Update the Go client and Go-specific MPlayer together. The native output backend keeps the loading animation moving until MPlayer presents its first frame. Both processes coordinate that handoff through `/tmp/misterfin_go_overlay.lock`. An older player does not claim the lock and must not be paired with the updated client.
+
+MPlayer signals its first presented frame immediately so the loading label clears without waiting for the next position poll. Position reports still determine seeking and Jellyfin resume data.
+
 Build the player against Bullseye’s glibc 2.31 toolchain, as specified by the Dockerfile. The tested MiSTer has glibc 2.31. An older saved artifact required glibc 2.35 and could not start. Rebuild the image from this Dockerfile before producing a replacement artifact.
 
 Subtitles, audio-track selection, shuffle, DDR output, and HDMI layouts remain pending. The rebuilt MPlayer ran a generated clip on MiSTer with null video and audio outputs. Slave position queries advanced during playback, held at 3.2 seconds across two paused queries, and advanced after resume. Physical overlay presentation and end-to-end movie seeking still need confirmation with this player. The first implementation deliberately covers starting a library video or live channel, reporting its session, stopping, and returning to browsing.

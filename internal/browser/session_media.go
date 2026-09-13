@@ -21,13 +21,13 @@ type mediaNavigation struct {
 // Only one neighbor request runs at a time. The displayed item remains selected
 // until a matching result arrives and any current decoder has stopped.
 func (s *browserSession) navigateMedia(direction int) {
-	if len(s.model.Stack) < 2 || s.model.Current().Detail == nil || s.media.pending {
+	parent, ok := s.model.Parent()
+	if !ok || s.model.Current().Detail == nil || s.media.pending {
 		return
 	}
 	s.media.cancel()
 	s.media.generation++
 	generation := s.media.generation
-	parent := s.model.Stack[len(s.model.Stack)-2]
 	kind := s.model.Current().Detail.Type
 	rows := s.model.Rows
 	work, stop := context.WithCancel(s.ctx)
@@ -44,8 +44,11 @@ func (s *browserSession) startPlayback(startTicks *int64, paused bool) {
 	selected := *s.model.Current().Detail
 	if selected.Type != "Audio" {
 		s.output.Clear()
-		s.artwork.cancel()
-		s.artwork.generation++
+		s.selection.cancel()
+		s.selection.generation++
+	}
+	if selected.Type == "Audio" {
+		s.model.StartMusicQueue()
 	}
 	s.controller.Start(selected, startTicks, paused, time.Now())
 	s.media.nextTrack = 0
@@ -66,29 +69,29 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		return false
 	}
 	s.model.Notice = ""
-	if s.model.PlayingAudio && !s.controller.stoppedByUser && event.Err == nil && s.media.queued != nil {
-		s.model.Stack[len(s.model.Stack)-2] = s.media.queued.parent
-		s.model.Current().Detail = s.media.queued.item
-		s.model.Current().Title = s.media.queued.item.Name
+	if s.model.MusicQueueActive() && !s.controller.stoppedByUser && event.Err == nil && s.media.queued != nil {
+		queued := s.media.queued
 		s.media.queued = nil
-		s.artwork.key = ""
-		s.loadArt()
+		if !s.model.SelectAdjacent(queued.parent, *queued.item) {
+			return false
+		}
+		s.selection.key = ""
+		s.loadSelection()
 		s.startPlayback(nil, false)
-	} else if s.model.PlayingAudio && !s.controller.stoppedByUser && event.Err == nil {
+	} else if s.model.MusicQueueActive() && !s.controller.stoppedByUser && event.Err == nil {
 		direction := s.media.nextTrack
 		if direction == 0 {
 			direction = 1
 		}
 		s.navigateMedia(direction)
 	} else {
-		wasAudio := s.model.PlayingAudio
-		s.model.PlayingAudio = false
-		s.model.HideControls()
+		wasAudio := s.model.MusicQueueActive()
+		s.model.EndMusicQueue()
 		if (wasAudio && s.controller.stoppedByUser) || (s.model.Current().Detail != nil && jellyfin.IsLive(*s.model.Current().Detail)) {
-			s.load(s.model.Key("back"))
+			s.model.ReturnToParent()
 		}
-		s.artwork.key = ""
-		s.loadArt()
+		s.selection.key = ""
+		s.loadSelection()
 		if event.Err != nil {
 			s.model.Notice = event.Err.Error() + "  A:back"
 		}
@@ -103,7 +106,7 @@ func (s *browserSession) handleNeighbor(r result) bool {
 	}
 	s.media.pending = false
 	s.media.nextTrack = 0
-	if s.controller.running && s.model.PlayingAudio {
+	if s.controller.running && s.model.MusicQueueActive() {
 		if r.item != nil && r.err == nil {
 			s.media.queued = &r
 			s.controller.StopForTrackChange()
@@ -115,21 +118,19 @@ func (s *browserSession) handleNeighbor(r result) bool {
 	}
 	if r.err != nil {
 		s.model.Notice = "Could not load adjacent item. A:back"
-		s.model.PlayingAudio = false
+		s.model.EndMusicQueue()
 	} else if r.item != nil {
-		s.model.Stack[len(s.model.Stack)-2] = r.parent
-		s.model.Current().Detail = r.item
-		s.model.Current().Title = r.item.Name
-		s.model.Notice = ""
-		s.artwork.key = ""
-		s.loadArt()
+		if !s.model.SelectAdjacent(r.parent, *r.item) {
+			return false
+		}
+		s.selection.key = ""
+		s.loadSelection()
 		if r.item.Type == "Audio" {
 			s.startPlayback(nil, false)
 		}
-	} else if s.model.PlayingAudio {
-		s.model.PlayingAudio = false
-		s.load(s.model.Key("back"))
-		s.loadArt()
+	} else if s.model.MusicQueueActive() {
+		s.model.ReturnToParent()
+		s.loadSelection()
 	}
 
 	return true

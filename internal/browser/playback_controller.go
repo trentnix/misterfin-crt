@@ -14,8 +14,8 @@ import (
 // Navigation and track selection belong to the browser. Drawing and framebuffer
 // ownership belong to the renderer and output adapters.
 type PlaybackController struct {
-	// Model shares this state for music rendering and photo control visibility.
-	state    *PlaybackState
+	// State stays private. Rendering receives a value snapshot.
+	state    playbackState
 	item     jellyfin.Item
 	launch   playbackLaunch
 	controls chan playback.Control
@@ -37,7 +37,6 @@ type PlaybackController struct {
 
 func newPlaybackController(launch playbackLaunch) *PlaybackController {
 	return &PlaybackController{
-		state:    &PlaybackState{},
 		launch:   launch,
 		controls: make(chan playback.Control, 16),
 	}
@@ -51,8 +50,7 @@ func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused boo
 	c.seekPhase = seekInactive
 	c.stoppedByUser = false
 	c.notice = ""
-	*c.state = PlaybackState{
-		PlayingAudio: item.Type == "Audio",
+	c.state = playbackState{
 		PlayingVideo: item.Type != "Audio",
 		LastAdvance:  now,
 	}
@@ -65,6 +63,8 @@ func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused boo
 // Snapshot copies the visible playback state. Later events cannot change it.
 func (c *PlaybackController) Snapshot(now time.Time) PlaybackPresentation {
 	presentation := c.state.presentation(&c.item, now)
+	presentation.Active = c.running
+	presentation.Audio = c.item.Type == "Audio"
 	presentation.Notice = c.notice
 	return presentation
 }
@@ -129,7 +129,7 @@ func (c *PlaybackController) sendCommand(kind string) bool {
 	}
 }
 
-// finishVideo leaves music queue state intact for the browser to resolve.
+// finishVideo ends decoder activity without changing browser navigation.
 func (c *PlaybackController) finishVideo() {
 	c.running = false
 	c.state.PlayingVideo = false

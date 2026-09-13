@@ -45,6 +45,44 @@ func expectCommand(t *testing.T, q chan playback.Control, kind string) {
 		t.Fatalf("missing %s command", kind)
 	}
 }
+
+func TestFirstVideoFrameClearsLoadingBeforePosition(t *testing.T) {
+	f := newControllerFixture(t)
+	c := f.c
+	c.Start(jellyfin.Item{ID: "movie", Type: "Movie"}, nil, false, f.now)
+	c.Key("up", f.now)
+	c.Handle(PlaybackEvent{Kind: PlaybackVideoStarted, ID: 1}, f.now)
+	if c.Snapshot(f.now).WaitLabel != "Loading..." {
+		t.Fatal("stale decoder cleared loading")
+	}
+	later := f.now.Add(5 * time.Second)
+	c.Handle(PlaybackEvent{Kind: PlaybackVideoStarted, ID: 2}, later)
+	if c.Snapshot(later).WaitLabel != "" || c.state.ProgressSeen {
+		t.Fatal("first frame did not clear loading independently of position")
+	}
+	if c.Snapshot(later.Add(3 * time.Second)).ControlsVisible {
+		t.Fatal("first frame left the loading menu pinned")
+	}
+	if c.Snapshot(later.Add(3*time.Second)).WaitLabel != "Buffering..." {
+		t.Fatal("first frame disabled subsequent stall detection")
+	}
+	c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 2, Ticks: 10000000}, later)
+	c.Key("next", later)
+	c.Tick(later.Add(time.Second))
+	c.Handle(PlaybackEvent{Kind: PlaybackPrepared, ID: 3}, later)
+	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2}, later)
+	if c.Snapshot(later).WaitLabel != "Loading..." {
+		t.Fatal("replacement decoder retained the old first-frame state")
+	}
+	c.Handle(PlaybackEvent{Kind: PlaybackVideoStarted, ID: 2}, later)
+	if c.Snapshot(later).WaitLabel != "Loading..." {
+		t.Fatal("old decoder cleared replacement loading")
+	}
+	c.Handle(PlaybackEvent{Kind: PlaybackVideoStarted, ID: 3}, later)
+	if c.Snapshot(later).WaitLabel != "" {
+		t.Fatal("replacement's first frame did not clear loading")
+	}
+}
 func TestControllerSeekRetargetDuringHandoff(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
@@ -283,17 +321,15 @@ func TestUpTogglesControlsDuringPlaybackAndSeek(t *testing.T) {
 	}
 }
 
-func TestUpTogglesMusicAndPhotoControls(t *testing.T) {
-	for _, audio := range []bool{false, true} {
-		m := PlaybackState{PlayingAudio: audio}
-		now := time.Unix(100, 0)
-		m.ToggleControls(now)
-		if !m.ControlsVisible(now) {
-			t.Fatal("controls not revealed")
-		}
-		m.ToggleControls(now)
-		if m.ControlsVisible(now) {
-			t.Fatal("controls not dismissed")
-		}
+func TestUpTogglesMusicControls(t *testing.T) {
+	f := newControllerFixture(t)
+	f.c.Start(jellyfin.Item{Type: "Audio"}, nil, false, f.now)
+	f.c.Key("up", f.now)
+	if !f.c.Snapshot(f.now).ControlsVisible {
+		t.Fatal("controls not revealed")
+	}
+	f.c.Key("up", f.now)
+	if f.c.Snapshot(f.now).ControlsVisible {
+		t.Fatal("controls not dismissed")
 	}
 }

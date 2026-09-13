@@ -80,8 +80,3 @@ func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time) [
 	center(c, bottom, action+"   A:stop", dimColor, 1)
 	return c.Pixels
 }
-
-// Compose controls over a fresh decoder frame. Hidden controls leave it intact.
-func renderVideoControls(frame []byte, w, h int, m *Model, now time.Time) {
-	ui.Composite(frame, renderVideoOverlay(w, h, m.PlaybackState.presentation(m.Current().Detail, now), now))
-}

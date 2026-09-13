@@ -9,6 +9,11 @@ import (
 // PlaybackPresentation is a value snapshot. It contains no decoder handles,
 // mutable pointers, navigation state, or output-specific information.
 type PlaybackPresentation struct {
+	// Active remains true during a seek handoff. Audio identifies the media type,
+	// independent of whether a music queue is waiting for its next track.
+	Active bool
+	Audio  bool
+
 	Title           string
 	PositionTicks   int64
 	DurationTicks   int64
@@ -23,7 +28,7 @@ type PlaybackPresentation struct {
 	Notice           string
 }
 
-func (s *PlaybackState) presentation(item *jellyfin.Item, now time.Time) PlaybackPresentation {
+func (s *playbackState) presentation(item *jellyfin.Item, now time.Time) PlaybackPresentation {
 	p := PlaybackPresentation{
 		PositionTicks:   s.PositionTicks,
 		Paused:          s.Paused,

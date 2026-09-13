@@ -39,7 +39,7 @@ func TestMPlayerCRTAspect(t *testing.T) {
 	var item jellyfin.Item
 	json.Unmarshal([]byte(`{"MediaStreams":[{"Type":"Video","Width":720,"Height":576,"AspectRatio":"16:9"}]}`), &item)
 	for _, h := range []int{240, 288} {
-		args := Options{Width: 640, Height: h, Device: "/dev/fb0"}.args(item)
+		args := mplayerDecoder{width: 640, height: h, device: "/dev/fb0"}.args(item, "")
 		want := fmt.Sprintf("scale=640:%d,expand=640:%d,dsize=640:%d", h*3/4, h, h)
 		if !strings.Contains(strings.Join(args, " "), want) {
 			t.Fatalf("args %v", args)
@@ -436,6 +436,59 @@ func TestBufferingProtocol(t *testing.T) {
 	}
 }
 
+func TestVideoStartedProtocol(t *testing.T) {
+	p := &positionWriter{positions: make(chan float64, 1), videoStarted: make(chan struct{}, 1)}
+	p.Write([]byte("ANS_VIDEO_STARTED=false\nANS_VIDEO_STA"))
+	p.Write([]byte("RTED=true\nANS_VIDEO_STARTED=true\n"))
+	if len(p.videoStarted) != 1 || len(p.positions) != 0 {
+		t.Fatal("first-frame feedback was lost or invented a playback position")
+	}
+}
+
+func TestVideoStartedDoesNotWaitForPosition(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "player")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf 'ANS_VIDEO_STARTED=true\\n'\nsleep 30\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/Items/movie" {
+			fmt.Fprint(w, `{"Id":"movie","Type":"Movie"}`)
+		} else if r.URL.Path == "/Videos/movie/stream" {
+			fmt.Fprint(w, "media")
+		}
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan struct{}, 1)
+	positions := make(chan int64, 1)
+	done := make(chan error, 1)
+	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
+	go func() {
+		done <- Run(ctx, client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{
+			Player: path, Width: 640, Height: 240,
+			VideoStarted: func() { started <- struct{}{} },
+		}, func(ticks int64) { positions <- ticks })
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("first-frame callback waited for a position report")
+	}
+	if len(positions) != 0 {
+		t.Fatal("first-frame feedback invented a position")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("decoder did not stop")
+	}
+}
+
 func TestExplicitVideoStartOverridesServerResume(t *testing.T) {
 	player := filepath.Join(t.TempDir(), "player")
 	if err := os.WriteFile(player, []byte("#!/bin/sh\nprintf 'ANS_TIME_POSITION=0\n'\nsleep 30\n"), 0700); err != nil {
@@ -585,7 +638,7 @@ func TestLiveTVAspectFallbackAndMetadata(t *testing.T) {
 		if tc.aspect != "" {
 			item.MediaStreams = []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: tc.aspect}}
 		}
-		args := Options{Width: 640, Height: 240, Device: "/dev/fb0"}.args(item)
+		args := mplayerDecoder{width: 640, height: 240, device: "/dev/fb0"}.args(item, "")
 		want := fmt.Sprintf("scale=640:%d,expand=640:240,dsize=640:240", tc.height)
 		if !strings.Contains(strings.Join(args, " "), want) {
 			t.Fatalf("aspect %q: %v", tc.aspect, args)
@@ -599,7 +652,7 @@ func TestHardwareVideoSynchronization(t *testing.T) {
 		{"Movie", "30"}, {"Episode", "30"}, {"TvChannel", "1"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
-			args := Options{Width: 640, Height: 240, Device: "/dev/fb0"}.args(jellyfin.Item{Type: tc.kind})
+			args := mplayerDecoder{width: 640, height: 240, device: "/dev/fb0"}.args(jellyfin.Item{Type: tc.kind}, "")
 			joined := " " + strings.Join(args, " ") + " "
 			if !strings.Contains(joined, " -framedrop ") || !strings.Contains(joined, " -autosync "+tc.autosync+" ") {
 				t.Fatalf("missing hardware synchronization policy: %v", args)

@@ -116,6 +116,8 @@ int main(void) {
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/file.h>
+#include <errno.h>
 #include <sys/ioctl.h>
 #include <linux/fb.h>
 #define VO_FALSE 0
@@ -143,6 +145,8 @@ static void publish(void) {
 }
 int main(void) {
     publish();
+    int probe = open(OUTPUT_LOCK_FILE, O_CREAT | O_RDWR, 0600);
+    assert(probe >= 0);
     memset(pages, 77, sizeof(pages));
     uint8_t video[40]; uint8_t *src[] = {video}; int stride[] = {20};
     for (int frame = 0; frame < 60; frame++) {
@@ -152,7 +156,14 @@ int main(void) {
         draw_slice(src, stride, 4, 2, 0, 0);
         /* Decoder writes must not erase any part of the displayed menu. */
         assert(memcmp(before, center, 40) == 0);
+        if (frame == 0) {
+            /* Preparing a decoded frame still leaves loading output to Go. */
+            assert(flock(probe, LOCK_EX | LOCK_NB) == 0);
+            assert(flock(probe, LOCK_UN) == 0);
+        }
         overlay_frame();
+        assert(flock(probe, LOCK_EX | LOCK_NB) == -1);
+        assert(errno == EWOULDBLOCK); /* video now owns scanout */
         int blended = (200 * 128 + frame * 127 + 127) / 255;
         assert(center[4] == blended && center[0] == frame);
         assert(center[16] == 77); /* stride padding is not image data */
@@ -172,13 +183,17 @@ int main(void) {
     assert(waits == 1); /* presentation must not wait a second time */
     unlink("vsync");
     overlay_discard(); free(go_video); free(go_row);
+    overlay_release_output();
+    assert(flock(probe, LOCK_EX | LOCK_NB) == 0);
+    close(probe);
     return 0;
 }
 '''
             harness = work / 'test.c'
             harness.write_text(program)
             subprocess.run(['cc', '-std=c99', '-fsanitize=undefined', '-g', str(harness), '-o', str(work / 'test')], check=True)
-            subprocess.run([str(work / 'test')], cwd=work, check=True)
+            result = subprocess.run([str(work / 'test')], cwd=work, check=True, capture_output=True, text=True)
+            self.assertEqual(result.stdout, 'ANS_VIDEO_STARTED=true\n')
 
 
 if __name__ == '__main__':

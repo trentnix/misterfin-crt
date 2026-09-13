@@ -23,7 +23,7 @@ func (s *browserSession) handleKey(key string) bool {
 		key = strings.TrimSuffix(key, "-repeat")
 	}
 	if s.controller.running {
-		if s.model.PlayingAudio {
+		if s.model.MusicQueueActive() {
 			return s.handleMusicKey(key)
 		}
 		s.controller.Key(key, time.Now())
@@ -78,10 +78,8 @@ func (s *browserSession) handlePendingMediaKey(key string) bool {
 		s.media.cancel()
 		s.media.generation++
 		s.media.pending = false
-		s.model.PlayingAudio = false
-		s.model.Notice = ""
-		s.load(s.model.Key("back"))
-		s.loadArt()
+		s.model.ReturnToParent()
+		s.loadSelection()
 	}
 	return false
 }
@@ -89,11 +87,10 @@ func (s *browserSession) handlePendingMediaKey(key string) bool {
 func (s *browserSession) handlePhotoKey(key string) {
 	if key == "back" {
 		s.model.Notice = ""
-		s.model.HideControls()
 	}
 	switch key {
 	case "up":
-		s.model.ToggleControls(time.Now())
+		s.model.TogglePhotoControls(time.Now())
 	case "previous", "next", "down":
 		direction := 1
 		if key == "previous" {
@@ -115,16 +112,13 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 	}
 	if key == "retry" {
 		if item := s.model.Current().Item(); item != nil {
-			s.artwork.loader.cache.forget(*item)
+			s.selection.loader.forget(*item)
 		}
-		s.artwork.key = ""
+		s.selection.key = ""
 	}
 	before := s.model.Generation
 	wasDetail := s.model.Current().Detail != nil
 	req := s.model.Key(key)
-	if key == "open" && s.model.Current().Detail != nil && s.model.Current().Detail.Type == "Photo" {
-		s.model.HideControls()
-	}
 	if s.model.Quit {
 		return false
 	}
@@ -136,7 +130,7 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 		s.startPlayback(nil, false)
 		return false
 	}
-	s.loadArt()
+	s.loadSelection()
 	if key == "open" && !wasDetail && s.model.Current().Detail != nil && s.model.Current().Detail.Type == "Audio" {
 		s.startPlayback(nil, false)
 	}

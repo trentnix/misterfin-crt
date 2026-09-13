@@ -27,6 +27,7 @@ type Backend struct {
 	owners    int
 	sequence  uint64
 	published []byte
+	handoff   framebufferHandoff
 }
 
 // New publishes overlays for the patched MPlayer framebuffer driver.
@@ -36,6 +37,9 @@ func New(d platform.Presenter, path string) *Backend {
 
 func (o *Backend) Acquire() {
 	o.mu.Lock()
+	if o.owners == 0 {
+		o.handoff.claimed = false
+	}
 	o.owners++
 	o.published = nil
 	o.mu.Unlock()
@@ -58,7 +62,9 @@ func (o *Backend) Clear() {
 }
 func (o *Backend) Close() error {
 	o.Clear()
-	return nil
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.handoff.close()
 }
 func (o *Backend) removeLocked() {
 	if err := os.Remove(o.path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -75,19 +81,25 @@ func (o *Backend) Present(f videoout.Frame) error {
 		}
 		return o.d.Present(f.UI)
 	}
-	// Loading and decoder handoff still need visible UI before MPlayer acquires
-	// the framebuffer. Present that overlay over black through the same backend.
 	overlay := f.Overlay
-	if o.owners == 0 {
-		frame := make([]byte, len(overlay))
-		ui.Composite(frame, f.Overlay)
-		return o.d.Present(frame)
+	if o.owners > 0 {
+		if !bytes.Equal(o.published, overlay) {
+			if err := o.publishLocked(overlay); err != nil {
+				return err
+			}
+			o.published = append(o.published[:0], overlay...)
+		}
+		// A launched decoder may still be buffering. Keep drawing until its
+		// first frame claims output, with no overlap between framebuffer writers.
+		draw, err := o.handoff.begin(o.path + ".lock")
+		if err != nil || !draw {
+			return err
+		}
+		defer o.handoff.end()
 	}
-	if bytes.Equal(o.published, overlay) {
-		return nil
-	}
-	o.published = append(o.published[:0], overlay...)
-	return o.publishLocked(overlay)
+	frame := make([]byte, len(overlay))
+	ui.Composite(frame, overlay)
+	return o.d.Present(frame)
 }
 
 func (o *Backend) publishLocked(logical []byte) error {

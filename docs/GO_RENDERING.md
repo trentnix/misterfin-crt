@@ -1,13 +1,16 @@
 # Playback controller and rendering
 
-`PlaybackController` is a concrete Go struct in `internal/browser/playback_controller.go`. It owns the current item, active and pending decoder resources, seek debounce, cancellation, pause restoration, and playback notices. `browser.Run` owns input and session lifetime and dispatches actions, timer ticks, worker results, and typed decoder events. `browserSession` owns navigation, request cancellation, artwork selection, media navigation, and presentation. Its handlers coordinate those responsibilities with the controller.
+`PlaybackController` is a concrete Go struct in `internal/browser/playback_controller.go`. It owns the current item, active and pending decoder resources, seek debounce, cancellation, pause restoration, and playback notices. `browser.Run` owns input and session lifetime and dispatches actions, timer ticks, worker results, and typed decoder events. `browserSession` owns navigation, request cancellation, selection loading, media navigation, and presentation. Its handlers coordinate those responsibilities with the controller.
+
+`Model` owns the navigation stack, music queue presentation, and photo menu timer. `PlaybackController` exclusively owns its private `playbackState`. The model and controller share no mutable playback state.
 
 The browser submits every screen through `videoout.Output.Present(Frame)`. It has no direct `platform.Display` dependency. The selected backend handles browsing, video composition, and loading fallback.
 
 ```mermaid
 flowchart TD
     Run["browserSession.draw"] -->|"Copies scene values"| Scene["Scene"]
-    Model["Model + Artwork"] --> Scene
+    Model["Model: navigation, music queue, photo controls"] --> Scene
+    Selection["selectionState.current: images and library count"] --> Scene
     Controller["PlaybackController.Snapshot"] --> Scene
     Scene --> Raster["RasterRenderer.Render (implements Renderer)"]
     Animation["animationState"] -.->|"Motion and timing"| Raster
@@ -25,7 +28,7 @@ flowchart TD
 
 ## Event loop ownership
 
-Only the event loop mutates `browserSession`. Workers capture their request inputs and send results through channels. Authentication and page loading share one cancellation scope. Artwork and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
+Only the event loop mutates `browserSession`. Workers capture their request inputs and send results through channels. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
 
 Handlers return whether an event requires an immediate redraw. `Run` performs that redraw in one place. Timer ticks still update playback and render at the existing browser or video cadence. Shutdown cancels the session context before waiting for decoder completion, so callbacks cannot block after event dispatch stops.
 
@@ -33,7 +36,7 @@ Handlers return whether an event requires an immediate redraw. `Run` performs th
 
 `Renderer.Render(width, height, Scene)` accepts positive logical dimensions and returns `videoout.Frame`. A renderer owns its animation, caches, and frame storage. It must not perform network/device I/O or change navigation. Calls are serial. Returned pixels are borrowed until the next render call, so the caller must present or copy them first.
 
-`Scene` copies the current view and scalar UI values instead of exposing `Model` or `PlaybackState`. It also carries artwork, status text, time, and one `PlaybackPresentation` shared by photo, music, and video drawing. Position, pause state, and control visibility are not duplicated in `Scene`. The current view still borrows Jellyfin item slices and detail pointers for the synchronous call. This is a read-only boundary, not a deep immutable snapshot for asynchronous rendering. Artwork is immutable after publication and may be retained for caching.
+`Scene` copies the current view and scalar UI values without exposing `Model` or `playbackState`. It carries artwork, a separate library count, status text, time, a `PlaybackPresentation` for music and video, and photo menu visibility. Position, pause state, and playback control visibility remain in the playback snapshot. The current view borrows Jellyfin item slices and detail pointers for the synchronous render call. Renderers must not mutate or retain those navigation references. Artwork is immutable after publication and may be retained for caching.
 
 `RasterRenderer` implements the shared pixel renderer. For each frame, `renderScene` creates a temporary `screenPainter` that borrows the canvas, scene, animation values, and cache. It selects one screen method. Browsing screens then share footer and notice drawing. The painter owns no persistent state or resources. `animationState` owns selection easing and marquee timing. `sceneCache` owns prepared artwork. Reusable UI and overlay canvases are invalidated together when geometry changes. A replacement raster renderer can implement `Renderer` and be injected at application assembly without changing browser navigation or output backends.
 
@@ -43,9 +46,15 @@ The output split remains downstream of shared UI drawing. Ghostty composites cle
 
 `videoout.Frame` contains a full BGRX `UI` frame, a straight-alpha BGRA `Overlay`, and a `Video` flag. `Video` expresses UX intent and stays true while loading or seeking, even when no decoder owns the display. The backend borrows pixel slices for the duration of `Present`. `Output.Geometry()` supplies the layout dimensions.
 
-For browsing, photos, and music, each backend presents `UI` through its internal `platform.Presenter`. During video playback, the Ghostty `framefile` backend reads clean frames from its decoder file and composites `Overlay`. If no valid frame exists, it uses black. The native backend publishes the overlay for patched MPlayer while the decoder owns the framebuffer. Between decoder owners, the native backend presents the overlay over black itself. The companion backend composites the overlay over `UI` while a separate player window displays video.
+For browsing, photos, and music, each backend presents `UI` through its internal `platform.Presenter`. During video playback, the Ghostty `framefile` backend reads clean frames from its decoder file and composites `Overlay`. If no valid frame exists, it uses black. The native backend publishes the overlay for patched MPlayer and continues presenting the overlay over black until MPlayer has its first video frame. The companion backend composites the overlay over `UI` while a separate player window displays video.
 
-`Acquire` and `Release` track external decoder ownership inside the backend. `Clear` discards stale playback output before a new item and after playback ends. The application creates the backend once and closes it before closing the underlying display. Backends accept `platform.Presenter`, which exposes only geometry and presentation. `platform.Display` adds `Close` for the application that owns the device. A new presenter can therefore implement pixel delivery without pretending to own display resources. The browser does not select a display path per frame.
+`Acquire` and `Release` bracket the external decoder's lifetime. Each backend coordinates the actual display handoff. On MiSTer, Go takes an advisory lock while presenting each loading frame. MPlayer takes the same lock just before presenting its first frame and retains it until output teardown or process exit. Go then only publishes overlays until `Release`. The lock prevents simultaneous framebuffer writes without adding waits to subsequent video frames.
+
+The lock file remains in place across decoder lifetimes so both processes always use the same inode. The Go client and its patched MPlayer must both implement this handoff.
+
+The native driver emits `ANS_VIDEO_STARTED=true` once after writing its first frame. `positionWriter` passes that signal through `Options.VideoStarted` to the browser's `PlaybackVideoStarted` event. The controller clears loading immediately without waiting for MPlayer's one-second position poll or inventing a position. Decoders without this signal retain the existing position-based fallback. First-frame state resets for every replacement decoder, and stale decoder events cannot clear loading for its replacement.
+
+`Clear` discards stale playback output before a new item and after playback ends. The application creates the backend once and closes it before closing the underlying display. Backends accept `platform.Presenter`, which exposes only geometry and presentation. `platform.Display` adds `Close` for the application that owns the device. A new presenter can therefore implement pixel delivery without pretending to own display resources. The browser does not select a display path per frame.
 
 ## Source map
 
@@ -57,12 +66,13 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 - [`run.go`](../internal/browser/run.go): input lifetime, event dispatch, and the single redraw decision.
 - [`session.go`](../internal/browser/session.go): session state, construction, and cleanup.
 - [`session_requests.go`](../internal/browser/session_requests.go): authentication and listing requests, cancellation, and generation checks.
-- [`session_artwork.go`](../internal/browser/session_artwork.go): artwork selection, loading, and stale-result rejection.
-- [`session_media.go`](../internal/browser/session_media.go): playback completion, adjacent photos, and the music queue.
+- [`session_selection.go`](../internal/browser/session_selection.go): selected metadata and images, loading, error handling, and stale-result rejection.
+- [`session_media.go`](../internal/browser/session_media.go): playback completion and asynchronous neighbor requests for photos and music.
+- [`model_media.go`](../internal/browser/model_media.go): parent snapshots, adjacent selection, return navigation, music queue presentation, and the independent photo menu timer.
 - [`session_input.go`](../internal/browser/session_input.go): action routing and screen-specific controls.
 - [`session_result.go`](../internal/browser/session_result.go): worker result kinds and dispatch.
 - [`session_render.go`](../internal/browser/session_render.go): scene assembly, frame pacing, and presentation.
-- [`scene.go`](../internal/browser/scene.go): read-only rendering input and model-to-scene conversion.
+- [`scene.go`](../internal/browser/scene.go): read-only rendering input assembled from navigation, artwork, and one playback snapshot.
 - [`renderer.go`](../internal/browser/renderer.go): replaceable renderer interface.
 - [`raster_renderer.go`](../internal/browser/raster_renderer.go): concrete renderer and frame-buffer ownership.
 - [`animation.go`](../internal/browser/animation.go): per-renderer motion and title timing.
@@ -78,6 +88,7 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 - [`output.go`](../internal/videoout/output.go): `Frame` and the shared `Output` interface.
 - [`frame_file.go`](../internal/videoout/framefile/frame_file.go): Ghostty frame-file backend and video composition.
 - [`native.go`](../internal/videoout/native/native.go): MiSTer backend, framebuffer ownership, and overlay publication.
+- [`handoff.go`](../internal/videoout/native/handoff.go): MiSTer first-frame handoff shared with the patched MPlayer output driver.
 - [`companion.go`](../internal/videoout/companion/companion.go): companion UI backend for a separate player window.
 - [`display_linux.go`](../internal/platform/display_linux.go): framebuffer and headless presentation through the C adapter.
 - [`ghostty_harness.py`](../tools/ghostty/ghostty_harness.py): terminal presentation of headless frames.
@@ -87,7 +98,7 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 - [`playback_event.go`](../internal/browser/playback_event.go): decoder event types and dispatch, position updates, and completion handling.
 - [`playback_driver.go`](../internal/browser/playback_driver.go): external-player launch, callbacks, and the dedicated decoder event channel.
 - [`playback_process.go`](../internal/browser/playback_process.go): decoder resources, cancellation, start gate, and completion wait.
-- [`playback_state.go`](../internal/browser/playback_state.go): shared UI state, menu visibility, destination accumulation, and loading or buffering labels.
+- [`playback_state.go`](../internal/browser/playback_state.go): controller-owned UI state, menu visibility, destination accumulation, and loading or buffering labels.
 - [`playback_presentation.go`](../internal/browser/playback_presentation.go): pointer-free rendering snapshot and its construction.
 
 The controller methods span lifecycle, seeking, and event files because those responsibilities have distinct transitions. The smaller state, process, and presentation types each live with their methods.
@@ -109,18 +120,26 @@ A seek starts with a destination preview and a 0.5-second deadline. When the dea
 
 The controller has no dependency on `platform`, `videoout`, terminal input, fonts, or canvas drawing. `playbackDriver` wires `AcquireVideo` and `ReleaseVideo` callbacks to the selected output adapter. It sends `PlaybackEvent` values through a dedicated channel directly to the browser loop. Decoder feedback no longer shares the browsing and artwork result queue or allocates an event pointer per update. Progress can be dropped when the decoder event queue is full. Lifecycle events wait for delivery unless the application is shutting down.
 
-## Artwork ownership
+## Selection loading and artwork ownership
 
-`artworkLoader` belongs to one authenticated browser session. It shares a three-request image limit across selections and owns an `artworkCache`. The cache performs no network requests. Its lock protects image accounting, eviction age, and library metadata. Cached images remain immutable after publication.
+`selectionLoader` coordinates metadata and images for the selected item. It refreshes non-photo detail metadata on every visit, including watched state after playback. Detail images use the refreshed metadata. If metadata fails, images can still load from the existing item. Photos start immediately without a detail request. List images and carousel cover samples wait for the existing 120-millisecond selection debounce.
 
-- [`artwork.go`](../internal/browser/artwork.go): the rendering input type.
-- [`artwork_loader.go`](../internal/browser/artwork_loader.go): request orchestration for photos, details, lists, and libraries.
-- [`artwork_cache.go`](../internal/browser/artwork_cache.go): tagged image retention, library metadata, snapshots, and retry invalidation.
-- [`artwork_fetch.go`](../internal/browser/artwork_fetch.go): cache lookup, request slots, RGBA normalization, and selection debounce.
-- [`artwork_library.go`](../internal/browser/artwork_library.go): independent count loading and ordered carousel cover delivery.
-- [`artwork_update.go`](../internal/browser/artwork_update.go): progressive results and their application to the displayed artwork.
+Library counts start independently of carousel samples and images. A slow count does not delay covers, and slow images do not delay counts. `libraryCache` retains at most 32 libraries, with separate one-minute deadlines for counts and sample metadata. Metadata expiry does not evict decoded images.
 
-Image retention remains limited to 16 MiB and 128 entries. Library metadata retains at most 32 entries, with separate one-minute deadlines for counts and cover samples. Completed images survive selection cancellation. Root snapshots ignore expired metadata without discarding reusable images. The browser checks selection generations before applying results.
+`artworkLoader` handles only image requests, normalization, and retention. Its three-request limit is shared across selections. `artworkCache` retains at most 16 MiB and 128 decoded images. The cache performs no network requests. Cached images remain immutable after publication, and completed images survive selection cancellation. Carousel image workers retain the sample order when publishing completed covers.
+
+`selectionState` belongs to the browser loop. It tracks the current selection, cancellation, generation, presentation data, and error. `selectionUpdate` distinguishes detail metadata, library counts, and artwork. Its generation is checked before any result changes the model or screen. `Artwork` contains only images. `Scene.LibraryCount` carries the count separately. Retry invalidates the selected item's metadata and images through `selectionLoader.forget`.
+
+- [`selection_loader.go`](../internal/browser/selection_loader.go): detail loading, image coordination, debounce, cached snapshots, and retry invalidation.
+- [`selection_library.go`](../internal/browser/selection_library.go): independent library counts and carousel sample queries.
+- [`selection_update.go`](../internal/browser/selection_update.go): selection presentation data and typed progressive results.
+- [`library_cache.go`](../internal/browser/library_cache.go): bounded library metadata retention and separate expiry deadlines.
+- [`artwork.go`](../internal/browser/artwork.go): immutable image inputs for rendering.
+- [`artwork_loader.go`](../internal/browser/artwork_loader.go): image loader resources, dimensions, and request limit.
+- [`artwork_cache.go`](../internal/browser/artwork_cache.go): tagged image retention, eviction, snapshots, and invalidation.
+- [`artwork_fetch.go`](../internal/browser/artwork_fetch.go): cache lookup, request slots, RGBA normalization, and independent item images.
+- [`artwork_covers.go`](../internal/browser/artwork_covers.go): bounded image workers for a resolved carousel sample.
+- [`artwork_update.go`](../internal/browser/artwork_update.go): image results and their application to displayed artwork.
 
 ## Jellyfin client ownership
 
@@ -136,30 +155,62 @@ The query fields, endpoints, redirect policy, and authentication fallback order 
 
 ## External player ownership
 
-[`playback.Run`](../internal/playback/player.go) shows the complete decoder lifecycle. It resolves [player options](../internal/playback/options.go), [prepares playback](../internal/playback/prepare.go), opens the source, waits for the controller’s start gate, and starts monitoring the process.
+[`playback.Run`](../internal/playback/player.go) shows the complete decoder lifecycle. It selects a decoder from [player options](../internal/playback/options.go), locates the executable, [prepares playback](../internal/playback/prepare.go), opens the source, waits for the controller’s start gate, and starts monitoring the process.
 
 - [`mediaSource`](../internal/playback/media_source.go) owns the authenticated stream or local audio proxy.
-- [`playerProcess`](../internal/playback/process.go) owns process control, pipes, stream copying, and decoder feedback channels.
-- [`playbackSession`](../internal/playback/session.go) owns Jellyfin progress, startup timeout, pause state, and final reporting.
-- [`positionWriter`](../internal/playback/position_writer.go) parses numeric progress and buffering feedback without forwarding decoder diagnostics.
+- [`playerProcess`](../internal/playback/process.go) owns process lifetime, pipes, stream copying, and decoder feedback channels. It delegates pause, polling, and refresh to the selected decoder.
+- [`playbackSession`](../internal/playback/session.go) owns decoder monitoring, startup timeout, pause state, and the latest playback position.
+- [`progressReporter`](../internal/playback/progress_reporter.go) owns ordered Jellyfin reporting on a separate worker.
+- [`positionWriter`](../internal/playback/position_writer.go) parses numeric progress, first-frame feedback, and buffering feedback without forwarding decoder diagnostics.
 
-The playback loop reaps the decoder before returning. Cleanup then cancels media work, stops stream copying, releases video output, closes the source, and reports the final playback state. Live TV closes its negotiated stream afterward. During seek handoffs, the controller can allow final reporting to continue asynchronously. That reporting uses a copy of the completed session state.
+The private `decoder` interface separates executable protocols from process and session ownership. Each implementation supplies its executable, arguments, input transport, and pause, poll, and refresh behavior. Implementations hold immutable launch configuration. `decoderControl` lends them stdin and process-group signaling without transferring ownership of the child process.
 
-## Presentation and remaining coupling
+- [`decoder.go`](../internal/playback/decoder.go): the interface, source transport choices, option validation, helper precedence, and executable lookup.
+- [`decoder_mplayer.go`](../internal/playback/decoder_mplayer.go): MPlayer slave commands, CRT aspect correction, audio filters, and synchronization arguments.
+- [`decoder_ffplay.go`](../internal/playback/decoder_ffplay.go): FFplay arguments and process-group pause/resume signals.
+- [`decoder_python.go`](../internal/playback/decoder_python.go): Python helper arguments, explicit pause/resume commands, and the clean video frame destination.
 
-`PlaybackPresentation` carries title, position, duration, seek destination, pause state, control visibility, wait label, and notice. `renderVideoOverlay` accepts the snapshot and time for animation. It no longer inspects the browser view stack or Jellyfin item.
+`Options` remains the application-facing configuration. Selection converts its decoder fields into one implementation before session preparation. The shared lifecycle, source loader, and monitoring loop do not branch on `Headless` or `TerminalPlayer`. They retain source authentication, startup gating, cancellation, feedback, and Jellyfin reporting. MPlayer and the Python helper use a local range-capable proxy for audio. Other streams use file descriptor 3.
 
-`PlaybackState` groups the existing media UI fields. The controller creates it, and `Model` embeds a pointer to the same state so existing music rendering and photo control reveal behavior continue to work. The browser event loop is the sole writer. Music queue completion still clears `PlayingAudio`, and photo actions still use the shared control timer. This is an explicit remaining coupling, not an immutable model boundary for every screen.
+Polling remains once per second. MPlayer sends a position query. FFplay and the Python helper already publish progress, so their poll methods do nothing. Paused-frame refresh sends a command only through MPlayer. The decoder interface introduces no frame copying or rendering work. UX construction and the downstream `videoout.Output` boundary remain separate from decoding.
 
-The first extraction preserves the existing notice behavior. Notices are available in the snapshot, but the video overlay does not yet draw them. Shared layout geometry, pixel formats, headless cgo usage, and frame transport are unchanged. The output interface now carries both browser and playback frames.
+The playback loop reaps the decoder before returning. Cleanup then cancels media work, stops stream copying, releases video output, closes the source, and finalizes reporting. Live TV closes its negotiated stream afterward. During seek handoffs, the controller can allow final reporting to continue asynchronously. That reporting uses a copy of the completed session state.
+
+## Progress reporting ownership
+
+`progressReporter` performs Jellyfin reporting outside the decoder monitoring loop. The loop queues copied state after the first position, every ten seconds, and after a successful pause/resume command. Controls, position feedback, buffering feedback, and decoder completion do not wait for those HTTP requests. Callbacks still run on the playback loop.
+
+The worker retains an initial start/progress job and at most one pending progress job. New progress replaces stale pending progress, including superseded pause state. Coalescing preserves a pending request to save resume data and uses the newest position and watched state. Start and stop are not coalesced. A short mutex protects the mailbox, and a buffered notification wakes the single worker. Network requests never hold the mailbox lock.
+
+Finalization replaces pending progress with the final state. Normal completion finishes the initial or in-flight report before stop/save. Stop, decoder failure, and asynchronous seek handoffs cancel routine reporting. The final stop/save job has a fresh five-second context, so canceled reporting cannot consume its deadline. Routine reporting retains the shared Jellyfin client's request timeout. The single worker sends requests in order and exits after final cleanup.
+
+Routine reporting failures remain visible when decoding completes successfully. Intentional cancellation does not become a reporting error. Final stop/save failures remain best effort, preserving the existing error policy. State snapshots also copy optional boolean fields so asynchronous cleanup cannot observe later caller mutations. The reporting worker adds no work to frame rendering or stream copying.
+
+## Navigation and playback ownership
+
+`PlaybackPresentation` carries decoder activity, media type, title, position, duration, seek destination, pause state, control visibility, wait label, and notice. `renderVideoOverlay` accepts the snapshot and time for animation. It no longer inspects the browser view stack or Jellyfin item.
+
+`PlaybackController` owns `playbackState` as a private value. Browser handlers send actions and decoder events to the controller. Rendering receives only its value snapshot. `sceneFromModel` combines that snapshot with navigation and artwork once per frame. `draw` uses the completed scene for frame pacing, rendering, and paused-overlay refresh.
+
+`Model` keeps the music queue screen active while the decoder stops and the next track is found. Decoder completion alone does not return to the list. `SelectAdjacent` commits the parent page, selection, detail item, and title together after a matching result arrives and the old decoder stops. `ReturnToParent` restores the saved list position, invalidates listing results, and clears queue and photo menu state. Worker cancellation and generation checks remain in the session handlers.
+
+Photo navigation uses its own three-second menu timer in `Model`. `Scene.PhotoControlsVisible` carries that visibility to the photo renderer. Playback menus and seek pins cannot change photo menu visibility. Adjacent photos retain an open menu until its deadline. Leaving and reopening a photo clears the menu.
+
+Playback notices retain their existing behavior. Notices are available in the snapshot, but the video overlay does not yet draw them. Shared layout geometry, pixel formats, headless cgo usage, and frame transport are unchanged. The output interface now carries both browser and playback frames.
 
 ## Validation
 
 `TestRenderScreenPixels` compares 40 PAL/NTSC screen cases against hashes captured before extracting the screen drawing methods. The cases cover connection screens, browsing modes, details, photos, music, and video overlays. Existing tests also compare cached and uncached output and verify overlay clearing. The 40 pixel baselines, overlay-clearing test, and video-backdrop cache test passed on both the host and MiSTer’s ARM CPU after the extraction.
 
+Navigation tests cover adjacent selection, restoring the parent page and scroll position, stale listing rejection, and independent photo menu timers. Session tests cover the music screen between decoder runs, committing a queued track only after decoder exit, queue completion, stop, and canceled neighbor results.
+
 Controller tests use explicit times and simulated decoder events. They cover the half-second debounce, destination-to-seeking transitions, retargeting during old-decoder shutdown, immutable request offsets and snapshots, stale feedback, pause restoration, seek failure, Back cancellation, control expiry, and Live TV seek exclusion. Ghostty integration tests continue to exercise the real event loop and player bridge, including restart followed by a slow seek, music track changes, photos, and returning to the channel list.
 
-Output tests cover normal browser frames, loading before decoder acquisition, handoff after release, return to browsing, stale video files, composition, and native overlay publication.
+Reporting tests hold a server request open while exercising pause, resume, buffering feedback, position updates, and cancellation. They also cover bounded progress coalescing, save intent, request ordering, snapshot ownership, asynchronous cleanup, reporting errors, and immediate decoder completion.
+
+Decoder tests cover implementation selection, executable overrides, audio-helper precedence, invalid modes, source transport, exact control commands, process signals, and control transport errors. A comparison against the pre-refactor command builders matched 1,440 argument variants across media types, output sizes, aspect ratios, source forms, and player choices. Existing lifecycle tests cover real decoding, pause/resume, startup gates, cancellation, seek cleanup, live-stream release, and native synchronization arguments.
+
+Output tests cover normal browser frames, loading before and after decoder launch, the first-frame handoff, loading after release, return to browsing, stale video files, composition, and native overlay publication. The C adapter tests verify that decoding into RAM leaves the loading lock available and that presenting the first frame claims it until output teardown.
 
 ## MiSTer drawing performance
 
@@ -184,6 +235,8 @@ The cache retains one prepared background and one carousel set. It compares immu
 Complete-frame `BenchmarkBrowserFrame` measurements on the MiSTer ARM CPU were approximately 19.2 ms for a list and 36.9 ms for a carousel before caching. After caching, both measured approximately 3.0 ms. Per-frame allocations dropped from approximately 659–666 KB to 43 KB. These benchmarks exercise drawing with prepared local artwork, including animated positions. They exclude network loading, framebuffer vsync/copy, and physical input latency. First draws after cache invalidation still prepare artwork.
 
 Browser animations now request updates at 60 Hz, matching the C carousel timeline. Video overlays retain 30 Hz polling. The native MPlayer adapter retains clean decoded pixels in RAM and blends the latest overlay before writing each framebuffer row. The overlay remains present on every video frame, even when the UI has not changed. The native player retains the C adapter’s vsync wait in the decode path, before MPlayer schedules presentation. Video backdrops are cached instead of rescaled at the overlay update rate. Hardware framebuffer presentation still waits for vsync, so the physical display determines the achieved cadence. Pixel comparisons pass on MiSTer for cached versus fresh frames across animation, image replacement, transparency, subimages, and PAL/NTSC geometry changes.
+
+Selection tests cover progressive details and covers, slow counts, independent metadata expiry, warm-cache reuse, bounded metadata retention, retry invalidation, canceled debounce, and stale results. Image tests cover the shared request limit across concurrent loads, image-only requests, RGBA normalization, and retained images after cancellation.
 
 Renderer contract tests cover copied scalar state, complete browser/video frames, overlay clearing, geometry changes, and animation timing. Output tests use a presenter with no `Close` method to verify the narrower backend dependency.
 

@@ -2,29 +2,23 @@ package browser
 
 import (
 	"image"
-
-	"misterfin-go/internal/jellyfin"
 )
 
-// artUpdate delivers one independently completed image or metadata request.
+// artUpdate delivers one independently completed image request.
 // Cover slots preserve sample order even when requests finish out of order.
 type artUpdate struct {
 	kind        string
 	image       image.Image
-	detail      *jellyfin.Item
-	count       *int
 	slot, total int
 	err         error
 }
 
 // applyArtwork updates a screen from a successful result. The browser loop is
-// its only caller. Metadata and errors are handled separately by that loop.
+// its only caller. Errors are handled separately by that loop.
 func applyArtwork(art *Artwork, update artUpdate) {
 	switch update.kind {
 	case "Photo":
 		art.Photo = update.image
-	case "count":
-		art.Count = update.count
 	case "Primary":
 		art.Primary = update.image
 	case "Backdrop":

@@ -28,7 +28,7 @@ func BenchmarkBrowserFrame(b *testing.B) {
 			m, art := benchmarkScene()
 			m.ListMode = list
 			var renderer Renderer = NewRenderer()
-			scene := sceneFromModel(m, "", art, "", time.Unix(100, 0))
+			scene := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{artwork: art}, "", time.Unix(100, 0))
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

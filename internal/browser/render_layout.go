@@ -86,13 +86,13 @@ func (p *screenPainter) header(title string) {
 // footer draws browsing hints, request errors, and modal notices in that order.
 func (p *screenPainter) footer(hint string) {
 	c := p.canvas
-	artError := p.scene.ArtworkError
+	selectionError := p.scene.SelectionError
 	w, h := p.width, p.height
 	bottom := p.bottom
 	v := &p.scene.View
 	s := p.scene
 	center(c, bottom, hint, dimColor, 1)
-	message := artError
+	message := selectionError
 	if v.Loading {
 		message = "Loading..."
 	}

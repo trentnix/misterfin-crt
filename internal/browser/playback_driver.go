@@ -41,6 +41,7 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 	options.ReleaseVideo = d.output.Release
 	options.Paused = func(paused bool) { d.send(PlaybackEvent{Kind: PlaybackPaused, ID: id, Value: paused}) }
 	options.Buffering = func(waiting bool) { d.send(PlaybackEvent{Kind: PlaybackBuffering, ID: id, Value: waiting}) }
+	options.VideoStarted = func() { d.send(PlaybackEvent{Kind: PlaybackVideoStarted, ID: id}) }
 	if prepared {
 		options.Ready = func() { d.send(PlaybackEvent{Kind: PlaybackPrepared, ID: id}) }
 	}

@@ -9,34 +9,34 @@ type resultKind uint8
 const (
 	pageResult resultKind = iota
 	authResult
-	artworkResult
+	selectionResult
 	neighborResult
 )
 
 // result carries one worker result, selected by kind. Page and authentication
-// results use request.Generation. Artwork uses imageID. Adjacent media uses
+// results use request.Generation. Selection uses selectionGeneration. Adjacent media uses
 // mediaGeneration. Fields belonging to other kinds are ignored. Workers must
 // stop mutating referenced data before sending a result.
 type result struct {
-	request         Request
-	page            jellyfin.Page
-	err             error
-	client          *jellyfin.Client
-	code            string
-	kind            resultKind
-	update          artUpdate
-	imageID         int
-	mediaGeneration int
-	parent          View
-	item            *jellyfin.Item
+	request             Request
+	page                jellyfin.Page
+	err                 error
+	client              *jellyfin.Client
+	code                string
+	kind                resultKind
+	update              selectionUpdate
+	selectionGeneration int
+	mediaGeneration     int
+	parent              View
+	item                *jellyfin.Item
 }
 
 func (s *browserSession) handleResult(r result) bool {
 	switch r.kind {
 	case authResult:
 		return s.handleAuth(r)
-	case artworkResult:
-		return s.handleArtwork(r)
+	case selectionResult:
+		return s.handleSelection(r)
 	case neighborResult:
 		return s.handleNeighbor(r)
 	default:

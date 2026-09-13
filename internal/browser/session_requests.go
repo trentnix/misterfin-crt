@@ -21,15 +21,15 @@ func (s *browserSession) send(work context.Context, r result) {
 }
 
 // authenticate replaces pending authentication or page work and invalidates
-// artwork. A generation check prevents earlier sign-in attempts from changing
+// selection work. A generation check prevents earlier sign-in attempts from changing
 // the current screen, even if a canceled worker still delivers its result.
 func (s *browserSession) authenticate() {
 	s.requests.cancel()
-	s.artwork.cancel()
-	s.artwork.generation++
-	s.artwork.current = Artwork{}
-	s.artwork.err = ""
-	s.artwork.key = ""
+	s.selection.cancel()
+	s.selection.generation++
+	s.selection.current = selectionData{}
+	s.selection.err = ""
+	s.selection.key = ""
 	s.requests.authGeneration++
 	generation := s.requests.authGeneration
 	work, stop := context.WithCancel(s.ctx)
@@ -86,11 +86,9 @@ func (s *browserSession) handleAuth(r result) bool {
 	} else {
 		s.client = r.client
 		s.model = New()
-		s.model.PlaybackState = s.controller.state
 		s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
-		s.artwork.key = ""
-		s.artwork.loader = newArtworkLoader(s.client)
-		s.artwork.loader.photoWidth, s.artwork.loader.photoHeight = s.geometry.Width, s.geometry.Height
+		s.selection.key = ""
+		s.selection.loader = newSelectionLoader(s.client, s.geometry.Width, s.geometry.Height)
 		s.status = ""
 		s.load(s.model.Load(0))
 	}
@@ -103,11 +101,11 @@ func (s *browserSession) handlePage(r result) bool {
 		return false
 	}
 	if jellyfin.Rejected(r.err) {
-		s.artwork.cancel()
-		s.artwork.generation++
+		s.selection.cancel()
+		s.selection.generation++
 		s.status = "Session rejected. Press R to sign in again."
 	} else {
-		s.loadArt()
+		s.loadSelection()
 	}
 	return true
 }

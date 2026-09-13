@@ -7,14 +7,15 @@ import (
 	"misterfin-go/internal/ui"
 )
 
-// Render draws one uncached browser frame and returns an owned BGRX buffer.
+// Render draws one uncached navigation frame and returns an owned BGRX buffer.
+// For playback, supply a Scene with a PlaybackPresentation to Renderer.Render.
 // The application uses [RasterRenderer] to reuse canvases, animation, and artwork.
 func Render(w, h int, m *Model, status string, art image.Image, artError string) []byte {
 	return render(w, h, m, status, Artwork{Primary: art}, artError, Animation{Selection: float64(m.Current().Selected), Row: float64(m.Current().Selected - m.Current().Scroll)}, time.Now())
 }
 
 func render(w, h int, m *Model, status string, art Artwork, artError string, anim Animation, now time.Time) []byte {
-	return renderScene(ui.New(w, h), nil, sceneFromModel(m, status, art, artError, now), anim)
+	return renderScene(ui.New(w, h), nil, sceneFromModel(m, PlaybackPresentation{}, status, selectionData{artwork: art}, artError, now), anim)
 }
 
 // renderScene selects exactly one screen. Browsing screens share footer and

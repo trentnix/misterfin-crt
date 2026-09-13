@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image"
 	"misterfin-go/internal/jellyfin"
+	"misterfin-go/internal/ui"
 	"testing"
 	"time"
 )
@@ -15,7 +16,7 @@ func TestRasterRendererMatchesSceneAndClearsOverlays(t *testing.T) {
 	for _, size := range [][2]int{{640, 240}, {640, 288}, {640, 240}} {
 		for _, list := range []bool{true, false} {
 			m.ListMode = list
-			scene := sceneFromModel(m, "", art, "", now)
+			scene := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{artwork: art}, "", now)
 			frame := renderer.Render(size[0], size[1], scene)
 			want := render(size[0], size[1], m, "", art, "", Animation{}, now)
 			if frame.Video || frame.Overlay != nil || !bytes.Equal(frame.UI, want) {
@@ -41,10 +42,10 @@ func TestRasterRendererMatchesSceneAndClearsOverlays(t *testing.T) {
 func TestSceneCopiesScalarState(t *testing.T) {
 	m, art := benchmarkScene()
 	m.Notice = "original"
-	m.PositionTicks = 100
-	scene := sceneFromModel(m, "status", art, "", time.Unix(100, 0))
+	playback := PlaybackPresentation{PositionTicks: 100}
+	scene := sceneFromModel(m, playback, "status", selectionData{artwork: art}, "", time.Unix(100, 0))
 	m.Notice = "changed"
-	m.PositionTicks = 200
+	playback.PositionTicks = 200
 	m.Current().Selected = 1
 	if scene.Notice != "original" || scene.Playback.PositionTicks != 100 || scene.View.Selected != 0 {
 		t.Fatal("scene scalars changed with model")
@@ -56,7 +57,7 @@ func TestRendererAnimationOwnsTitleAndSelectionTiming(t *testing.T) {
 	m, _ := benchmarkScene()
 	m.Stack = append(m.Stack, View{Title: "first"})
 	now := time.Unix(100, 0)
-	s := sceneFromModel(m, "", Artwork{}, "", now)
+	s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{}, "", now)
 	a.advance(s, 6)
 	s.Now = now.Add(35 * time.Millisecond)
 	s.View.Selected = 1
@@ -78,15 +79,14 @@ func TestRendererAnimationOwnsTitleAndSelectionTiming(t *testing.T) {
 func TestVideoBackgroundCacheMatchesFreshRender(t *testing.T) {
 	m, art := benchmarkScene()
 	m.Current().Detail = &jellyfin.Item{Name: "Episode", Type: "Episode"}
-	m.PlayingVideo = true
 	r := NewRenderer()
 	for _, height := range []int{240, 288, 240} {
 		for _, backdrop := range []Artwork{art, {}, art} {
-			s := sceneFromModel(m, "", backdrop, "", time.Unix(100, 0))
+			s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{artwork: backdrop}, "", time.Unix(100, 0))
 			s.Video = true
 			for i := 0; i < 2; i++ {
 				frame := r.Render(640, height, s)
-				want := render(640, height, m, "", backdrop, "", Animation{}, s.Now)
+				want := renderScene(ui.New(640, height), nil, s, Animation{})
 				if !bytes.Equal(frame.UI, want) {
 					t.Fatal("cached video backdrop changed pixels")
 				}
@@ -102,7 +102,7 @@ func TestVideoBackdropReusesJPEGAndPNGImages(t *testing.T) {
 	} {
 		m, _ := benchmarkScene()
 		m.Current().Detail = &jellyfin.Item{Name: "Episode", Type: "Episode"}
-		s := sceneFromModel(m, "", Artwork{Backdrop: source}, "", time.Unix(100, 0))
+		s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{artwork: Artwork{Backdrop: source}}, "", time.Unix(100, 0))
 		s.Video = true
 		r := NewRenderer()
 		r.Render(640, 240, s)

@@ -6,7 +6,6 @@ import (
 	"image"
 	"image/draw"
 	"sync"
-	"time"
 
 	"misterfin-go/internal/jellyfin"
 )
@@ -53,19 +52,6 @@ func (l *artworkLoader) fetchImage(ctx context.Context, item jellyfin.Item, kind
 		l.cache.remember(key, im)
 	}
 	return im, err
-}
-
-// artworkDelay debounces list and carousel selections for 120 milliseconds.
-// Cancellation returns false without starting an image request.
-func artworkDelay(ctx context.Context) bool {
-	timer := time.NewTimer(120 * time.Millisecond)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return true
-	case <-ctx.Done():
-		return false
-	}
 }
 
 // itemImages requests each image independently and waits for all workers.

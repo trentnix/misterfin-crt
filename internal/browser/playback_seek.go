@@ -75,6 +75,7 @@ func (c *PlaybackController) activatePendingSeek(now time.Time) {
 	c.state.Paused = false
 	c.state.PositionTicks = c.pendingTarget
 	c.state.ProgressSeen = false
+	c.state.VideoStarted = false
 	c.state.LastAdvance = now
 	c.state.Buffering = false
 	c.state.BufferingKnown = false

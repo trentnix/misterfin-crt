@@ -3,14 +3,11 @@ package browser
 import (
 	"image"
 	"sync"
-	"time"
 
 	"misterfin-go/internal/jellyfin"
 )
 
 const artworkBudget = 16 * 1024 * 1024
-const libraryCacheLimit = 32
-const libraryCacheTTL = time.Minute
 
 type imageKey struct{ id, kind, tag string }
 type cachedImage struct {
@@ -18,27 +15,19 @@ type cachedImage struct {
 	bytes int
 	used  uint64
 }
-type cachedLibrary struct {
-	count      *int
-	countUntil time.Time
-	items      []jellyfin.Item
-	itemsUntil time.Time
-	used       uint64
-}
 
-// artworkCache owns image and library metadata retention for one authenticated
-// session. Methods synchronize access. Cached images and item slices are immutable
-// after publication. Do not copy the cache after its first use.
+// artworkCache owns decoded image retention for one authenticated session.
+// Methods synchronize access. Cached images are immutable after publication.
+// Do not copy the cache after its first use.
 type artworkCache struct {
-	mu        sync.Mutex
-	images    map[imageKey]cachedImage
-	libraries map[string]cachedLibrary
-	bytes     int
-	clock     uint64
+	mu     sync.Mutex
+	images map[imageKey]cachedImage
+	bytes  int
+	clock  uint64
 }
 
 func newArtworkCache() artworkCache {
-	return artworkCache{images: make(map[imageKey]cachedImage), libraries: make(map[string]cachedLibrary)}
+	return artworkCache{images: make(map[imageKey]cachedImage)}
 }
 
 // artworkKey includes the image tag so changed server artwork cannot reuse an
@@ -108,49 +97,11 @@ func (c *artworkCache) remember(key imageKey, im image.Image) {
 	c.bytes += size
 }
 
-// library returns cached metadata and its separate count and sample deadlines.
-// Callers check expiry. The returned count and item slice must not be mutated.
-func (c *artworkCache) library(id string) cachedLibrary {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	value, ok := c.libraries[id]
-	if ok {
-		c.clock++
-		value.used = c.clock
-		c.libraries[id] = value
-	}
-	return value
-}
-
-// rememberLibrary updates one metadata entry under the cache lock. The callback
-// must not call other cache methods. Counts and cover samples expire separately.
-func (c *artworkCache) rememberLibrary(id string, update func(*cachedLibrary)) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if _, ok := c.libraries[id]; !ok && len(c.libraries) >= libraryCacheLimit {
-		oldest := ""
-		age := ^uint64(0)
-		for k, v := range c.libraries {
-			if v.used < age {
-				oldest = k
-				age = v.used
-			}
-		}
-		delete(c.libraries, oldest)
-	}
-	value := c.libraries[id]
-	update(&value)
-	c.clock++
-	value.used = c.clock
-	c.libraries[id] = value
-}
-
 // forget invalidates retry targets, including a shared parent backdrop, without
-// evicting unrelated artwork. It also discards the item's library metadata.
+// evicting unrelated artwork. Metadata invalidation belongs to selectionLoader.
 func (c *artworkCache) forget(item jellyfin.Item) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.libraries, item.ID)
 	for key, value := range c.images {
 		if key.id == item.ID || item.ParentBackdropItemId != "" && key.id == item.ParentBackdropItemId {
 			c.bytes -= value.bytes
@@ -159,23 +110,8 @@ func (c *artworkCache) forget(item jellyfin.Item) {
 	}
 }
 
-// snapshot assembles immediately available artwork without network requests.
-// Root views include only unexpired count and sample metadata. The returned cover
-// slice is owned by the caller. Images and count values remain immutable.
-func (c *artworkCache) snapshot(item jellyfin.Item, root bool) Artwork {
-	if root {
-		lib := c.library(item.ID)
-		art := Artwork{}
-		if time.Now().Before(lib.countUntil) {
-			art.Count = lib.count
-		}
-		if time.Now().Before(lib.itemsUntil) {
-			art.Covers = make([]image.Image, len(lib.items))
-			for i, item := range lib.items {
-				art.Covers[i] = c.cached(artworkKey(item, "Primary"))
-			}
-		}
-		return art
-	}
+// snapshot assembles an item's cached images without network requests.
+// The returned images remain immutable after publication.
+func (c *artworkCache) snapshot(item jellyfin.Item) Artwork {
 	return Artwork{Photo: c.cached(artworkKey(item, "Photo")), Primary: c.cached(artworkKey(item, "Primary")), Backdrop: c.cached(artworkKey(item, "Backdrop")), Logo: c.cached(artworkKey(item, "Logo"))}
 }

@@ -6,6 +6,8 @@ package browser
 
 import (
 	"fmt"
+	"time"
+
 	"misterfin-go/internal/jellyfin"
 )
 
@@ -26,17 +28,21 @@ type Request struct {
 	Location   jellyfin.Location
 	Start      int
 }
+
+// Model owns navigation, the music queue screen, and photo control visibility.
+// PlaybackController owns decoder state separately. Only the browser loop mutates Model.
 type Model struct {
 	Stack                       []View
 	Generation                  int
 	Rows                        int
 	ListMode, ExitConfirm, Quit bool
 	Notice                      string
-	*PlaybackState
+	musicQueue                  bool
+	photoControlsUntil          time.Time
 }
 
 func New() *Model {
-	return &Model{PlaybackState: &PlaybackState{}, Rows: 6, Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
+	return &Model{Rows: 6, Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
 }
 func (m *Model) Current() *View { return &m.Stack[len(m.Stack)-1] }
 func (m *Model) Load(start int) *Request {
@@ -106,10 +112,11 @@ func (m *Model) Key(key string) *Request {
 		return nil
 	}
 	if key == "back" {
+		if m.ReturnToParent() {
+			return nil
+		}
 		m.Generation++
-		if len(m.Stack) > 1 {
-			m.Stack = m.Stack[:len(m.Stack)-1]
-		} else if v.Loading {
+		if v.Loading {
 			v.Error = "Loading canceled. Press R to retry."
 		}
 		if len(m.Stack) == 1 && v == m.Current() && !v.Loading {
@@ -125,6 +132,7 @@ func (m *Model) Key(key string) *Request {
 		return m.Load(v.PendingStart)
 	}
 	if v.Detail != nil && v.Detail.Type == "Photo" && key == "open" {
+		m.photoControlsUntil = time.Time{}
 		return nil
 	}
 	if v.Detail != nil && key == "open" {
@@ -197,6 +205,7 @@ func (m *Model) Key(key string) *Request {
 			v.Error = "Maximum folder depth reached"
 			return nil
 		}
+		m.photoControlsUntil = time.Time{}
 		m.Stack = append(m.Stack, next)
 		if next.Detail == nil {
 			return m.Load(0)

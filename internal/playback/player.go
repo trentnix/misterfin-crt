@@ -3,6 +3,7 @@ package playback
 
 import (
 	"context"
+	"errors"
 
 	"misterfin-go/internal/jellyfin"
 )
@@ -18,7 +19,7 @@ import (
 // With Options.AsyncCleanup enabled, final server reporting may outlive Run.
 // Returned errors exclude stream URLs and raw decoder diagnostics.
 func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options, position func(int64)) (resultErr error) {
-	o, executable, err := o.resolve(item)
+	decoder, executable, err := resolveDecoder(o, item)
 	if err != nil {
 		return err
 	}
@@ -29,8 +30,14 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	defer session.closeLive()
 	mediaCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	defer func() { session.finish(o.AsyncCleanup, resultErr != nil) }()
-	source, err := openMedia(mediaCtx, c, session.item, session.streamURL, o)
+	session.reporter = newProgressReporter(ctx, c, session.liveTV)
+	defer func() {
+		failed := session.reporter.finish(session.state, session.started, session.played, resultErr != nil, o.AsyncCleanup)
+		if resultErr == nil && ctx.Err() == nil && failed {
+			resultErr = errors.New("playback ended, but Jellyfin progress reporting failed")
+		}
+	}()
+	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.input(session.item))
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
@@ -48,15 +55,7 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 			return nil
 		}
 	}
-	args := o.args(session.item)
-	if source.url != "" {
-		if o.TerminalPlayer != "" {
-			args = append(args, "--source", source.url)
-		} else {
-			args[len(args)-1] = source.url
-		}
-	}
-	process, err := startProcess(mediaCtx, executable, args, source)
+	process, err := startProcess(mediaCtx, executable, decoder.args(session.item, source.url), source, decoder)
 	if err != nil {
 		return err
 	}
@@ -68,5 +67,5 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	}
 	process.feed()
 	defer func() { cancel(); process.close() }()
-	return session.monitor(ctx, mediaCtx, cancel, process, o, position)
+	return session.monitor(ctx, cancel, process, o, position)
 }

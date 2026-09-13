@@ -15,13 +15,13 @@ type mediaSource struct {
 	closeProxy func()
 }
 
-// openMedia authenticates upstream access. Native and helper-based audio use a
-// local proxy for range requests. Other playback uses a pipe-fed stream. The
-// caller owns the returned source and must close it after the decoder finishes.
-func openMedia(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, url string, o Options) (*mediaSource, error) {
+// openMedia authenticates upstream access through the requested transport. URL
+// input uses a local proxy for range requests. Pipe input opens one stream. The
+// caller must close the source after the decoder finishes.
+func openMedia(ctx context.Context, c *jellyfin.Client, url string, input decoderInput) (*mediaSource, error) {
 	source := &mediaSource{}
 	var err error
-	if item.Type == "Audio" && (o.TerminalPlayer != "" || !o.Headless) {
+	if input == inputURL {
 		source.url, source.closeProxy, err = audioProxy(ctx, c, url)
 	} else {
 		source.stream, err = c.OpenStream(ctx, url)

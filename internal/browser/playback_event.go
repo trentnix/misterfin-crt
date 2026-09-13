@@ -20,6 +20,7 @@ const (
 	PlaybackPaused
 	PlaybackBuffering
 	PlaybackEnded
+	PlaybackVideoStarted
 )
 
 // Handle applies feedback from a tracked decoder. It returns true only when the
@@ -35,11 +36,21 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 	case PlaybackEnded:
 		return c.decoderEnded(event, now)
 	default:
-		// Position, pause, and buffering belong only to the current decoder.
+		// Playback feedback belongs only to the current decoder.
 		if !c.running || event.ID != c.active.id {
 			return false
 		}
 		switch event.Kind {
+		case PlaybackVideoStarted:
+			if !c.state.VideoStarted && c.state.PlayingVideo {
+				c.state.VideoStarted = true
+				if !c.state.ProgressSeen {
+					c.state.LastAdvance = now
+					if c.state.SeekTarget == nil {
+						c.state.finishSeekControls(now)
+					}
+				}
+			}
 		case PlaybackPaused:
 			c.state.Paused = event.Value
 			c.state.LastAdvance = now
@@ -101,6 +112,10 @@ func (c *PlaybackController) decoderEnded(event PlaybackEvent, now time.Time) bo
 	c.clearSeek()
 	c.running = false
 	c.state.PlayingVideo = false
+	// Keep the music menu through the gap while the browser finds another track.
+	if c.item.Type != "Audio" || c.stoppedByUser || event.Err != nil {
+		c.state.HideControls()
+	}
 	c.active.stop()
 	c.notice = ""
 	return true

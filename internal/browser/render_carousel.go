@@ -40,7 +40,7 @@ func (p *screenPainter) carousel() string {
 				color = titleColor
 			}
 			c.TextScaled(x, cy-10, name, color, w, 2)
-			if i == v.Selected && art.Count != nil {
+			if i == v.Selected && p.scene.LibraryCount != nil {
 				label := "items"
 				switch v.Page.Items[i].CollectionType {
 				case "movies":
@@ -52,7 +52,7 @@ func (p *screenPainter) carousel() string {
 				case "musicvideos":
 					label = "videos"
 				}
-				count := fmt.Sprintf("%d %s", *art.Count, label)
+				count := fmt.Sprintf("%d %s", *p.scene.LibraryCount, label)
 				c.Text(w/2-textWidth(count, 1)/2, cy+12, count, dimColor, w)
 			}
 		}

@@ -4,17 +4,11 @@ import (
 	"context"
 	"misterfin-go/internal/jellyfin"
 	"misterfin-go/internal/playback"
-	"time"
 )
 
 func resumableVideo(item *jellyfin.Item) bool {
 	return item != nil && playback.Supported(*item) && item.Type != "Audio" &&
 		!jellyfin.IsLive(*item) && !item.UserData.Played && item.UserData.PlaybackPositionTicks > 0
-}
-
-// seekVideo keeps the model-based rendering tests using the same seek rules.
-func (m *Model) seekVideo(key string, now time.Time) {
- m.PlaybackState.seekVideo(m.Current().Detail, key, now)
 }
 
 // Find adjacent media without replacing the visible page until a match arrives.
