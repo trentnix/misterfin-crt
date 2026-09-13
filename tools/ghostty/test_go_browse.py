@@ -150,7 +150,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         player.chmod(0o700)
         player_args = ["-player", str(player)]
         if self._testMethodName in ("test_inline_playback_owns_frame_until_stop", "test_video_track_selection", "test_video_picture_selection", "test_video_choices_survive_stop_and_app_restart", "test_view_back_returns_to_clean_video"):
-            player.write_text("import argparse, pathlib, time\n"
+            player.write_text("import argparse, pathlib, select, sys, time\n"
                               "p=argparse.ArgumentParser()\n"
                               "p.add_argument('--controls',action='store_true')\n"
                               "p.add_argument('--status',action='store_true')\n"
@@ -160,7 +160,13 @@ class BrowseIntegrationTests(unittest.TestCase):
                               "with (pathlib.Path(a.output).parent/'picture-modes').open('a') as log: log.write(str(a.zoom_4_3)+'\\n')\n"
                               "pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
                               "print('ANS_TIME_POSITION=2',flush=True)\n"
-                              "time.sleep(30)\n")
+                              "deadline=time.monotonic()+30\n"
+                              "while time.monotonic()<deadline:\n"
+                              " if not select.select([sys.stdin],[],[],.05)[0]: continue\n"
+                              " parts=sys.stdin.readline().split()\n"
+                              " if len(parts)==3 and parts[0]=='picture':\n"
+                              "  with (pathlib.Path(a.output).parent/'picture-modes').open('a') as log: log.write(str(parts[1]=='1')+'\\n')\n"
+                              "  print('ANS_PICTURE_MODE='+parts[2]+','+parts[1],flush=True)\n")
             player_args = ["-terminal-player", str(player)]
         if self._testMethodName == "test_video_loading_and_buffering_animation":
             player.write_text("import argparse, pathlib, time\n"
@@ -561,16 +567,19 @@ class BrowseIntegrationTests(unittest.TestCase):
 
         wait_modes(["False"])
         self.key(b"\t\x1b[C\x1b[C\x1b[Bb")
-        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=20000000)
         wait_modes(["False", "True"])
-        self.key(b"\t")  # Picture selection keeps Options open.
+        streams = lambda: [r for r in self.requests if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
+        self.assertEqual(len(streams()), 1, "live Zoom reopened the stream")
+        self.assertTrue(self.read_frame() == bytes([23]) * 640 * 240 * 4,
+                        "applying Zoom did not return to clean video")
         self.key(b"l")
-        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=340000000)
+        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=320000000)
         wait_modes(["False", "True", "True"])
         self.key(b"\t\x1b[Ab")
-        self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=360000000)
         wait_modes(["False", "True", "True", "False"])
-        self.key(b"\t")
+        self.assertEqual(len(streams()), 2, "live Original reopened the stream")
+        self.assertTrue(self.read_frame() == bytes([23]) * 640 * 240 * 4,
+                        "applying Original did not return to clean video")
         self.key(b"a")
 
     def test_video_track_selection(self):
@@ -649,7 +658,6 @@ class BrowseIntegrationTests(unittest.TestCase):
         wait_for(lambda: (self.directory / "picture-modes").read_text().splitlines() == ["False", "False", "True"],
                  "Zoom did not start")
         time.sleep(.15)
-        self.key(b"\t")  # Close Picture before stopping.
         stop_video()
         self.requests.clear()
         self.reports.clear()

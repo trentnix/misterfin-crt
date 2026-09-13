@@ -57,6 +57,7 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 			c.tracks.Picture = event.Picture.Mode
 			c.trackOptions.Picture = event.Picture.Mode
 			c.notice = ""
+			c.picker.visible = false
 		}
 	case PlaybackTrackInfo:
 		if event.ID == c.pending.id {

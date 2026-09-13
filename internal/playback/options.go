@@ -26,7 +26,7 @@ type Options struct {
 	TrackInfo func(VideoTracks)
 	// Subtitle reports an asynchronous text selection on the playback loop.
 	Subtitle func(SubtitleResult)
-	// Picture reports the native decoder's acknowledgment of a live mode change.
+	// Picture reports the decoder's acknowledgment of a live mode change.
 	Picture     func(PictureResult)
 	livePicture bool
 	burnText    bool // Decoder cannot display the shared Go overlay on its video.

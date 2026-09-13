@@ -123,6 +123,24 @@ def publish_frame(output, source, width, height):
             os.unlink(path)
 
 
+def set_picture(mpv, handle, mode):
+    """Change the current frame's fit without seeking or changing pause state."""
+    if mode not in (0, 1):
+        return False
+    panscan = "0"
+    if mode == 1:
+        # Match MiSTer: only widen the crop for sources wider than 4:3.
+        # libmpv's aspect includes non-square pixels and applied video filters.
+        aspect = C.c_double()
+        if mpv.property(handle, b"video-out-params/aspect", 5, C.byref(aspect)) < 0:
+            return False
+        if not math.isfinite(aspect.value) or aspect.value <= 0:
+            return False
+        if aspect.value > 4 / 3:
+            panscan = "1"
+    return mpv.send(handle, "set", "panscan", panscan) >= 0
+
+
 def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False, status=False, audio_levels=False, zoom_4_3=False):
     mpv = MPV()
     handle = mpv.create()
@@ -217,6 +235,12 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                         mpv.send(handle, "set", "pause", "yes" if parts[1] == "true" else "no")
                     elif audio_only and len(parts) == 2 and parts[0] == "seek" and parts[1] in ("-10", "10"):
                         mpv.send(handle, "seek", parts[1], "relative+exact")
+                    elif not audio_only and len(parts) == 3 and parts[0] == "picture" and parts[1] in ("0", "1") and parts[2].isdecimal():
+                        request = int(parts[2])
+                        if 0 < request < 2**31:
+                            mode = int(parts[1])
+                            applied = mode if set_picture(mpv, handle, mode) else -1
+                            print(f"ANS_PICTURE_MODE={request},{applied}", flush=True)
                     next_report = 0.0
                 if len(control_buffer) > 1024:
                     control_buffer = b""

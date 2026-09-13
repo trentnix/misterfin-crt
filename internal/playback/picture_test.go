@@ -92,6 +92,26 @@ func TestNativePictureProtocolAndAcknowledgments(t *testing.T) {
 	}
 }
 
+func TestInlinePictureUsesLiveControlProtocol(t *testing.T) {
+	d, err := selectDecoder(Options{Headless: true, Width: 640, Height: 240, FrameOutput: "frame", TerminalPlayer: "video.py"}, jellyfin.Item{Type: "Movie"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	setter, ok := d.(pictureSetter)
+	if !ok {
+		t.Fatal("inline decoder does not advertise live picture changes")
+	}
+	var commands bytes.Buffer
+	for request, mode := range []PictureMode{PictureZoom43, PictureOriginal} {
+		if err := setter.setPicture(decoderControl{stdin: &commands}, mode, request+1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if commands.String() != "picture 1 1\npicture 0 2\n" {
+		t.Fatal("wrong inline picture protocol")
+	}
+}
+
 func TestNativePictureRequestStaysInCurrentSession(t *testing.T) {
 	var streams atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

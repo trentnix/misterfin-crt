@@ -60,4 +60,11 @@ func (d pythonDecoder) seek(c decoderControl, seconds int) error {
 	return err
 }
 
+// setPicture changes the render fit without replacing the decoder or its source.
+// The helper acknowledges through the shared ANS_PICTURE_MODE protocol.
+func (d pythonDecoder) setPicture(c decoderControl, mode PictureMode, request int) error {
+	_, err := fmt.Fprintf(c.stdin, "picture %d %d\n", mode, request)
+	return err
+}
+
 func (d pythonDecoder) clientSubtitles() bool { return true }

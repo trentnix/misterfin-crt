@@ -116,6 +116,71 @@ class VideoTests(unittest.TestCase):
             self.assertGreater(positions[-1], 1.0)
             self.assertEqual(output.read_bytes(), b"browser frame")
 
+    def test_live_picture_toggles_redraw_same_paused_frame(self):
+        cases = [(320, 180, 240), (320, 180, 288), (320, 136, 240),
+                 (320, 240, 240), (320, 320, 240)]
+        for source_width, source_height, height in cases:
+            with self.subTest(source=(source_width, source_height), height=height), tempfile.TemporaryDirectory() as directory:
+                media = Path(directory) / "clip.ts"
+                subprocess.check_call([
+                    "ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                    f"testsrc2=size={source_width}x{source_height}:rate=25",
+                    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+                    "-t", "8", "-c:v", "mpeg2video", "-c:a", "mp3", str(media)])
+                output = Path(directory) / "frame.raw"
+                bootstrap = "import os,sys,runpy; fd=os.open(sys.argv[1],os.O_RDONLY); os.dup2(fd,3); sys.argv=sys.argv[2:]; runpy.run_path(sys.argv[0],run_name='__main__')"
+                process = subprocess.Popen([
+                    sys.executable, "-c", bootstrap, str(media), str(HELPER),
+                    "--controls", "--audio", "null", "--height", str(height), "--output", str(output)],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+                self.addCleanup(self.reap, process)
+
+                def feedback(prefix):
+                    deadline = time.monotonic() + 3
+                    while time.monotonic() < deadline:
+                        self.assertIsNone(process.poll(), "helper exited during a picture change")
+                        if select.select([process.stdout], [], [], .1)[0]:
+                            line = process.stdout.readline().strip()
+                            if line.startswith(prefix):
+                                return line
+                    self.fail(f"missing feedback: {prefix}")
+
+                def position():
+                    return float(feedback(b"ANS_TIME_POSITION=").split(b"=")[1])
+
+                position()
+                process.stdin.write(b"pause true\n")
+                position()  # Drain feedback already in flight before pause.
+                paused_position = position()
+                self.assertAlmostEqual(position(), paused_position, delta=.05)
+                original = output.read_bytes()
+                zoom_frame = None
+                wide = source_width / source_height > 4 / 3
+                for request, mode in enumerate((1, 0, 1, 0, 1, 0), 1):
+                    process.stdin.write(f"picture {mode} {request}\n".encode())
+                    reply = feedback(b"ANS_PICTURE_MODE=")
+                    self.assertEqual(reply, f"ANS_PICTURE_MODE={request},{mode}".encode())
+                    deadline = time.monotonic() + 2
+                    while True:
+                        frame = output.read_bytes()
+                        if (frame != original) == (wide and mode == 1):
+                            break
+                        self.assertLess(time.monotonic(), deadline, "paused frame did not redraw")
+                        time.sleep(.01)
+                    if mode == 1:
+                        if zoom_frame is None:
+                            zoom_frame = frame
+                        self.assertTrue(frame == zoom_frame, "Zoom changed the paused source frame")
+                    self.assertAlmostEqual(position(), paused_position, delta=.05,
+                                           msg="picture change moved playback position")
+                process.stdin.write(b"pause false\n")
+                deadline = time.monotonic() + 3
+                while position() < paused_position + .2:
+                    self.assertLess(time.monotonic(), deadline, "video did not resume after toggling")
+                process.terminate()
+                process.wait(timeout=2)
+                self.assertEqual(process.returncode, 0)
+
     def test_audio_levels_measure_stereo_signal(self):
         clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
                                        "aevalsrc=0.5*sin(440*2*PI*t)|0.1*sin(880*2*PI*t):s=48000",

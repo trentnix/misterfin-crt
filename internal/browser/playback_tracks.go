@@ -110,9 +110,6 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 		return
 	}
 	if rows[c.picker.selected[c.picker.tab]].Active && !c.subtitleLoading {
-		if c.picker.tab == 2 {
-			return
-		}
 		c.picker.visible = false
 		c.state.HideControls()
 		return
@@ -151,9 +148,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 	c.subtitleRequest++
 	c.subtitleLoading = false
 	c.trackOptions = options
-	// Picture comparisons keep the Options menu open, including on backends
-	// that still need a stream replacement. Track selection retains its close.
-	c.picker.visible = c.picker.tab == 2
+	c.picker.visible = false
 	c.notice = ""
 	// Reuse the tested replacement gate and pause restoration at the current time.
 	target := c.state.PositionTicks
@@ -164,13 +159,15 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 	c.Tick(now)
 }
 
-// applyPicture leaves playback and menu visibility alone. Update the active
-// marker only after the decoder confirms the most recent request.
+// applyPicture leaves playback running. A successful acknowledgment dismisses
+// the picker. Failed requests leave it open so the user can retry.
 func (c *PlaybackController) applyPicture(mode playback.PictureMode) {
 	if !c.state.ProgressSeen || c.seekPhase != seekInactive || c.state.SeekTarget != nil {
 		return
 	}
 	if !c.picturePending && c.tracks.Picture == mode {
+		c.picker.visible = false
+		c.state.HideControls()
 		return
 	}
 	request := c.pictureRequest + 1

@@ -50,7 +50,9 @@ func TestPictureChangePreservesPositionPauseTracksAndSeeks(t *testing.T) {
 		if !c.trackRows(2)[1].Active {
 			t.Fatal("Zoom is not marked active")
 		}
-		c.Key("back", f.now)
+		if c.picker.visible || c.state.ControlsVisible(f.now) {
+			t.Fatal("picture handoff left a menu visible")
+		}
 		c.Key("seek-forward", f.now)
 		c.Tick(f.now.Add(time.Second))
 		if f.calls[2].tracks.Picture != playback.PictureZoom43 {
@@ -76,10 +78,9 @@ func TestPictureMenuWithoutAlternateTracksAndRestoreOriginal(t *testing.T) {
 		t.Fatal("video without alternate tracks has no picture options")
 	}
 	selectPicture(f.c, f.now, playback.PictureOriginal)
-	if len(f.calls) != 1 || !f.c.picker.visible {
-		t.Fatal("reselecting Original restarted playback")
+	if len(f.calls) != 1 || f.c.picker.visible {
+		t.Fatal("reselecting Original did not dismiss the menu without restarting")
 	}
-	f.c.Key("back", f.now)
 	f.c.tracks.Picture = playback.PictureZoom43
 	f.c.trackOptions.Picture = playback.PictureZoom43
 	selectPicture(f.c, f.now, playback.PictureOriginal)
@@ -88,7 +89,7 @@ func TestPictureMenuWithoutAlternateTracksAndRestoreOriginal(t *testing.T) {
 	}
 }
 
-func TestNativePictureChangesKeepMenuFrameAndDecoder(t *testing.T) {
+func TestLivePictureChangesDismissMenuAndKeepFrameAndDecoder(t *testing.T) {
 	for _, paused := range []bool{false, true} {
 		f := trackFixture(t)
 		c := f.c
@@ -112,9 +113,10 @@ func TestNativePictureChangesKeepMenuFrameAndDecoder(t *testing.T) {
 			t.Fatal("stale reply applied")
 		}
 		c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: second.Request, Mode: playback.PictureOriginal}}, f.now)
-		if c.picturePending || !c.picker.visible || c.state.Paused != paused || c.state.PositionTicks != before || len(f.calls) != 1 {
+		if c.picturePending || c.picker.visible || c.state.ControlsVisible(f.now) || c.state.Paused != paused || c.state.PositionTicks != before || len(f.calls) != 1 {
 			t.Fatal("picture command changed playback or menu")
 		}
+		c.Key("select", f.now)
 		c.Key("down", f.now)
 		c.Key("open", f.now)
 		third := <-c.controls
@@ -122,7 +124,11 @@ func TestNativePictureChangesKeepMenuFrameAndDecoder(t *testing.T) {
 		if !c.trackRows(2)[1].Active {
 			t.Fatal("successful zoom not active")
 		}
-		c.Key("back", f.now)
+		c.Key("select", f.now)
+		c.Key("open", f.now) // Applying the active choice also dismisses the picker.
+		if c.picker.visible || len(c.controls) != 0 {
+			t.Fatal("reselecting live Zoom left the picker open or sent another command")
+		}
 		c.Key("seek-forward", f.now)
 		c.Tick(f.now.Add(time.Second))
 		if len(f.calls) != 2 || f.calls[1].tracks.Picture != playback.PictureZoom43 {

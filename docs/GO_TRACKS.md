@@ -6,7 +6,7 @@ Recorded movies, episodes, videos, and music videos support subtitles, audio-tra
 
 - Left/Right moves between the Subtitles, Audio, and Picture tabs.
 - Up/Down selects a row. Held directions scroll the picker.
-- B/Enter applies the selected choice.
+- B/Enter applies the selected choice and dismisses the picker.
 - A/Esc or SELECT/Tab closes the picker without stopping playback or showing the playback controls.
 - Outside the picker, any direction retains its existing show/hide-controls behavior.
 
@@ -26,15 +26,17 @@ A background writer coalesces changes and replaces each record atomically. The i
 
 Picture offers Original and Zoom. Original is the default and preserves the entire picture with its correct aspect ratio. Zoom enlarges widescreen video and crops its sides. Scaling uses the encoded frame's display aspect ratio, so black bars within that frame can remain. Zoom does not detect the boundaries of the visible picture or guarantee that it fills the screen. Sources at or narrower than 4:3 keep their original fit.
 
-On MiSTer, changing picture mode updates the running player without seeking, reopening the stream, or changing pause state. The Picture tab stays open and uses the same full-screen panel as Subtitles and Audio. A paused comparison redraws exactly the same decoded frame. Playing video continues normally. The active marker follows the player's acknowledgment. Failed requests leave the preceding mode active.
+On MiSTer and inline Ghostty, changing picture mode updates the running player without seeking, reopening the stream, or changing pause state. The Picture tab uses the same full-screen panel as Subtitles and Audio and closes after a successful change. A paused comparison redraws exactly the same decoded frame. Playing video continues normally. The active marker follows the player's acknowledgment. Failed live requests leave the preceding mode active and the picker open.
 
-The choice survives seeking, audio changes, subtitle changes, and reopening the video. Inline Ghostty and separate-window FFplay still use the existing stream handoff for picture changes. Their Picture tab also stays open, but applying a different mode still reloads the stream at the current position.
+The choice survives seeking, audio changes, subtitle changes, and reopening the video. Separate-window FFplay still uses the existing stream handoff for picture changes. Applying a different mode dismisses the picker and reloads the stream at the current position.
 
-`playback.PictureMode` describes the shared choice. Native playback advertises `VideoTracks.LivePicture` and accepts a semantic picture control. MPlayer receives `pausing_keep_force misterfin_picture <mode> <request>` and replies with `ANS_PICTURE_MODE=<request>,<mode>`. A mode of -1 reports failure. The browser matches replies to the decoder generation and request. Other decoders retain the handoff fallback without native-player checks in the UI.
+`playback.PictureMode` describes the shared choice. MPlayer and the Python helper implement `pictureSetter`, which advertises `VideoTracks.LivePicture` to the browser. MPlayer receives `pausing_keep_force misterfin_picture <mode> <request>`. The Python helper receives `picture <mode> <request>`. Both reply with `ANS_PICTURE_MODE=<request>,<mode>`, where -1 reports failure. The browser matches replies to the decoder generation and request, with a handoff fallback for decoders without this capability.
 
 The Go-specific `vf_misterfin` filter owns CRT scaling and a retained planar source frame. Original scales the full picture and adds black bars. Zoom crops the source's sides before the same single scaling pass. Two reusable scaler contexts avoid rebuilding scaling state on repeated toggles. Source rows are aligned for ARM. Cached input supports paused redraws without decoding another frame. The filter preserves source timestamps and keeps framebuffer geometry fixed, so mode changes do not reopen output or change the audio clock. Live TV keeps its existing scaling chain.
 
-Inline libmpv uses full panscan on its square-pixel 4:3 render surface. FFplay crops using the decoded sample aspect ratio. All players apply picture fitting before shared UI composition. Go-rendered controls and subtitles retain their normal size. Server-burned subtitles remain part of the video and can be cropped.
+Inline libmpv changes its [panscan property](https://mpv.io/manual/stable/#options-panscan) on the existing square-pixel 4:3 render surface. The helper reads the decoded display aspect ratio and leaves sources at or narrower than 4:3 unchanged. Property changes trigger redraws through the existing render callback, including while paused. FFplay crops using the decoded sample aspect ratio. All players apply picture fitting before shared UI composition, so Go-rendered controls and subtitles retain their normal size. Server-burned subtitles remain part of the video and can be cropped.
+
+Live Ghostty tests toggle repeatedly while paused, verify identical frames when returning to each mode, and verify that position stays fixed until resumed. Generated media covers widescreen, native 4:3, square, PAL, and NTSC cases. Browser tests verify that live picture changes do not reopen the media stream and that seeking and restarting the application preserve the selected mode.
 
 Validation includes the Go suites with cgo enabled and disabled, race checks, `go vet`, host/ARM builds, 38 Python renderer/player tests, and 21 browser integration tests. Native filter tests cover geometry, padded input strides, 100 repeated toggles, stable timestamps, and no output reconfiguration. A playback-session test confirms native picture requests open only one media stream. On MiSTer, four live toggles while paused retained position 1.5 seconds. Captured Original frames matched byte for byte after toggling, as did repeated Zoom frames.
 
