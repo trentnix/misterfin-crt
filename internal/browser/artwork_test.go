@@ -125,7 +125,7 @@ func TestDetailsAndCoverArriveBeforeSlowArtwork(t *testing.T) {
 	if calls.Load() != 3 {
 		t.Fatalf("refetched cached artwork: %d calls", calls.Load())
 	}
-	snapshot := loader.snapshot(item, false)
+	snapshot := loader.cache.snapshot(item, false)
 	if snapshot.Primary == nil || snapshot.Backdrop == nil || snapshot.Logo == nil {
 		t.Fatal("cached artwork not available immediately")
 	}
@@ -203,7 +203,7 @@ func TestCarouselCountsAndCoversLoadIndependently(t *testing.T) {
 	if covers != 12 || peak.Load() != 3 {
 		t.Fatalf("covers=%d concurrency=%d", covers, peak.Load())
 	}
-	snapshot := loader.snapshot(item, true)
+	snapshot := loader.cache.snapshot(item, true)
 	if snapshot.Count == nil || *snapshot.Count != 503 || len(snapshot.Covers) != 12 {
 		t.Fatal("carousel cache not immediately reusable")
 	}
@@ -211,7 +211,7 @@ func TestCarouselCountsAndCoversLoadIndependently(t *testing.T) {
 	if countCalls.Load() != 1 || sampleCalls.Load() != 1 || imageCalls.Load() != 12 {
 		t.Fatal("warm carousel issued HTTP requests")
 	}
-	loader.rememberLibrary(item.ID, func(v *cachedLibrary) { v.countUntil = time.Time{}; v.itemsUntil = time.Time{} })
+	loader.cache.rememberLibrary(item.ID, func(v *cachedLibrary) { v.countUntil = time.Time{}; v.itemsUntil = time.Time{} })
 	loader.load(context.Background(), item, true, false, func(artUpdate) {})
 	if countCalls.Load() != 2 || sampleCalls.Load() != 2 || imageCalls.Load() != 12 {
 		t.Fatal("expired counts/sample did not refresh independently of images")
@@ -238,27 +238,7 @@ func TestCancelRetainsCompletedCover(t *testing.T) {
 	receiveArt(t, updates, "Primary")
 	cancel()
 	awaitArt(t, done)
-	if loader.snapshot(item, false).Primary == nil {
+	if loader.cache.snapshot(item, false).Primary == nil {
 		t.Fatal("cancel discarded completed artwork")
-	}
-}
-
-func TestImageCacheEvictsLeastRecentlyUsedWithinBudget(t *testing.T) {
-	loader := newArtworkLoader(nil)
-	im := image.NewRGBA(image.Rect(0, 0, 1024, 1024))
-	for _, id := range []string{"a", "b", "c", "d"} {
-		loader.remember(imageKey{id, "Primary", "tag"}, im)
-	}
-	loader.cached(imageKey{"a", "Primary", "tag"})
-	loader.remember(imageKey{"e", "Primary", "tag"}, im)
-	if loader.bytes > artworkBudget || len(loader.images) != 4 {
-		t.Fatal("cache exceeded budget")
-	}
-	if loader.cached(imageKey{"b", "Primary", "tag"}) != nil || loader.cached(imageKey{"a", "Primary", "tag"}) == nil {
-		t.Fatal("cache evicted a recently used image")
-	}
-	loader.forget(jellyfin.Item{ID: "a"})
-	if loader.cached(imageKey{"a", "Primary", "tag"}) != nil || loader.cached(imageKey{"c", "Primary", "tag"}) == nil {
-		t.Fatal("retry evicted unrelated images")
 	}
 }

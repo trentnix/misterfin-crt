@@ -37,3 +37,8 @@ func (a *animationState) advance(scene Scene, rows int) Animation {
 	}
 	return a.value
 }
+
+// Animation contains elapsed seconds and eased selection positions for a frame.
+// Seconds drives background motion. TitleSeconds drives marquee scrolling.
+// Selection and Row are fractional item and visible-row positions.
+type Animation struct{ Seconds, TitleSeconds, Selection, Row float64 }

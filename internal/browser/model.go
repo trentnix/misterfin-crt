@@ -1,4 +1,7 @@
-// Package browser owns navigation independently of C, hardware, and HTTP.
+// Package browser coordinates Jellyfin browsing, media controls, and shared UI
+// rendering. Run owns the event loop. Model tracks navigation, PlaybackController
+// tracks decoder transitions, and Renderer produces frames for videoout.Output.
+// Output implementations select physical presentation without changing UI rules.
 package browser
 
 import (

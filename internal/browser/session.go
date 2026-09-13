@@ -1,0 +1,66 @@
+package browser
+
+import (
+	"context"
+	"time"
+
+	"misterfin-go/internal/jellyfin"
+	"misterfin-go/internal/platform"
+	"misterfin-go/internal/playback"
+	"misterfin-go/internal/videoout"
+)
+
+// browserSession owns one browser run. Only the event loop mutates its state.
+// Workers capture their inputs and return results through channels.
+type browserSession struct {
+	ctx                  context.Context
+	configPath, stateDir string
+	model                *Model
+	client               *jellyfin.Client
+	status               string
+	requests             requestState
+	artwork              artworkState
+	media                mediaNavigation
+	events               chan result
+	controller           *PlaybackController
+	driver               playbackDriver
+	output               videoout.Output
+	renderer             Renderer
+	geometry             platform.Geometry
+	ticker               *time.Ticker
+	frameInterval        time.Duration
+	lastVideoOverlay     []byte
+}
+
+// newBrowserSession wires state, decoding, and frame pacing without starting
+// network requests. The caller must cancel ctx before calling close. The caller
+// retains ownership of output and renderer, which must not be used concurrently.
+func newBrowserSession(ctx context.Context, configPath, stateDir string, player playback.Options, output videoout.Output, renderer Renderer) *browserSession {
+	s := &browserSession{
+		ctx: ctx, configPath: configPath, stateDir: stateDir,
+		model: New(), output: output, renderer: renderer, geometry: output.Geometry(),
+		events: make(chan result, 16), frameInterval: time.Second / 60,
+		requests: requestState{cancel: func() {}},
+		artwork:  artworkState{cancel: func() {}},
+		media:    mediaNavigation{cancel: func() {}},
+	}
+	s.driver = playbackDriver{ctx: ctx, options: player, output: output, events: make(chan PlaybackEvent, 16)}
+	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control) playbackProcess {
+		return s.driver.launch(s.client, item, offset, gate, prepared, controls)
+	})
+	s.model.PlaybackState = s.controller.state
+	s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
+	s.ticker = time.NewTicker(s.frameInterval)
+	return s
+}
+
+// close runs after the application context is canceled, so decoder callbacks
+// cannot block shutdown while the event loop is no longer receiving results.
+func (s *browserSession) close() {
+	s.ticker.Stop()
+	s.requests.cancel()
+	s.artwork.cancel()
+	s.media.cancel()
+	s.controller.Close()
+	s.output.Clear()
+}

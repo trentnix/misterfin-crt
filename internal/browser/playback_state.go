@@ -38,10 +38,12 @@ func (m *PlaybackState) RevealControls(now time.Time) bool {
 	return hidden
 }
 
+// ControlsVisible reports whether the menu timer is active or a seek pins it open.
 func (m *PlaybackState) ControlsVisible(now time.Time) bool {
 	return m.SeekControls || now.Before(m.ControlsUntil)
 }
 
+// HideControls dismisses the menu and clears any seek pin without canceling the seek.
 func (m *PlaybackState) HideControls() {
 	m.ControlsUntil = time.Time{}
 	m.SeekControls = false

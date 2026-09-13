@@ -10,6 +10,8 @@ type PlaybackEvent struct {
 	Value bool  // Used by PlaybackPaused and PlaybackBuffering.
 	Err   error // Used by PlaybackEnded.
 }
+
+// PlaybackEventKind identifies which fields of [PlaybackEvent] are meaningful.
 type PlaybackEventKind uint8
 
 const (

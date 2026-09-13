@@ -9,7 +9,10 @@ type Geometry struct {
 // Presenter borrows pixels during Present. Callers own the slice and serialize
 // presentation calls. Output backends need this contract, not resource ownership.
 type Presenter interface {
+	// Geometry reports logical input dimensions and physical scanout dimensions.
 	Geometry() Geometry
+	// Present borrows exactly Width * Height * 4 bytes of tightly packed BGRX
+	// pixels until it returns. It may block for display synchronization.
 	Present(pixels []byte) error
 }
 

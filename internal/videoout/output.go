@@ -19,11 +19,19 @@ type Frame struct {
 // goroutine and mark when an external player owns the physical display.
 // Close releases backend resources. The caller owns the underlying Display.
 type Output interface {
+	// Geometry returns logical UI and physical output dimensions.
 	Geometry() platform.Geometry
+	// Present consumes borrowed pixels synchronously. Implementations must not
+	// retain the slices after returning unless they copy them.
 	Present(Frame) error
+	// Acquire marks a decoder as owning video output. Each acquisition must
+	// have a matching Release, including during canceled playback.
 	Acquire()
+	// Release relinquishes one decoder ownership claim after it stops drawing.
 	Release()
 	// Clear discards stale playback output before a new item and after playback.
 	Clear()
+	// Close releases backend resources without closing the underlying display.
+	// The caller must stop decoder activity before closing the backend.
 	Close() error
 }

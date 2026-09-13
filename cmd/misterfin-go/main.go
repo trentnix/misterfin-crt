@@ -5,90 +5,65 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"misterfin-go/internal/browser"
-	"misterfin-go/internal/platform"
-	"misterfin-go/internal/playback"
-	"misterfin-go/internal/testframe"
-	"misterfin-go/internal/videoout"
-	"misterfin-go/internal/videoout/companion"
-	"misterfin-go/internal/videoout/framefile"
-	"misterfin-go/internal/videoout/native"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
+
+	"misterfin-go/internal/browser"
+	"misterfin-go/internal/platform"
+	"misterfin-go/internal/playback"
+	"misterfin-go/internal/videoout"
+	"misterfin-go/internal/videoout/companion"
+	"misterfin-go/internal/videoout/framefile"
+	"misterfin-go/internal/videoout/native"
 )
 
 func run() (err error) {
-	headless := flag.String("headless", os.Getenv("MISTERFIN_FB"), "headless output geometry, for example 640x288")
-	output := flag.String("output", os.Getenv("MISTERFIN_FRAME_OUT"), "headless BGRX raw output path")
-	device := flag.String("device", "/dev/fb0", "Linux framebuffer device")
-	hold := flag.Duration("hold", 0, "keep test frame visible for this duration, for example 10s")
-	wait := flag.Bool("wait", false, "keep test frame visible until interrupted")
-	player := flag.String("player", "", "player executable (FFplay for headless preview, mplayer-arm on MiSTer)")
-	audioPlayer := flag.String("audio-player", "", "Python helper for controllable desktop music playback")
-	terminalPlayer := flag.String("terminal-player", "", "Python helper for video in the headless framebuffer")
-	browse := flag.Bool("browse", false, "browse Jellyfin with terminal keyboard input")
-	config := flag.String("config", "jellyfin.conf", "Jellyfin configuration path")
-	stateDir := flag.String("state-dir", "", "Go session directory (default: user config directory/misterfin-go)")
-	flag.Parse()
-	if flag.NArg() != 0 || *hold < 0 {
-		return errors.New("unexpected arguments or negative hold duration")
+	o, err := parseOptions(os.Args[1:])
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
 	}
-	if *wait && *hold != 0 {
-		return errors.New("use either -wait or -hold")
-	}
-	if *browse && (*wait || *hold != 0) {
-		return errors.New("-browse cannot be combined with -wait or -hold")
-	}
-	if *terminalPlayer != "" && (!*browse || *headless == "" || *output == "" || *player != "") {
-		return errors.New("-terminal-player requires -browse, -headless, and -output, without -player")
-	}
-	if *audioPlayer != "" && (*headless == "" || !*browse || *player != "") {
-		return errors.New("-audio-player requires headless browsing without -player")
+	if err != nil {
+		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	d, err := platform.Open(platform.Options{Device: *device, Headless: *headless, Output: *output})
+	d, err := platform.Open(platform.Options{Device: o.device, Headless: o.headless, Output: o.output})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, d.Close()) }()
-	if *browse {
-		if *stateDir == "" {
-			dir, e := os.UserConfigDir()
-			if e != nil {
-				return e
-			}
-			*stateDir = filepath.Join(dir, "misterfin-go")
-		}
-		g := d.Geometry()
-		var video videoout.Output = companion.New(d)
-		if *terminalPlayer != "" {
-			video = framefile.New(d, *output+".video")
-		} else if *headless == "" {
-			video = native.New(d, native.OverlayPath)
-		}
-		defer func() { err = errors.Join(err, video.Close()) }()
-		return browser.Run(ctx, *config, *stateDir, playback.Options{AudioPlayer: *audioPlayer, Player: *player, TerminalPlayer: *terminalPlayer, FrameOutput: *output, Headless: *headless != "", Device: *device, Width: g.OutputWidth, Height: g.OutputHeight}, video, browser.NewRenderer())
+	if o.browse {
+		return runBrowser(ctx, d, o)
 	}
-	if err = testframe.Present(d); err != nil {
-		return err
+	return runPreview(ctx, d, o)
+}
+
+// runBrowser is the composition root: concrete output selection belongs here.
+func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err error) {
+	if o.stateDir == "" {
+		dir, e := os.UserConfigDir()
+		if e != nil {
+			return e
+		}
+		o.stateDir = filepath.Join(dir, "misterfin-go")
 	}
 	g := d.Geometry()
-	fmt.Printf("Presented BGRX test frame: logical %dx%d, output %dx%d\n", g.Width, g.Height, g.OutputWidth, g.OutputHeight)
-	if *wait {
-		<-ctx.Done()
-	} else if *hold > 0 {
-		timer := time.NewTimer(*hold)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-		case <-timer.C:
-		}
+	var video videoout.Output = companion.New(d)
+	if o.terminalPlayer != "" {
+		video = framefile.New(d, o.output+".video")
+	} else if o.headless == "" {
+		video = native.New(d, native.OverlayPath)
 	}
-	return nil
+	defer func() { err = errors.Join(err, video.Close()) }()
+	player := playback.Options{
+		AudioPlayer: o.audioPlayer, Player: o.player, TerminalPlayer: o.terminalPlayer,
+		FrameOutput: o.output, Headless: o.headless != "", Device: o.device,
+		Width: g.OutputWidth, Height: g.OutputHeight,
+	}
+	return browser.Run(ctx, o.config, o.stateDir, player, video, browser.NewRenderer())
+
 }
 
 func main() {
