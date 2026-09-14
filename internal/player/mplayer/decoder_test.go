@@ -23,14 +23,14 @@ func TestMPlayerCRTAspect(t *testing.T) {
 func TestLiveTVAspectFallbackAndMetadata(t *testing.T) {
 	for _, tc := range []struct {
 		aspect string
-		height int
-	}{{"", 180}, {"16:9", 180}, {"4:3", 240}} {
+		dar    float64
+	}{{"", 16.0 / 9}, {"16:9", 16.0 / 9}, {"4:3", 4.0 / 3}} {
 		item := jellyfin.Item{Type: "TvChannel"}
 		if tc.aspect != "" {
 			item.MediaStreams = []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: tc.aspect}}
 		}
 		args := Decoder{Width: 640, Height: 240, Device: "/dev/fb0"}.Args(item, "")
-		want := fmt.Sprintf("scale=640:%d,expand=640:240,dsize=640:240", tc.height)
+		want := fmt.Sprintf("misterfin=640:240:%.9f:0", tc.dar)
 		if !strings.Contains(strings.Join(args, " "), want) {
 			t.Fatalf("aspect %q: %v", tc.aspect, args)
 		}

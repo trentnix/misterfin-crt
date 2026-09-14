@@ -8,7 +8,7 @@ import (
 	"misterfin-crt/internal/playback"
 )
 
-// trackPicker owns navigation within the recorded-video Options menu.
+// trackPicker owns navigation within the video Options menu.
 // Directions navigate this menu while it is open. They toggle controls otherwise.
 type trackPicker struct {
 	visible  bool
@@ -32,14 +32,20 @@ type TrackMenu struct {
 }
 
 func (c *PlaybackController) hasTracks() bool {
-	if !c.running || c.item.Type == "Audio" || jellyfin.IsLive(c.item) {
+	if !c.running || c.item.Type == "Audio" {
 		return false
 	}
 	return true
 }
 
 func (c *PlaybackController) trackRows(tab int) []TrackRow {
+	if jellyfin.IsLive(c.item) && tab != 2 {
+		return nil
+	}
 	if tab == 2 {
+		if jellyfin.IsLive(c.item) && !c.tracks.LivePicture {
+			return []TrackRow{{int(playback.PictureOriginal), "Original", true}}
+		}
 		return []TrackRow{
 			{int(playback.PictureOriginal), "Original", c.tracks.Picture == playback.PictureOriginal},
 			{int(playback.PictureZoom43), "Zoom", c.tracks.Picture == playback.PictureZoom43},
@@ -105,6 +111,9 @@ func (c *PlaybackController) trackKey(key string, now time.Time) {
 
 func (c *PlaybackController) applyTrack(now time.Time) {
 	rows := c.trackRows(c.picker.tab)
+	if len(rows) == 0 {
+		return
+	}
 	// Keep selection within the current tab if stream metadata changes.
 	c.picker.selected[c.picker.tab] = min(c.picker.selected[c.picker.tab], len(rows)-1)
 	index := rows[c.picker.selected[c.picker.tab]].Index
@@ -189,13 +198,10 @@ func (c *PlaybackController) trackPresentation(p *PlaybackPresentation, now time
 	p.TracksAvailable = c.hasTracks()
 	if c.picker.visible {
 		rows := c.trackRows(c.picker.tab)
-		selected := min(c.picker.selected[c.picker.tab], len(rows)-1)
+		selected := max(0, min(c.picker.selected[c.picker.tab], len(rows)-1))
 		p.Tracks = &TrackMenu{Tab: c.picker.tab, Selected: selected, Rows: rows, Message: c.notice}
-		if c.picker.tab == 2 && p.Tracks.Message == "" {
-			p.Tracks.Message = "Original aspect ratio, no cropping"
-			if p.Tracks.Selected == 1 {
-				p.Tracks.Message = "Enlarge the picture and crop the edges."
-			}
+		if p.Tracks.Message == "" {
+			p.Tracks.Message = c.trackMessage(c.picker.tab, selected)
 		}
 		sub, ok := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
 		if c.picker.tab == 0 && ok && sub.TextSubtitle() && c.tracks.ClientSubtitles {
@@ -210,4 +216,27 @@ func (c *PlaybackController) trackPresentation(p *PlaybackPresentation, now time
 		ticks += int64(min(time.Second, max(0, now.Sub(c.state.LastAdvance))) / 100)
 	}
 	p.Subtitle = c.tracks.Text.At(ticks - int64(c.subtitleDelay/100))
+}
+
+// trackMessage explains the selected picture mode or an unavailable live option.
+func (c *PlaybackController) trackMessage(tab, selected int) string {
+	if jellyfin.IsLive(c.item) {
+		switch tab {
+		case 0:
+			return "Live TV subtitle selection is not available."
+		case 1:
+			return "Live TV audio selection is not available."
+		case 2:
+			if !c.tracks.LivePicture {
+				return "This player cannot change Live TV picture mode."
+			}
+		}
+	}
+	if tab == 2 {
+		if selected == 1 {
+			return "Enlarge the picture and crop the edges."
+		}
+		return "Original aspect ratio, no cropping"
+	}
+	return ""
 }

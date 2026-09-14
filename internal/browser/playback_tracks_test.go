@@ -103,8 +103,27 @@ func TestPickerBackAndLiveTV(t *testing.T) {
 	}
 	f.c.item.Type = "TvChannel"
 	f.c.Key("select", f.now)
-	if f.c.picker.visible || f.c.Snapshot(f.now).TracksAvailable {
-		t.Fatal("Live TV advertised unsupported picker")
+	if !f.c.picker.visible || !f.c.Snapshot(f.now).TracksAvailable {
+		t.Fatal("Live TV did not expose its View menu")
+	}
+	for tab := 0; tab < 2; tab++ {
+		f.c.Key("down", f.now)
+		f.c.Key("open", f.now)
+		p := f.c.Snapshot(f.now)
+		if p.Tracks == nil || len(p.Tracks.Rows) != 0 || p.Tracks.Message == "" || len(f.calls) != 1 || len(f.c.controls) != 0 {
+			t.Fatal("unavailable Live TV tracks changed playback or lacked an explanation")
+		}
+		f.c.Key("next", f.now)
+	}
+	// FFplay cannot change picture mode in place. Live TV must not fall back
+	// to a recorded-video seek or restart the tuner to change its geometry.
+	f.c.Key("down", f.now)
+	if rows := f.c.trackRows(2); len(rows) != 1 || rows[0].Index != int(playback.PictureOriginal) {
+		t.Fatal("decoder without live picture commands advertised zoom")
+	}
+	f.c.Key("open", f.now)
+	if len(f.calls) != 1 || f.calls[0].canceled {
+		t.Fatal("unsupported picture change retuned the channel")
 	}
 }
 

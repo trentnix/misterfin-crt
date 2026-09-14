@@ -12,7 +12,11 @@ func drawTrackMenu(c *ui.Canvas, menu *TrackMenu, labels control.Labels) {
 	w, h := c.Width, c.Height
 	sy := safeY(w, h)
 	bottom := h - 8 - sy
-	hints := []controlHint{pairedHint(labels, "previous", "next", "Tabs"), hint(labels, "open", "Apply"), hint(labels, "back", "Back")}
+	hints := []controlHint{pairedHint(labels, "previous", "next", "Tabs")}
+	if len(menu.Rows) > 0 {
+		hints = append(hints, hint(labels, "open", "Apply"))
+	}
+	hints = append(hints, hint(labels, "back", "Back"))
 	if menu.Tab == 0 && menu.Delay != "" {
 		hints = append(hints, hint(labels, "seek-backward", "Earlier"), hint(labels, "seek-forward", "Later"))
 	}

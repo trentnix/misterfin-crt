@@ -50,7 +50,7 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 			resultErr = errors.New("playback ended, but Jellyfin progress reporting failed")
 		}
 	}()
-	if request.Callbacks.TrackInfo != nil && !session.liveTV && session.item.Type != "Audio" {
+	if request.Callbacks.TrackInfo != nil && session.item.Type != "Audio" {
 		request.Callbacks.TrackInfo(session.tracks)
 	}
 	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.Input(session.item))

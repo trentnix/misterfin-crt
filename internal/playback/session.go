@@ -103,7 +103,7 @@ func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control
 	switch control.Kind {
 	case "picture":
 		setter, ok := p.decoder.(playerapi.PictureSetter)
-		if !ok || s.liveTV || s.item.Type == "Audio" || control.Picture > PictureZoom43 || setter.SetPicture(p.control, control.Picture, control.Request) != nil {
+		if !ok || s.item.Type == "Audio" || control.Picture > PictureZoom43 || setter.SetPicture(p.control, control.Picture, control.Request) != nil {
 			if callbacks.Picture != nil {
 				callbacks.Picture(PictureResult{Request: control.Request, Err: errors.New("cannot change picture mode")})
 			}

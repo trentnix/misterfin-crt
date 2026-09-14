@@ -19,7 +19,7 @@ type Decoder struct {
 	Output string
 	// Width and Height describe the logical CRT video frame.
 	Width, Height int
-	// Picture selects the initial recorded-video fit.
+	// Picture selects the initial video fit.
 	Picture player.PictureMode
 
 	levels bool

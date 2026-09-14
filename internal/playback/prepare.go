@@ -68,6 +68,12 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, req
 			}
 			return nil, err
 		}
+		// Live tracks describe the negotiated source. Track switching and recorded
+		// subtitle extraction remain unavailable, but picture fitting is local.
+		tracks = VideoTracks{
+			SourceID: live.MediaSourceID, Streams: live.MediaStreams, LivePicture: choices.livePicture,
+			TrackOptions: TrackOptions{Picture: choices.picture(), Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}},
+		}
 		session, streamURL = live.PlaySessionID, live.StreamURL
 		if len(live.MediaStreams) > 0 {
 			item.MediaStreams = live.MediaStreams

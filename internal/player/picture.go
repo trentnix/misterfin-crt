@@ -8,14 +8,14 @@ import (
 	"misterfin-crt/internal/jellyfin"
 )
 
-// PictureMode controls how recorded video fits the physical 4:3 display.
+// PictureMode controls how video fits the physical 4:3 display.
 // Decoders apply the crop before the shared UI overlay is composed.
 type PictureMode uint8
 
 const (
 	// PictureOriginal preserves the full picture and its display aspect ratio.
 	PictureOriginal PictureMode = iota
-	// PictureZoom43 enlarges the center of a recorded picture and crops its
+	// PictureZoom43 enlarges the center of a picture and crops its
 	// edges. A 4:3 source receives a fixed zoom for baked-in letterboxing.
 	PictureZoom43
 )
@@ -27,10 +27,10 @@ const (
 	AspectTolerance = 0.01
 )
 
-// Zooms reports whether this mode requests a crop for the item. Audio and
-// Live TV never zoom. Original 4:3 video can zoom to crop baked-in borders.
+// Zooms reports whether this mode requests a crop for video, including Live TV.
+// Original 4:3 video can zoom to crop baked-in borders. Audio never zooms.
 func (m PictureMode) Zooms(item jellyfin.Item) bool {
-	return m == PictureZoom43 && item.Type != "Audio" && !jellyfin.IsLive(item)
+	return m == PictureZoom43 && item.Type != "Audio"
 }
 
 // DisplayAspectRatio uses the first video stream, preferring a valid a:b

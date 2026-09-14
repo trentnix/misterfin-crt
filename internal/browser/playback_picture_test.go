@@ -90,51 +90,59 @@ func TestPictureMenuWithoutAlternateTracksAndRestoreOriginal(t *testing.T) {
 }
 
 func TestLivePictureChangesDismissMenuAndKeepFrameAndDecoder(t *testing.T) {
-	for _, paused := range []bool{false, true} {
-		f := trackFixture(t)
-		c := f.c
-		c.tracks.LivePicture = true
-		c.state.Paused = paused
-		before := c.state.PositionTicks
-		selectPicture(c, f.now, playback.PictureZoom43)
-		first := <-c.controls
-		if first.Kind != "picture" || first.Picture != playback.PictureZoom43 || len(f.calls) != 1 || !c.picker.visible || c.state.SeekTarget != nil {
-			t.Fatal("picture change restarted or hid menu")
-		}
-		// Return to Original before the first acknowledgment arrives.
-		c.Key("up", f.now)
-		c.Key("open", f.now)
-		second := <-c.controls
-		if second.Picture != playback.PictureOriginal || second.Request <= first.Request {
-			t.Fatal("cannot retarget live picture change")
-		}
-		c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: first.Request, Mode: playback.PictureZoom43}}, f.now)
-		if !c.picturePending || c.tracks.Picture != playback.PictureOriginal {
-			t.Fatal("stale reply applied")
-		}
-		c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: second.Request, Mode: playback.PictureOriginal}}, f.now)
-		if c.picturePending || c.picker.visible || c.state.ControlsVisible(f.now) || c.state.Paused != paused || c.state.PositionTicks != before || len(f.calls) != 1 {
-			t.Fatal("picture command changed playback or menu")
-		}
-		c.Key("select", f.now)
-		c.Key("down", f.now)
-		c.Key("open", f.now)
-		third := <-c.controls
-		c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: third.Request, Mode: playback.PictureZoom43}}, f.now)
-		if !c.trackRows(2)[1].Active {
-			t.Fatal("successful zoom not active")
-		}
-		c.Key("select", f.now)
-		c.Key("open", f.now) // Applying the active choice also dismisses the picker.
-		if c.picker.visible || len(c.controls) != 0 {
-			t.Fatal("reselecting live Zoom left the picker open or sent another command")
-		}
-		c.Key("seek-forward", f.now)
-		c.Tick(f.now.Add(time.Second))
-		if len(f.calls) != 2 || f.calls[1].tracks.Picture != playback.PictureZoom43 {
-			t.Fatal("seek lost live choice")
+	for _, kind := range []string{"Movie", "TvChannel"} {
+		for _, paused := range []bool{false, true} {
+			f := trackFixture(t)
+			c := f.c
+			c.tracks.LivePicture = true
+			c.item.Type = kind
+			c.state.Paused = paused
+			before := c.state.PositionTicks
+			selectPicture(c, f.now, playback.PictureZoom43)
+			first := <-c.controls
+			if first.Kind != "picture" || first.Picture != playback.PictureZoom43 || len(f.calls) != 1 || !c.picker.visible || c.state.SeekTarget != nil {
+				t.Fatal("picture change restarted or hid menu")
+			}
+			// Return to Original before the first acknowledgment arrives.
+			c.Key("up", f.now)
+			c.Key("open", f.now)
+			second := <-c.controls
+			if second.Picture != playback.PictureOriginal || second.Request <= first.Request {
+				t.Fatal("cannot retarget live picture change")
+			}
+			c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: first.Request, Mode: playback.PictureZoom43}}, f.now)
+			if !c.picturePending || c.tracks.Picture != playback.PictureOriginal {
+				t.Fatal("stale reply applied")
+			}
+			c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: second.Request, Mode: playback.PictureOriginal}}, f.now)
+			if c.picturePending || c.picker.visible || c.state.ControlsVisible(f.now) || c.state.Paused != paused || c.state.PositionTicks != before || len(f.calls) != 1 {
+				t.Fatal("picture command changed playback or menu")
+			}
+			c.Key("select", f.now)
+			c.Key("down", f.now)
+			c.Key("open", f.now)
+			third := <-c.controls
+			c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: third.Request, Mode: playback.PictureZoom43}}, f.now)
+			if !c.trackRows(2)[1].Active {
+				t.Fatal("successful zoom not active")
+			}
+			c.Key("select", f.now)
+			c.Key("open", f.now) // Applying the active choice also dismisses the picker.
+			if c.picker.visible || len(c.controls) != 0 {
+				t.Fatal("reselecting live Zoom left the picker open or sent another command")
+			}
+			c.Key("seek-forward", f.now)
+			c.Tick(f.now.Add(time.Second))
+			if kind == "TvChannel" {
+				if len(f.calls) != 1 || c.state.SeekTarget != nil {
+					t.Fatal("Live TV picture change enabled seeking")
+				}
+			} else if len(f.calls) != 2 || f.calls[1].tracks.Picture != playback.PictureZoom43 {
+				t.Fatal("seek lost live choice")
+			}
 		}
 	}
+
 }
 
 func TestNativePictureFailureKeepsMenuAndOriginal(t *testing.T) {

@@ -19,7 +19,7 @@ type Decoder struct {
 	Device string
 	// Width and Height are physical output dimensions. Validate checks supported modes.
 	Width, Height int
-	// Picture selects the initial recorded-video fit.
+	// Picture selects the initial video fit.
 	Picture player.PictureMode
 
 	export string
@@ -55,17 +55,7 @@ func (d Decoder) Args(item jellyfin.Item, source string) []string {
 		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", filter, source}
 	}
 	dar := player.DisplayAspectRatio(item)
-	par := float64(d.Width) * 3 / float64(d.Height*4)
-	w := d.Width
-	h := int(float64(w)/(dar*par) + 0.5)
-	if h > d.Height {
-		h = d.Height
-		w = int(float64(h)*dar*par + 0.5)
-	}
-	filter := fmt.Sprintf("scale=%d:%d,expand=%d:%d,dsize=%d:%d", max(2, w/2*2), max(2, h/2*2), d.Width, d.Height, d.Width, d.Height)
-	if !jellyfin.IsLive(item) {
-		filter = fmt.Sprintf("misterfin=%d:%d:%.9f:%d", d.Width, d.Height, dar, d.Picture)
-	}
+	filter := fmt.Sprintf("misterfin=%d:%d:%.9f:%d", d.Width, d.Height, dar, d.Picture)
 
 	// Match the C player's audio-clock correction. Recorded video smooths ALSA
 	// delay measurements. Live TV reacts sooner to broadcast timing changes.
