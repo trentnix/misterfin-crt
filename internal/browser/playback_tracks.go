@@ -39,8 +39,13 @@ func (c *PlaybackController) hasTracks() bool {
 }
 
 func (c *PlaybackController) trackRows(tab int) []TrackRow {
-	if jellyfin.IsLive(c.item) && tab != 2 {
-		return nil
+	if jellyfin.IsLive(c.item) {
+		if tab == 0 {
+			return c.captions.rows()
+		}
+		if tab == 1 {
+			return nil
+		}
 	}
 	if tab == 2 {
 		if jellyfin.IsLive(c.item) && !c.tracks.LivePicture {
@@ -117,6 +122,13 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 	// Keep selection within the current tab if stream metadata changes.
 	c.picker.selected[c.picker.tab] = min(c.picker.selected[c.picker.tab], len(rows)-1)
 	index := rows[c.picker.selected[c.picker.tab]].Index
+	if jellyfin.IsLive(c.item) && c.picker.tab == 0 {
+		c.captions.enabled = index == 0
+		c.picker.visible = false
+		c.state.HideControls()
+		c.notice = ""
+		return
+	}
 	if c.picker.tab == 2 && c.tracks.LivePicture {
 		c.applyPicture(playback.PictureMode(index))
 		return
@@ -215,6 +227,12 @@ func (c *PlaybackController) trackPresentation(p *PlaybackPresentation, now time
 	if !c.state.Paused && p.WaitLabel == "" {
 		ticks += int64(min(time.Second, max(0, now.Sub(c.state.LastAdvance))) / 100)
 	}
+	if jellyfin.IsLive(c.item) {
+		if c.captions.enabled {
+			p.Subtitle = c.captions.text
+		}
+		return
+	}
 	p.Subtitle = c.tracks.Text.At(ticks - int64(c.subtitleDelay/100))
 }
 
@@ -223,7 +241,10 @@ func (c *PlaybackController) trackMessage(tab, selected int) string {
 	if jellyfin.IsLive(c.item) {
 		switch tab {
 		case 0:
-			return "Live TV subtitle selection is not available."
+			if !c.captions.available {
+				return "No closed-caption data received."
+			}
+			return ""
 		case 1:
 			return "Live TV audio selection is not available."
 		case 2:

@@ -101,7 +101,7 @@ FFplay does not expose the same cache signal through the current adapter. Its bu
 
 ## Live TV
 
-Select a channel with B or Enter to tune it immediately. A stops the stream and returns to the channels list with the same channel selected. If playback ends or fails, the browser also returns to the channels list. Live TV works with both desktop player modes. On MiSTer and inline Ghostty, the View menu offers Original and Zoom without reopening the stream. Audio and Subtitles remain visible with an unavailable message. Picture mode resets to Original when the channel is reopened.
+Select a channel with B or Enter to tune it immediately. A stops the stream and returns to the channels list with the same channel selected. If playback ends or fails, the browser also returns to the channels list. Live TV works with both desktop player modes. On MiSTer and inline Ghostty, the View menu offers Original and Zoom without reopening the stream. Subtitles offers locally decoded closed captions when available. Live audio-track selection remains unavailable. Picture mode resets to Original when the channel is reopened.
 
 The client posts the C device profile to `/Items/{id}/PlaybackInfo`, requests automatic tuner opening, and uses the returned transcode URL and session identifiers. The profile requests progressive MPEG-2/MP3 transport streams rather than direct tuner playback. The client removes the incompatible MPEG-2 level hints, matching the C workaround, and preserves the other negotiated parameters. Session reports include the media source and tuner identifiers with seeking disabled. Channels start live and never write movie resume or watched state.
 
@@ -146,7 +146,7 @@ MPlayer signals its first presented frame immediately so the loading label clear
 
 Build the player against Bullseye’s glibc 2.31 toolchain, as specified by the Dockerfile. The tested MiSTer has glibc 2.31. An older saved artifact required glibc 2.35 and could not start. Rebuild the image from this Dockerfile before producing a replacement artifact.
 
-Subtitle and audio-track selection, Original picture mode, and Zoom are implemented as described in [GO_TRACKS.md](GO_TRACKS.md). Complete DDR/interlaced integration and additional hardware layouts remain pending. Existing browsing, seeking, overlays, and music have been confirmed on the maintainer’s CRT. The maintainer also confirmed the new subtitle and audio-track selection works in testing. See GO_TRACKS.md for validation details.
+Recorded-video subtitle and audio-track selection, Live TV closed captions, Original picture mode, and Zoom are implemented as described in [GO_TRACKS.md](GO_TRACKS.md). Complete DDR/interlaced integration and additional hardware layouts remain pending. Existing browsing, seeking, overlays, and music have been confirmed on the maintainer’s CRT. The maintainer also confirmed the new subtitle and audio-track selection works in testing. See GO_TRACKS.md for validation details.
 
 ## Rendering architecture
 

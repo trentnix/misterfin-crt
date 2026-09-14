@@ -14,12 +14,13 @@ import (
 // to terminal output or error messages.
 type positionWriter struct {
 	mu           sync.Mutex
-	pending      string
+	pending      []byte
 	positions    chan float64
 	levels       chan AudioLevels
 	buffering    chan bool
 	videoStarted chan struct{}
 	pictures     chan PictureResult
+	captions     chan string
 }
 
 // Write accepts concurrent decoder stdout and stderr writes. It retains partial
@@ -30,8 +31,12 @@ func (p *positionWriter) Write(data []byte) (int, error) {
 	defer p.mu.Unlock()
 	for _, b := range data {
 		if b == '\r' || b == '\n' {
-			line := strings.TrimSpace(p.pending)
-			p.pending = ""
+			line := strings.TrimSpace(string(p.pending))
+			p.pending = p.pending[:0]
+			if text, ok := parseCaption(line); ok {
+				publishCaption(p.captions, text)
+				continue
+			}
 			if strings.HasPrefix(line, "ANS_PICTURE_MODE=") {
 				var request, mode int
 				if n, err := fmt.Sscanf(line, "ANS_PICTURE_MODE=%d,%d", &request, &mode); n == 2 && err == nil && request > 0 && mode >= -1 && mode <= 1 {
@@ -90,7 +95,7 @@ func (p *positionWriter) Write(data []byte) (int, error) {
 				}
 			}
 		} else if len(p.pending) < 8192 {
-			p.pending += string(b)
+			p.pending = append(p.pending, b)
 		}
 	}
 	return len(data), nil

@@ -102,6 +102,18 @@ class MPV:
             levels.append(value)
         return levels
 
+    def caption_text(self, handle):
+        """Read decoded caption text without letting libmpv draw it into video."""
+        node = Node()
+        if self.property(handle, b"sub-text", 6, C.byref(node)) < 0:
+            return ""
+        try:
+            if node.format == 1 and node.u.string:
+                return node.u.string.decode("utf-8", errors="replace")
+            return ""
+        finally:
+            self.free_node(C.byref(node))
+
     def send(self, handle, *args):
         values = (C.c_char_p * (len(args) + 1))(*(arg.encode() for arg in args), None)
         return self.command(handle, values)
@@ -148,7 +160,7 @@ def set_picture(mpv, handle, mode):
     return mpv.send(handle, "set", "video-zoom", f"{math.log2(factor):.9f}") >= 0
 
 
-def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False, status=False, audio_levels=False, zoom_4_3=False):
+def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False, status=False, audio_levels=False, zoom_4_3=False, captions=False):
     mpv = MPV()
     handle = mpv.create()
     if not handle:
@@ -214,6 +226,10 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
         if audio_only and mpv.option(handle, b"vid", b"no") < 0:
             raise RuntimeError("cannot disable video")
         meter_enabled = audio_only and audio_levels and mpv.option(handle, b"af", b"@music:lavfi=[astats=metadata=1:reset=1:measure_perchannel=RMS_level:measure_overall=none]") >= 0
+        if captions and not audio_only:
+            for key, value in {"sub-create-cc-track": "yes", "sub-visibility": "no", "sid": "1"}.items():
+                if mpv.option(handle, key.encode(), value.encode()) < 0:
+                    raise RuntimeError("cannot enable closed-caption extraction")
         if mpv.initialize(handle) < 0:
             raise RuntimeError("cannot initialize libmpv")
         if not audio_only:
@@ -225,6 +241,7 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
             previous[sig] = signal.signal(sig, lambda *_: stop.set())
         if mpv.send(handle, "loadfile", source, "replace") < 0:
             raise RuntimeError("cannot open media pipe")
+        last_caption = None
         next_levels = 0.0
         next_report = 0.0
         control_buffer = b""
@@ -262,6 +279,14 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                 if end.reason == 4 or end.error < 0:
                     raise RuntimeError("video decoding failed")
                 break
+            if captions and not audio_only:
+                text = mpv.caption_text(handle)
+                if text != last_caption:
+                    # Send screen snapshots, including clears. The shared UI
+                    # decides whether to show them. Bound each UTF-8 payload.
+                    encoded = text.encode("utf-8")[:2048].decode("utf-8", errors="ignore").encode("utf-8")
+                    print("ANS_CAPTION_TEXT=" + encoded.hex(), flush=True)
+                    last_caption = text
             now = time.monotonic()
             if meter_enabled and now >= next_levels:
                 left, right = mpv.audio_levels(handle)
@@ -301,6 +326,7 @@ def main():
     parser.add_argument("--audio-only", action="store_true")
     parser.add_argument("--audio-levels", action="store_true")
     parser.add_argument("--zoom-4-3", action="store_true")
+    parser.add_argument("--captions", action="store_true", help="publish embedded CC text for the shared overlay")
     parser.add_argument("--source", default="fd://3")
     parser.add_argument("--controls", action="store_true")
     parser.add_argument("--status", action="store_true")
@@ -319,7 +345,7 @@ def main():
         source = urlparse(args.source)
         if not args.audio_only or source.scheme != "http" or source.hostname != "127.0.0.1" or source.username or source.password or source.query or source.fragment:
             parser.error("--source must identify the local audio proxy")
-    play(args.output, args.width, args.height, args.audio, args.audio_only, args.source, args.controls, args.status, args.audio_levels, args.zoom_4_3)
+    play(args.output, args.width, args.height, args.audio, args.audio_only, args.source, args.controls, args.status, args.audio_levels, args.zoom_4_3, args.captions)
 
 
 if __name__ == "__main__":

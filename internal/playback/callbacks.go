@@ -11,6 +11,9 @@ type Callbacks struct {
 	TrackInfo func(VideoTracks)
 	// Subtitle reports completion of an asynchronous text selection.
 	Subtitle func(SubtitleResult)
+	// Caption receives the latest decoded live caption screen. Empty text clears it.
+	// The video decoder controls timing. Text is independent of UI selection.
+	Caption func(string)
 	// Picture reports the decoder's acknowledgment of a live mode change.
 	Picture func(PictureResult)
 	// Levels receives disposable stereo audio levels on the playback loop.

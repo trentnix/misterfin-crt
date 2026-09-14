@@ -51,6 +51,9 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 	if prepared {
 		request.Tracks = &tracks
 	}
+	request.Callbacks.Caption = func(text string) {
+		d.send(PlaybackEvent{Kind: PlaybackCaption, ID: id, Caption: text})
+	}
 	request.Callbacks.Picture = func(result playback.PictureResult) {
 		d.send(PlaybackEvent{Kind: PlaybackPicture, ID: id, Picture: result})
 	}

@@ -18,6 +18,7 @@ type PlaybackController struct {
 	tracks          playback.VideoTracks
 	trackOptions    playback.TrackOptions
 	picker          trackPicker
+	captions        captionState
 	subtitleDelay   time.Duration
 	subtitleRequest int
 	subtitleLoading bool
@@ -63,6 +64,7 @@ func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused boo
 	c.tracks = playback.VideoTracks{TrackOptions: playback.TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
 	c.trackOptions = c.tracks.TrackOptions
 	c.picker = trackPicker{}
+	c.captions = captionState{}
 	c.pictureRequest = 0
 	c.picturePending = false
 	c.subtitleDelay = 0

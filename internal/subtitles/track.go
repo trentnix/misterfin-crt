@@ -55,14 +55,7 @@ func Parse(data []byte) (*Track, error) {
 		for i++; i < len(lines) && strings.TrimSpace(lines[i]) != ""; i++ {
 			body = append(body, lines[i])
 		}
-		value := strings.Join(body, "\n")
-		value = breaks.ReplaceAllString(value, "\n")
-		value = markup.ReplaceAllString(value, "")
-		value = strings.NewReplacer(`\N`, "\n", `\n`, "\n", `\h`, " ").Replace(value)
-		value = strings.TrimSpace(html.UnescapeString(value))
-		if runes := []rune(value); len(runes) > 2048 {
-			value = string(runes[:2048])
-		}
+		value := PlainText(strings.Join(body, "\n"))
 		if start >= 0 && end > start && value != "" {
 			t.cues = append(t.cues, Cue{start, end, value})
 		}
@@ -98,4 +91,17 @@ func (t *Track) At(ticks int64) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// PlainText removes SubRip markup and ASS styling while preserving line breaks.
+// Output is limited to 2,048 runes for the shared subtitle and caption overlay.
+func PlainText(value string) string {
+	value = breaks.ReplaceAllString(value, "\n")
+	value = markup.ReplaceAllString(value, "")
+	value = strings.NewReplacer(`\N`, "\n", `\n`, "\n", `\h`, " ").Replace(value)
+	value = strings.TrimSpace(html.UnescapeString(value))
+	if runes := []rune(value); len(runes) > 2048 {
+		value = string(runes[:2048])
+	}
+	return value
 }

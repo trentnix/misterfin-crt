@@ -151,17 +151,19 @@ class BrowseIntegrationTests(unittest.TestCase):
             player.write_text("#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf 'ANS_TIME_POSITION=3\\n'\n")
         player.chmod(0o700)
         player_args = ["-player", str(player)]
-        if self._testMethodName in ("test_inline_playback_owns_frame_until_stop", "test_video_track_selection", "test_video_picture_selection", "test_video_choices_survive_stop_and_app_restart", "test_view_back_returns_to_clean_video"):
+        if self._testMethodName in ("test_inline_playback_owns_frame_until_stop", "test_video_track_selection", "test_video_picture_selection", "test_video_choices_survive_stop_and_app_restart", "test_view_back_returns_to_clean_video", "test_live_captions_toggle_without_retuning"):
             player.write_text("import argparse, pathlib, select, sys, time\n"
                               "p=argparse.ArgumentParser()\n"
                               "p.add_argument('--controls',action='store_true')\n"
                               "p.add_argument('--status',action='store_true')\n"
                               "p.add_argument('--zoom-4-3',action='store_true')\n"
+                              "p.add_argument('--captions',action='store_true')\n"
                               "for name in ('output','width','height'): p.add_argument('--'+name)\n"
                               "a=p.parse_args()\n"
                               "with (pathlib.Path(a.output).parent/'picture-modes').open('a') as log: log.write(str(a.zoom_4_3)+'\\n')\n"
                               "pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
                               "print('ANS_TIME_POSITION=2',flush=True)\n"
+                              "if a.captions: print('ANS_CAPTION_TEXT='+b'Live caption text'.hex(),flush=True)\n"
                               "deadline=time.monotonic()+30\n"
                               "while time.monotonic()<deadline:\n"
                               " if not select.select([sys.stdin],[],[],.05)[0]: continue\n"
@@ -758,6 +760,33 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertNotIn("SortBy", params)
         self.assertFalse(any(parse_qs(urlparse(r).query).get("ParentId") == ["view-live-tv"]
                              for r in self.requests))
+
+    def test_live_captions_toggle_without_retuning(self):
+        self.key(b"\x1b[C\x1b[C\x1b[Cb")
+        self.wait_request("/LiveTv/Channels", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Videos/channel-2-1/stream.ts")
+        clean = bytes([23]) * 640 * 240 * 4
+        deadline = time.monotonic() + 3
+        while self.read_frame() != clean:
+            self.assertLess(time.monotonic(), deadline, "clean video did not appear")
+            time.sleep(.02)
+        self.key(b"\t\x1b[Bb")  # Enable live captions.
+        deadline = time.monotonic() + 3
+        while True:
+            frame = self.read_frame()
+            if frame[:120*640*4] == clean[:120*640*4] and frame != clean:
+                break
+            self.assertLess(time.monotonic(), deadline, "caption overlay did not appear")
+            time.sleep(.02)
+        self.key(b"\t\x1b[Ab")  # Off clears the shared overlay.
+        deadline = time.monotonic() + 3
+        while self.read_frame() != clean:
+            self.assertLess(time.monotonic(), deadline, "caption overlay did not clear")
+            time.sleep(.02)
+        self.assertEqual(sum(urlparse(r).path == "/Videos/channel-2-1/stream.ts" for r in self.requests), 1)
+        self.assertFalse(any(path == "/LiveStreams/Close" for path, _ in self.reports))
+        self.key(b"a")
 
     def test_live_tv_playback_releases_tuner(self):
         self.key(b"\x1b[C\x1b[C\x1b[Cb")

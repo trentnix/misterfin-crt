@@ -1,0 +1,51 @@
+--- a/libmpcodecs/vd_ffmpeg.c
++++ b/libmpcodecs/vd_ffmpeg.c
+@@ -54,6 +54,7 @@
+ LIBVD_EXTERN(ffmpeg)
+ 
+ #include "libavcodec/avcodec.h"
++#include "misterfin_captions.h"
+ 
+ #ifndef AV_EF_COMPLIANT
+ #define AV_EF_COMPLIANT 0
+@@ -77,6 +78,7 @@
+ 
+ typedef struct {
+     AVCodecContext *avctx;
++    struct mf_captions captions;
+     AVFrame *pic;
+     AVFrame *refcount_frame;
+     enum AVPixelFormat pix_fmt;
+@@ -127,6 +129,7 @@
+ static char *lavc_param_skip_idct_str = NULL;
+ static char *lavc_param_skip_frame_str = NULL;
+ static int lavc_param_threads=1;
++static int lavc_param_captions;
+ static int lavc_param_bitexact=0;
+ static char *lavc_avopt = NULL;
+ static enum AVDiscard skip_idct;
+@@ -138,6 +141,7 @@
+ };
+ 
+ const m_option_t lavc_decode_opts_conf[]={
++    {"misterfin-captions", &lavc_param_captions, CONF_TYPE_FLAG, 0, 0, 1, NULL},
+     {"bug"           , &lavc_param_workaround_bugs      , CONF_TYPE_INT     , CONF_RANGE, -1, 999999, NULL},
+     {"er"            , &lavc_param_error_resilience     , CONF_TYPE_INT     , CONF_RANGE, 0, 99, NULL},
+     {"gray"          , &lavc_param_gray                 , CONF_TYPE_FLAG    , 0, 0, AV_CODEC_FLAG_GRAY, NULL},
+@@ -503,6 +507,7 @@
+ // uninit driver
+ static void uninit(sh_video_t *sh){
+     vd_ffmpeg_ctx *ctx = sh->context;
++    avcodec_free_context(&ctx->captions.decoder);
+     AVCodecContext *avctx = ctx->avctx;
+ 
+     if (ctx->refcount_frame) {
+@@ -937,6 +942,8 @@
+         got_picture = ret >= 0;
+         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) ret = 0;
+     }
++    if (got_picture && lavc_param_captions)
++        mf_caption_frame(&ctx->captions, pic);
+     ctx->refcount_frame = pic;
+     pkt.data = NULL;
+     pkt.size = 0;

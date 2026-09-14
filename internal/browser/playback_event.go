@@ -8,6 +8,7 @@ import (
 
 // PlaybackEvent carries decoder feedback without browser navigation or artwork.
 type PlaybackEvent struct {
+	Caption  string // Latest live caption screen. Empty clears the preceding screen.
 	Picture  playback.PictureResult
 	Tracks   playback.VideoTracks
 	Subtitle playback.SubtitleResult
@@ -35,6 +36,7 @@ const (
 	PlaybackTrackInfo
 	PlaybackSubtitle
 	PlaybackPicture
+	PlaybackCaption
 )
 
 // Handle applies feedback from a tracked decoder. It returns true only when the
@@ -99,6 +101,11 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 			return false
 		}
 		switch event.Kind {
+		case PlaybackCaption:
+			if !c.stoppedByUser {
+				c.captions.available = true
+				c.captions.text = event.Caption
+			}
 		case PlaybackVideoStarted:
 			if !c.state.VideoStarted && c.state.PlayingVideo {
 				c.state.VideoStarted = true

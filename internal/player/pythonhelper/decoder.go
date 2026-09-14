@@ -47,6 +47,9 @@ func (d Decoder) Args(item jellyfin.Item, source string) []string {
 		}
 	} else {
 		args = []string{d.Script, "--controls", "--status", "--output", d.Output, "--width", strconv.Itoa(d.Width), "--height", strconv.Itoa(d.Height)}
+		if jellyfin.IsLive(item) {
+			args = append(args, "--captions")
+		}
 		if d.Picture.Zooms(item) {
 			args = append(args, "--zoom-4-3")
 		}

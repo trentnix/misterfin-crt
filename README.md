@@ -32,7 +32,27 @@ Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Conn
 
 Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
-Controller bindings and button labels are [configurable](docs/GO_INPUT.md). The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Music backgrounds and meters are also [configurable](docs/GO_MUSIC.md). [Navigation sounds](docs/GO_SOUNDS.md) have configurable volume and can be turned off.
+The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls.
+
+## Configuration
+
+Optional configuration files live beside `jellyfin.conf`. On MiSTer, that directory is `/media/fat/misterfin-crt`. Copy an example below, rename it, and edit the copy. Restart the application after changing settings. Missing files use the defaults.
+
+| File | Settings | Example and guide |
+| --- | --- | --- |
+| `sounds.json` | Navigation and selection sounds. Enabled by default at volume 10 out of 100. | [Example](sounds.example.json) · [Guide](docs/GO_SOUNDS.md) |
+| `input.json` | Controller bindings and button labels. | [Example](input.json.example) · [Guide](docs/GO_INPUT.md) |
+| `music.json` | Music backgrounds, custom images and animations, and stereo level meters. | [Example](music.example.json) · [Guide](docs/GO_MUSIC.md) |
+
+To turn off navigation sounds, create `sounds.json` containing:
+
+```json
+{"enabled": false}
+```
+
+Sound settings affect browsing feedback only. They do not change music or video volume. Each guide also describes how to select a different configuration path.
+
+`MISTERFIN_CACHE_ROOT` changes where artwork and carousel collages are cached. Go stores them under `misterfin-crt` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
 
 ## Local development and testing
 

@@ -26,6 +26,7 @@ type playerProcess struct {
 	buffering    chan bool
 	videoStarted chan struct{}
 	pictures     chan PictureResult
+	captions     chan string
 	done         chan error
 	copyDone     chan struct{}
 }
@@ -52,7 +53,8 @@ func startProcess(ctx context.Context, executable string, args []string, source 
 	p.videoStarted = make(chan struct{}, 1)
 	p.levels = make(chan AudioLevels, 1)
 	p.pictures = make(chan PictureResult, 16)
-	output := &positionWriter{levels: p.levels, positions: p.positions, buffering: p.buffering, videoStarted: p.videoStarted, pictures: p.pictures}
+	p.captions = make(chan string, 1)
+	output := &positionWriter{levels: p.levels, positions: p.positions, buffering: p.buffering, videoStarted: p.videoStarted, pictures: p.pictures, captions: p.captions}
 	cmd.Stdout, cmd.Stderr = output, output
 	p.commands, err = cmd.StdinPipe()
 	if err != nil {

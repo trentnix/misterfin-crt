@@ -36,12 +36,15 @@ COPY vo_fbdev.c /build/vo_fbdev.c
 COPY vo_fbdev_go.patch /build/vo_fbdev_go.patch
 COPY mplayer_go.patch /build/mplayer_go.patch
 COPY mplayer_picture.patch /build/mplayer_picture.patch
+COPY mplayer_captions.patch /build/mplayer_captions.patch
+COPY misterfin_captions.h /build/misterfin_captions.h
 COPY vf_misterfin.c /build/vf_misterfin.c
 COPY font8x8.h /build/font8x8.h
 # Apply playback timing changes only in this private Go player build.
 RUN patch -p2 < /build/vo_fbdev_go.patch \
     && sed -i '/^cd MPlayer-/a patch -p1 < /build/mplayer_go.patch' /build/build-mplayer.sh \
     && sed -i '/^cd MPlayer-/a cp /build/vf_misterfin.c libmpcodecs/\npatch -p1 < /build/mplayer_picture.patch' /build/build-mplayer.sh \
+    && sed -i '/^cd MPlayer-/a cp /build/misterfin_captions.h libmpcodecs/\npatch -p1 < /build/mplayer_captions.patch' /build/build-mplayer.sh \
     && chmod +x /build/build-mplayer.sh
 
 CMD ["/build/build-mplayer.sh"]

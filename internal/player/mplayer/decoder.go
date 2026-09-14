@@ -60,10 +60,12 @@ func (d Decoder) Args(item jellyfin.Item, source string) []string {
 	// Match the C player's audio-clock correction. Recorded video smooths ALSA
 	// delay measurements. Live TV reacts sooner to broadcast timing changes.
 	autosync := "30"
+	decodeOptions := "threads=2:fast"
 	if jellyfin.IsLive(item) {
 		autosync = "1"
+		decodeOptions += ":misterfin-captions"
 	}
-	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + d.Device, "-ao", "alsa", "-osdlevel", "0", "-framedrop", "-autosync", autosync, "-demuxer", "lavf", "-cache", "8192", "-cache-min", "20", "-sws", "0", "-vf", filter, "-lavdopts", "threads=2:fast", "-af", "volume=-3", source}
+	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + d.Device, "-ao", "alsa", "-osdlevel", "0", "-framedrop", "-autosync", autosync, "-demuxer", "lavf", "-cache", "8192", "-cache-min", "20", "-sws", "0", "-vf", filter, "-lavdopts", decodeOptions, "-af", "volume=-3", source}
 }
 
 // Pause sends MPlayer's toggle command. The paused argument is not encoded.

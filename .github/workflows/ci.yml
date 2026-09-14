@@ -29,7 +29,7 @@ jobs:
       - name: Install playback test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg libmpv-dev
+          sudo apt-get install -y --no-install-recommends ffmpeg libmpv-dev libavcodec-dev libavutil-dev
       - name: Build host client
         run: make host
       - name: Check Go code

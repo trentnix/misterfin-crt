@@ -1,6 +1,6 @@
 # Video options
 
-Recorded movies, episodes, videos, and music videos support subtitles, audio-track selection, and picture modes. Press SELECT during playback to open Options. The default keyboard key is Tab. The Xbox default is View/Back. The playback controls show the configured button label for recorded video and Live TV. Music does not use this picker. Live TV supports picture changes on MiSTer and inline Ghostty. Its Audio and Subtitles tabs explain that selection is unavailable.
+Recorded movies, episodes, videos, and music videos support subtitles, audio-track selection, and picture modes. Press SELECT during playback to open Options. The default keyboard key is Tab. The Xbox default is View/Back. The playback controls show the configured button label for recorded video and Live TV. Music does not use this picker. Live TV supports picture changes on MiSTer and inline Ghostty. Its Subtitles tab offers Off and Closed captions when the decoder reports caption data. Live audio-track selection remains unavailable.
 
 ## Controls
 
@@ -54,6 +54,20 @@ While the Subtitles tab is open with client-rendered text selected, LT/RT or J/L
 
 Subtitle cues use absolute source times. Position feedback anchors a short interpolated clock between decoder reports. Pause freezes that clock. Seeking suppresses the old cue until the replacement reports its position. Downloaded text survives a seek or audio change, avoiding another extraction request.
 
+## Live TV closed captions
+
+On MiSTer and inline Ghostty, open View → Subtitles and choose Closed captions. Off hides captions immediately. Enabling captions displays the most recent decoded text without reloading the channel, changing audio, or disturbing the picture mode. A new channel starts with captions Off. Caption updates do not open or dismiss menus. The shared overlay places caption text above the playback controls and keeps its normal size when the picture is zoomed.
+
+This implementation targets the primary EIA-608 compatibility captions carried in ATSC A53 video data. It does not provide full CEA-708 service selection, caption language selection, or the original broadcast fonts, colors, and positioning. Channels without reported caption data retain Off with an explanatory message. The separate-window FFplay adapter does not export caption text to the shared overlay.
+
+The private MPlayer build uses FFmpeg's existing EIA-608 decoder on the A53 side data attached to reordered video frames. No second video decoder, extraction process, or additional Jellyfin request runs. Real-time caption decoding emits complete screen updates and clear events. The libmpv helper reads its decoded subtitle text while keeping libmpv subtitle drawing disabled. Both paths deliver text to the existing Go subtitle overlay.
+
+MPlayer exports hex-encoded ASS text through `ANS_CAPTION_ASS`. The libmpv helper exports hex-encoded plain UTF-8 through `ANS_CAPTION_TEXT`. Go bounds and validates each payload, removes styling where needed, and keeps the latest complete screen when updates arrive faster than the playback loop can consume them. Empty text clears the screen. Decoder generation checks reject updates from a stopped or replaced channel. Status parsing reuses its byte buffer to avoid per-byte string allocations.
+
+MiSTer requires the matching caption-enabled `mplayer-arm` and Go executable. [mplayer_captions.patch](../docker/mplayer_captions.patch) connects frame decoding to [misterfin_captions.h](../docker/misterfin_captions.h) in the private player build. Rebuild the player with [Dockerfile.misterfin-crt](../docker/Dockerfile.misterfin-crt) and deploy both binaries together.
+
+Synthetic-caption tests cover native FFmpeg decoding, libmpv extraction, clear events, UTF-8 and malformed status data, menu state, and channel reset. A browser integration test checks that enabling and disabling captions changes the shared overlay without reopening the stream. An isolated MiSTer test decoded caption text and clear events from the captured channel 2.1 transcode with null video and audio output. The maintainer confirmed that live captions work well on the deployed MiSTer build.
+
 ## Audio changes and subtitle burn-in
 
 Changing audio requests a new transcode at the current playback position. Image-based subtitles, including PGS and VobSub, use Jellyfin's `subtitleMethod=Encode`. Changing or disabling a burned-in subtitle also replaces the stream. Unknown subtitle codecs use this fallback.
@@ -68,7 +82,7 @@ Starting an item from its details screen restores its saved selections after val
 
 `jellyfin.MediaStream` and `MediaSource` describe server indexes and source identity. Playback details request `MediaSources` in addition to ordinary detail fields. Subtitle extraction uses the authenticated `/Videos/{item}/{source}/Subtitles/{index}/Stream.srt` endpoint. Stream replacement adds `audioStreamIndex`, `subtitleStreamIndex`, and, for burn-in, `subtitleMethod=Encode` to the existing transcode query.
 
-`playback.VideoTracks` publishes immutable metadata through the decoder event bridge. `subtitleLoader` owns request cancellation and rejects obsolete results. `subtitles.Track` parses and indexes bounded cue data. `PlaybackController` owns picker navigation, selection intent, and subtitle timing. Its snapshot supplies `TrackMenu` and the current subtitle string to `RasterRenderer`. The existing output backends present the finished overlay. No framebuffer or MPlayer protocol change is required.
+`playback.VideoTracks` publishes immutable metadata through the decoder event bridge. `subtitleLoader` owns request cancellation and rejects obsolete results. `subtitles.Track` parses and indexes bounded cue data. `PlaybackController` owns picker navigation, selection intent, and subtitle timing. Its snapshot supplies `TrackMenu` and the current subtitle string to `RasterRenderer`. The existing output backends present the finished overlay. Recorded-video track selection requires no framebuffer change. Live captions use the additional player feedback described above.
 
 ## Validation
 
@@ -78,4 +92,4 @@ Persistence tests cover immediate reopen, application restart, restart from the 
 
 The maintainer's Jellyfin server returned Akira's alternate audio and PGS tracks. A real SubRip export from another movie parsed into 1,819 cues. Those server checks establish metadata and text extraction. The maintainer subsequently confirmed that subtitle and audio-track selection works in testing. That confirmation covers the tested setup and media, not every subtitle format or source.
 
-Live TV regression tests cover repeated picture changes within one decoder session, a single tuner negotiation and release, unavailable-track tabs, and continued exclusion of video seeking. The configured Jellyfin server reported one audio stream with index -1 and no subtitle streams for KACV-HD and Ant TV. Those responses do not provide selectable tracks and do not establish whether the original broadcasts contain alternate audio or embedded captions. Live audio switching and broadcast-caption delivery remain unimplemented. These checks do not establish track availability on other channels. The maintainer confirmed that the deployed Live TV picture changes work well on MiSTer.
+Live TV regression tests cover repeated picture changes within one decoder session, a single tuner negotiation and release, unavailable-track tabs, and continued exclusion of video seeking. The configured Jellyfin server reported one audio stream with index -1 and no subtitle streams for KACV-HD and Ant TV. Those responses do not provide selectable tracks and do not establish whether the original broadcasts contain alternate audio or embedded captions. Live audio switching remains unimplemented. Broadcast captions are decoded from the video frames as described above. These checks do not establish track availability on other channels. The maintainer confirmed that the deployed Live TV picture changes work well on MiSTer.

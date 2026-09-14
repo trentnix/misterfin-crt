@@ -26,10 +26,24 @@ class VideoTests(unittest.TestCase):
             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "3",
             "-c:v", "mpeg2video", "-c:a", "mp3", "-f", "mpegts", "pipe:1"])
 
-    def start(self, directory, height, status=False, zoom=False):
+    def test_closed_captions_are_exported_without_drawing_into_video(self):
+        with tempfile.TemporaryDirectory() as directory:
+            process, output = self.start(directory, 240, captions=True)
+            stdout, stderr = process.communicate(caption_clip(), timeout=12)
+            self.assertEqual(process.returncode, 0, stderr)
+            captions = [bytes.fromhex(line.split(b"=")[1].decode()).decode() for line in stdout.splitlines() if line.startswith(b"ANS_CAPTION_TEXT=")]
+            self.assertIn("HELLO", captions)
+            self.assertEqual(captions[-1], "")
+            # The clean video is uniformly blue. Go owns all caption pixels.
+            frame = output.read_bytes()
+            pixels = [frame[i:i+3] for i in range(0, len(frame), 4) if frame[i] > 100]
+            self.assertTrue(pixels)
+            self.assertTrue(all(p[1] < 40 and p[2] < 40 for p in pixels))
+
+    def start(self, directory, height, status=False, zoom=False, captions=False):
         output = Path(directory) / "frame.raw"
         process = subprocess.Popen([sys.executable, "-c", BOOTSTRAP, str(HELPER),
-                                    "--output", str(output), "--height", str(height), "--audio", "null"] + (["--status"] if status else []) + (["--zoom-4-3"] if zoom else []),
+                                    "--output", str(output), "--height", str(height), "--audio", "null"] + (["--status"] if status else []) + (["--zoom-4-3"] if zoom else []) + (["--captions"] if captions else []),
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.addCleanup(self.reap, process)
         return process, output
@@ -351,3 +365,33 @@ class VideoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+def caption_clip():
+    """Create a blue MPEG-2 clip with synthetic HELLO and erase commands."""
+    video = subprocess.check_output([
+        "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=25",
+        "-t", "4", "-c:v", "mpeg2video", "-bf", "0", "-g", "1",
+        "-f", "mpeg2video", "pipe:1"])
+
+    def parity(value):
+        # EIA-608 pairs carry odd parity in their high bit.
+        return value | ((value.bit_count() % 2 ^ 1) << 7)
+
+    def packet(pairs):
+        data = b"".join(bytes([0xfc, parity(a), parity(b)]) for a, b in pairs)
+        return b"\x00\x00\x01\xb2GA94\x03" + bytes([0x40 | len(pairs), 0xff]) + data + b"\xff"
+
+    show = packet([(0x14, 0x20), (0x14, 0x2e), (0x14, 0x60),
+                   (72, 69), (76, 76), (79, 32), (0x14, 0x2f)])
+    clear = packet([(0x14, 0x2c)])
+    picture_start = b"\x00\x00\x01\x00"
+    parts = video.split(picture_start)
+    for frame, command in ((10, show), (60, clear)):
+        # Put caption user data before the picture's first slice. No B frames
+        # are used, so the selected frame numbers also give display order.
+        start = parts[frame].find(b"\x00\x00\x01\x01")
+        assert start >= 0
+        parts[frame] = parts[frame][:start] + command + parts[frame][start:]
+    return picture_start.join(parts)

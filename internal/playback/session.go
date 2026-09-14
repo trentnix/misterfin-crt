@@ -175,6 +175,10 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 	videoStarted := p.videoStarted
 	for {
 		select {
+		case text := <-p.captions:
+			if s.liveTV && request.Callbacks.Caption != nil {
+				request.Callbacks.Caption(text)
+			}
 		case result := <-p.pictures:
 			if result.Err == nil {
 				s.tracks.Picture = result.Mode

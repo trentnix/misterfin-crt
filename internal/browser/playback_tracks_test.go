@@ -108,11 +108,17 @@ func TestPickerBackAndLiveTV(t *testing.T) {
 	}
 	for tab := 0; tab < 2; tab++ {
 		f.c.Key("down", f.now)
-		f.c.Key("open", f.now)
 		p := f.c.Snapshot(f.now)
-		if p.Tracks == nil || len(p.Tracks.Rows) != 0 || p.Tracks.Message == "" || len(f.calls) != 1 || len(f.c.controls) != 0 {
-			t.Fatal("unavailable Live TV tracks changed playback or lacked an explanation")
+		if p.Tracks == nil || len(p.Tracks.Rows) != 1-tab || p.Tracks.Message == "" {
+			t.Fatal("unavailable Live TV tracks lacked an explanation")
 		}
+		f.c.Key("open", f.now)
+		if len(f.calls) != 1 || len(f.c.controls) != 0 {
+			t.Fatal("unavailable Live TV tracks changed playback")
+		}
+		if tab == 0 {
+			f.c.Key("select", f.now)
+		} // Off dismissed the picker.
 		f.c.Key("next", f.now)
 	}
 	// FFplay cannot change picture mode in place. Live TV must not fall back
