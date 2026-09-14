@@ -22,7 +22,7 @@ func TestOriginalAndZoomGeometry(t *testing.T) {
 	wide := jellyfin.Item{Type: "Movie", MediaStreams: []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: "16:9"}}}
 	for _, height := range []int{240, 288, 480, 576} {
 		for _, mode := range []PictureMode{PictureOriginal, PictureZoom43} {
-			d, err := selectDecoder(Options{Width: 640, Height: height, Tracks: &TrackOptions{Picture: mode}}, wide)
+			d, err := selectDecoder(Config{Width: 640, Height: height}, wide, mode)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -41,14 +41,13 @@ func TestZoomAcrossDecodersAndNarrowPictures(t *testing.T) {
 		zoom   bool
 	}{{"16:9", true}, {"235:100", true}, {"4:3", false}, {"1:1", false}} {
 		item := jellyfin.Item{Type: "Episode", MediaStreams: []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: tc.aspect}}}
-		for _, options := range []Options{
+		for _, options := range []Config{
 
 			{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}},
 			{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 240, FrameOutput: "frame"},
 		} {
 			for _, mode := range []PictureMode{PictureOriginal, PictureZoom43} {
-				options.Tracks = &TrackOptions{Picture: mode}
-				d, err := selectDecoder(options, item)
+				d, err := selectDecoder(options, item, mode)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -68,7 +67,7 @@ func TestZoomAcrossDecodersAndNarrowPictures(t *testing.T) {
 }
 
 func TestInvalidPictureModeRejected(t *testing.T) {
-	_, err := videoTracks(jellyfin.Item{}, Options{Tracks: &TrackOptions{Picture: PictureMode(99)}})
+	_, err := videoTracks(jellyfin.Item{}, trackPreparation{explicit: &TrackOptions{Picture: PictureMode(99)}, clientSubtitles: true})
 	if err == nil {
 		t.Fatal("invalid picture mode accepted")
 	}
@@ -93,7 +92,7 @@ func TestNativePictureProtocolAndAcknowledgments(t *testing.T) {
 }
 
 func TestInlinePictureUsesLiveControlProtocol(t *testing.T) {
-	d, err := selectDecoder(Options{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, jellyfin.Item{Type: "Movie"})
+	d, err := selectDecoder(Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, jellyfin.Item{Type: "Movie"}, PictureOriginal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +144,7 @@ func TestNativePictureRequestStaysInCurrentSession(t *testing.T) {
 	preferences := NewPreferences(t.TempDir())
 	defer preferences.Close()
 	go func() {
-		done <- Run(ctx, client, jellyfin.Item{ID: "film", Type: "Movie"}, Options{Preferences: preferences, Width: 640, Height: 240, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Controls: controls, TrackInfo: func(v VideoTracks) { info <- v }, Picture: func(v PictureResult) { pictures <- v }}, func(p int64) { positions <- p })
+		done <- Run(ctx, client, Config{Preferences: preferences, Width: 640, Height: 240, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}}, Request{Item: jellyfin.Item{ID: "film", Type: "Movie"}, Controls: controls, Callbacks: Callbacks{TrackInfo: func(v VideoTracks) { info <- v }, Picture: func(v PictureResult) { pictures <- v }, Position: func(p int64) { positions <- p }}})
 	}()
 	select {
 	case v := <-info:

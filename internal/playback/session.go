@@ -11,6 +11,7 @@ import (
 // playbackSession owns one Jellyfin play session. Its loop updates decoder
 // state and queues snapshots to progressReporter without waiting for HTTP.
 type playbackSession struct {
+	meter           *audioMeter // Borrowed from Run, which closes it after decoder cleanup.
 	tracks          VideoTracks
 	client          *jellyfin.Client
 	item            jellyfin.Item
@@ -35,19 +36,19 @@ func (s *playbackSession) rememberChoices() {
 
 // finish follows decoder, output, and source cleanup. Stop/save and tuner
 // release remain ordered, but an explicit handoff lets them outlive Run.
-func (s *playbackSession) finish(failed bool, o Options) bool {
-	reportFailed := s.reporter.finish(s.state, s.started, s.played, failed, o.AsyncCleanup)
+func (s *playbackSession) finish(failed bool, async <-chan struct{}, cleanupDone func()) bool {
+	reportFailed := s.reporter.finish(s.state, s.started, s.played, failed, async)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		<-s.reporter.done
 		s.closeLive()
-		if o.CleanupDone != nil {
-			o.CleanupDone()
+		if cleanupDone != nil {
+			cleanupDone()
 		}
 	}()
 	select {
-	case <-o.AsyncCleanup:
+	case <-async:
 	case <-done:
 	}
 	return reportFailed
@@ -72,7 +73,9 @@ func (s *playbackSession) update(seconds float64, position func(int64), startup 
 	if !s.liveTV && s.item.RunTimeTicks > 0 {
 		s.state.PositionTicks = min(s.state.PositionTicks, s.item.RunTimeTicks)
 	}
-	position(s.state.PositionTicks)
+	if position != nil {
+		position(s.state.PositionTicks)
+	}
 	if !s.started {
 		s.started = true
 		startup.Stop()
@@ -89,13 +92,13 @@ func (s *playbackSession) report(save bool) {
 	}
 }
 
-func (s *playbackSession) control(p *playerProcess, o Options, control Control, startup *time.Timer) {
+func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control Control, startup *time.Timer) {
 	switch control.Kind {
 	case "picture":
 		setter, ok := p.decoder.(pictureSetter)
 		if !ok || s.liveTV || s.item.Type == "Audio" || control.Picture > PictureZoom43 || setter.setPicture(p.control, control.Picture, control.Request) != nil {
-			if o.Picture != nil {
-				o.Picture(PictureResult{Request: control.Request, Err: errors.New("cannot change picture mode")})
+			if callbacks.Picture != nil {
+				callbacks.Picture(PictureResult{Request: control.Request, Err: errors.New("cannot change picture mode")})
 			}
 		}
 	case "pause":
@@ -111,8 +114,8 @@ func (s *playbackSession) control(p *playerProcess, o Options, control Control, 
 				startup.Reset(30 * time.Second)
 			}
 		}
-		if o.Paused != nil {
-			o.Paused(paused)
+		if callbacks.Paused != nil {
+			callbacks.Paused(paused)
 		}
 		s.report(false)
 	case "seek":
@@ -128,8 +131,8 @@ func (s *playbackSession) control(p *playerProcess, o Options, control Control, 
 		} else {
 			p.poll()
 		}
-		if err != nil && o.ControlError != nil {
-			o.ControlError(err)
+		if err != nil && callbacks.ControlError != nil {
+			callbacks.ControlError(err)
 		}
 	case "refresh":
 		if s.state.IsPaused {
@@ -140,7 +143,7 @@ func (s *playbackSession) control(p *playerProcess, o Options, control Control, 
 
 // monitor consumes process completion exactly once. Cancellation and startup
 // timeout terminate and reap the decoder before returning to Run's cleanup.
-func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc, p *playerProcess, o Options, position func(int64)) error {
+func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc, p *playerProcess, request Request) error {
 	poll := time.NewTicker(time.Second)
 	defer poll.Stop()
 	report := time.NewTicker(10 * time.Second)
@@ -149,7 +152,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 	defer startup.Stop()
 	var audioTimer *time.Ticker
 	var audioTick <-chan time.Time
-	if o.audioExport != "" {
+	if s.meter != nil {
 		audioTimer = time.NewTicker(50 * time.Millisecond)
 		audioTick = audioTimer.C
 		defer audioTimer.Stop()
@@ -161,7 +164,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 			loader.start(ctx, s.client, s.item.ID, s.tracks.SourceID, sub.Index, 0)
 		}
 	}
-	controls := o.Controls
+	controls := request.Controls
 	videoStarted := p.videoStarted
 	for {
 		select {
@@ -170,8 +173,8 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 				s.tracks.Picture = result.Mode
 				s.rememberChoices()
 			}
-			if o.Picture != nil {
-				o.Picture(result)
+			if request.Callbacks.Picture != nil {
+				request.Callbacks.Picture(result)
 			}
 		case result := <-loader.results:
 			if result.serial != loader.serial {
@@ -185,28 +188,28 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 				s.report(false)
 				s.rememberChoices()
 			}
-			if o.Subtitle != nil {
-				o.Subtitle(result)
+			if request.Callbacks.Subtitle != nil {
+				request.Callbacks.Subtitle(result)
 			}
 		case <-audioTick:
 			levels := AudioLevels{}
 			if !s.state.IsPaused {
-				levels = audioExport(o.audioExport)
+				levels = s.meter.levels()
 			}
-			if o.Levels != nil {
-				o.Levels(levels)
+			if request.Callbacks.Levels != nil {
+				request.Callbacks.Levels(levels)
 			}
 		case levels := <-p.levels:
 			if s.state.IsPaused {
 				levels = AudioLevels{}
 			}
-			if o.Levels != nil {
-				o.Levels(levels)
+			if request.Callbacks.Levels != nil {
+				request.Callbacks.Levels(levels)
 			}
 		case <-videoStarted:
 			videoStarted = nil
-			if o.VideoStarted != nil {
-				o.VideoStarted()
+			if request.Callbacks.VideoStarted != nil {
+				request.Callbacks.VideoStarted()
 			}
 		case control, ok := <-controls:
 			if !ok {
@@ -219,14 +222,14 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 					loader.start(ctx, s.client, s.item.ID, s.tracks.SourceID, control.Index, control.Request)
 				}
 			} else {
-				s.control(p, o, control, startup)
+				s.control(p, request.Callbacks, control, startup)
 			}
 		case waiting := <-p.buffering:
-			if o.Buffering != nil {
-				o.Buffering(waiting)
+			if request.Callbacks.Buffering != nil {
+				request.Callbacks.Buffering(waiting)
 			}
 		case seconds := <-p.positions:
-			s.update(seconds, position, startup)
+			s.update(seconds, request.Callbacks.Position, startup)
 		case <-poll.C:
 			p.poll()
 		case <-report.C:
@@ -241,7 +244,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 			return nil
 		case err := <-p.done:
 			// Reap first, then apply all progress already parsed from the final output.
-			s.drain(p, position, startup)
+			s.drain(p, request.Callbacks.Position, startup)
 			if ctx.Err() != nil {
 				return nil
 			}

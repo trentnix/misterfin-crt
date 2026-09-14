@@ -77,7 +77,7 @@ func TestSavedTracksFallBackWhenSourceOrStreamChanges(t *testing.T) {
 				current.Streams[1].Language = "fra"
 				wantSubtitle = -1
 			}
-			got, err := videoTracks(jellyfin.Item{ID: "item", MediaSources: []jellyfin.MediaSource{{ID: current.SourceID, MediaStreams: current.Streams}}}, Options{savedTracks: saved})
+			got, err := videoTracks(jellyfin.Item{ID: "item", MediaSources: []jellyfin.MediaSource{{ID: current.SourceID, MediaStreams: current.Streams}}}, trackPreparation{saved: saved, clientSubtitles: true})
 			if err != nil || got.Picture != PictureZoom43 || got.Selection.AudioIndex != wantAudio || got.Selection.SubtitleIndex != wantSubtitle || got.Text != nil {
 				t.Fatalf("bad saved-track fallback: %+v, %v", got, err)
 			}
@@ -176,7 +176,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	}
 	run := func(p *Preferences, explicit *TrackOptions, start *int64) {
 		t.Helper()
-		err := Run(context.Background(), c, item, Options{Preferences: p, Tracks: explicit, StartTicks: start, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, func(int64) {})
+		err := Run(context.Background(), c, Config{Preferences: p, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, Request{Item: item, Tracks: explicit, StartTicks: start, Callbacks: Callbacks{Position: func(int64) {}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -193,8 +193,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	// its explicit defaults over the choices used by the preceding decoder.
 	ctx, cancel := context.WithCancel(context.Background())
 	defaults := TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
-	if err := Run(ctx, c, item, Options{Preferences: p, Tracks: &defaults, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240,
-		Start: make(chan struct{}), Ready: cancel}, func(int64) {}); err != nil {
+	if err := Run(ctx, c, Config{Preferences: p, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, Request{Item: item, Tracks: &defaults, Start: make(chan struct{}), Callbacks: Callbacks{Ready: cancel, Position: func(int64) {}}}); err != nil {
 		t.Fatal(err)
 	}
 	cancel()

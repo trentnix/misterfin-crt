@@ -40,7 +40,7 @@ type browserSession struct {
 // newBrowserSession wires state, decoding, and frame pacing without starting
 // network requests. The caller must cancel ctx before calling close. The caller
 // retains ownership of output and renderer, which must not be used concurrently.
-func newBrowserSession(ctx context.Context, config Config, player playback.Options, output videoout.Output, renderer Renderer) *browserSession {
+func newBrowserSession(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer) *browserSession {
 	s := &browserSession{
 		ctx: ctx, config: config,
 		model: New(), output: output, renderer: renderer, geometry: output.Geometry(),
@@ -49,7 +49,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Optio
 		selection: selectionState{cancel: func() {}},
 		media:     mediaNavigation{cancel: func() {}},
 	}
-	s.driver = playbackDriver{ctx: ctx, options: player, output: output, events: make(chan PlaybackEvent, 16)}
+	s.driver = playbackDriver{ctx: ctx, config: player, output: output, events: make(chan PlaybackEvent, 16)}
 	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
 		return s.driver.launch(s.client, item, offset, gate, prepared, controls, tracks)
 	})

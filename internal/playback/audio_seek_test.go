@@ -43,7 +43,7 @@ func TestOnlyStartedAudioAcceptsDirectSeek(t *testing.T) {
 		p := &playerProcess{decoder: mplayerDecoder{}, control: decoderControl{stdin: &commands}}
 		s := playbackSession{item: jellyfin.Item{Type: kind}, started: true, state: jellyfin.PlayState{IsPaused: true}}
 		timer := time.NewTimer(time.Hour)
-		s.control(p, Options{}, Control{Kind: "seek", Seconds: 10}, timer)
+		s.control(p, Callbacks{}, Control{Kind: "seek", Seconds: 10}, timer)
 		timer.Stop()
 		if strings.Contains(commands.String(), "seek") != (kind == "Audio") || !s.state.IsPaused {
 			t.Fatal("direct seek changed unsupported media or pause state")
@@ -53,7 +53,7 @@ func TestOnlyStartedAudioAcceptsDirectSeek(t *testing.T) {
 	var notice error
 	timer := time.NewTimer(time.Hour)
 	defer timer.Stop()
-	s.control(&playerProcess{decoder: ffplayDecoder{}}, Options{ControlError: func(err error) { notice = err }}, Control{Kind: "seek", Seconds: 10}, timer)
+	s.control(&playerProcess{decoder: ffplayDecoder{}}, Callbacks{ControlError: func(err error) { notice = err }}, Control{Kind: "seek", Seconds: 10}, timer)
 	if notice == nil {
 		t.Fatal("unsupported seek failed silently")
 	}

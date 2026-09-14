@@ -36,7 +36,7 @@ func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
 			}
 			// Interlaced scanout must use physical geometry, not logical UI height.
 			g := platform.Geometry{Width: 640, Height: 240, OutputWidth: 640, OutputHeight: 480}
-			got := decoderOptions(o, g)
+			got := playbackConfig(o, g)
 			if got.VideoDecoder != tc.video || got.AudioDecoder != tc.audio || got.FrameOutput != tc.frames {
 				t.Fatalf("video=%+v audio=%+v frames=%q", got.VideoDecoder, got.AudioDecoder, got.FrameOutput)
 			}

@@ -27,7 +27,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 	if err != nil {
 		return err
 	}
-	player := decoderOptions(o, d.Geometry())
+	player := playbackConfig(o, d.Geometry())
 	var video videoout.Output = companion.New(d)
 	if o.terminalPlayer != "" {
 		video = framefile.New(d, player.FrameOutput)
@@ -56,14 +56,14 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 	return browser.Run(ctx, config, player, video, browser.NewRenderer(), keys)
 }
 
-// decoderOptions resolves command-line helper precedence once. Playback receives
+// playbackConfig resolves command-line helper precedence once. Playback receives
 // explicit audio and video protocols, with no knowledge of the selected display.
-func decoderOptions(o launchOptions, g platform.Geometry) playback.Options {
+func playbackConfig(o launchOptions, g platform.Geometry) playback.Config {
 	decoder := playback.DecoderConfig{Kind: playback.DecoderMPlayer, Player: o.player}
 	if o.headless != "" {
 		decoder.Kind = playback.DecoderFFplay
 	}
-	player := playback.Options{
+	player := playback.Config{
 		VideoDecoder: decoder, AudioDecoder: decoder,
 		Device: o.device, Width: g.OutputWidth, Height: g.OutputHeight,
 	}

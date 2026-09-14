@@ -68,3 +68,9 @@ func (d pythonDecoder) setPicture(c decoderControl, mode PictureMode, request in
 }
 
 func (d pythonDecoder) clientSubtitles() bool { return true }
+
+// withAudioLevels requests status-pipe feedback. Python needs no export file.
+func (d pythonDecoder) withAudioLevels() (decoder, *audioMeter) {
+	d.levels = true
+	return d, nil
+}

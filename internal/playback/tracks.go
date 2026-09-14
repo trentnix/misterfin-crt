@@ -51,8 +51,8 @@ func (t VideoTracks) Stream(kind string, index int) (jellyfin.MediaStream, bool)
 	return jellyfin.MediaStream{}, false
 }
 
-func videoTracks(item jellyfin.Item, o Options) (VideoTracks, error) {
-	t := VideoTracks{SourceID: item.ID, Streams: item.MediaStreams, ClientSubtitles: !o.burnText, TrackOptions: TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
+func videoTracks(item jellyfin.Item, choices trackPreparation) (VideoTracks, error) {
+	t := VideoTracks{SourceID: item.ID, Streams: item.MediaStreams, ClientSubtitles: choices.clientSubtitles, TrackOptions: TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
 	if len(item.MediaSources) > 0 {
 		t.SourceID = item.MediaSources[0].ID
 		if len(item.MediaSources[0].MediaStreams) > 0 {
@@ -62,12 +62,12 @@ func videoTracks(item jellyfin.Item, o Options) (VideoTracks, error) {
 	if len(t.Streams) > 256 {
 		return t, errors.New("too many media streams")
 	}
-	if o.savedTracks != nil {
-		t.TrackOptions = o.savedTracks.restore(t)
-	} else if o.Tracks != nil {
-		t.TrackOptions = *o.Tracks
+	if choices.saved != nil {
+		t.TrackOptions = choices.saved.restore(t)
+	} else if choices.explicit != nil {
+		t.TrackOptions = *choices.explicit
 	}
-	t.LivePicture = o.livePicture
+	t.LivePicture = choices.livePicture
 	if t.Picture != PictureOriginal && t.Picture != PictureZoom43 {
 		return t, errors.New("unsupported picture mode")
 	}

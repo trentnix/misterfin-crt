@@ -148,12 +148,12 @@ func runLifecycle(t *testing.T, player string, headless bool, mode string, clip 
 		decoderKind = DecoderFFplay
 	}
 	sawPosition := false
-	err := Run(ctx, client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{VideoDecoder: DecoderConfig{Kind: decoderKind, Player: player}, AudioDecoder: DecoderConfig{Kind: decoderKind, Player: player}, Device: "/dev/fb0", Width: 640, Height: 240}, func(int64) {
+	err := Run(ctx, client, Config{VideoDecoder: DecoderConfig{Kind: decoderKind, Player: player}, AudioDecoder: DecoderConfig{Kind: decoderKind, Player: player}, Device: "/dev/fb0", Width: 640, Height: 240}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {
 		sawPosition = true
 		if mode == "cancel" {
 			cancel()
 		}
-	})
+	}}})
 	if mode == "failure" {
 		if err == nil {
 			t.Fatal("missing player failure")
@@ -223,7 +223,7 @@ func TestCancelBeforeStreamHeadersStillStopsSession(t *testing.T) {
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
-		result <- Run(ctx, client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: path}}, func(int64) {})
+		result <- Run(ctx, client, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: path}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {}}})
 	}()
 	select {
 	case <-requested:
@@ -299,14 +299,14 @@ func TestLivePlayerLifecycle(t *testing.T) {
 			c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{Token: "private"})
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			err := Run(ctx, c, jellyfin.Item{ID: "channel", Type: "TvChannel"}, Options{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, func(ticks int64) {
+			err := Run(ctx, c, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "channel", Type: "TvChannel"}, Callbacks: Callbacks{Position: func(ticks int64) {
 				if ticks != 30000000 {
 					t.Errorf("channel position clamped or resumed: %d", ticks)
 				}
 				if mode == "cancel" {
 					cancel()
 				}
-			})
+			}}})
 			wantFailure := strings.HasSuffix(mode, "failure")
 			if (err != nil) != wantFailure {
 				t.Fatalf("unexpected result: %v", err)
@@ -395,7 +395,7 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 	controls := make(chan Control, 4)
 	first, paused, resumed, advanced := true, false, false, false
 	seekStage := 0
-	err = Run(ctx, c, jellyfin.Item{ID: "track", Type: "Audio"}, Options{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: wrapper}, Controls: controls, Paused: func(value bool) {
+	err = Run(ctx, c, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: wrapper}}, Request{Item: jellyfin.Item{ID: "track", Type: "Audio"}, Controls: controls, Callbacks: Callbacks{Paused: func(value bool) {
 		if value {
 			paused = true
 			seekStage = 1
@@ -403,7 +403,7 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 		} else {
 			resumed = true
 		}
-	}}, func(ticks int64) {
+	}, Position: func(ticks int64) {
 		if first {
 			first = false
 			controls <- Control{Kind: "pause"}
@@ -421,7 +421,7 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 			advanced = true
 			cancel()
 		}
-	})
+	}}})
 	if err != nil || !paused || !resumed || !advanced || seekStage != 3 {
 		t.Fatalf("audio controls failed: pause=%v resume=%v advanced=%v error=%v", paused, resumed, advanced, err)
 	}
@@ -480,10 +480,7 @@ func TestVideoStartedDoesNotWaitForPosition(t *testing.T) {
 	done := make(chan error, 1)
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
 	go func() {
-		done <- Run(ctx, client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{
-			VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240,
-			VideoStarted: func() { started <- struct{}{} },
-		}, func(ticks int64) { positions <- ticks })
+		done <- Run(ctx, client, Config{VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{VideoStarted: func() { started <- struct{}{} }, Position: func(ticks int64) { positions <- ticks }}})
 	}()
 	select {
 	case <-started:
@@ -528,7 +525,7 @@ func TestExplicitVideoStartOverridesServerResume(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			var got int64
-			err := Run(ctx, c, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, StartTicks: &tc.target}, func(ticks int64) { got = ticks; cancel() })
+			err := Run(ctx, c, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, StartTicks: &tc.target, Callbacks: Callbacks{Position: func(ticks int64) { got = ticks; cancel() }}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -570,9 +567,7 @@ func TestPreparedPlaybackWaitsAtStartGate(t *testing.T) {
 	ready := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(context.Background(), client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{
-			VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, Start: gate, Ready: func() { close(ready) },
-		}, func(int64) {})
+		done <- Run(context.Background(), client, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Start: gate, Callbacks: Callbacks{Ready: func() { close(ready) }, Position: func(int64) {}}})
 	}()
 	select {
 	case <-ready:
@@ -622,9 +617,7 @@ func TestAsyncCleanupDoesNotDelayPlaybackReturn(t *testing.T) {
 	close(fast)
 	returned := make(chan error, 1)
 	go func() {
-		returned <- Run(context.Background(), client, jellyfin.Item{ID: "movie", Type: "Movie"}, Options{
-			VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AsyncCleanup: fast,
-		}, func(int64) {})
+		returned <- Run(context.Background(), client, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, AsyncCleanup: fast, Callbacks: Callbacks{Position: func(int64) {}}})
 	}()
 	select {
 	case err := <-returned:

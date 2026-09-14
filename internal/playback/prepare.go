@@ -9,7 +9,8 @@ import (
 
 // preparePlayback resolves metadata, resume position, and Live TV negotiation.
 // A nil session with no error means preparation was canceled.
-func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options) (*playbackSession, error) {
+func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, request Request, choices trackPreparation) (*playbackSession, error) {
+	item := request.Item
 	liveTV := jellyfin.IsLive(item)
 	item, err := c.PlaybackDetails(ctx, item.ID)
 	if err != nil {
@@ -33,19 +34,19 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 	if item.UserData.Played || liveTV || item.Type == "Audio" {
 		start = 0
 	}
-	if o.StartTicks != nil && !liveTV && item.Type != "Audio" {
-		start = max(int64(0), *o.StartTicks)
+	if request.StartTicks != nil && !liveTV && item.Type != "Audio" {
+		start = max(int64(0), *request.StartTicks)
 		if item.RunTimeTicks > 0 {
 			start = min(start, max(int64(0), item.RunTimeTicks-10000000))
 		}
 	}
-	streamURL := c.VideoStreamURL(item.ID, session, start, o.Height == 240 || o.Height == 480)
+	streamURL := c.VideoStreamURL(item.ID, session, start, config.Height == 240 || config.Height == 480)
 	if item.Type == "Audio" {
 		streamURL = c.AudioStreamURL(item.ID, session)
 	}
 	var tracks VideoTracks
 	if !liveTV && item.Type != "Audio" {
-		tracks, err = videoTracks(item, o)
+		tracks, err = videoTracks(item, choices)
 		if err != nil {
 			return nil, err
 		}
@@ -56,11 +57,11 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 			burn = sub.Index
 			tracks.Text = nil
 		}
-		streamURL = c.SelectedVideoURL(item.ID, session, start, o.Height == 240 || o.Height == 480, tracks.SourceID, tracks.Selection, burn)
+		streamURL = c.SelectedVideoURL(item.ID, session, start, config.Height == 240 || config.Height == 480, tracks.SourceID, tracks.Selection, burn)
 	}
 	var live jellyfin.LivePlayback
 	if liveTV {
-		live, err = c.OpenLive(ctx, item.ID, o.Height == 240 || o.Height == 480)
+		live, err = c.OpenLive(ctx, item.ID, config.Height == 240 || config.Height == 480)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, nil
@@ -91,6 +92,6 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, item jellyfin.Item
 	return &playbackSession{
 		client: c, item: item, start: start, streamURL: streamURL,
 		live: live, liveTV: liveTV, state: state, played: item.UserData.Played, tracks: tracks,
-		preferences: o.Preferences, preferenceKey: preferenceKey(c, item.ID),
+		preferences: config.Preferences, preferenceKey: preferenceKey(c, item.ID),
 	}, nil
 }

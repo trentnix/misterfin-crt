@@ -85,3 +85,13 @@ func (d mplayerDecoder) seek(c decoderControl, seconds int) error {
 }
 
 func (d mplayerDecoder) clientSubtitles() bool { return true }
+
+// withAudioLevels gives this launch its own export file without changing the
+// caller's decoder settings. Failure keeps playback available without meters.
+func (d mplayerDecoder) withAudioLevels() (decoder, *audioMeter) {
+	meter := newAudioMeter()
+	if meter != nil {
+		d.export = meter.path
+	}
+	return d, meter
+}

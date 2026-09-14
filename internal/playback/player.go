@@ -4,7 +4,6 @@ package playback
 import (
 	"context"
 	"errors"
-	"os"
 
 	"misterfin-crt/internal/jellyfin"
 )
@@ -13,65 +12,43 @@ import (
 // runs the decoder. Teardown reaps the decoder and stops stream copying before
 // releasing video output, closing the source, and reporting the final position.
 //
-// The position callback must be non-nil. It receives absolute Jellyfin positions
-// in 100-nanosecond ticks synchronously on Run's goroutine and must return promptly.
-// Canceling ctx stops preparation or playback. Cancellation during preparation or
-// monitoring returns nil. Setup errors can still be returned during cancellation.
-// With Options.AsyncCleanup enabled, final reporting and tuner release may outlive Run.
+// Canceling ctx stops preparation or playback. Cancellation during preparation
+// or monitoring returns nil. Setup errors can still be returned during cancellation.
+// With Request.AsyncCleanup enabled, reporting and tuner release may outlive Run.
 // Returned errors exclude stream URLs and raw decoder diagnostics.
-func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options, position func(int64)) (resultErr error) {
+func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request) (resultErr error) {
 	cleanupOwned := false
 	defer func() {
-		if !cleanupOwned && o.CleanupDone != nil {
-			o.CleanupDone()
+		if !cleanupOwned && request.Callbacks.CleanupDone != nil {
+			request.Callbacks.CleanupDone()
 		}
 	}()
-	if o.Preferences != nil && o.Tracks == nil && item.Type != "Audio" && !jellyfin.IsLive(item) {
-		o.savedTracks = o.Preferences.load(preferenceKey(c, item.ID))
-		if o.savedTracks != nil {
-			// Resolve the decoder with the remembered picture mode. Stream
-			// indexes are validated against refreshed metadata during preparation.
-			o.Tracks = &TrackOptions{Picture: o.savedTracks.Picture}
-		}
-	}
-	decoder, executable, err := resolveDecoder(o, item)
+	choices := prepareTrackChoices(c, config, request)
+	decoder, executable, err := resolveDecoder(config, request.Item, choices.picture())
 	if err != nil {
 		return err
 	}
-	if item.Type == "Audio" && o.Levels != nil {
-		switch d := decoder.(type) {
-		case mplayerDecoder:
-			file, e := os.CreateTemp("", "misterfin-crt-audio-*")
-			if e == nil {
-				o.audioExport = file.Name()
-				file.Close()
-				defer os.Remove(o.audioExport)
-				d.export = o.audioExport
-				decoder = d
-			}
-		case pythonDecoder:
-			d.levels = true
-			decoder = d
-		}
-	}
-	o.burnText = !decoder.clientSubtitles()
-	_, o.livePicture = decoder.(pictureSetter)
-	session, err := preparePlayback(ctx, c, item, o)
+	decoder, meter := configureAudioLevels(decoder, request.Item.Type == "Audio" && request.Callbacks.Levels != nil)
+	defer meter.close()
+	choices.clientSubtitles = decoder.clientSubtitles()
+	_, choices.livePicture = decoder.(pictureSetter)
+	session, err := preparePlayback(ctx, c, config, request, choices)
 	if err != nil || session == nil {
 		return err
 	}
 	mediaCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	session.meter = meter
 	session.reporter = newProgressReporter(ctx, c, session.liveTV)
 	cleanupOwned = true
 	defer func() {
-		failed := session.finish(resultErr != nil, o)
+		failed := session.finish(resultErr != nil, request.AsyncCleanup, request.Callbacks.CleanupDone)
 		if resultErr == nil && ctx.Err() == nil && failed {
 			resultErr = errors.New("playback ended, but Jellyfin progress reporting failed")
 		}
 	}()
-	if o.TrackInfo != nil && !session.liveTV && session.item.Type != "Audio" {
-		o.TrackInfo(session.tracks)
+	if request.Callbacks.TrackInfo != nil && !session.liveTV && session.item.Type != "Audio" {
+		request.Callbacks.TrackInfo(session.tracks)
 	}
 	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.input(session.item))
 	if err != nil {
@@ -81,12 +58,12 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 		return err
 	}
 	defer source.close()
-	if o.Ready != nil {
-		o.Ready()
+	if request.Callbacks.Ready != nil {
+		request.Callbacks.Ready()
 	}
-	if o.Start != nil {
+	if request.Start != nil {
 		select {
-		case <-o.Start:
+		case <-request.Start:
 		case <-ctx.Done():
 			return nil
 		}
@@ -95,13 +72,13 @@ func Run(ctx context.Context, c *jellyfin.Client, item jellyfin.Item, o Options,
 	if err != nil {
 		return err
 	}
-	if session.item.Type != "Audio" && o.AcquireVideo != nil {
-		o.AcquireVideo()
-		if o.ReleaseVideo != nil {
-			defer o.ReleaseVideo()
+	if session.item.Type != "Audio" && request.Callbacks.AcquireVideo != nil {
+		request.Callbacks.AcquireVideo()
+		if request.Callbacks.ReleaseVideo != nil {
+			defer request.Callbacks.ReleaseVideo()
 		}
 	}
 	process.feed()
 	defer func() { cancel(); process.close() }()
-	return session.monitor(ctx, cancel, process, o, position)
+	return session.monitor(ctx, cancel, process, request)
 }

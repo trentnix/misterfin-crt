@@ -14,7 +14,7 @@ const (
 	DecoderPython
 )
 
-// DecoderConfig selects one audio or video decoder through [Options]. Run checks
+// DecoderConfig selects one audio or video decoder through [Config]. Run checks
 // only the configuration for the requested media type. The zero value selects
 // mplayer-arm at its default installation path.
 type DecoderConfig struct {

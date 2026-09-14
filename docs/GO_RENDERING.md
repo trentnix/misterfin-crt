@@ -68,7 +68,7 @@ For browsing, photos, and music, each backend presents `UI` through its internal
 
 The lock file remains in place across decoder lifetimes so both processes always use the same inode. The Go client and its patched MPlayer must both implement this handoff.
 
-The native driver emits `ANS_VIDEO_STARTED=true` once after writing its first frame. `positionWriter` passes that signal through `Options.VideoStarted` to the browser's `PlaybackVideoStarted` event. The controller clears loading immediately without waiting for MPlayer's one-second position poll or inventing a position. Decoders without this signal retain the existing position-based fallback. First-frame state resets for every replacement decoder, and stale decoder events cannot clear loading for its replacement.
+The native driver emits `ANS_VIDEO_STARTED=true` once after writing its first frame. `positionWriter` passes that signal through `Callbacks.VideoStarted` to the browser's `PlaybackVideoStarted` event. The controller clears loading immediately without waiting for MPlayer's one-second position poll or inventing a position. Decoders without this signal retain the existing position-based fallback. First-frame state resets for every replacement decoder, and stale decoder events cannot clear loading for its replacement.
 
 `Clear` discards stale playback output before a new item and after playback ends. The application creates the backend once and closes it before closing the underlying display. Backends accept `platform.Presenter`, which exposes only geometry and presentation. `platform.Display` adds `Close` for the application that owns the device. A new presenter can therefore implement pixel delivery without pretending to own display resources. The browser does not select a display path per frame.
 
@@ -185,7 +185,11 @@ The query fields, endpoints, redirect policy, and authentication fallback order 
 
 ## External player ownership
 
-[`playback.Run`](../internal/playback/player.go) shows the complete decoder lifecycle. It selects a decoder from [player options](../internal/playback/options.go), locates the executable, [prepares playback](../internal/playback/prepare.go), opens the source, waits for the controller’s start gate, and starts monitoring the process.
+[`playback.Run`](../internal/playback/player.go) shows the complete decoder lifecycle. It selects a decoder from [reusable configuration](../internal/playback/config.go), locates the executable, [prepares playback](../internal/playback/prepare.go), opens the source, waits for the controller’s start gate, and starts monitoring the process.
+
+Startup creates one [`playback.Config`](../internal/playback/config.go) containing decoder settings, output geometry and paths, and the shared preferences store. [`playbackDriver`](../internal/browser/playback_driver.go) creates a fresh [`playback.Request`](../internal/playback/request.go) for each item or replacement decoder. The request carries the item, track choices, start position, control channels, and [`Callbacks`](../internal/playback/callbacks.go). `Run` reads both values without modifying them. A nil track selection restores that item's saved preferences. A replacement supplies the controller's current choices explicitly.
+
+[`trackPreparation`](../internal/playback/track_preparation.go) holds saved choices and decoder capabilities while metadata is being resolved. Preparation state stays private to one invocation rather than accumulating in the reusable configuration.
 
 - [`mediaSource`](../internal/playback/media_source.go) owns the authenticated stream or local audio proxy.
 - [`playerProcess`](../internal/playback/process.go) owns process lifetime, pipes, stream copying, and decoder feedback channels. It delegates pause, polling, and refresh to the selected decoder.
@@ -200,7 +204,9 @@ The private `decoder` interface separates executable protocols from process and 
 - [`decoder_ffplay.go`](../internal/playback/decoder_ffplay.go): FFplay arguments and process-group pause/resume signals.
 - [`decoder_python.go`](../internal/playback/decoder_python.go): Python helper arguments, explicit pause/resume commands, and the clean video frame destination.
 
-`Options.VideoDecoder` and `Options.AudioDecoder` hold independently selected `DecoderConfig` values. Startup resolves executable overrides and helper precedence. Playback validates the selected protocol and converts it into one implementation before session preparation. The playback package has no `Headless` setting.
+`Config.VideoDecoder` and `Config.AudioDecoder` hold independently selected `DecoderConfig` values. Startup resolves executable overrides and helper precedence. Playback validates the selected protocol and converts it into one implementation before session preparation. The playback package has no `Headless` setting.
+
+Audio feedback is optional. Decoders implement `levelConfigurer` to enable their transport for one request. MPlayer creates an [`audioMeter`](../internal/playback/audio_meter.go) export file. `Run` removes the file after decoder cleanup, including when preparation fails. The Python helper reports levels through its status pipe and allocates no export file.
 
 The shared lifecycle retains source authentication, startup gating, cancellation, feedback, and Jellyfin reporting. MPlayer and the Python helper use a local range-capable proxy for audio. Other streams use file descriptor 3.
 
@@ -210,11 +216,11 @@ Polling remains once per second. MPlayer sends a position query. FFplay and the 
 
 The playback loop reaps the decoder before returning. Cleanup then cancels media work, stops stream copying, releases video output, closes the source, and finalizes reporting. Live TV closes its negotiated stream afterward. Stop and seek handoffs allow final reporting and tuner release to continue asynchronously. The browser returns to navigation after local decoder cleanup, without waiting for server requests. Reporting uses a copy of the completed session state. Normal completion retains synchronous cleanup.
 
-`Options.CleanupDone` sends a generation-tagged event after reporting and tuner release finish. When the stopped session is still current, the browser refreshes Continue Watching and the visible item's details. Older cleanup cannot alter a newer playback session. Reopening the same video before its resume save completes uses the last locally reported position. An explicit restart still takes precedence. The playback driver tracks detached cleanup, and application shutdown waits for those bounded requests to finish rather than discarding an outstanding resume save.
+`Callbacks.CleanupDone` sends a generation-tagged event after reporting and tuner release finish. When the stopped session is still current, the browser refreshes Continue Watching and the visible item's details. Older cleanup cannot alter a newer playback session. Reopening the same video before its resume save completes uses the last locally reported position. An explicit restart still takes precedence. The playback driver tracks detached cleanup, and application shutdown waits for those bounded requests to finish rather than discarding an outstanding resume save.
 
 ## Progress reporting ownership
 
-`progressReporter` performs Jellyfin reporting outside the decoder monitoring loop. The loop queues copied state after the first position, every ten seconds, and after a successful pause/resume command. Controls, position feedback, buffering feedback, and decoder completion do not wait for those HTTP requests. Playback callbacks run on the playback loop. `CleanupDone` runs on a cleanup goroutine and returns its result through the browser's event channel.
+`progressReporter` performs Jellyfin reporting outside the decoder monitoring loop. The loop queues copied state after the first position, every ten seconds, and after a successful pause/resume command. Controls, position feedback, buffering feedback, and decoder completion do not wait for those HTTP requests. Playback callbacks run on the playback loop. `CleanupDone` runs on the finalization worker once a session exists and sends completion through the browser's event channel. `Run` waits for that worker unless asynchronous cleanup is enabled. Preparation failures invoke the callback before returning.
 
 The worker retains an initial start/progress job and at most one pending progress job. New progress replaces stale pending progress, including superseded pause state. Coalescing preserves a pending request to save resume data and uses the newest position and watched state. Start and stop are not coalesced. A short mutex protects the mailbox, and a buffered notification wakes the single worker. Network requests never hold the mailbox lock.
 

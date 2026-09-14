@@ -23,7 +23,7 @@ import (
 // Cancellation and user exit stop pending work and wait for tracked decoders
 // and detached server cleanup. The caller must cancel and join its input reader,
 // then close output after Run returns.
-func Run(ctx context.Context, config Config, player playback.Options, output videoout.Output, renderer Renderer, keys <-chan control.Event) error {
+func Run(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer, keys <-chan control.Event) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	s := newBrowserSession(ctx, config, player, output, renderer)

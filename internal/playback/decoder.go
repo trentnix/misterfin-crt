@@ -64,17 +64,13 @@ func Supported(item jellyfin.Item) bool {
 
 // selectDecoder validates the selected protocol without opening a process or
 // making network requests. Audio and video settings are resolved by the caller.
-func selectDecoder(o Options, item jellyfin.Item) (decoder, error) {
+func selectDecoder(o Config, item jellyfin.Item, picture PictureMode) (decoder, error) {
 	if !Supported(item) {
 		return nil, errors.New("playback for this item type is not implemented")
 	}
 	config := o.VideoDecoder
 	if item.Type == "Audio" {
 		config = o.AudioDecoder
-	}
-	picture := PictureOriginal
-	if o.Tracks != nil {
-		picture = o.Tracks.Picture
 	}
 	switch config.Kind {
 	case DecoderMPlayer:
@@ -98,8 +94,8 @@ func selectDecoder(o Options, item jellyfin.Item) (decoder, error) {
 }
 
 // resolveDecoder locates the selected executable before playback preparation.
-func resolveDecoder(o Options, item jellyfin.Item) (decoder, string, error) {
-	d, err := selectDecoder(o, item)
+func resolveDecoder(o Config, item jellyfin.Item, picture PictureMode) (decoder, string, error) {
+	d, err := selectDecoder(o, item, picture)
 	if err != nil {
 		return nil, "", err
 	}

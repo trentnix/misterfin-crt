@@ -14,7 +14,7 @@ import (
 // touching browser state. The controller owns the returned process lifecycle.
 type playbackDriver struct {
 	ctx      context.Context
-	options  playback.Options
+	config   playback.Config
 	output   videoout.Output
 	events   chan PlaybackEvent
 	sequence int
@@ -34,8 +34,11 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 	ctx, stop := context.WithCancel(d.ctx)
 	finished := make(chan struct{})
 	cleanup := make(chan struct{})
-	options := d.options
-	options.Levels = func(levels playback.AudioLevels) {
+	request := playback.Request{
+		Item: item, StartTicks: offset, Start: gate,
+		AsyncCleanup: cleanup, Controls: controls,
+	}
+	request.Callbacks.Levels = func(levels playback.AudioLevels) {
 		select {
 		case d.events <- PlaybackEvent{Kind: PlaybackLevels, ID: id, Levels: levels}:
 		default:
@@ -43,44 +46,40 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 	}
 	// New playback restores per-item choices. Replacements carry the current
 	// controller choices so seeking never reloads an older saved selection.
-	options.Tracks = nil
 	if prepared {
-		options.Tracks = &tracks
+		request.Tracks = &tracks
 	}
-	options.Picture = func(result playback.PictureResult) {
+	request.Callbacks.Picture = func(result playback.PictureResult) {
 		d.send(PlaybackEvent{Kind: PlaybackPicture, ID: id, Picture: result})
 	}
-	options.TrackInfo = func(info playback.VideoTracks) { d.send(PlaybackEvent{Kind: PlaybackTrackInfo, ID: id, Tracks: info}) }
-	options.Subtitle = func(result playback.SubtitleResult) {
+	request.Callbacks.TrackInfo = func(info playback.VideoTracks) { d.send(PlaybackEvent{Kind: PlaybackTrackInfo, ID: id, Tracks: info}) }
+	request.Callbacks.Subtitle = func(result playback.SubtitleResult) {
 		d.send(PlaybackEvent{Kind: PlaybackSubtitle, ID: id, Subtitle: result})
 	}
-	options.StartTicks = offset
-	options.Start = gate
-	options.AsyncCleanup = cleanup
 	d.cleanup.Add(1)
-	options.CleanupDone = func() {
+	request.Callbacks.CleanupDone = func() {
 		defer d.cleanup.Done()
 		d.send(PlaybackEvent{Kind: PlaybackCleanupDone, ID: id})
 	}
-	options.Controls = controls
-	options.AcquireVideo = d.output.Acquire
-	options.ReleaseVideo = d.output.Release
-	options.ControlError = func(err error) { d.send(PlaybackEvent{Kind: PlaybackControlFailed, ID: id, Err: err}) }
-	options.Paused = func(paused bool) { d.send(PlaybackEvent{Kind: PlaybackPaused, ID: id, Value: paused}) }
-	options.Buffering = func(waiting bool) { d.send(PlaybackEvent{Kind: PlaybackBuffering, ID: id, Value: waiting}) }
-	options.VideoStarted = func() { d.send(PlaybackEvent{Kind: PlaybackVideoStarted, ID: id}) }
+	request.Callbacks.AcquireVideo = d.output.Acquire
+	request.Callbacks.ReleaseVideo = d.output.Release
+	request.Callbacks.ControlError = func(err error) { d.send(PlaybackEvent{Kind: PlaybackControlFailed, ID: id, Err: err}) }
+	request.Callbacks.Paused = func(paused bool) { d.send(PlaybackEvent{Kind: PlaybackPaused, ID: id, Value: paused}) }
+	request.Callbacks.Buffering = func(waiting bool) { d.send(PlaybackEvent{Kind: PlaybackBuffering, ID: id, Value: waiting}) }
+	request.Callbacks.VideoStarted = func() { d.send(PlaybackEvent{Kind: PlaybackVideoStarted, ID: id}) }
 	if prepared {
-		options.Ready = func() { d.send(PlaybackEvent{Kind: PlaybackPrepared, ID: id}) }
+		request.Callbacks.Ready = func() { d.send(PlaybackEvent{Kind: PlaybackPrepared, ID: id}) }
+	}
+	request.Callbacks.Position = func(ticks int64) {
+		// Progress is disposable. A full queue must not stall the decoder.
+		select {
+		case d.events <- PlaybackEvent{Kind: PlaybackPosition, ID: id, Ticks: ticks}:
+		default:
+		}
 	}
 	go func() {
 		defer close(finished)
-		err := playback.Run(ctx, client, item, options, func(ticks int64) {
-			// Progress is disposable. A full queue must not stall the decoder.
-			select {
-			case d.events <- PlaybackEvent{Kind: PlaybackPosition, ID: id, Ticks: ticks}:
-			default:
-			}
-		})
+		err := playback.Run(ctx, client, d.config, request)
 		d.send(PlaybackEvent{Kind: PlaybackEnded, ID: id, Err: err})
 	}()
 	return playbackProcess{id: id, cancel: stop, done: finished, cleanup: cleanup}
