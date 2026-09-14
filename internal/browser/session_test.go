@@ -14,7 +14,7 @@ func testSession(t *testing.T) *browserSession {
 	f := newControllerFixture(t)
 	s := &browserSession{
 		ctx: context.Background(), model: New(), controller: f.c,
-		events: make(chan result, 16), output: sessionTestOutput{},
+		events: make(chan workerResult, 16), output: sessionTestOutput{},
 		requests:  requestState{cancel: func() {}},
 		selection: selectionState{cancel: func() {}},
 		media:     mediaNavigation{cancel: func() {}},
@@ -59,7 +59,7 @@ func TestSessionCancelRejectsLateNeighbor(t *testing.T) {
 	s.media.pending = true
 	canceled := false
 	s.media.cancel = func() { canceled = true }
-	late := result{kind: neighborResult, mediaGeneration: s.media.generation, item: &jellyfin.Item{ID: "late", Type: "Audio"}}
+	late := neighborResult{generation: s.media.generation, item: &jellyfin.Item{ID: "late", Type: "Audio"}}
 	s.handleKey("back")
 	if !canceled || s.media.pending || len(s.model.Stack) != 1 {
 		t.Fatal("Back did not cancel navigation")
@@ -74,11 +74,11 @@ func TestSessionRejectsStaleAuthAndSelection(t *testing.T) {
 	s.requests.authGeneration = 2
 	s.selection.generation = 3
 	s.status = "current"
-	for _, r := range []result{
-		{kind: authResult, request: Request{Generation: 1}, code: "stale"},
-		{kind: selectionResult, selectionGeneration: 2, update: selectionUpdate{kind: selectionDetails, detail: &jellyfin.Item{ID: "stale"}}},
-		{kind: selectionResult, selectionGeneration: 2, update: selectionUpdate{kind: selectionCount, count: new(int)}},
-		{kind: selectionResult, selectionGeneration: 2, update: selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "cover", total: 1}}},
+	for _, r := range []workerResult{
+		authCodeResult{generation: 1, code: "stale"},
+		selectionResult{generation: 2, update: selectionUpdate{kind: selectionDetails, detail: &jellyfin.Item{ID: "stale"}}},
+		selectionResult{generation: 2, update: selectionUpdate{kind: selectionCount, count: new(int)}},
+		selectionResult{generation: 2, update: selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "cover", total: 1}}},
 	} {
 		if s.handleResult(r) {
 			t.Fatal("stale result requested redraw")
@@ -108,17 +108,18 @@ func setupMusicSession(t *testing.T) *browserSession {
 	return s
 }
 
-func receiveNeighbor(t *testing.T, s *browserSession) result {
+func receiveNeighbor(t *testing.T, s *browserSession) neighborResult {
 	t.Helper()
 	select {
 	case r := <-s.events:
-		if r.kind != neighborResult {
+		neighbor, ok := r.(neighborResult)
+		if !ok {
 			t.Fatalf("unexpected result: %+v", r)
 		}
-		return r
+		return neighbor
 	case <-time.After(time.Second):
 		t.Fatal("neighbor request did not complete")
-		return result{}
+		return neighborResult{}
 	}
 }
 

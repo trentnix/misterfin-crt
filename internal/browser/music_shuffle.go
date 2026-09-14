@@ -39,12 +39,12 @@ func (s *browserSession) fetchShuffle() {
 	s.model.Notice = "Loading shuffle..."
 	go func() {
 		items, err := client.RandomTracks(ctx, library)
-		s.send(ctx, result{kind: shuffleResult, mediaGeneration: generation, page: jellyfin.Page{Items: items}, err: err})
+		s.send(ctx, shuffleResult{generation: generation, page: jellyfin.Page{Items: items}, err: err})
 	}()
 }
 
-func (s *browserSession) handleShuffle(r result) bool {
-	if r.mediaGeneration != s.media.generation {
+func (s *browserSession) handleShuffle(r shuffleResult) bool {
+	if r.generation != s.media.generation {
 		return false
 	}
 	s.media.pending = false
@@ -94,7 +94,7 @@ func (s *browserSession) selectShuffleTrack() {
 	item := s.shuffle.items[s.shuffle.position]
 	if s.controller.running {
 		parent, _ := s.model.Parent()
-		s.media.queued = &result{parent: parent, item: &item}
+		s.media.queued = &mediaSelection{parent: parent, item: item}
 		s.controller.StopForTrackChange()
 		return
 	}

@@ -13,7 +13,7 @@ type requestState struct {
 }
 
 // send delivers worker results unless that request has been canceled.
-func (s *browserSession) send(work context.Context, r result) {
+func (s *browserSession) send(work context.Context, r workerResult) {
 	select {
 	case s.events <- r:
 	case <-work.Done():
@@ -48,11 +48,11 @@ func (s *browserSession) authenticate() {
 			if err == nil {
 				jf = jellyfin.NewClient(c, session)
 				err = jf.Authenticate(work, s.config.StateDir, func(code string) {
-					s.send(work, result{kind: authResult, request: Request{Generation: generation}, code: code})
+					s.send(work, authCodeResult{generation: generation, code: code})
 				})
 			}
 		}
-		s.send(work, result{kind: authResult, request: Request{Generation: generation}, client: jf, err: err})
+		s.send(work, authResult{generation: generation, client: jf, err: err})
 	}()
 }
 
@@ -79,17 +79,23 @@ func (s *browserSession) load(req *Request) {
 		} else {
 			p, err = jf.List(work, req.Location, req.Start, PageSize)
 		}
-		s.send(work, result{request: *req, page: p, err: err})
+		s.send(work, pageResult{request: *req, page: p, err: err})
 	}()
 }
 
-func (s *browserSession) handleAuth(r result) bool {
-	if r.request.Generation != s.requests.authGeneration {
+func (s *browserSession) handleAuthCode(r authCodeResult) bool {
+	if r.generation != s.requests.authGeneration {
 		return false
 	}
-	if r.code != "" {
-		s.status = "Quick Connect: " + r.code + "\nApprove this code in your Jellyfin client. Waiting for sign-in..."
-	} else if r.err != nil {
+	s.status = "Quick Connect: " + r.code + "\nApprove this code in your Jellyfin client. Waiting for sign-in..."
+	return true
+}
+
+func (s *browserSession) handleAuth(r authResult) bool {
+	if r.generation != s.requests.authGeneration {
+		return false
+	}
+	if r.err != nil {
 		s.status = r.err.Error()
 	} else {
 		s.client = r.client
@@ -107,7 +113,7 @@ func (s *browserSession) handleAuth(r result) bool {
 	return true
 }
 
-func (s *browserSession) handlePage(r result) bool {
+func (s *browserSession) handlePage(r pageResult) bool {
 	if r.request.Location.Kind == "views" && r.err == nil {
 		r.page = s.homeLibraries(r.page)
 	}

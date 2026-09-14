@@ -23,7 +23,7 @@ func TestShuffleCancellationPreservesArtists(t *testing.T) {
 		if len(s.model.Stack) != 2 || s.model.Current().Item().ID != "artist" || s.model.MusicQueueActive() || s.shuffle.library != "" {
 			t.Fatalf("cancel playing=%v lost artists: %+v", playing, s.model)
 		}
-		if s.handleShuffle(result{mediaGeneration: 2, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "stale", Type: "Audio"}}}}) {
+		if s.handleShuffle(shuffleResult{generation: 2, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "stale", Type: "Audio"}}}}) {
 			t.Fatal("accepted canceled shuffle")
 		}
 	}
@@ -36,7 +36,7 @@ func TestShuffleRefillAndStopRestoreArtistSelection(t *testing.T) {
 	s.shuffle = shuffleQueue{library: "library", position: -1}
 	s.media.generation = 1
 	one, two := jellyfin.Item{ID: "one", Type: "Audio"}, jellyfin.Item{ID: "two", Type: "Audio"}
-	s.handleShuffle(result{mediaGeneration: 1, page: jellyfin.Page{Items: []jellyfin.Item{one, two}}})
+	s.handleShuffle(shuffleResult{generation: 1, page: jellyfin.Page{Items: []jellyfin.Item{one, two}}})
 	if !s.model.MusicQueueActive() || s.model.Current().Detail.ID != "one" {
 		t.Fatal("shuffle did not start")
 	}
@@ -62,7 +62,7 @@ func TestShuffleFailureLeavesRetryNotice(t *testing.T) {
 	s.controller.running = false
 	s.media.generation = 3
 	s.shuffle.library = "library"
-	s.handleShuffle(result{mediaGeneration: 3, err: errors.New("offline")})
+	s.handleShuffle(shuffleResult{generation: 3, err: errors.New("offline")})
 	if s.model.Notice == "" || s.shuffle.library != "" || s.media.pending {
 		t.Fatal("shuffle failure lost retry state")
 	}

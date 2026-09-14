@@ -38,12 +38,12 @@ func (s *browserSession) refreshHome() {
 	client := s.client
 	go func() {
 		page, err := client.ContinueWatching(work)
-		s.send(work, result{kind: homeResult, homeGeneration: generation, page: page, err: err})
+		s.send(work, homeResult{generation: generation, page: page, err: err})
 	}()
 }
 
-func (s *browserSession) handleHome(r result) bool {
-	if r.homeGeneration != s.home.generation {
+func (s *browserSession) handleHome(r homeResult) bool {
+	if r.generation != s.home.generation {
 		return false
 	}
 	s.home.loading = false

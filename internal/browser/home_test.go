@@ -51,14 +51,14 @@ func TestHomeRefreshRejectsStaleResultsAndKeepsUsefulData(t *testing.T) {
 	s := testSession(t)
 	s.home.generation = 2
 	s.home.items = []jellyfin.Item{homeEpisode("episode", "resume")}
-	if s.handleHome(result{homeGeneration: 1}) || len(s.home.items) != 1 {
+	if s.handleHome(homeResult{generation: 1}) || len(s.home.items) != 1 {
 		t.Fatal("stale home result accepted")
 	}
 	// No client means loadSelection cannot start network work in this fixture.
-	if !s.handleHome(result{homeGeneration: 2, err: errors.New("offline")}) || len(s.home.items) != 1 {
+	if !s.handleHome(homeResult{generation: 2, err: errors.New("offline")}) || len(s.home.items) != 1 {
 		t.Fatal("failed refresh erased usable data")
 	}
-	if !s.handleHome(result{homeGeneration: 2, page: jellyfin.Page{Items: []jellyfin.Item{}}}) || len(s.home.items) != 0 {
+	if !s.handleHome(homeResult{generation: 2, page: jellyfin.Page{Items: []jellyfin.Item{}}}) || len(s.home.items) != 0 {
 		t.Fatal("successful empty refresh retained old entries")
 	}
 }
@@ -88,14 +88,14 @@ func TestHomeInitialCardDoesNotStealNavigation(t *testing.T) {
 		s := testSession(t)
 		s.home.loading = true
 		req := s.model.Load(0)
-		s.handlePage(result{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
+		s.handlePage(pageResult{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
 		if s.model.Current().Item().ID != continueID {
 			t.Fatal("first carousel frame did not select Continue")
 		}
 		if navigate {
 			s.model.Key("next")
 		}
-		s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
+		s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
 		want := continueID
 		if navigate {
 			want = "movies"
@@ -109,8 +109,8 @@ func TestHomeInitialCardDoesNotStealNavigation(t *testing.T) {
 func TestHomeFeedCanArriveBeforeLibraries(t *testing.T) {
 	s := testSession(t)
 	req := s.model.Load(0)
-	s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
-	s.handlePage(result{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
+	s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
+	s.handlePage(pageResult{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
 	if s.model.Current().Item().ID != continueID {
 		t.Fatal("completed feed was not selected on the first carousel frame")
 	}
@@ -128,7 +128,7 @@ func TestInitialContinueCanOpenWhileLoading(t *testing.T) {
 	if !s.model.Current().Loading {
 		t.Fatal("pending Continue list did not indicate loading")
 	}
-	s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
+	s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
 	if s.model.Current().Loading || s.model.Current().Item().ID != "episode" {
 		t.Fatal("pending Continue list did not receive the feed")
 	}
@@ -141,7 +141,7 @@ func TestEmptyInitialContinueRemovesPlaceholder(t *testing.T) {
 		if navigate {
 			s.model.Key("next")
 		}
-		s.handleHome(result{page: jellyfin.Page{Items: []jellyfin.Item{}}})
+		s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{}}})
 		if len(s.model.Current().Page.Items) != 1 || s.model.Current().Item().ID != "movies" {
 			t.Fatal("empty Continue did not leave the library selected")
 		}

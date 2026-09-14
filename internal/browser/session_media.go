@@ -15,7 +15,13 @@ type mediaNavigation struct {
 	generation int
 	pending    bool
 	nextTrack  int
-	queued     *result
+	queued     *mediaSelection
+}
+
+// mediaSelection holds a resolved item while the current decoder stops.
+type mediaSelection struct {
+	parent View
+	item   jellyfin.Item
 }
 
 // navigateMedia looks for the previous (-1) or next (1) photo or music track.
@@ -41,7 +47,7 @@ func (s *browserSession) navigateMedia(direction int) {
 	client := s.client
 	go func() {
 		parent, item, err := adjacentMedia(work, client, parent, kind, direction, rows)
-		s.send(work, result{kind: neighborResult, mediaGeneration: generation, parent: parent, item: item, err: err})
+		s.send(work, neighborResult{generation: generation, parent: parent, item: item, err: err})
 	}()
 }
 
@@ -101,7 +107,7 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 	if s.model.MusicQueueActive() && !s.controller.stoppedByUser && event.Err == nil && s.media.queued != nil {
 		queued := s.media.queued
 		s.media.queued = nil
-		if !s.model.SelectAdjacent(queued.parent, *queued.item) {
+		if !s.model.SelectAdjacent(queued.parent, queued.item) {
 			return false
 		}
 		s.selection.key = ""
@@ -130,15 +136,15 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 	return true
 }
 
-func (s *browserSession) handleNeighbor(r result) bool {
-	if r.mediaGeneration != s.media.generation {
+func (s *browserSession) handleNeighbor(r neighborResult) bool {
+	if r.generation != s.media.generation {
 		return false
 	}
 	s.media.pending = false
 	s.media.nextTrack = 0
 	if s.controller.running && s.model.MusicQueueActive() {
 		if r.item != nil && r.err == nil {
-			s.media.queued = &r
+			s.media.queued = &mediaSelection{parent: r.parent, item: *r.item}
 			s.controller.StopForTrackChange()
 		}
 		if r.err != nil {

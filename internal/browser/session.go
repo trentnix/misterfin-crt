@@ -25,7 +25,7 @@ type browserSession struct {
 	media            mediaNavigation
 	shuffle          shuffleQueue
 	music            musicPresentation
-	events           chan result
+	events           chan workerResult
 	controller       *PlaybackController
 	driver           playbackDriver
 	output           videoout.Output
@@ -44,7 +44,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 	s := &browserSession{
 		ctx: ctx, config: config,
 		model: New(), output: output, renderer: renderer, geometry: output.Geometry(),
-		events: make(chan result, 16), frameInterval: time.Second / 60,
+		events: make(chan workerResult, 16), frameInterval: time.Second / 60,
 		requests:  requestState{cancel: func() {}},
 		selection: selectionState{cancel: func() {}},
 		media:     mediaNavigation{cancel: func() {}},

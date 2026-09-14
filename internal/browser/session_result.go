@@ -5,59 +5,84 @@ import (
 	"misterfin-crt/internal/musicviz"
 )
 
-// resultKind identifies the worker that produced a result. Request generation
-// checks remain with each handler, beside the state they protect.
-type resultKind uint8
-
-const (
-	pageResult resultKind = iota
-	authResult
-	selectionResult
-	neighborResult
-	homeResult
-	shuffleResult
-	musicConfigResult
-	musicAssetsResult
-)
-
-// result carries one worker result, selected by kind. Page and authentication
-// results use request.Generation. Selection uses selectionGeneration. Adjacent media uses
-// mediaGeneration. Home refreshes use homeGeneration. Fields for other kinds are ignored. Workers must
-// stop mutating referenced data before sending a result.
-type result struct {
-	music               *musicviz.Library
-	musicIndex          int
-	request             Request
-	page                jellyfin.Page
-	err                 error
-	client              *jellyfin.Client
-	code                string
-	kind                resultKind
-	update              selectionUpdate
-	selectionGeneration int
-	mediaGeneration     int
-	homeGeneration      int
-	parent              View
-	item                *jellyfin.Item
+// workerResult is one completed outcome delivered to the browser event loop.
+// Its unexported method limits implementations to this package. Each concrete
+// result carries only the values its handler can consume. Producers must stop
+// mutating referenced payloads before sending a result.
+type workerResult interface {
+	apply(*browserSession) bool
 }
 
-func (s *browserSession) handleResult(r result) bool {
-	switch r.kind {
-	case musicAssetsResult:
-		return s.handleMusicAssets(r)
-	case musicConfigResult:
-		return s.handleMusicConfig(r)
-	case shuffleResult:
-		return s.handleShuffle(r)
-	case homeResult:
-		return s.handleHome(r)
-	case authResult:
-		return s.handleAuth(r)
-	case selectionResult:
-		return s.handleSelection(r)
-	case neighborResult:
-		return s.handleNeighbor(r)
-	default:
-		return s.handlePage(r)
-	}
+type pageResult struct {
+	request Request
+	page    jellyfin.Page
+	err     error
+}
+
+func (r pageResult) apply(s *browserSession) bool { return s.handlePage(r) }
+
+type authCodeResult struct {
+	generation int
+	code       string
+}
+
+func (r authCodeResult) apply(s *browserSession) bool { return s.handleAuthCode(r) }
+
+type authResult struct {
+	generation int
+	client     *jellyfin.Client
+	err        error
+}
+
+func (r authResult) apply(s *browserSession) bool { return s.handleAuth(r) }
+
+type selectionResult struct {
+	generation int
+	update     selectionUpdate
+}
+
+func (r selectionResult) apply(s *browserSession) bool { return s.handleSelection(r) }
+
+type neighborResult struct {
+	generation int
+	parent     View
+	item       *jellyfin.Item
+	err        error
+}
+
+func (r neighborResult) apply(s *browserSession) bool { return s.handleNeighbor(r) }
+
+type homeResult struct {
+	generation int
+	page       jellyfin.Page
+	err        error
+}
+
+func (r homeResult) apply(s *browserSession) bool { return s.handleHome(r) }
+
+type shuffleResult struct {
+	generation int
+	page       jellyfin.Page
+	err        error
+}
+
+func (r shuffleResult) apply(s *browserSession) bool { return s.handleShuffle(r) }
+
+type musicConfigResult struct {
+	music *musicviz.Library
+	err   error
+}
+
+func (r musicConfigResult) apply(s *browserSession) bool { return s.handleMusicConfig(r) }
+
+type musicAssetsResult struct {
+	music *musicviz.Library
+	index int
+	err   error
+}
+
+func (r musicAssetsResult) apply(s *browserSession) bool { return s.handleMusicAssets(r) }
+
+func (s *browserSession) handleResult(r workerResult) bool {
+	return r.apply(s)
 }

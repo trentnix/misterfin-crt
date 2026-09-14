@@ -28,11 +28,11 @@ func (s *browserSession) loadMusicConfig() {
 	}
 	go func() {
 		library, err := musicviz.LoadPresets(path)
-		s.send(s.ctx, result{kind: musicConfigResult, music: library, err: err})
+		s.send(s.ctx, musicConfigResult{music: library, err: err})
 	}()
 }
 
-func (s *browserSession) handleMusicConfig(r result) bool {
+func (s *browserSession) handleMusicConfig(r musicConfigResult) bool {
 	if r.err != nil {
 		s.model.Notice = "Could not load music.json. Check music configuration and assets."
 		return true
@@ -61,18 +61,18 @@ func (s *browserSession) loadMusicAssets() {
 	s.music.loading = true
 	go func() {
 		loaded, err := library.LoadAssets(index)
-		s.send(s.ctx, result{kind: musicAssetsResult, music: loaded, musicIndex: index, err: err})
+		s.send(s.ctx, musicAssetsResult{music: loaded, index: index, err: err})
 	}()
 }
 
-func (s *browserSession) handleMusicAssets(r result) bool {
+func (s *browserSession) handleMusicAssets(r musicAssetsResult) bool {
 	s.music.loading = false
 	if r.err == nil {
 		s.music.library = r.music
-	} else if r.musicIndex == s.music.index {
+	} else if r.index == s.music.index {
 		s.music.error = "Background unavailable. Check music assets."
 	}
-	if r.musicIndex != s.music.index {
+	if r.index != s.music.index {
 		s.loadMusicAssets()
 	}
 	return true

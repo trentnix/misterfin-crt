@@ -34,7 +34,7 @@ flowchart TD
 
 `animationState` eases the absolute list scroll position, so rebasing the page window does not create a jump. `screenPainter.list` borrows a vertical slice of the output canvas to clip moving rows. The header and footer remain fixed, and scrolling needs no intermediate image or full-frame copy.
 
-Only the event loop mutates `browserSession`. Workers capture their request inputs and send results through channels. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
+Only the event loop mutates `browserSession`. Workers capture their request inputs and send `workerResult` values through one channel. Each outcome has a concrete result type containing only the fields its handler accepts. Producers stop mutating referenced payloads before delivery. The result type dispatches itself without a shared kind tag or unused payload fields. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
 
 `homeState` owns the combined Continue Watching snapshot and an independent request generation. Its worker calls `Client.ContinueWatching`, then sends a `homeResult` to the browser loop. The loop updates retained home/list views by item or series identity and seeds the home cover sample. Home metadata never delays library requests. The shared renderer draws these entries through the existing carousel and list paths.
 
@@ -92,7 +92,7 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 - [`session_media.go`](../internal/browser/session_media.go): playback completion and asynchronous neighbor requests for photos and music.
 - [`model_media.go`](../internal/browser/model_media.go): parent snapshots, adjacent selection, return navigation, music queue presentation, and the independent photo menu timer.
 - [`session_input.go`](../internal/browser/session_input.go): action routing and screen-specific controls.
-- [`session_result.go`](../internal/browser/session_result.go): worker result kinds and dispatch.
+- [`session_result.go`](../internal/browser/session_result.go): concrete worker result types and event-loop dispatch.
 - [`session_render.go`](../internal/browser/session_render.go): scene assembly, frame pacing, and presentation.
 - [`scene.go`](../internal/browser/scene.go): read-only rendering input assembled from navigation, artwork, and one playback snapshot.
 - [`renderer.go`](../internal/browser/renderer.go): replaceable renderer interface.

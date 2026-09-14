@@ -56,12 +56,12 @@ func (s *browserSession) loadSelection() {
 	s.selection.cancel = stop
 	loader := s.selection.loader
 	go loader.load(work, selected, root, detail, func(update selectionUpdate) {
-		s.send(work, result{kind: selectionResult, selectionGeneration: generation, update: update})
+		s.send(work, selectionResult{generation: generation, update: update})
 	})
 }
 
-func (s *browserSession) handleSelection(r result) bool {
-	if r.selectionGeneration != s.selection.generation {
+func (s *browserSession) handleSelection(r selectionResult) bool {
+	if r.generation != s.selection.generation {
 		return false
 	}
 	if jellyfin.Rejected(r.update.err) {
