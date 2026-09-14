@@ -117,6 +117,8 @@ The client reports session start after receiving player position feedback, then 
 
 After playback ends, the browser refreshes the details and reuses cached artwork when its image tags are unchanged. Metadata and playback failures return to the browser with an error message.
 
+UI [navigation sounds](GO_SOUNDS.md) release the audio device before any media player starts and remain silent throughout music or video playback. MiSTer menu music is a separate service coordinated as described below.
+
 ## MiSTer menu music
 
 The native browser coordinates with the optional MiSTer BGM service through `/tmp/bgm.sock`, matching the C client's integration. At startup, it reads the configured playback mode and stops an enabled `random` or `loop` playlist. Checking the mode also handles the gap between tracks, when the service can report that nothing is currently playing. A disabled playlist remains disabled.

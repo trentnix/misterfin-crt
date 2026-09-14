@@ -50,3 +50,15 @@ func TestInputConfigFlagOverridesEnvironment(t *testing.T) {
 		t.Fatalf("explicit path: %+v: %v", o, err)
 	}
 }
+
+func TestSoundConfigOverride(t *testing.T) {
+	t.Setenv("MISTERFIN_SOUND_CONFIG", "/tmp/sounds.json")
+	o, err := parseOptions(nil)
+	if err != nil || o.soundConfig != "/tmp/sounds.json" {
+		t.Fatalf("environment: %+v %v", o, err)
+	}
+	o, err = parseOptions([]string{"-sound-config", "/tmp/quiet.json"})
+	if err != nil || o.soundConfig != "/tmp/quiet.json" {
+		t.Fatalf("flag: %+v %v", o, err)
+	}
+}

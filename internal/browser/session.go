@@ -8,6 +8,7 @@ import (
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
 )
 
@@ -36,15 +37,16 @@ type browserSession struct {
 	frameInterval    time.Duration
 	lastVideoOverlay []byte
 	controls         control.Labels
+	feedback         sound.Feedback
 }
 
 // newBrowserSession wires state, decoding, and frame pacing without starting
 // network requests. The caller must cancel ctx before calling close. The caller
 // retains ownership of output and renderer, which must not be used concurrently.
-func newBrowserSession(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer) *browserSession {
+func newBrowserSession(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer, feedback sound.Feedback) *browserSession {
 	geometry := output.Geometry()
 	s := &browserSession{
-		ctx: ctx, config: config,
+		ctx: ctx, config: config, feedback: feedback,
 		model: New(), output: output, renderer: renderer, geometry: geometry,
 		events: make(chan workerResult, 16), frameInterval: time.Second / 60,
 		connection: newConnectionManager(config, geometry.Width, geometry.Height),
@@ -52,7 +54,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 		selection:  selectionState{cancel: func() {}},
 		media:      mediaNavigation{cancel: func() {}},
 	}
-	s.driver = playbackDriver{ctx: ctx, config: player, output: output, events: make(chan PlaybackEvent, 16)}
+	s.driver = playbackDriver{feedback: feedback, ctx: ctx, config: player, output: output, events: make(chan PlaybackEvent, 16)}
 	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
 		return s.driver.launch(s.client, item, offset, gate, prepared, controls, tracks)
 	})

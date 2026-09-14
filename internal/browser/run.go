@@ -7,6 +7,7 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
 )
 
@@ -16,6 +17,9 @@ import (
 // output concurrently. The caller must keep renderer, output, and values
 // referenced by player valid until Run returns.
 //
+// feedback is optional and borrowed. The caller closes it after Run returns.
+// It must yield audio before playback and accept UI cues without blocking.
+//
 // keys supplies semantic actions and immutable binding labels from any input
 // source. Nil disables input. Closing keys while ctx is active returns an
 // "input closed" error. Run does not close keys or cancel its caller's context.
@@ -23,10 +27,10 @@ import (
 // Cancellation and user exit stop pending work and wait for tracked decoders
 // and detached server cleanup. The caller must cancel and join its input reader,
 // then close output after Run returns.
-func Run(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer, keys <-chan control.Event) error {
+func Run(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer, feedback sound.Feedback, keys <-chan control.Event) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	s := newBrowserSession(ctx, config, player, output, renderer)
+	s := newBrowserSession(ctx, config, player, output, renderer, feedback)
 	defer func() { cancel(); s.close() }()
 	var frames <-chan struct{}
 	if notifier, ok := output.(videoout.FrameNotifier); ok {

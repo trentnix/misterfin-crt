@@ -8,9 +8,9 @@ import (
 	"misterfin-crt/internal/playback"
 )
 
-// handleKey routes each action to the active screen. The return value requests
+// dispatchKey routes each action to the active screen. The return value requests
 // an immediate redraw. Quit remains owned by the event loop.
-func (s *browserSession) handleKey(key string) bool {
+func (s *browserSession) dispatchKey(key string) bool {
 	if key == "quit" {
 		s.model.Quit = true
 		return false

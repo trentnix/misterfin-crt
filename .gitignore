@@ -5,6 +5,7 @@ mplayer-arm
 jellyfin.conf
 /input.json
 /music.json
+/sounds.json
 token.conf
 device.conf
 crash.log

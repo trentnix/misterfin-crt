@@ -30,6 +30,12 @@ flowchart TD
 
 `browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
 
+## UI sound ownership
+
+The browser borrows `sound.Feedback` alongside the renderer and output. Input handling compares navigation state before and after an action, then emits a navigation or confirmation cue only for a visible change. Media controls remain silent. `playbackDriver` suspends feedback on its worker before calling `playback.Run` and releases it afterward, including failed launches. Counted suspensions cover overlapping seek replacements.
+
+`cmd/misterfin-crt/browser.go` loads sound configuration and owns `sound.Player`. Target assembly supplies an audio-device factory. The Linux targets reuse the nonblocking ALSA adapter in `internal/sound/alsa`. Shared sound scheduling, queue limits, clip gain, and playback handoff live in `internal/sound`. Audio callbacks never enter the rendering pipeline. See [GO_SOUNDS.md](GO_SOUNDS.md) for configuration and device lifetime.
+
 ## Event loop ownership
 
 `View` retains a contiguous window of up to three server pages for paginated lists. `Model.Prefetch` requests a neighboring page within 24 rows of an edge. `retainPage` merges responses and discards distant rows while preserving the absolute selection. `centerSelection` positions the highlight near the middle except at the library ends. Loading and errors preserve existing rows. Workers never mutate published item slices.

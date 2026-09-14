@@ -6,6 +6,7 @@ import (
 
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
 )
 
@@ -14,6 +15,7 @@ import (
 // touching browser state. The controller owns the returned process lifecycle.
 type playbackDriver struct {
 	ctx      context.Context
+	feedback sound.Feedback
 	config   playback.Config
 	output   videoout.Output
 	events   chan PlaybackEvent
@@ -79,7 +81,13 @@ func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, off
 	}
 	go func() {
 		defer close(finished)
+		resumeSounds := func() {}
+		if d.feedback != nil {
+			resumeSounds = d.feedback.Suspend()
+		}
+		defer resumeSounds()
 		err := playback.Run(ctx, client, d.config, request)
+		resumeSounds()
 		d.send(PlaybackEvent{Kind: PlaybackEnded, ID: id, Err: err})
 	}()
 	return playbackProcess{id: id, cancel: stop, done: finished, cleanup: cleanup}

@@ -7,6 +7,7 @@ import (
 	"misterfin-crt/internal/input/evdev"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
 )
 
@@ -16,7 +17,9 @@ type browserTarget struct {
 	// activate acquires optional environment resources after configuration.
 	// Its non-nil return releases them after browser, input, and output cleanup.
 	// A nil activate means the target needs no environment coordination.
-	activate  func() func()
+	activate func() func()
+	// openSound borrows the target audio device on the sound worker.
+	openSound sound.OpenFunc
 	player    playback.Config
 	output    videoout.Output
 	readInput func(context.Context) (<-chan control.Event, <-chan struct{}, error)

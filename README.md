@@ -32,7 +32,7 @@ Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Conn
 
 Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
-Controller bindings and button labels are [configurable](docs/GO_INPUT.md). The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Music backgrounds and meters are also [configurable](docs/GO_MUSIC.md).
+Controller bindings and button labels are [configurable](docs/GO_INPUT.md). The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Music backgrounds and meters are also [configurable](docs/GO_MUSIC.md). [Navigation sounds](docs/GO_SOUNDS.md) have configurable volume and can be turned off.
 
 ## Local development and testing
 

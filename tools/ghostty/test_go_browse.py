@@ -25,6 +25,8 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
+        # Integration fixtures must never open the workstation audio device for UI cues.
+        (self.directory / "sounds.json").write_text('{"enabled": false}\n')
         spec = importlib.util.spec_from_file_location("mock_jellyfin", ROOT / "tools/mock-jellyfin.py")
         mock = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mock)

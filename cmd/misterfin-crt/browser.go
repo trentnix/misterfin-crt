@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"path/filepath"
 
 	"misterfin-crt/internal/browser"
 	"misterfin-crt/internal/input"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/sound"
 )
 
 // runBrowser owns input, preferences, and video output around the shared browser.
@@ -21,6 +23,14 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 	if err != nil {
 		return err
 	}
+	soundPath := o.soundConfig
+	if soundPath == "" {
+		soundPath = filepath.Join(filepath.Dir(o.config), "sounds.json")
+	}
+	soundConfig, err := sound.LoadConfig(soundPath)
+	if err != nil {
+		return err
+	}
 	target := selectBrowserTarget(d, o, bindings)
 	if target.activate != nil {
 		restore := target.activate()
@@ -28,6 +38,15 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 	}
 	video, player := target.output, target.player
 	defer func() { err = errors.Join(err, video.Close()) }()
+	sounds, err := sound.New(soundConfig, target.openSound)
+	if err != nil {
+		return err
+	}
+	defer sounds.Close()
+	var feedback sound.Feedback
+	if sounds != nil {
+		feedback = sounds
+	}
 	preferences := playback.NewPreferences(config.StateDir)
 	defer func() { err = errors.Join(err, preferences.Close()) }()
 	player.Preferences = preferences
@@ -40,5 +59,5 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 		return err
 	}
 	defer func() { cancel(); <-done }()
-	return browser.Run(ctx, config, player, video, browser.NewRenderer(), keys)
+	return browser.Run(ctx, config, player, video, browser.NewRenderer(), feedback, keys)
 }

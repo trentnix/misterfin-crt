@@ -4,6 +4,7 @@ import (
 	"misterfin-crt/internal/input"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/sound/alsa"
 	"misterfin-crt/internal/videoout"
 	"misterfin-crt/internal/videoout/companion"
 	"misterfin-crt/internal/videoout/framefile"
@@ -19,7 +20,7 @@ func desktopTarget(d platform.Presenter, o launchOptions) browserTarget {
 	} else {
 		output = companion.New(d)
 	}
-	return browserTarget{player: config, output: output, readInput: input.ReadTerminal}
+	return browserTarget{openSound: alsa.Open, player: config, output: output, readInput: input.ReadTerminal}
 }
 
 // desktopPlayback defaults to FFplay and selects the Python helper when inline
