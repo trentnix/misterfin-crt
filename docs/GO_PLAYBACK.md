@@ -2,6 +2,16 @@
 
 The Go client can start and resume movies, episodes, videos, and music videos through Jellyfin's progressive MPEG-2/MP3 transcode endpoint. Desktop playback opens FFplay in a separate window by default, with optional video inside Ghostty through libmpv. The MiSTer path launches the patched `mplayer-arm` executable and passes Go-rendered overlays to its framebuffer output driver while MPlayer owns `/dev/fb0`. Live TV channels use the C client’s negotiated stream setup. The C application remains unchanged.
 
+## Current usage
+
+In my current workflow, the players serve these roles:
+
+- **MPlayer:** Everyday playback on MiSTer through the patched `mplayer-arm` executable, with CRT framebuffer output and shared UX overlays.
+- **Python/libmpv:** Local development and playback testing inside Ghostty with `--inline-video`. Python controls libmpv, which decodes the media. FFplay is not involved in this mode.
+- **FFplay:** Primarily an alternate test player, including automated decoding tests. It displays video in a separate desktop window.
+
+The harness still selects FFplay for video when `--inline-video` is omitted. FFplay remains available for interactive use, but it is not required for my usual Ghostty or MiSTer playback. See [Video inside Ghostty](#video-inside-ghostty) for the usual local playback command and [Desktop use](#desktop-use) for the FFplay alternative.
+
 ## Playback controls
 
 These are the default bindings. [Input configuration](GO_INPUT.md) supports per-device controller layouts, button overrides, analog axis mappings, and custom button names. Playback overlays show key badges for the active input device, omit unbound actions, and wrap long labels. Music keeps its track and seek controls on a separate row from pause and stop.

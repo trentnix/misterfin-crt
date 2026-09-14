@@ -8,13 +8,15 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
+
+	playerapi "misterfin-crt/internal/player"
 )
 
 // playerProcess owns decoder pipes and progress channels. Wait runs exactly
 // once. The playback loop consumes done before output ownership is released.
 type playerProcess struct {
-	decoder      decoder
-	control      decoderControl
+	decoder      playerapi.Decoder
+	control      playerapi.Control
 	cmd          *exec.Cmd
 	commands     io.WriteCloser
 	writer       *os.File
@@ -31,7 +33,7 @@ type playerProcess struct {
 // startProcess starts the decoder with isolated process-group control and a
 // stream on file descriptor 3. It closes its pipes on failure. On success the
 // caller must call feed, consume done, and then close, in that order.
-func startProcess(ctx context.Context, executable string, args []string, source *mediaSource, decoder decoder) (*playerProcess, error) {
+func startProcess(ctx context.Context, executable string, args []string, source *mediaSource, decoder playerapi.Decoder) (*playerProcess, error) {
 	reader, writer, err := os.Pipe()
 	if err != nil {
 		return nil, errors.New("cannot open player stream pipe")
@@ -57,9 +59,9 @@ func startProcess(ctx context.Context, executable string, args []string, source 
 		writer.Close()
 		return nil, errors.New("cannot open player control pipe")
 	}
-	p.control = decoderControl{
-		stdin: p.commands,
-		signal: func(signal syscall.Signal) error {
+	p.control = playerapi.Control{
+		Stdin: p.commands,
+		Signal: func(signal syscall.Signal) error {
 			return syscall.Kill(-cmd.Process.Pid, signal)
 		},
 	}
@@ -97,8 +99,11 @@ func (p *playerProcess) close() {
 // pause sends the selected decoder's command. Success means the transport
 // accepted the request, not that the decoder has acknowledged its new state.
 func (p *playerProcess) pause(paused bool) error {
-	return p.decoder.pause(p.control, paused)
+	return p.decoder.Pause(p.control, paused)
 }
 
-func (p *playerProcess) poll()    { p.decoder.poll(p.control) }
-func (p *playerProcess) refresh() { p.decoder.refresh(p.control) }
+// poll requests position feedback for players that do not publish it continuously.
+func (p *playerProcess) poll() { p.decoder.Poll(p.control) }
+
+// refresh asks the player to redraw paused video after an overlay change.
+func (p *playerProcess) refresh() { p.decoder.Refresh(p.control) }

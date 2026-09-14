@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
+	"misterfin-crt/internal/input/evdev"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
 )
@@ -36,7 +38,17 @@ func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
 			}
 			// Interlaced scanout must use physical geometry, not logical UI height.
 			g := platform.Geometry{Width: 640, Height: 240, OutputWidth: 640, OutputHeight: 480}
-			got := playbackConfig(o, g)
+			target := selectBrowserTarget(targetPresenter{geometry: g}, o, evdev.Config{})
+			got := target.player
+			wantOutput := "*companion.Backend"
+			if o.headless == "" {
+				wantOutput = "*native.Backend"
+			} else if o.terminalPlayer != "" {
+				wantOutput = "*framefile.Backend"
+			}
+			if fmt.Sprintf("%T", target.output) != wantOutput || target.readInput == nil {
+				t.Fatal("incorrect target assembly")
+			}
 			if got.VideoDecoder != tc.video || got.AudioDecoder != tc.audio || got.FrameOutput != tc.frames {
 				t.Fatalf("video=%+v audio=%+v frames=%q", got.VideoDecoder, got.AudioDecoder, got.FrameOutput)
 			}
@@ -95,3 +107,12 @@ func TestMissingUserCacheDirectoryDisablesOnlyCaching(t *testing.T) {
 		t.Fatalf("override: %+v: %v", got, err)
 	}
 }
+
+// Construction needs only geometry. Any attempted presentation panics through
+// the embedded nil interface, so this fixture also checks assembly performs no I/O.
+type targetPresenter struct {
+	platform.Presenter
+	geometry platform.Geometry
+}
+
+func (p targetPresenter) Geometry() platform.Geometry { return p.geometry }

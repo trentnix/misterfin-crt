@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	playerapi "misterfin-crt/internal/player"
+	"misterfin-crt/internal/player/mplayer"
 )
 
 func TestOriginalAndZoomGeometry(t *testing.T) {
@@ -27,7 +29,7 @@ func TestOriginalAndZoomGeometry(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := fmt.Sprintf("misterfin=640:%d:1.777777778:%d", height, mode)
-			args := d.args(wide, "")
+			args := d.Args(wide, "")
 			if !slices.Contains(args, want) {
 				t.Fatalf("height %d, mode %d: %v", height, mode, args)
 			}
@@ -48,7 +50,7 @@ func TestZoomAcrossDecodersAndAspectRatios(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				args := strings.Join(d.args(item, ""), " ")
+				args := strings.Join(d.Args(item, ""), " ")
 				zoom := strings.Contains(args, "crop=") || strings.Contains(args, "--zoom-4-3")
 				if zoom != (mode == PictureZoom43) {
 					t.Fatalf("%T, aspect %s, mode %d: %s", d, aspect, mode, args)
@@ -57,23 +59,8 @@ func TestZoomAcrossDecodersAndAspectRatios(t *testing.T) {
 		}
 	}
 	for _, kind := range []string{"Audio", "TvChannel"} {
-		if PictureZoom43.zooms(jellyfin.Item{Type: kind}) {
+		if PictureZoom43.Zooms(jellyfin.Item{Type: kind}) {
 			t.Fatalf("zoom enabled for %s", kind)
-		}
-	}
-}
-
-func TestFFplayZoomCropMatchesSourceAspect(t *testing.T) {
-	for _, tc := range []struct {
-		aspect, crop string
-	}{
-		{"16:9", "ih*4/3/sar"},
-		{"4:3", "iw*3/8"},
-		{"1:1", "iw*sar*3/4"},
-	} {
-		item := jellyfin.Item{MediaStreams: []jellyfin.MediaStream{{Type: "Video", AspectRatio: tc.aspect}}}
-		if filter := ffplayZoomFilter(item); !strings.Contains(filter, tc.crop) {
-			t.Fatalf("aspect %s used wrong crop: %s", tc.aspect, filter)
 		}
 	}
 }
@@ -87,8 +74,8 @@ func TestInvalidPictureModeRejected(t *testing.T) {
 
 func TestNativePictureProtocolAndAcknowledgments(t *testing.T) {
 	var commands bytes.Buffer
-	d := mplayerDecoder{}
-	if err := d.setPicture(decoderControl{stdin: &commands}, PictureZoom43, 42); err != nil {
+	d := mplayer.Decoder{}
+	if err := d.SetPicture(playerapi.Control{Stdin: &commands}, PictureZoom43, 42); err != nil {
 		t.Fatal(err)
 	}
 	if commands.String() != "pausing_keep_force misterfin_picture 1 42\n" {
@@ -108,13 +95,13 @@ func TestInlinePictureUsesLiveControlProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	setter, ok := d.(pictureSetter)
+	setter, ok := d.(playerapi.PictureSetter)
 	if !ok {
 		t.Fatal("inline decoder does not advertise live picture changes")
 	}
 	var commands bytes.Buffer
 	for request, mode := range []PictureMode{PictureZoom43, PictureOriginal} {
-		if err := setter.setPicture(decoderControl{stdin: &commands}, mode, request+1); err != nil {
+		if err := setter.SetPicture(playerapi.Control{Stdin: &commands}, mode, request+1); err != nil {
 			t.Fatal(err)
 		}
 	}

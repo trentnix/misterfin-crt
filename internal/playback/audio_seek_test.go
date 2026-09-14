@@ -9,19 +9,23 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	playerapi "misterfin-crt/internal/player"
+	"misterfin-crt/internal/player/ffplay"
+	"misterfin-crt/internal/player/mplayer"
+	"misterfin-crt/internal/player/pythonhelper"
 )
 
 func TestAudioSeekCommandsAndTransportErrors(t *testing.T) {
 	for _, tc := range []struct {
-		decoder audioSeeker
+		decoder playerapi.AudioSeeker
 		want    string
 	}{
-		{mplayerDecoder{}, "pausing_keep seek 10 0\npausing_keep seek -10 0\n"},
-		{pythonDecoder{}, "seek 10\nseek -10\n"},
+		{mplayer.Decoder{}, "pausing_keep seek 10 0\npausing_keep seek -10 0\n"},
+		{pythonhelper.Decoder{}, "seek 10\nseek -10\n"},
 	} {
 		var commands bytes.Buffer
 		for _, seconds := range []int{10, -10} {
-			if err := tc.decoder.seek(decoderControl{stdin: &commands}, seconds); err != nil {
+			if err := tc.decoder.Seek(playerapi.Control{Stdin: &commands}, seconds); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -30,7 +34,7 @@ func TestAudioSeekCommandsAndTransportErrors(t *testing.T) {
 		}
 		reader, writer := io.Pipe()
 		reader.Close()
-		if !errors.Is(tc.decoder.seek(decoderControl{stdin: writer}, 10), io.ErrClosedPipe) {
+		if !errors.Is(tc.decoder.Seek(playerapi.Control{Stdin: writer}, 10), io.ErrClosedPipe) {
 			t.Fatal("seek error lost")
 		}
 		writer.Close()
@@ -40,7 +44,7 @@ func TestAudioSeekCommandsAndTransportErrors(t *testing.T) {
 func TestOnlyStartedAudioAcceptsDirectSeek(t *testing.T) {
 	for _, kind := range []string{"Movie", "TvChannel", "Audio"} {
 		var commands bytes.Buffer
-		p := &playerProcess{decoder: mplayerDecoder{}, control: decoderControl{stdin: &commands}}
+		p := &playerProcess{decoder: mplayer.Decoder{}, control: playerapi.Control{Stdin: &commands}}
 		s := playbackSession{item: jellyfin.Item{Type: kind}, started: true, state: jellyfin.PlayState{IsPaused: true}}
 		timer := time.NewTimer(time.Hour)
 		s.control(p, Callbacks{}, Control{Kind: "seek", Seconds: 10}, timer)
@@ -53,7 +57,7 @@ func TestOnlyStartedAudioAcceptsDirectSeek(t *testing.T) {
 	var notice error
 	timer := time.NewTimer(time.Hour)
 	defer timer.Stop()
-	s.control(&playerProcess{decoder: ffplayDecoder{}}, Callbacks{ControlError: func(err error) { notice = err }}, Control{Kind: "seek", Seconds: 10}, timer)
+	s.control(&playerProcess{decoder: ffplay.Decoder{}}, Callbacks{ControlError: func(err error) { notice = err }}, Control{Kind: "seek", Seconds: 10}, timer)
 	if notice == nil {
 		t.Fatal("unsupported seek failed silently")
 	}

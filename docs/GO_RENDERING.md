@@ -24,7 +24,7 @@ flowchart TD
     MiSTer --> Overlay["Overlay publication to patched MPlayer"]
 ```
 
-`cmd/misterfin-crt/browser.go` selects the renderer, output backend, input reader, and audio and video decoders at startup. It opens input and cancels and joins the reader after the browser returns. `paths.go` resolves configuration, session, and cache paths into `browser.Config`. The browser receives those paths and semantic input events without selecting hardware. Playback receives explicit `DecoderConfig` values without using the display mode to choose a protocol. Existing command-line flags still select the same defaults.
+`cmd/misterfin-crt/target_mister.go` and `target_desktop.go` assemble input, player settings, and output for their respective environments. `browser.go` owns their lifetime, opens input, and cancels and joins the reader after the browser returns. `paths.go` resolves configuration, session, and cache paths into `browser.Config`. The browser receives those paths and semantic input events without selecting hardware. Playback receives explicit `DecoderConfig` values without using the display mode to choose a protocol. Existing command-line flags still select the same defaults.
 
 `browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
 
@@ -81,7 +81,10 @@ The terminal presenter uploads the next image before changing any visible placem
 Each backend lives in its own subpackage and exports `New` and a concrete `Backend` type implementing `videoout.Output`. The shared `videoout` package has no dependency on its implementations. Application wiring selects the implementation.
 
 - [`main.go`](../cmd/misterfin-crt/main.go): signal handling and display lifetime.
-- [`browser.go`](../cmd/misterfin-crt/browser.go): input ownership, decoder selection, output selection, and browser wiring.
+- [`browser.go`](../cmd/misterfin-crt/browser.go): input, preferences, and output lifetime around the shared browser.
+- [`target.go`](../cmd/misterfin-crt/target.go): target selection and the assembled dependency set.
+- [`target_mister.go`](../cmd/misterfin-crt/target_mister.go): evdev input, native output, and MPlayer defaults.
+- [`target_desktop.go`](../cmd/misterfin-crt/target_desktop.go): terminal input, frame-file or companion output, and helper precedence.
 - [`paths.go`](../cmd/misterfin-crt/paths.go): storage defaults and the cache-root override.
 - [`options.go`](../cmd/misterfin-crt/options.go): command-line parsing and mode validation before resources open.
 - [`preview.go`](../cmd/misterfin-crt/preview.go): test-frame display and its optional wait.
@@ -141,7 +144,7 @@ A seek starts with a destination preview and a 0.5-second deadline. When the dea
 
 `PlaybackEvent` identifies the decoder and one event kind: prepared, position, paused, buffering, or ended. Each `playbackProcess` groups its identifier, cancellation function, completion channel, asynchronous cleanup signal, preparation gate, and readiness flag. A `playbackLaunch` function connects the controller to real decoding. Tests supply a deterministic function that records launch requests and cancellation.
 
-Playback input uses separate `controls`, `seek-backward`, `seek-forward`, `track-previous`, and `track-next` actions. The browser maps directions to `controls` only during playback. Video seeks use the existing replacement-stream controller. Music sends relative ten-second commands through the optional `audioSeeker` decoder interface. MPlayer and the Python audio helper implement that interface. Decoder progress remains the source of actual playback position, including after a paused audio seek.
+Playback input uses separate `controls`, `seek-backward`, `seek-forward`, `track-previous`, and `track-next` actions. The browser maps directions to `controls` only during playback. Video seeks use the existing replacement-stream controller. Music sends relative ten-second commands through the optional `player.AudioSeeker` decoder interface. MPlayer and the Python audio helper implement that interface. Decoder progress remains the source of actual playback position, including after a paused audio seek.
 
 The controller has no dependency on `platform`, `videoout`, terminal input, fonts, or canvas drawing. `playbackDriver` wires `AcquireVideo` and `ReleaseVideo` callbacks to the selected output adapter. It sends `PlaybackEvent` values through a dedicated channel directly to the browser loop. Decoder feedback no longer shares the browsing and artwork result queue or allocates an event pointer per update. Progress can be dropped when the decoder event queue is full. Lifecycle events wait for delivery unless the application is shutting down.
 
@@ -198,22 +201,27 @@ Startup creates one [`playback.Config`](../internal/playback/config.go) containi
 - [`progressReporter`](../internal/playback/progress_reporter.go) owns ordered Jellyfin reporting on a separate worker.
 - [`positionWriter`](../internal/playback/position_writer.go) parses numeric progress, first-frame feedback, and buffering feedback without forwarding decoder diagnostics.
 
-The private `decoder` interface separates executable protocols from process and session ownership. Each implementation supplies its executable, arguments, input transport, and pause, poll, and refresh behavior. Implementations hold immutable launch configuration. `decoderControl` lends them stdin and process-group signaling without transferring ownership of the child process.
+The `player.Decoder` interface separates executable protocols from process and session ownership. Each implementation validates its settings and supplies its executable, arguments, input transport, and pause, poll, and refresh behavior. Implementations hold immutable launch configuration. `player.Control` lends them stdin and process-group signaling without transferring ownership of the child process. Player packages do not import playback, browser, or output implementations.
 
-- [`decoder.go`](../internal/playback/decoder.go): the interface, source transport choices, protocol validation, and executable lookup.
-- [`decoder_mplayer.go`](../internal/playback/decoder_mplayer.go): MPlayer slave commands, CRT aspect correction, audio filters, and synchronization arguments.
-- [`decoder_ffplay.go`](../internal/playback/decoder_ffplay.go): FFplay arguments and process-group pause/resume signals.
-- [`decoder_python.go`](../internal/playback/decoder_python.go): Python helper arguments, explicit pause/resume commands, and the clean video frame destination.
+- [`player.go`](../internal/player/player.go): decoder contract, source transports, and optional picture, audio-seek, and meter interfaces.
+- [`picture.go`](../internal/player/picture.go): shared picture choices and display-aspect metadata interpretation.
+- [`mplayer/decoder.go`](../internal/player/mplayer/decoder.go): native geometry validation, MPlayer slave commands, CRT fit, audio filters, and synchronization arguments.
+- [`mplayer/audio_meter.go`](../internal/player/mplayer/audio_meter.go): export-file allocation, sampling, and cleanup.
+- [`ffplay/decoder.go`](../internal/player/ffplay/decoder.go): FFplay arguments, crop geometry, and process-group pause/resume signals.
+- [`pythonhelper/decoder.go`](../internal/player/pythonhelper/decoder.go): helper validation, line protocol, and clean-frame destination.
+- [`playback/decoder.go`](../internal/playback/decoder.go): configuration-to-implementation selection and executable lookup.
+
+The external player sources retain their existing build and launch locations: [`docker/vf_misterfin.c`](../docker/vf_misterfin.c) for native scaling and [`tools/ghostty/video_player.py`](../tools/ghostty/video_player.py) for libmpv rendering. Those files implement decoded-video fitting. The Go player adapters send commands. Output packages compose or publish the shared UI overlay afterward. Reusing a player does not require reusing a target's input or display backend.
 
 `Config.VideoDecoder` and `Config.AudioDecoder` hold independently selected `DecoderConfig` values. Startup resolves executable overrides and helper precedence. Playback validates the selected protocol and converts it into one implementation before session preparation. The playback package has no `Headless` setting.
 
-Audio feedback is optional. Decoders implement `levelConfigurer` to enable their transport for one request. MPlayer creates an [`audioMeter`](../internal/playback/audio_meter.go) export file. `Run` removes the file after decoder cleanup, including when preparation fails. The Python helper reports levels through its status pipe and allocates no export file.
+Audio feedback is optional. Decoders implement `player.LevelConfigurer` to enable their transport for one request. MPlayer creates an export file implementing [`player.Meter`](../internal/player/player.go). `Run` removes the file after decoder cleanup, including when preparation fails. The Python helper reports levels through its status pipe and allocates no export file.
 
 The shared lifecycle retains source authentication, startup gating, cancellation, feedback, and Jellyfin reporting. MPlayer and the Python helper use a local range-capable proxy for audio. Other streams use file descriptor 3.
 
 The Go-specific MPlayer build also applies `docker/mplayer_go.patch` to dropped-frame timing. A dropped frame never reaches the output filters, so their timestamp still belongs to the previous displayed frame. The patch advances the playback timeline once for each skipped frame instead of reading that stale timestamp and counting the interval again when the next image arrives. This prevents a brief rendering delay from trapping playback in repeated frame drops and audio drift. Frame dropping, audio-clock correction, and framebuffer presentation timing retain their existing policies. The inherited C build remains unchanged.
 
-Polling remains once per second. MPlayer sends a position query. FFplay and the Python helper already publish progress, so their poll methods do nothing. Paused-frame refresh sends a command only through MPlayer. The decoder interface introduces no frame copying or rendering work. UX construction and the downstream `videoout.Output` boundary remain separate from decoding.
+Polling remains once per second. MPlayer sends a position query. FFplay and the Python helper already publish progress, so their poll methods do nothing. Paused-frame refresh sends a command only through MPlayer. The player interface introduces no frame copying or rendering work. UX construction and the downstream `videoout.Output` boundary remain separate from decoding.
 
 The playback loop reaps the decoder before returning. Cleanup then cancels media work, stops stream copying, releases video output, closes the source, and finalizes reporting. Live TV closes its negotiated stream afterward. Stop and seek handoffs allow final reporting and tuner release to continue asynchronously. The browser returns to navigation after local decoder cleanup, without waiting for server requests. Reporting uses a copy of the completed session state. Normal completion retains synchronous cleanup.
 
@@ -303,6 +311,6 @@ Image workers own disk I/O and pruning. Immediate selection snapshots remain mem
 
 `PlaybackController` owns the video Options picker, picture-mode selection, and subtitle timing. Playback workers publish immutable stream metadata and parsed `subtitles.Track` values through `PlaybackEvent`. `PlaybackPresentation` supplies an immutable `TrackMenu` snapshot and the active subtitle text. `renderVideoOverlayOn` draws those values on the same overlay canvas as the existing playback controls. Native and inline outputs compose the resulting pixels. A separate-window decoder advertises that client-rendered subtitles cannot reach its video, so playback requests server burn-in for that decoder. The UI does not select a Ghostty-specific rendering path. See [GO_TRACKS.md](GO_TRACKS.md).
 
-Picture mode affects decoded video before overlay composition. The shared `playback.PictureMode` passes through playback handoffs to the selected decoder. MPlayer and the Python helper advertise `VideoTracks.LivePicture` through the optional `pictureSetter` interface. Both accept picture controls through the running player and acknowledge them through the same event path. A successful acknowledgment updates the active choice and dismisses the Picture tab without showing playback controls. Paused changes reuse the same frame and timestamp.
+Picture mode affects decoded video before overlay composition. The shared `playback.PictureMode` passes through playback handoffs to the selected decoder. MPlayer and the Python helper advertise `VideoTracks.LivePicture` through the optional `player.PictureSetter` interface. Both accept picture controls through the running player and acknowledge them through the same event path. A successful acknowledgment updates the active choice and dismisses the Picture tab without showing playback controls. Paused changes reuse the same frame and timestamp.
 
 MPlayer's `vf_misterfin` filter fits or takes a centered horizontal, vertical, or four-edge crop from the retained source frame, then scales once to the fixed CRT canvas. Inline libmpv changes video zoom on the existing render surface and publishes its redraw through the normal frame callback. FFplay retains the stream-handoff fallback. `RasterRenderer` uses the same full-screen panel for Subtitles, Audio, and Picture. Controls and text subtitles retain their normal size. See [picture modes](GO_TRACKS.md#picture-modes).

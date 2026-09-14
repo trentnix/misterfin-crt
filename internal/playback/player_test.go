@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"misterfin-crt/internal/jellyfin"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestProgressParser(t *testing.T) {
@@ -33,17 +34,6 @@ func TestProgressParser(t *testing.T) {
 	}
 	if len(p.positions) != 0 {
 		t.Fatal("invalid position accepted")
-	}
-}
-func TestMPlayerCRTAspect(t *testing.T) {
-	var item jellyfin.Item
-	json.Unmarshal([]byte(`{"MediaStreams":[{"Type":"Video","Width":720,"Height":576,"AspectRatio":"16:9"}]}`), &item)
-	for _, h := range []int{240, 288} {
-		args := mplayerDecoder{width: 640, height: h, device: "/dev/fb0"}.args(item, "")
-		want := fmt.Sprintf("misterfin=640:%d:1.777777778:0", h)
-		if !strings.Contains(strings.Join(args, " "), want) {
-			t.Fatalf("args %v", args)
-		}
 	}
 }
 
@@ -637,37 +627,4 @@ func TestAsyncCleanupDoesNotDelayPlaybackReturn(t *testing.T) {
 	close(releaseCleanup)
 }
 
-func TestLiveTVAspectFallbackAndMetadata(t *testing.T) {
-	for _, tc := range []struct {
-		aspect string
-		height int
-	}{{"", 180}, {"16:9", 180}, {"4:3", 240}} {
-		item := jellyfin.Item{Type: "TvChannel"}
-		if tc.aspect != "" {
-			item.MediaStreams = []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: tc.aspect}}
-		}
-		args := mplayerDecoder{width: 640, height: 240, device: "/dev/fb0"}.args(item, "")
-		want := fmt.Sprintf("scale=640:%d,expand=640:240,dsize=640:240", tc.height)
-		if !strings.Contains(strings.Join(args, " "), want) {
-			t.Fatalf("aspect %q: %v", tc.aspect, args)
-		}
-	}
-}
-
 // Hardware video must retain the C player's audio synchronization policy.
-func TestHardwareVideoSynchronization(t *testing.T) {
-	for _, tc := range []struct{ kind, autosync string }{
-		{"Movie", "30"}, {"Episode", "30"}, {"TvChannel", "1"},
-	} {
-		t.Run(tc.kind, func(t *testing.T) {
-			args := mplayerDecoder{width: 640, height: 240, device: "/dev/fb0"}.args(jellyfin.Item{Type: tc.kind}, "")
-			joined := " " + strings.Join(args, " ") + " "
-			if !strings.Contains(joined, " -framedrop ") || !strings.Contains(joined, " -autosync "+tc.autosync+" ") {
-				t.Fatalf("missing hardware synchronization policy: %v", args)
-			}
-			if strings.Contains(joined, " -fps ") || strings.Contains(joined, " -speed ") {
-				t.Fatalf("hardware playback must respect stream timing: %v", args)
-			}
-		})
-	}
-}

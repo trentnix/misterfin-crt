@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"misterfin-crt/internal/jellyfin"
+	playerapi "misterfin-crt/internal/player"
 )
 
 // Run prepares a session and stream, waits for the controller's start gate, and
@@ -29,9 +30,11 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 		return err
 	}
 	decoder, meter := configureAudioLevels(decoder, request.Item.Type == "Audio" && request.Callbacks.Levels != nil)
-	defer meter.close()
-	choices.clientSubtitles = decoder.clientSubtitles()
-	_, choices.livePicture = decoder.(pictureSetter)
+	if meter != nil {
+		defer meter.Close()
+	}
+	choices.clientSubtitles = decoder.ClientSubtitles()
+	_, choices.livePicture = decoder.(playerapi.PictureSetter)
 	session, err := preparePlayback(ctx, c, config, request, choices)
 	if err != nil || session == nil {
 		return err
@@ -50,7 +53,7 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 	if request.Callbacks.TrackInfo != nil && !session.liveTV && session.item.Type != "Audio" {
 		request.Callbacks.TrackInfo(session.tracks)
 	}
-	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.input(session.item))
+	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.Input(session.item))
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
@@ -68,7 +71,7 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 			return nil
 		}
 	}
-	process, err := startProcess(mediaCtx, executable, decoder.args(session.item, source.url), source, decoder)
+	process, err := startProcess(mediaCtx, executable, decoder.Args(session.item, source.url), source, decoder)
 	if err != nil {
 		return err
 	}

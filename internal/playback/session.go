@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	playerapi "misterfin-crt/internal/player"
 )
 
 // playbackSession owns one Jellyfin play session. Its loop updates decoder
 // state and queues snapshots to progressReporter without waiting for HTTP.
 type playbackSession struct {
-	meter           *audioMeter // Borrowed from Run, which closes it after decoder cleanup.
+	meter           playerapi.Meter // Borrowed from Run, which closes it after decoder cleanup.
 	tracks          VideoTracks
 	client          *jellyfin.Client
 	item            jellyfin.Item
@@ -65,6 +66,9 @@ func (s *playbackSession) closeLive() {
 	_ = s.client.CloseLive(ctx, s.live.LiveStreamID)
 }
 
+// update converts decoder seconds to an item position using the session offset.
+// The first accepted position ends the startup timeout and starts reporting.
+// Once video starts, paused feedback cannot advance its saved position.
 func (s *playbackSession) update(seconds float64, position func(int64), startup *time.Timer) {
 	if s.state.IsPaused && s.started && s.item.Type != "Audio" {
 		return
@@ -92,11 +96,14 @@ func (s *playbackSession) report(save bool) {
 	}
 }
 
+// control dispatches a playback command on the session loop. Pause state
+// changes after command delivery. Picture state waits for player acknowledgment.
+// Seeking here applies only to audio. Video seeks replace the session.
 func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control Control, startup *time.Timer) {
 	switch control.Kind {
 	case "picture":
-		setter, ok := p.decoder.(pictureSetter)
-		if !ok || s.liveTV || s.item.Type == "Audio" || control.Picture > PictureZoom43 || setter.setPicture(p.control, control.Picture, control.Request) != nil {
+		setter, ok := p.decoder.(playerapi.PictureSetter)
+		if !ok || s.liveTV || s.item.Type == "Audio" || control.Picture > PictureZoom43 || setter.SetPicture(p.control, control.Picture, control.Request) != nil {
 			if callbacks.Picture != nil {
 				callbacks.Picture(PictureResult{Request: control.Request, Err: errors.New("cannot change picture mode")})
 			}
@@ -122,11 +129,11 @@ func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control
 		if s.item.Type != "Audio" || !s.started || (control.Seconds != -10 && control.Seconds != 10) {
 			return
 		}
-		seeker, ok := p.decoder.(audioSeeker)
+		seeker, ok := p.decoder.(playerapi.AudioSeeker)
 		var err error
 		if !ok {
 			err = errors.New("music seeking requires the audio helper or MPlayer")
-		} else if seeker.seek(p.control, control.Seconds) != nil {
+		} else if seeker.Seek(p.control, control.Seconds) != nil {
 			err = errors.New("cannot seek music")
 		} else {
 			p.poll()
@@ -194,7 +201,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 		case <-audioTick:
 			levels := AudioLevels{}
 			if !s.state.IsPaused {
-				levels = s.meter.levels()
+				levels = s.meter.Levels()
 			}
 			if request.Callbacks.Levels != nil {
 				request.Callbacks.Levels(levels)
@@ -257,6 +264,8 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 	}
 }
 
+// drain applies queued positions after the decoder has been reaped so the
+// final report includes progress received immediately before process exit.
 func (s *playbackSession) drain(p *playerProcess, position func(int64), startup *time.Timer) {
 	for {
 		select {

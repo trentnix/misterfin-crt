@@ -9,6 +9,10 @@ import (
 	"testing"
 
 	"misterfin-crt/internal/jellyfin"
+	playerapi "misterfin-crt/internal/player"
+	"misterfin-crt/internal/player/ffplay"
+	"misterfin-crt/internal/player/mplayer"
+	"misterfin-crt/internal/player/pythonhelper"
 )
 
 func TestDecoderSelectionAndInput(t *testing.T) {
@@ -16,18 +20,18 @@ func TestDecoderSelectionAndInput(t *testing.T) {
 		name, kind         string
 		options            Config
 		executable, script string
-		input              decoderInput
+		input              playerapi.Input
 	}{
-		{name: "native video", kind: "Movie", options: Config{Width: 640, Height: 240}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: inputPipe},
-		{name: "native audio", kind: "Audio", options: Config{Width: 640, Height: 288}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: inputURL},
-		{name: "native override", kind: "Episode", options: Config{Width: 640, Height: 480, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: "custom-mplayer"}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: "custom-mplayer"}}, executable: "custom-mplayer", input: inputPipe},
-		{name: "desktop video", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}, executable: "ffplay", input: inputPipe},
-		{name: "desktop audio", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}, executable: "ffplay", input: inputPipe},
-		{name: "desktop executable override", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: "custom-ffplay"}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: "custom-ffplay"}}, executable: "custom-ffplay", input: inputPipe},
-		{name: "inline video", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, executable: "python3", script: "video.py", input: inputPipe},
-		{name: "inline audio", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 288, FrameOutput: "frame"}, executable: "python3", script: "video.py", input: inputURL},
-		{name: "independent audio helper", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, executable: "python3", script: "audio.py", input: inputURL},
-		{name: "audio helper without video geometry", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderMPlayer}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}}, executable: "python3", script: "audio.py", input: inputURL},
+		{name: "native video", kind: "Movie", options: Config{Width: 640, Height: 240}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.Pipe},
+		{name: "native audio", kind: "Audio", options: Config{Width: 640, Height: 288}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.URL},
+		{name: "native override", kind: "Episode", options: Config{Width: 640, Height: 480, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: "custom-mplayer"}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: "custom-mplayer"}}, executable: "custom-mplayer", input: playerapi.Pipe},
+		{name: "desktop video", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}, executable: "ffplay", input: playerapi.Pipe},
+		{name: "desktop audio", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}, executable: "ffplay", input: playerapi.Pipe},
+		{name: "desktop executable override", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: "custom-ffplay"}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: "custom-ffplay"}}, executable: "custom-ffplay", input: playerapi.Pipe},
+		{name: "inline video", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, executable: "python3", script: "video.py", input: playerapi.Pipe},
+		{name: "inline audio", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 288, FrameOutput: "frame"}, executable: "python3", script: "video.py", input: playerapi.URL},
+		{name: "independent audio helper", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, executable: "python3", script: "audio.py", input: playerapi.URL},
+		{name: "audio helper without video geometry", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderMPlayer}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}}, executable: "python3", script: "audio.py", input: playerapi.URL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			item := jellyfin.Item{Type: tc.kind}
@@ -35,14 +39,14 @@ func TestDecoderSelectionAndInput(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if d.executable() != tc.executable || d.input(item) != tc.input {
-				t.Fatalf("incorrect decoder: %T, executable=%q, input=%v", d, d.executable(), d.input(item))
+			if d.Executable() != tc.executable || d.Input(item) != tc.input {
+				t.Fatalf("incorrect decoder: %T, executable=%q, input=%v", d, d.Executable(), d.Input(item))
 			}
 			source := ""
-			if tc.input == inputURL {
+			if tc.input == playerapi.URL {
 				source = "http://127.0.0.1:1234/audio"
 			}
-			args := d.args(item, source)
+			args := d.Args(item, source)
 			if tc.script != "" {
 				if args[0] != tc.script {
 					t.Fatalf("wrong helper: %v", args)
@@ -87,7 +91,7 @@ func TestDecoderChoicesAreIndependent(t *testing.T) {
 			o.VideoDecoder, o.AudioDecoder = o.AudioDecoder, o.VideoDecoder
 		}
 		d, err := selectDecoder(o, jellyfin.Item{Type: kind}, PictureOriginal)
-		if err != nil || d.executable() != "ffplay" {
+		if err != nil || d.Executable() != "ffplay" {
 			t.Fatalf("%s depended on the other decoder: %v", kind, err)
 		}
 	}
@@ -96,20 +100,20 @@ func TestDecoderChoicesAreIndependent(t *testing.T) {
 func TestDecoderControlProtocols(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		decoder  decoder
+		decoder  playerapi.Decoder
 		commands string
 		signals  []syscall.Signal
 	}{
-		{name: "mplayer", decoder: mplayerDecoder{}, commands: "pause\npause\npausing_keep_force get_time_pos\npausing_keep_force osd_show_text \" \" 1\n"},
-		{name: "python", decoder: pythonDecoder{}, commands: "pause true\npause false\n"},
-		{name: "ffplay", decoder: ffplayDecoder{}, signals: []syscall.Signal{syscall.SIGSTOP, syscall.SIGCONT}},
+		{name: "mplayer", decoder: mplayer.Decoder{}, commands: "pause\npause\npausing_keep_force get_time_pos\npausing_keep_force osd_show_text \" \" 1\n"},
+		{name: "python", decoder: pythonhelper.Decoder{}, commands: "pause true\npause false\n"},
+		{name: "ffplay", decoder: ffplay.Decoder{}, signals: []syscall.Signal{syscall.SIGSTOP, syscall.SIGCONT}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var commands bytes.Buffer
 			var signals []syscall.Signal
-			p := playerProcess{decoder: tc.decoder, control: decoderControl{
-				stdin:  &commands,
-				signal: func(signal syscall.Signal) error { signals = append(signals, signal); return nil },
+			p := playerProcess{decoder: tc.decoder, control: playerapi.Control{
+				Stdin:  &commands,
+				Signal: func(signal syscall.Signal) error { signals = append(signals, signal); return nil },
 			}}
 			for _, paused := range []bool{true, false} {
 				if err := p.pause(paused); err != nil {
@@ -121,8 +125,8 @@ func TestDecoderControlProtocols(t *testing.T) {
 			if commands.String() != tc.commands || !reflect.DeepEqual(signals, tc.signals) {
 				t.Fatalf("wrong control protocol: commands=%q signals=%v", commands.String(), signals)
 			}
-			p.control.stdin = failedDecoderWriter{}
-			p.control.signal = func(syscall.Signal) error { return io.ErrClosedPipe }
+			p.control.Stdin = failedDecoderWriter{}
+			p.control.Signal = func(syscall.Signal) error { return io.ErrClosedPipe }
 			if !errors.Is(p.pause(true), io.ErrClosedPipe) {
 				t.Fatal("pause transport error was lost")
 			}
