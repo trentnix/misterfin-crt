@@ -33,13 +33,18 @@ type PictureMode uint8
 const (
 	// PictureOriginal preserves the full picture and its display aspect ratio.
 	PictureOriginal PictureMode = iota
-	// PictureZoom43 fills the display with the center of a widescreen picture.
-	// Pictures at or narrower than 4:3 keep their original fit.
+	// PictureZoom43 enlarges the center of a recorded picture and crops its
+	// edges. A 4:3 source receives a fixed zoom for baked-in letterboxing.
 	PictureZoom43
 )
 
+const (
+	displayAspect43        = 4.0 / 3
+	pictureAspectTolerance = 0.01
+)
+
 func (m PictureMode) zooms(item jellyfin.Item) bool {
-	return m == PictureZoom43 && item.Type != "Audio" && !jellyfin.IsLive(item) && displayAspectRatio(item) > 4.0/3
+	return m == PictureZoom43 && item.Type != "Audio" && !jellyfin.IsLive(item)
 }
 
 // displayAspectRatio prefers display metadata over encoded dimensions, which

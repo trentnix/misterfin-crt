@@ -35,12 +35,9 @@ func TestOriginalAndZoomGeometry(t *testing.T) {
 	}
 }
 
-func TestZoomAcrossDecodersAndNarrowPictures(t *testing.T) {
-	for _, tc := range []struct {
-		aspect string
-		zoom   bool
-	}{{"16:9", true}, {"235:100", true}, {"4:3", false}, {"1:1", false}} {
-		item := jellyfin.Item{Type: "Episode", MediaStreams: []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: tc.aspect}}}
+func TestZoomAcrossDecodersAndAspectRatios(t *testing.T) {
+	for _, aspect := range []string{"16:9", "235:100", "4:3", "1:1"} {
+		item := jellyfin.Item{Type: "Episode", MediaStreams: []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: aspect}}}
 		for _, options := range []Config{
 
 			{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}},
@@ -53,8 +50,8 @@ func TestZoomAcrossDecodersAndNarrowPictures(t *testing.T) {
 				}
 				args := strings.Join(d.args(item, ""), " ")
 				zoom := strings.Contains(args, "crop=") || strings.Contains(args, "--zoom-4-3")
-				if zoom != (tc.zoom && mode == PictureZoom43) {
-					t.Fatalf("%T, aspect %s, mode %d: %s", d, tc.aspect, mode, args)
+				if zoom != (mode == PictureZoom43) {
+					t.Fatalf("%T, aspect %s, mode %d: %s", d, aspect, mode, args)
 				}
 			}
 		}
@@ -62,6 +59,21 @@ func TestZoomAcrossDecodersAndNarrowPictures(t *testing.T) {
 	for _, kind := range []string{"Audio", "TvChannel"} {
 		if PictureZoom43.zooms(jellyfin.Item{Type: kind}) {
 			t.Fatalf("zoom enabled for %s", kind)
+		}
+	}
+}
+
+func TestFFplayZoomCropMatchesSourceAspect(t *testing.T) {
+	for _, tc := range []struct {
+		aspect, crop string
+	}{
+		{"16:9", "ih*4/3/sar"},
+		{"4:3", "iw*3/8"},
+		{"1:1", "iw*sar*3/4"},
+	} {
+		item := jellyfin.Item{MediaStreams: []jellyfin.MediaStream{{Type: "Video", AspectRatio: tc.aspect}}}
+		if filter := ffplayZoomFilter(item); !strings.Contains(filter, tc.crop) {
+			t.Fatalf("aspect %s used wrong crop: %s", tc.aspect, filter)
 		}
 	}
 }

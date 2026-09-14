@@ -18,8 +18,31 @@ type selectionLoader struct {
 	disk      *mosaicDiskCache
 }
 
-func newSelectionLoader(client *jellyfin.Client, photoWidth, photoHeight int) *selectionLoader {
-	return &selectionLoader{client: client, artwork: newArtworkLoader(client, photoWidth, photoHeight), libraries: newLibraryCache()}
+// selectionCaches contains account-scoped persistence dependencies. Nil caches
+// preserve the same in-memory behavior for disabled storage and tests.
+type selectionCaches struct {
+	mosaics *mosaicDiskCache
+	artwork *artworkDiskCache
+}
+
+func newSelectionCaches(config Config, client *jellyfin.Client) selectionCaches {
+	return selectionCaches{
+		mosaics: newMosaicDiskCache(config.MosaicCacheDir, client.Config.Server, client.Session.UserID),
+		artwork: newArtworkDiskCache(config.ArtworkCacheDir, client.Config.Server, client.Session.UserID),
+	}
+}
+
+// newSelectionLoader returns a complete loader. Callers cannot attach disk
+// caches after workers begin using it.
+func newSelectionLoader(client *jellyfin.Client, photoWidth, photoHeight int, caches selectionCaches) *selectionLoader {
+	artwork := newArtworkLoader(client, photoWidth, photoHeight)
+	artwork.disk = caches.artwork
+	return &selectionLoader{
+		client:    client,
+		artwork:   artwork,
+		libraries: newLibraryCache(),
+		disk:      caches.mosaics,
+	}
 }
 
 // load delivers results independently and waits for its workers before returning.

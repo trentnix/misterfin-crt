@@ -15,9 +15,10 @@ func testSession(t *testing.T) *browserSession {
 	s := &browserSession{
 		ctx: context.Background(), model: New(), controller: f.c,
 		events: make(chan workerResult, 16), output: sessionTestOutput{},
-		requests:  requestState{cancel: func() {}},
-		selection: selectionState{cancel: func() {}},
-		media:     mediaNavigation{cancel: func() {}},
+		connection: newConnectionManager(Config{}, 640, 240),
+		requests:   requestState{cancel: func() {}},
+		selection:  selectionState{cancel: func() {}},
+		media:      mediaNavigation{cancel: func() {}},
 	}
 	return s
 }
@@ -71,7 +72,7 @@ func TestSessionCancelRejectsLateNeighbor(t *testing.T) {
 
 func TestSessionRejectsStaleAuthAndSelection(t *testing.T) {
 	s := testSession(t)
-	s.requests.authGeneration = 2
+	s.connection.generation = 2
 	s.selection.generation = 3
 	s.status = "current"
 	for _, r := range []workerResult{

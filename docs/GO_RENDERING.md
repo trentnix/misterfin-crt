@@ -34,7 +34,7 @@ flowchart TD
 
 `animationState` eases the absolute list scroll position, so rebasing the page window does not create a jump. `screenPainter.list` borrows a vertical slice of the output canvas to clip moving rows. The header and footer remain fixed, and scrolling needs no intermediate image or full-frame copy.
 
-Only the event loop mutates `browserSession`. Workers capture their request inputs and send `workerResult` values through one channel. Each outcome has a concrete result type containing only the fields its handler accepts. Producers stop mutating referenced payloads before delivery. The result type dispatches itself without a shared kind tag or unused payload fields. Authentication and page loading share one cancellation scope. Selection loading and media navigation each have their own cancellation scope and generation counter. Their handlers reject obsolete results before changing the model.
+Only the event loop mutates `browserSession`. Workers capture their request inputs and send `workerResult` values through one channel. Each outcome has a concrete result type containing only the fields its handler accepts. Producers stop mutating referenced payloads before delivery. The result type dispatches itself without a shared kind tag or unused payload fields. `connectionManager` owns configuration and session loading, authentication cancellation, and its generation counter. It publishes a complete authenticated client and account-scoped selection loader to the event loop. Listing requests, selection loading, and media navigation each have an independent cancellation scope. Selection loading and media navigation retain their own generation counters. Their handlers reject obsolete results before changing the model.
 
 `homeState` owns the combined Continue Watching snapshot and an independent request generation. Its worker calls `Client.ContinueWatching`, then sends a `homeResult` to the browser loop. The loop updates retained home/list views by item or series identity and seeds the home cover sample. Home metadata never delays library requests. The shared renderer draws these entries through the existing carousel and list paths.
 
@@ -87,7 +87,8 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 - [`preview.go`](../cmd/misterfin-crt/preview.go): test-frame display and its optional wait.
 - [`run.go`](../internal/browser/run.go): session lifetime, event dispatch, and the single redraw decision.
 - [`session.go`](../internal/browser/session.go): session state, construction, and cleanup.
-- [`session_requests.go`](../internal/browser/session_requests.go): authentication and listing requests, cancellation, and generation checks.
+- [`connection.go`](../internal/browser/connection.go): configuration and session loading, authentication, account-scoped dependency construction, and stale-attempt rejection.
+- [`session_requests.go`](../internal/browser/session_requests.go): listing requests plus event-loop handling for connection and page results.
 - [`session_selection.go`](../internal/browser/session_selection.go): selected metadata and images, loading, error handling, and stale-result rejection.
 - [`session_media.go`](../internal/browser/session_media.go): playback completion and asynchronous neighbor requests for photos and music.
 - [`model_media.go`](../internal/browser/model_media.go): parent snapshots, adjacent selection, return navigation, music queue presentation, and the independent photo menu timer.
@@ -146,7 +147,7 @@ The controller has no dependency on `platform`, `videoout`, terminal input, font
 
 ## Selection loading and artwork ownership
 
-`selectionLoader` coordinates metadata and images for the selected item. It refreshes non-photo detail metadata on every visit, including watched state after playback. Detail images use the refreshed metadata. If metadata fails, images can still load from the existing item. Photos start immediately without a detail request. List images and carousel cover samples wait for the existing 120-millisecond selection debounce.
+`selectionLoader` coordinates metadata and images for the selected item. Its constructor receives the mosaic and artwork disk caches as one account-scoped dependency set. The connection worker finishes this construction before publishing the authenticated connection, so selection workers never observe partially attached persistence. It refreshes non-photo detail metadata on every visit, including watched state after playback. Detail images use the refreshed metadata. If metadata fails, images can still load from the existing item. Photos start immediately without a detail request. List images and carousel cover samples wait for the existing 120-millisecond selection debounce.
 
 Library counts start independently of carousel samples and images. A slow count does not delay covers, and slow images do not delay counts. `libraryCache` retains at most 32 libraries, with separate one-minute deadlines for counts and sample metadata. Metadata expiry does not evict decoded images.
 
@@ -304,4 +305,4 @@ Image workers own disk I/O and pruning. Immediate selection snapshots remain mem
 
 Picture mode affects decoded video before overlay composition. The shared `playback.PictureMode` passes through playback handoffs to the selected decoder. MPlayer and the Python helper advertise `VideoTracks.LivePicture` through the optional `pictureSetter` interface. Both accept picture controls through the running player and acknowledge them through the same event path. A successful acknowledgment updates the active choice and dismisses the Picture tab without showing playback controls. Paused changes reuse the same frame and timestamp.
 
-MPlayer's `vf_misterfin` filter fits or crops the retained source frame, then scales once to the fixed CRT canvas. Inline libmpv changes panscan on the existing render surface and publishes its redraw through the normal frame callback. FFplay retains the stream-handoff fallback. `RasterRenderer` uses the same full-screen panel for Subtitles, Audio, and Picture. Controls and text subtitles retain their normal size. See [picture modes](GO_TRACKS.md#picture-modes).
+MPlayer's `vf_misterfin` filter fits or takes a centered horizontal, vertical, or four-edge crop from the retained source frame, then scales once to the fixed CRT canvas. Inline libmpv changes video zoom on the existing render surface and publishes its redraw through the normal frame callback. FFplay retains the stream-handoff fallback. `RasterRenderer` uses the same full-screen panel for Subtitles, Audio, and Picture. Controls and text subtitles retain their normal size. See [picture modes](GO_TRACKS.md#picture-modes).

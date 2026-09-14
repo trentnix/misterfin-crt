@@ -43,14 +43,26 @@ static int render(vf_instance_t *vf)
 {
     struct vf_priv_s *p = vf->priv;
     mp_image_t *src = p->source;
-    int cw = src->w, left = 0, w = p->width;
+    int cw = src->w, ch = src->h, left = 0, top = 0, w = p->width;
     double par = (double)p->width * 3 / (p->height * 4);
     int h = ((int)(w / (p->dar * par) + 0.5)) & ~1;
-    int zoom = p->mode && p->dar > 4.0 / 3;
+    int zoom = p->mode;
     if (zoom) {
-        cw = ((int)(src->w * (4.0 / 3) / p->dar + 0.5)) & ~1;
+        if (p->dar > 4.0 / 3 + 0.01) {
+            cw = ((int)(src->w * (4.0 / 3) / p->dar + 0.5)) & ~1;
+        } else if (p->dar < 4.0 / 3 - 0.01) {
+            ch = ((int)(src->h * p->dar / (4.0 / 3) + 0.5)) & ~1;
+        } else {
+            /* A fixed 4/3 enlargement removes common baked-in letterboxing. */
+            cw = ((int)(src->w * 0.75 + 0.5)) & ~1;
+            ch = ((int)(src->h * 0.75 + 0.5)) & ~1;
+        }
         if (cw < 2) cw = 2;
+        if (ch < 2) ch = 2;
+        if (cw > src->w) cw = src->w & ~1;
+        if (ch > src->h) ch = src->h & ~1;
         left = ((src->w - cw) / 2) & ~1;
+        top = ((src->h - ch) / 2) & ~1;
         h = p->height;
     } else if (h > p->height) {
         h = p->height;
@@ -59,7 +71,7 @@ static int render(vf_instance_t *vf)
     if (w < 2) w = 2;
     if (h < 2) h = 2;
     struct SwsContext *ctx = sws_getCachedContext(p->scaler[zoom],
-        cw, src->h, imgfmt2pixfmt(src->imgfmt), w, h,
+        cw, ch, imgfmt2pixfmt(src->imgfmt), w, h,
         imgfmt2pixfmt(IMGFMT_BGR32), SWS_FAST_BILINEAR, NULL, NULL, NULL);
     p->scaler[zoom] = ctx;
     if (!ctx) return 0;
@@ -72,11 +84,15 @@ static int render(vf_instance_t *vf)
     if (w != p->width || h != p->height)
         for (int y = 0; y < p->height; y++)
             memset(out->planes[0] + y * out->stride[0], 0, p->width * 4);
-    const uint8_t *planes[4] = {src->planes[0] + left,
-        src->planes[1] + left / 2, src->planes[2] + left / 2, NULL};
+    const uint8_t *planes[4] = {
+        src->planes[0] + top * src->stride[0] + left,
+        src->planes[1] + top / 2 * src->stride[1] + left / 2,
+        src->planes[2] + top / 2 * src->stride[2] + left / 2,
+        NULL
+    };
     uint8_t *dest[4] = {out->planes[0] + (p->height - h) / 2 * out->stride[0]
         + (p->width - w) / 2 * 4, NULL, NULL, NULL};
-    if (sws_scale(ctx, planes, src->stride, 0, src->h, dest, out->stride) != h)
+    if (sws_scale(ctx, planes, src->stride, 0, ch, dest, out->stride) != h)
         return 0;
     return vf_next_put_image(vf, out, p->pts, p->endpts);
 }

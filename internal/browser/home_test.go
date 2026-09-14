@@ -150,7 +150,7 @@ func TestEmptyInitialContinueRemovesPlaceholder(t *testing.T) {
 
 func TestPendingContinueDoesNotPublishZeroCount(t *testing.T) {
 	s := testSession(t)
-	s.selection.loader = newSelectionLoader(nil, 640, 240)
+	s.selection.loader = newSelectionLoader(nil, 640, 240, selectionCaches{})
 	s.seedHomeArtwork()
 	if s.selection.loader.libraries.cached(continueID).count != nil {
 		t.Fatal("pending feed was presented as an empty feed")

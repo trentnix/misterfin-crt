@@ -6,10 +6,9 @@ import (
 	"misterfin-crt/internal/jellyfin"
 )
 
-// requestState owns the current authentication or listing request.
+// requestState owns the current listing request.
 type requestState struct {
-	cancel         context.CancelFunc
-	authGeneration int
+	cancel context.CancelFunc
 }
 
 // send delivers worker results unless that request has been canceled.
@@ -20,9 +19,8 @@ func (s *browserSession) send(work context.Context, r workerResult) {
 	}
 }
 
-// authenticate replaces pending authentication or page work and invalidates
-// selection work. A generation check prevents earlier sign-in attempts from changing
-// the current screen, even if a canceled worker still delivers its result.
+// authenticate resets browser state and delegates connection work. The
+// connection manager rejects results from superseded attempts.
 func (s *browserSession) authenticate() {
 	if s.home.cancel != nil {
 		s.home.cancel()
@@ -34,31 +32,13 @@ func (s *browserSession) authenticate() {
 	s.selection.current = selectionData{}
 	s.selection.err = ""
 	s.selection.key = ""
-	s.requests.authGeneration++
-	generation := s.requests.authGeneration
-	work, stop := context.WithCancel(s.ctx)
-	s.requests.cancel = stop
 	s.status = "Connecting to Jellyfin..."
-	go func() {
-		c, err := jellyfin.LoadConfig(s.config.ConfigPath)
-		var jf *jellyfin.Client
-		if err == nil {
-			var session jellyfin.Session
-			session, err = jellyfin.LoadSession(s.config.StateDir, c.Server)
-			if err == nil {
-				jf = jellyfin.NewClient(c, session)
-				err = jf.Authenticate(work, s.config.StateDir, func(code string) {
-					s.send(work, authCodeResult{generation: generation, code: code})
-				})
-			}
-		}
-		s.send(work, authResult{generation: generation, client: jf, err: err})
-	}()
+	s.connection.connect(s.ctx, s.send)
 }
 
-// load starts a listing request and cancels the previous authentication or
-// listing request. Nil is a no-op. The model validates the request generation
-// when the result arrives. The caller must not mutate req after passing it here.
+// load starts a listing request and cancels the previous listing request. Nil
+// is a no-op. The model validates the generation when the result arrives.
+// The caller must not mutate req after passing it here.
 func (s *browserSession) load(req *Request) {
 	if req == nil {
 		return
@@ -84,7 +64,7 @@ func (s *browserSession) load(req *Request) {
 }
 
 func (s *browserSession) handleAuthCode(r authCodeResult) bool {
-	if r.generation != s.requests.authGeneration {
+	if !s.connection.current(r.generation) {
 		return false
 	}
 	s.status = "Quick Connect: " + r.code + "\nApprove this code in your Jellyfin client. Waiting for sign-in..."
@@ -92,19 +72,17 @@ func (s *browserSession) handleAuthCode(r authCodeResult) bool {
 }
 
 func (s *browserSession) handleAuth(r authResult) bool {
-	if r.generation != s.requests.authGeneration {
+	if !s.connection.current(r.generation) {
 		return false
 	}
 	if r.err != nil {
 		s.status = r.err.Error()
 	} else {
-		s.client = r.client
+		s.client = r.connection.client
 		s.model = New()
 		s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
 		s.selection.key = ""
-		s.selection.loader = newSelectionLoader(s.client, s.geometry.Width, s.geometry.Height)
-		s.selection.loader.disk = newMosaicDiskCache(s.config.MosaicCacheDir, s.client.Config.Server, s.client.Session.UserID)
-		s.selection.loader.artwork.disk = newArtworkDiskCache(s.config.ArtworkCacheDir, s.client.Config.Server, s.client.Session.UserID)
+		s.selection.loader = r.connection.selection
 		s.status = ""
 		s.load(s.model.Load(0))
 		s.refreshHome()

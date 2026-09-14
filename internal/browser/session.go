@@ -19,6 +19,7 @@ type browserSession struct {
 	model            *Model
 	client           *jellyfin.Client
 	status           string
+	connection       connectionManager
 	requests         requestState
 	home             homeState
 	selection        selectionState
@@ -41,13 +42,15 @@ type browserSession struct {
 // network requests. The caller must cancel ctx before calling close. The caller
 // retains ownership of output and renderer, which must not be used concurrently.
 func newBrowserSession(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer) *browserSession {
+	geometry := output.Geometry()
 	s := &browserSession{
 		ctx: ctx, config: config,
-		model: New(), output: output, renderer: renderer, geometry: output.Geometry(),
+		model: New(), output: output, renderer: renderer, geometry: geometry,
 		events: make(chan workerResult, 16), frameInterval: time.Second / 60,
-		requests:  requestState{cancel: func() {}},
-		selection: selectionState{cancel: func() {}},
-		media:     mediaNavigation{cancel: func() {}},
+		connection: newConnectionManager(config, geometry.Width, geometry.Height),
+		requests:   requestState{cancel: func() {}},
+		selection:  selectionState{cancel: func() {}},
+		media:      mediaNavigation{cancel: func() {}},
 	}
 	s.driver = playbackDriver{ctx: ctx, config: player, output: output, events: make(chan PlaybackEvent, 16)}
 	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
@@ -63,6 +66,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 // cannot block shutdown while the event loop is no longer receiving results.
 func (s *browserSession) close() {
 	s.ticker.Stop()
+	s.connection.close()
 	s.requests.cancel()
 	if s.home.cancel != nil {
 		s.home.cancel()

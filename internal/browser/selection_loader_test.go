@@ -85,7 +85,7 @@ func TestDetailsAndCoverArriveBeforeSlowArtwork(t *testing.T) {
 	}))
 	defer server.Close()
 	defer release()
-	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288)
+	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288, selectionCaches{})
 	updates := make(chan selectionUpdate, 16)
 	done := make(chan struct{})
 	go func() {
@@ -171,7 +171,7 @@ func TestCarouselCountsAndCoversLoadIndependently(t *testing.T) {
 	}))
 	defer server.Close()
 	defer once.Do(func() { close(release) })
-	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288)
+	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288, selectionCaches{})
 	item := jellyfin.Item{ID: "movies", CollectionType: "movies"}
 	updates := make(chan selectionUpdate, 32)
 	done := make(chan struct{})
@@ -235,7 +235,7 @@ func TestCancelRetainsCompletedCover(t *testing.T) {
 		<-r.Context().Done()
 	}))
 	defer server.Close()
-	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288)
+	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288, selectionCaches{})
 	item := jellyfin.Item{ID: "movie", ImageTags: map[string]string{"Primary": "p"}, BackdropImageTags: []string{"b"}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -268,7 +268,7 @@ func TestCarouselCoversDoNotWaitForSlowCount(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240)
+	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240, selectionCaches{})
 	updates := make(chan selectionUpdate, 8)
 	done := make(chan struct{})
 	go func() {
@@ -300,7 +300,7 @@ func TestSelectionCancellationBeforeDebounceSkipsImages(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }))
 	defer server.Close()
-	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240)
+	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240, selectionCaches{})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	loader.load(ctx, jellyfin.Item{ID: "item", ImageTags: map[string]string{"Primary": "tag"}}, false, false, func(selectionUpdate) { t.Error("canceled list selection emitted an update") })

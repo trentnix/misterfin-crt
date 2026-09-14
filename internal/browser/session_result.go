@@ -30,7 +30,7 @@ func (r authCodeResult) apply(s *browserSession) bool { return s.handleAuthCode(
 
 type authResult struct {
 	generation int
-	client     *jellyfin.Client
+	connection *authenticatedConnection
 	err        error
 }
 

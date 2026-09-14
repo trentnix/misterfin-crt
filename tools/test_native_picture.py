@@ -122,6 +122,24 @@ int main(void) {
   assert(memcmp(original,output.planes[0],bytes)==0);
   free(original);free_mp_image(input);vf.uninit(&vf);
  }
+ {
+  vf_instance_t vf={0};
+  char args[]="640:576:1.333333333:0";
+  assert(vf_open(&vf,args));
+  assert(vf.config(&vf,720,576,720,576,0,IMGFMT_YV12));
+  mp_image_t *input=alloc_mpi(720,576,IMGFMT_YV12);
+  for(int y=72;y<504;y++)memset(input->planes[0]+y*720+90,200,540);
+  assert(vf.put_image(&vf,input,20.0,20.04));
+  assert(output.planes[0][0]==0);
+  int mode=1;
+  assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&mode)==CONTROL_TRUE);
+  // A 4:3 encoded frame receives a centered 4/3 enlargement.
+  assert(vf.priv->scaler[1]->sw==540);
+  assert(vf.priv->scaler[1]->sh==432);
+  assert(output.planes[0][0]==200);
+  free_mp_image(input);
+  vf.uninit(&vf);
+ }
  free(output.planes[0]);
  return 0;
 }

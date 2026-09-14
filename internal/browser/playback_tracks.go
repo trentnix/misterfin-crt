@@ -40,12 +40,10 @@ func (c *PlaybackController) hasTracks() bool {
 
 func (c *PlaybackController) trackRows(tab int) []TrackRow {
 	if tab == 2 {
-		zoom := c.tracks.CanZoom()
-		rows := []TrackRow{{int(playback.PictureOriginal), "Original", !zoom || c.tracks.Picture == playback.PictureOriginal}}
-		if zoom {
-			rows = append(rows, TrackRow{int(playback.PictureZoom43), "Zoom", c.tracks.Picture == playback.PictureZoom43})
+		return []TrackRow{
+			{int(playback.PictureOriginal), "Original", c.tracks.Picture == playback.PictureOriginal},
+			{int(playback.PictureZoom43), "Zoom", c.tracks.Picture == playback.PictureZoom43},
 		}
-		return rows
 	}
 	kind, index, label := "Subtitle", c.tracks.Selection.SubtitleIndex, "Off"
 	if tab == 1 {
@@ -107,7 +105,7 @@ func (c *PlaybackController) trackKey(key string, now time.Time) {
 
 func (c *PlaybackController) applyTrack(now time.Time) {
 	rows := c.trackRows(c.picker.tab)
-	// Refreshed source metadata can remove Zoom while the picker is open.
+	// Keep selection within the current tab if stream metadata changes.
 	c.picker.selected[c.picker.tab] = min(c.picker.selected[c.picker.tab], len(rows)-1)
 	index := rows[c.picker.selected[c.picker.tab]].Index
 	if c.picker.tab == 2 && c.tracks.LivePicture {
@@ -195,13 +193,8 @@ func (c *PlaybackController) trackPresentation(p *PlaybackPresentation, now time
 		p.Tracks = &TrackMenu{Tab: c.picker.tab, Selected: selected, Rows: rows, Message: c.notice}
 		if c.picker.tab == 2 && p.Tracks.Message == "" {
 			p.Tracks.Message = "Original aspect ratio, no cropping"
-			if !c.tracks.CanZoom() {
-				p.Tracks.Message = "Zoom is available for widescreen video."
-				if c.tracks.DisplayAspectRatio() == 4.0/3 {
-					p.Tracks.Message = "This video uses its original 4:3 format."
-				}
-			} else if p.Tracks.Selected == 1 {
-				p.Tracks.Message = "Enlarge the picture, crop the sides"
+			if p.Tracks.Selected == 1 {
+				p.Tracks.Message = "Enlarge the picture and crop the edges."
 			}
 		}
 		sub, ok := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)

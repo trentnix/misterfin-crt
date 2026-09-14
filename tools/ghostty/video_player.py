@@ -127,18 +127,25 @@ def set_picture(mpv, handle, mode):
     """Change the current frame's fit without seeking or changing pause state."""
     if mode not in (0, 1):
         return False
-    panscan = "0"
-    if mode == 1:
-        # Match MiSTer: only widen the crop for sources wider than 4:3.
-        # libmpv's aspect includes non-square pixels and applied video filters.
-        aspect = C.c_double()
-        if mpv.property(handle, b"video-out-params/aspect", 5, C.byref(aspect)) < 0:
-            return False
-        if not math.isfinite(aspect.value) or aspect.value <= 0:
-            return False
-        if aspect.value > 4 / 3:
-            panscan = "1"
-    return mpv.send(handle, "set", "panscan", panscan) >= 0
+    if mpv.send(handle, "set", "panscan", "0") < 0:
+        return False
+    if mode == 0:
+        return mpv.send(handle, "set", "video-zoom", "0") >= 0
+
+    # video-zoom is logarithmic. Scale enough to fill the 4:3 surface for
+    # wide or narrow pictures. A 4:3 source gets a fixed enlargement so Zoom
+    # can remove letterboxing encoded within the video frame.
+    aspect = C.c_double()
+    if mpv.property(handle, b"video-out-params/aspect", 5, C.byref(aspect)) < 0:
+        return False
+    if not math.isfinite(aspect.value) or aspect.value <= 0:
+        return False
+    target = 4 / 3
+    if abs(aspect.value - target) <= 0.01:
+        factor = 4 / 3
+    else:
+        factor = max(aspect.value / target, target / aspect.value)
+    return mpv.send(handle, "set", "video-zoom", f"{math.log2(factor):.9f}") >= 0
 
 
 def play(output, width, height, audio="auto", audio_only=False, source="fd://3", controls=False, status=False, audio_levels=False, zoom_4_3=False):
@@ -197,8 +204,8 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                 raise RuntimeError("unsupported video player option")
         if audio != "auto" and mpv.option(handle, b"ao", audio.encode()) < 0:
             raise RuntimeError("unsupported audio output")
-        if zoom_4_3 and not audio_only and mpv.option(handle, b"panscan", b"1") < 0:
-            raise RuntimeError("cannot enable 4:3 picture zoom")
+        if zoom_4_3 and not audio_only and mpv.option(handle, b"video-zoom", f"{math.log2(4 / 3):.9f}".encode()) < 0:
+            raise RuntimeError("cannot enable picture zoom")
         if status:
             # Descriptor 3 is a pipe, so network cache auto-detection may not apply.
             for key in (b"cache", b"cache-pause"):
@@ -222,7 +229,12 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
         next_report = 0.0
         control_buffer = b""
         control_open = controls or (audio_only and source != "fd://3")
+        picture_ready = not zoom_4_3 or audio_only
         while not stop.is_set():
+            if not picture_ready:
+                picture_ready = set_picture(mpv, handle, 1)
+                if picture_ready:
+                    wake.set()
             if control_open and select.select([sys.stdin], [], [], 0)[0]:
                 chunk = os.read(sys.stdin.fileno(), 1024)
                 if not chunk:

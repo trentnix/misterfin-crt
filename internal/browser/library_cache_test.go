@@ -33,7 +33,7 @@ func TestLibraryCacheBoundsAndIndependentFields(t *testing.T) {
 }
 
 func TestSelectionSnapshotExpiryAndRetry(t *testing.T) {
-	loader := newSelectionLoader(nil, 640, 240)
+	loader := newSelectionLoader(nil, 640, 240, selectionCaches{})
 	item := jellyfin.Item{ID: "library"}
 	cover := jellyfin.Item{ID: "cover", ImageTags: map[string]string{"Primary": "tag"}}
 	im := image.NewRGBA(image.Rect(0, 0, 2, 2))

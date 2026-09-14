@@ -100,6 +100,25 @@ class VideoTests(unittest.TestCase):
                     # Logical rows become tall CRT pixels on the 4:3 screen.
                     self.assertAlmostEqual(red_width / (red_height * 480 / height), 1, delta=0.04)
 
+    def test_zoom_enlarges_a_4_3_source_with_baked_letterboxing(self):
+        clip = subprocess.check_output([
+            "ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+            "color=c=blue:s=240x136:r=25,pad=240:180:0:22:black",
+            "-t", "1", "-c:v", "mpeg2video", "-aspect", "4:3",
+            "-f", "mpegts", "pipe:1"])
+        for zoom in (False, True):
+            with self.subTest(zoom=zoom), tempfile.TemporaryDirectory() as directory:
+                process, output = self.start(directory, 240, zoom=zoom)
+                _, stderr = process.communicate(clip, timeout=10)
+                self.assertEqual(process.returncode, 0, stderr)
+                frame = output.read_bytes()
+                offset = (240 // 16 * 640 + 320) * 4
+                pixel = frame[offset:offset + 3]
+                if zoom:
+                    self.assertGreater(pixel[0], 200)
+                else:
+                    self.assertLess(max(pixel), 10)
+
     def test_audio_only_keeps_browser_frame(self):
         clip = subprocess.check_output(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
                                         "sine=frequency=440:sample_rate=44100", "-t", "2",

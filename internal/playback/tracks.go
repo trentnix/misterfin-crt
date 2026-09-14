@@ -27,20 +27,6 @@ type VideoTracks struct {
 	LivePicture     bool // Decoder supports changing fit without replacing the stream.
 }
 
-// CanZoom reports whether the source is wider than the 4:3 display. It uses the
-// selected source's display aspect ratio, including anamorphic pixels, with the
-// same 16:9 fallback as decoding when aspect metadata is unavailable.
-func (t VideoTracks) CanZoom() bool {
-	return t.DisplayAspectRatio() > 4.0/3
-}
-
-// DisplayAspectRatio returns the selected source's displayed width divided by
-// height. It accounts for anamorphic pixels and uses the decoder's 16:9 fallback
-// when metadata is missing or invalid.
-func (t VideoTracks) DisplayAspectRatio() float64 {
-	return displayAspectRatio(jellyfin.Item{MediaStreams: t.Streams})
-}
-
 // Stream looks up a Jellyfin index without assuming indexes are contiguous.
 func (t VideoTracks) Stream(kind string, index int) (jellyfin.MediaStream, bool) {
 	for _, s := range t.Streams {
@@ -70,11 +56,6 @@ func videoTracks(item jellyfin.Item, choices trackPreparation) (VideoTracks, err
 	t.LivePicture = choices.livePicture
 	if t.Picture != PictureOriginal && t.Picture != PictureZoom43 {
 		return t, errors.New("unsupported picture mode")
-	}
-	// A saved Zoom choice has no effect on a 4:3 or narrower source. Present
-	// its effective mode so the menu and subsequent saved choices agree.
-	if !t.CanZoom() {
-		t.Picture = PictureOriginal
 	}
 	if t.Selection.AudioIndex >= 0 {
 		if _, ok := t.Stream("Audio", t.Selection.AudioIndex); !ok {

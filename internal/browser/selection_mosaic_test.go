@@ -51,9 +51,9 @@ func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {
 	root := t.TempDir()
 	makeLoader := func() *selectionLoader {
 		client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{UserID: "user"})
-		l := newSelectionLoader(client, 640, 240)
-		l.disk = newMosaicDiskCache(root, server.URL, "user")
-		return l
+		return newSelectionLoader(client, 640, 240, selectionCaches{
+			mosaics: newMosaicDiskCache(root, server.URL, "user"),
+		})
 	}
 	library := jellyfin.Item{ID: "library", CollectionType: "movies"}
 	first := makeLoader()

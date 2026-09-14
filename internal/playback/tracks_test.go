@@ -89,16 +89,13 @@ func TestSubtitleLoaderCancellationAndFailure(t *testing.T) {
 	}
 }
 
-func TestPictureAvailabilityUsesSelectedSourceAndNormalizesSavedZoom(t *testing.T) {
-	for _, tc := range []struct {
-		aspect string
-		zoom   bool
-	}{{"16:9", true}, {"235:100", true}, {"4:3", false}, {"1:1", false}} {
-		t.Run(tc.aspect, func(t *testing.T) {
+func TestPictureZoomPersistsAcrossSourceAspectRatios(t *testing.T) {
+	for _, aspect := range []string{"16:9", "235:100", "4:3", "1:1"} {
+		t.Run(aspect, func(t *testing.T) {
 			item := jellyfin.Item{ID: "movie", Type: "Movie",
 				MediaStreams: []jellyfin.MediaStream{{Type: "Video", AspectRatio: "16:9"}},
 				MediaSources: []jellyfin.MediaSource{{ID: "source", MediaStreams: []jellyfin.MediaStream{
-					{Type: "Video", Width: 720, Height: 480, AspectRatio: tc.aspect},
+					{Type: "Video", Width: 720, Height: 480, AspectRatio: aspect},
 				}}},
 			}
 			for _, options := range []trackPreparation{
@@ -109,8 +106,8 @@ func TestPictureAvailabilityUsesSelectedSourceAndNormalizesSavedZoom(t *testing.
 				if err != nil {
 					t.Fatal(err)
 				}
-				if tracks.CanZoom() != tc.zoom || (tracks.Picture == PictureZoom43) != tc.zoom {
-					t.Fatalf("wrong availability or effective saved choice: %+v", tracks)
+				if tracks.Picture != PictureZoom43 {
+					t.Fatalf("wrong effective saved choice: %+v", tracks)
 				}
 			}
 		})
