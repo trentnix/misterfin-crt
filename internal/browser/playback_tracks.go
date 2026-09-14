@@ -198,7 +198,7 @@ func (c *PlaybackController) trackPresentation(p *PlaybackPresentation, now time
 			if !c.tracks.CanZoom() {
 				p.Tracks.Message = "Zoom is available for widescreen video."
 				if c.tracks.DisplayAspectRatio() == 4.0/3 {
-					p.Tracks.Message = "This video already fits the 4:3 screen."
+					p.Tracks.Message = "This video uses its original 4:3 format."
 				}
 			} else if p.Tracks.Selected == 1 {
 				p.Tracks.Message = "Enlarge the picture, crop the sides"
