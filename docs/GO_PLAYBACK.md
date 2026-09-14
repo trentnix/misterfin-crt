@@ -117,6 +117,14 @@ The client reports session start after receiving player position feedback, then 
 
 After playback ends, the browser refreshes the details and reuses cached artwork when its image tags are unchanged. Metadata and playback failures return to the browser with an error message.
 
+## MiSTer menu music
+
+The native browser coordinates with the optional MiSTer BGM service through `/tmp/bgm.sock`, matching the C client's integration. At startup, it reads the configured playback mode and stops an enabled `random` or `loop` playlist. Checking the mode also handles the gap between tracks, when the service can report that nothing is currently playing. A disabled playlist remains disabled.
+
+After Jellyfin playback, input, and output cleanup finish, the browser sends `play` only if its earlier `stop` command was delivered. Restoration runs on normal exit, handled termination, and errors after suspension. It restarts BGM playback without restoring an exact track position. Missing services, invalid status replies, and socket errors leave the application usable. Each command has a 250 ms deadline. Ghostty and preview mode do not contact BGM.
+
+The implementation lives in [`internal/mister/bgm`](../internal/mister/bgm/bgm.go). The MiSTer target supplies it through an optional application-lifetime hook, so BGM adds no work to rendering or playback loops. Tests use a private Unix socket and cover enabled/disabled modes, gaps between tracks, fragmented and malformed replies, missing services, timeouts, failed stop delivery, and restoration at most once. The maintainer's MiSTer had no standard BGM script or active socket during this implementation, so live add-on validation remains pending.
+
 ## MiSTer use and remaining work
 
 The September 12 kernel build fixed framebuffer access. The user confirmed visible browser output and playback on MiSTer. Launch from the Scripts menu so Main_MiSTer enables CRT output. The installed launcher uses `/media/fat/misterfin-crt/mplayer-arm`, separate from the C player. Both Go binaries persist on the SD card. The C player cannot display Go playback overlays or accept the live picture command.

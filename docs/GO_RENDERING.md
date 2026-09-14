@@ -26,6 +26,8 @@ flowchart TD
 
 `cmd/misterfin-crt/target_mister.go` and `target_desktop.go` assemble input, player settings, and output for their respective environments. `browser.go` owns their lifetime, opens input, and cancels and joins the reader after the browser returns. `paths.go` resolves configuration, session, and cache paths into `browser.Config`. The browser receives those paths and semantic input events without selecting hardware. Playback receives explicit `DecoderConfig` values without using the display mode to choose a protocol. Existing command-line flags still select the same defaults.
 
+`browserTarget.activate` optionally acquires environment resources before the browser opens input. `runBrowser` defers the returned cleanup until playback, input, preferences, and output have closed. The MiSTer target uses this hook for [`bgm.Suspend`](../internal/mister/bgm/bgm.go), which stops enabled menu music and restores it on exit. Desktop targets leave the hook unset. Target construction itself performs no environment changes.
+
 `browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
 
 ## Event loop ownership

@@ -13,6 +13,10 @@ import (
 // browserTarget assembles independent input, player settings, and output.
 // runBrowser owns their lifetimes. Assembly never starts input or playback.
 type browserTarget struct {
+	// activate acquires optional environment resources after configuration.
+	// Its non-nil return releases them after browser, input, and output cleanup.
+	// A nil activate means the target needs no environment coordination.
+	activate  func() func()
 	player    playback.Config
 	output    videoout.Output
 	readInput func(context.Context) (<-chan control.Event, <-chan struct{}, error)

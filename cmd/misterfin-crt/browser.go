@@ -22,6 +22,10 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 		return err
 	}
 	target := selectBrowserTarget(d, o, bindings)
+	if target.activate != nil {
+		restore := target.activate()
+		defer restore()
+	}
 	video, player := target.output, target.player
 	defer func() { err = errors.Join(err, video.Close()) }()
 	preferences := playback.NewPreferences(config.StateDir)

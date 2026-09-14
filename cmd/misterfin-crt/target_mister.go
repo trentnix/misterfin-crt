@@ -5,6 +5,7 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/input/evdev"
+	"misterfin-crt/internal/mister/bgm"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/videoout/native"
@@ -14,8 +15,9 @@ import (
 // Shared browsing and rendering receive only semantic input and finished frames.
 func misterTarget(d platform.Presenter, o launchOptions, bindings evdev.Config) browserTarget {
 	return browserTarget{
-		player: misterPlayback(o, d.Geometry()),
-		output: native.New(d, native.OverlayPath),
+		activate: bgm.Suspend,
+		player:   misterPlayback(o, d.Geometry()),
+		output:   native.New(d, native.OverlayPath),
 		readInput: func(ctx context.Context) (<-chan control.Event, <-chan struct{}, error) {
 			return evdev.Read(ctx, bindings)
 		},

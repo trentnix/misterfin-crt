@@ -40,6 +40,9 @@ func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
 			g := platform.Geometry{Width: 640, Height: 240, OutputWidth: 640, OutputHeight: 480}
 			target := selectBrowserTarget(targetPresenter{geometry: g}, o, evdev.Config{})
 			got := target.player
+			if (target.activate != nil) != (o.headless == "") {
+				t.Fatal("environment coordination must be limited to MiSTer")
+			}
 			wantOutput := "*companion.Backend"
 			if o.headless == "" {
 				wantOutput = "*native.Backend"
