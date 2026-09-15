@@ -68,7 +68,7 @@ func (r installResult) apply(s *browserSession) bool {
 		case errors.Is(r.err, context.Canceled):
 			s.about.Message = "Update canceled. Existing installation kept."
 		case errors.Is(r.err, update.ErrManual):
-			s.about.Message = "This release requires manual installation."
+			s.about.Message = "Unsupported update format. Existing installation kept."
 		default:
 			s.about.Message = "Update failed. Existing installation kept."
 		}

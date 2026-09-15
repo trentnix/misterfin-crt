@@ -45,8 +45,8 @@ func (s *sceneCache) about(c *ui.Canvas, statusY int) {
 		titleY := statusY - 86
 		dst.Image(branding.Logo(), 24, top, dst.Width-48, max(1, titleY-top-8))
 		center(dst, titleY, "MiSTerFin CRT", titleColor, 2)
-		center(dst, statusY-44, "Based on MiSTerFin by Pudding Studio.", 0xc0c0c0, 1)
-		center(dst, statusY-32, "Original © 2026 Pudding Studio. Changes © 2026 Trent Nix.", dimColor, 1)
+		center(dst, statusY-44, "Trent Nix", 0xc0c0c0, 1)
+		center(dst, statusY-32, "Based on MiSTerFin by Pudding Studio", dimColor, 1)
 		center(dst, statusY-20, "CC BY-NC 4.0. Components have separate licenses.", dimColor, 1)
 	}
 	if s == nil {
