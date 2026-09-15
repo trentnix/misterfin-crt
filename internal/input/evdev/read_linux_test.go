@@ -18,6 +18,8 @@ func TestControllerMatchesCMapping(t *testing.T) {
 		{"Microsoft Xbox Controller", 305, "open"},
 		{"Microsoft Xbox Controller", 304, "back"},
 		{"Keyboard", 15, "select"},
+		{"Keyboard", 59, "about"},
+		{"Microsoft Xbox Controller", 315, "about"},
 		{"MiSTer virtual input", 15, ""},
 		{"MiSTer virtual input", 28, ""},
 		{"MiSTer virtual input", 103, "up"},

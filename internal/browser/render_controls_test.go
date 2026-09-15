@@ -102,7 +102,7 @@ func TestBrowsingUsesConfiguredBadges(t *testing.T) {
 			labels                    control.Labels
 			want                      []controlHint
 		}{
-			{name: "keyboard carousel", root: true, labels: control.KeyboardLabels(), want: []controlHint{{"Left/Right", "Browse"}, {"Enter", "Select"}, {"Tab", "List"}, {"Esc", "Exit"}}},
+			{name: "keyboard carousel", root: true, labels: control.KeyboardLabels(), want: []controlHint{{"Left/Right", "Browse"}, {"Enter", "Select"}, {"Tab", "List"}, {"Esc", "Exit"}, {"F1", "About"}}},
 			{name: "controller library", want: []controlHint{{"B", "Select"}, {"A", "Back"}}},
 			{name: "root list", root: true, list: true, want: []controlHint{{"B", "Select"}, {"View", "Carousel"}, {"A", "Exit"}}},
 			{name: "music shuffle", collection: "music", labels: control.KeyboardLabels(), want: []controlHint{{"Enter", "Select"}, {"Tab", "Shuffle all"}, {"Esc", "Back"}}},

@@ -20,12 +20,28 @@ func (s *browserSession) dispatchKey(key string) bool {
 	repeated := strings.HasSuffix(key, "-repeat")
 	key = strings.TrimSuffix(key, "-repeat")
 	if repeated {
+		if key == "about" || s.about.Visible {
+			return false
+		}
 		if playing && !s.controller.picker.visible && (menuDirection(key) || key == "track-previous" || key == "track-next") {
 			return false
 		}
 		if key == "open" || key == "back" || key == "select" || (photo && key == "up") {
 			return false
 		}
+	}
+	if s.about.Visible {
+		return s.handleAboutKey(key)
+	}
+	if key == "about" {
+		if playing || photo || s.media.pending {
+			return false
+		}
+		s.about.Visible = true
+		if !s.about.Checked {
+			s.checkUpdate()
+		}
+		return true
 	}
 	if playing && !s.controller.picker.visible && menuDirection(key) {
 		key = "controls"

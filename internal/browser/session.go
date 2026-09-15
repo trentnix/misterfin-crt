@@ -20,6 +20,7 @@ type browserSession struct {
 	model            *Model
 	client           *jellyfin.Client
 	status           string
+	about            AboutPresentation
 	connection       connectionManager
 	requests         requestState
 	home             homeState
@@ -59,6 +60,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 		return s.driver.launch(s.client, item, offset, gate, prepared, controls, tracks)
 	})
 	s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
+	s.about.Build = config.Build
 	s.loadMusicConfig()
 	s.ticker = time.NewTicker(s.frameInterval)
 	return s

@@ -1,6 +1,6 @@
 # Go input configuration
 
-Controller bindings are configurable without rebuilding. The default layout uses the D-pad to toggle playback controls, shoulders to change music tracks, and triggers to seek. See [the playback guide](GO_PLAYBACK.md) for the default controller and keyboard controls.
+Controller bindings are configurable without rebuilding. START/Menu or keyboard F1 opens About while browsing. The `about` action can be remapped like other actions. The default layout uses the D-pad to toggle playback controls, shoulders to change music tracks, and triggers to seek. See [the playback guide](GO_PLAYBACK.md) for the default controller and keyboard controls.
 
 ## Configuration path
 
@@ -111,6 +111,7 @@ Bindings describe intent. The browser decides how an action behaves in the curre
 | `seek-backward`, `seek-forward` | Seek music by 10 seconds or library video by 30 seconds. Live TV ignores seeking. |
 | `open` | Open the selection or pause/resume playback. |
 | `back` | Back out or stop playback. |
+| `about` | Open or close About outside media playback. Default: controller button 315 (START/Menu), keyboard F1 (code 59). |
 | `select` | Restart a resumable video from its selection screen. |
 | `retry` | Retry the current failed request. |
 | `quit` | Exit the application. |

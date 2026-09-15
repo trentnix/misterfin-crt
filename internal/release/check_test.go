@@ -1,0 +1,121 @@
+package release
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestReleaseComparison(t *testing.T) {
+	for _, tc := range []struct {
+		latest, installed string
+		want              bool
+	}{
+		{"v1.10.0", "v1.9.0", true}, {"v1.9.0", "v1.10.0", false},
+		{"v2.0.0", "v1.99.99", true}, {"v1.2.3", "1.2.3", false},
+		{"v1.2.3", "v1.2.3+build.4", false}, {"v1.2.3", "v1.2.3-rc.1", true},
+		{"v1.2.3", "v2.0.0-rc.1", false}, {"v1.2.3", "dev", true},
+		{"v01.2.3", "dev", false}, {"v1.2", "dev", false}, {"v1.2.3-rc.1", "dev", false},
+	} {
+		if got := newer(tc.latest, tc.installed); got != tc.want {
+			t.Errorf("%s versus %s: %v", tc.latest, tc.installed, got)
+		}
+	}
+}
+
+func TestLatestReleaseResponses(t *testing.T) {
+	for _, tc := range []struct {
+		name                         string
+		code                         int
+		body                         string
+		available, fail, unavailable bool
+	}{
+		{"newer", 200, `{"tag_name":"v1.10.0"}`, true, false, false},
+		{"current", 200, `{"tag_name":"v1.9.0"}`, false, false, false},
+		{"older", 200, `{"tag_name":"v1.8.0"}`, false, false, false},
+		{"private or missing", 404, `{}`, false, true, true},
+		{"rate limit", 403, `{}`, false, true, false},
+		{"server error", 503, `{}`, false, true, false},
+		{"malformed", 200, `{`, false, true, false},
+		{"null", 200, `null`, false, true, false},
+		{"invalid version", 200, `{"tag_name":"hello"}`, false, true, false},
+		{"draft", 200, `{"tag_name":"v2.0.0","draft":true}`, false, true, true},
+		{"prerelease", 200, `{"tag_name":"v2.0.0","prerelease":true}`, false, true, true},
+		{"oversize", 200, strings.Repeat(" ", (1<<20)+1), false, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "GET" || r.Header.Get("Authorization") != "" || r.URL.RawQuery != "" {
+					t.Error("unexpected request or credentials")
+				}
+				if r.Header.Get("User-Agent") != "MiSTerFin-CRT" {
+					t.Error("missing user agent")
+				}
+				w.WriteHeader(tc.code)
+				w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+			got, err := check(context.Background(), server.Client(), server.URL, "v1.9.0")
+			if (err != nil) != tc.fail || errors.Is(err, ErrUnavailable) != tc.unavailable || got.Available != tc.available {
+				t.Fatalf("got %+v, %v", got, err)
+			}
+		})
+	}
+}
+
+// Cancellation must interrupt a request already waiting for release metadata.
+func TestCheckCancellation(t *testing.T) {
+	entered := make(chan struct{})
+	stopped := make(chan struct{})
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(entered)
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+		close(stopped)
+	}))
+	defer server.Close()
+	defer close(release)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := check(ctx, server.Client(), server.URL, "dev")
+		done <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("release request did not reach the server")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("got %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("cancellation did not stop the release check")
+	}
+	select {
+	case <-stopped:
+	case <-time.After(3 * time.Second):
+		t.Fatal("cancellation left the HTTP request open")
+	}
+}
+
+func TestBuildLabel(t *testing.T) {
+	b := Build{Version: "dev", Revision: "1234567890", Modified: true}
+	if b.String() != "dev (1234567) modified" {
+		t.Fatal(b.String())
+	}
+	if (Build{}).String() != "dev" {
+		t.Fatal("empty version should identify development build")
+	}
+}

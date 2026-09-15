@@ -43,3 +43,16 @@ func TestPlaybackBindingsAndEnhancedRepeatEvents(t *testing.T) {
 		t.Fatal("Ctrl+C lost", got)
 	}
 }
+
+func TestAboutKeyEncodings(t *testing.T) {
+	for _, seq := range []string{"\x1bOP", "\x1b[11~", "\x1b[1P", "\x1b[57364u"} {
+		var d Decoder
+		got := d.Feed([]byte(seq), time.Now())
+		if len(got) != 1 || got[0] != "about" {
+			t.Fatalf("%q: %v", seq, got)
+		}
+	}
+	if sequenceAction("57364;1:2u") != "about-repeat" || sequenceAction("57364;1:3u") != "" {
+		t.Fatal("F1 repeat/release handling")
+	}
+}

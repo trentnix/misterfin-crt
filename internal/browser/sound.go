@@ -10,17 +10,17 @@ import (
 // navigationState captures only user-visible browsing changes. Artwork arrivals
 // and redraws cannot produce sounds. Absolute selection survives page prefetch.
 type navigationState struct {
-	depth, selected   int
-	location          jellyfin.Location
-	detail, notice    string
-	list, exit, media bool
+	depth, selected          int
+	location                 jellyfin.Location
+	detail, notice           string
+	list, exit, media, about bool
 }
 
 // navigationState takes a small value snapshot before or after an input action.
 func (s *browserSession) navigationState() navigationState {
 	v := s.model.Current()
 	n := navigationState{depth: len(s.model.Stack), selected: v.Start + v.Selected, location: v.Location,
-		notice: s.model.Notice, list: s.model.ListMode, exit: s.model.ExitConfirm,
+		about: s.about.Visible, notice: s.model.Notice, list: s.model.ListMode, exit: s.model.ExitConfirm,
 		media: s.controller.running || s.model.MusicQueueActive() || s.media.pending}
 	if v.Loading {
 		n.selected = v.Target
@@ -45,7 +45,7 @@ func (s *browserSession) handleKey(key string) bool {
 	}
 	action := strings.TrimSuffix(key, "-repeat")
 	switch action {
-	case "open", "back", "select":
+	case "open", "back", "select", "about":
 		s.feedback.Play(sound.Confirm)
 	case "up", "down", "previous", "next", "track-previous", "track-next":
 		if before.depth == after.depth && before.location == after.location && before.selected != after.selected {

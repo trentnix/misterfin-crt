@@ -9,6 +9,7 @@ import (
 	"misterfin-crt/internal/input"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/release"
 	"misterfin-crt/internal/sound"
 )
 
@@ -22,6 +23,10 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions) (err e
 	config, err := browserConfig(o)
 	if err != nil {
 		return err
+	}
+	config.Build = release.CurrentBuild()
+	config.CheckUpdate = func(ctx context.Context) (release.Status, error) {
+		return release.Check(ctx, config.Build.Version)
 	}
 	soundPath := o.soundConfig
 	if soundPath == "" {

@@ -32,7 +32,7 @@ Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Conn
 
 Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
-The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls.
+The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_ABOUT.md). About shows the installed version and checks for public releases. The Update action currently displays "Not implemented yet."
 
 ## Configuration
 

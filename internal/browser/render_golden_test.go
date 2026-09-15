@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/release"
 	"misterfin-crt/internal/ui"
 )
 
@@ -29,7 +30,7 @@ func TestRenderScreenPixels(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, height := range []int{240, 288} {
-		for _, name := range []string{"connecting", "quick-connect", "connection-error", "carousel", "list", "empty", "loading", "error", "exit", "notice", "details", "live-details", "photo", "photo-loading", "photo-error", "music", "music-paused", "video", "video-seek", "video-controls"} {
+		for _, name := range []string{"about", "about-update", "about-unavailable", "about-placeholder", "connecting", "quick-connect", "connection-error", "carousel", "list", "empty", "loading", "error", "exit", "notice", "details", "live-details", "photo", "photo-loading", "photo-error", "music", "music-paused", "video", "video-seek", "video-controls"} {
 			m, art := benchmarkScene()
 			state := playbackState{}
 			now := time.Unix(1800000000, 250000000).UTC()
@@ -103,6 +104,18 @@ func TestRenderScreenPixels(t *testing.T) {
 			presentation.Active = state.PlayingVideo || m.MusicQueueActive()
 			presentation.Audio = m.MusicQueueActive()
 			scene := sceneFromModel(m, presentation, status, selectionData{artwork: art, count: &count}, artError, now)
+			if name == "about" || name == "about-update" || name == "about-unavailable" || name == "about-placeholder" {
+				scene.About = AboutPresentation{Visible: true, Build: release.Build{Version: "v1.0.0", Revision: "abcdef123"}, Checked: true}
+				if name == "about-update" || name == "about-placeholder" {
+					scene.About.Release = release.Status{Latest: "v1.1.0", Available: true}
+				}
+				if name == "about-unavailable" {
+					scene.About.Message = "No public release available."
+				}
+				if name == "about-placeholder" {
+					scene.About.UpdateNoticeUntil = now.Add(2 * time.Second)
+				}
+			}
 			pixels := renderScene(ui.New(640, height), nil, scene, Animation{Seconds: 2.5, TitleSeconds: 3, Selection: 0.4, Row: 0.5})
 			sum := sha256.New()
 			sum.Write(pixels)

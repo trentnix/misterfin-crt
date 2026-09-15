@@ -41,6 +41,7 @@ func Run(ctx context.Context, config Config, player playback.Config, output vide
 		}
 	}
 	s.authenticate()
+	s.checkUpdate()
 	if err := s.draw(); err != nil {
 		return err
 	}

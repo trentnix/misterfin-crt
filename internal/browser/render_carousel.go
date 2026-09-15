@@ -19,6 +19,11 @@ func (p *screenPainter) carousel() [][]controlHint {
 		cache.mosaic(c, art.Covers, music, anim.Seconds)
 	}
 	p.header("MiSTerFin CRT", sy+4)
+	if p.scene.About.Release.Available {
+		if name := p.scene.Controls.Name("about"); name != "" {
+			c.Text(24, sy+24, truncate(name+": update available", w-48, 1), titleColor, w-24)
+		}
+	}
 	centers := make([]float64, len(v.Page.Items))
 	names := make([]string, len(centers))
 	for i, item := range v.Page.Items {
@@ -64,7 +69,7 @@ func (p *screenPainter) carousel() [][]controlHint {
 	if v.Item() != nil {
 		hints = append(hints, hint(labels, "open", "Select"))
 	}
-	hints = append(hints, hint(labels, "select", "List"), hint(labels, "back", "Exit"))
+	hints = append(hints, hint(labels, "select", "List"), hint(labels, "back", "Exit"), hint(labels, "about", "About"))
 	if v.Error != "" || p.scene.SelectionError != "" {
 		hints = append(hints, hint(labels, "retry", "Retry"))
 	}

@@ -6,7 +6,7 @@ import (
 )
 
 func characterAction(c rune) string {
-	return map[rune]string{9: "select", 27: "back", 'q': "quit", 'Q': "quit", 'a': "back", 'A': "back", 'z': "back", 'Z': "back", 127: "back", 8: "back", 'b': "open", 'B': "open", 'x': "open", 'X': "open", 13: "open", 10: "open", 'r': "retry", 'R': "retry", 'j': "seek-backward", 'J': "seek-backward", 'l': "seek-forward", 'L': "seek-forward", '[': "track-previous", ']': "track-next", 'k': "up"}[c]
+	return map[rune]string{57364: "about", 9: "select", 27: "back", 'q': "quit", 'Q': "quit", 'a': "back", 'A': "back", 'z': "back", 'Z': "back", 127: "back", 8: "back", 'b': "open", 'B': "open", 'x': "open", 'X': "open", 13: "open", 10: "open", 'r': "retry", 'R': "retry", 'j': "seek-backward", 'J': "seek-backward", 'l': "seek-forward", 'L': "seek-forward", '[': "track-previous", ']': "track-next", 'k': "up"}[c]
 }
 
 // sequenceAction accepts legacy cursor keys and Kitty keyboard event types.
@@ -54,8 +54,12 @@ func sequenceAction(seq string) string {
 				return ""
 			}
 			key = map[byte]string{'A': "up", 'B': "down", 'C': "next", 'D': "previous"}[final]
+		case 'P':
+			if fields[0] == "" || fields[0] == "1" {
+				key = "about"
+			}
 		case '~':
-			key = map[string]string{"5": "track-previous", "6": "track-next"}[fields[0]]
+			key = map[string]string{"11": "about", "5": "track-previous", "6": "track-next"}[fields[0]]
 		}
 	}
 	if key != "" && event == 2 {

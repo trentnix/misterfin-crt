@@ -1,8 +1,21 @@
 package browser
 
-// Config supplies resolved storage paths to [Run]. The caller chooses platform
-// defaults. Run does not resolve paths from the display or decoder configuration.
+import (
+	"context"
+
+	"misterfin-crt/internal/release"
+)
+
+// Config supplies storage paths and release information to [Run]. The caller
+// chooses platform defaults. Run does not resolve paths from the display or
+// decoder configuration.
 type Config struct {
+	// Build identifies the installed executable on the About page.
+	Build release.Build
+	// CheckUpdate optionally checks release availability. It must honor context
+	// cancellation. Nil disables network checks. The browser serializes calls.
+	CheckUpdate func(context.Context) (release.Status, error)
+
 	// ConfigPath names the Jellyfin configuration file. Its directory also
 	// supplies the default music.json location.
 	ConfigPath string

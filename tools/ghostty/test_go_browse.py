@@ -203,7 +203,9 @@ class BrowseIntegrationTests(unittest.TestCase):
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
              "-config", str(config), "-state-dir", str(self.directory / "state")] + player_args,
             stdin=slave, stdout=self.log, stderr=self.log, preexec_fn=terminal_session,
-            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache")},
+            # Keep release checks offline. Jellyfin fixtures use loopback HTTP.
+            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"),
+                 "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"},
         )
         os.close(slave)
         self.addCleanup(self.stop)
@@ -251,6 +253,27 @@ class BrowseIntegrationTests(unittest.TestCase):
 
     def key(self, key):
         os.write(self.master, key)
+
+    def test_about_preserves_selection_and_blocks_browse_input(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"\x1b[B")
+        time.sleep(.2)
+        self.key(b"\x1bOP")  # F1 opens About through the terminal decoder.
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            if self.read_frame()[:3] == bytes((0x13, 0x0d, 0x0b)):
+                break
+            time.sleep(.02)
+        else:
+            self.fail("About frame did not appear")
+        self.key(b"\x1b[Cb")
+        time.sleep(.2)
+        self.assertFalse(any(urlparse(r).path == "/Items/movie-tricky-1" for r in self.requests))
+        self.key(b"\x1bOP")  # F1 returns to the selected second movie.
+        time.sleep(.1)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-1")
 
     def test_slow_continue_watching_does_not_block_libraries(self):
         self.assertFalse(self.home_gate.is_set())
@@ -699,7 +722,9 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.process = subprocess.Popen(
             self.process.args, stdin=slave, stdout=self.log, stderr=self.log,
             preexec_fn=terminal_session,
-            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache")},
+            # Keep release checks offline. Jellyfin fixtures use loopback HTTP.
+            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"),
+                 "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"},
         )
         os.close(slave)
         self.wait_request("/UserViews")

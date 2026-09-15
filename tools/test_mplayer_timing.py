@@ -1,4 +1,4 @@
-"""Exercise the Go player's patch against MPlayer 1.5 timestamp accounting."""
+"""Exercise private MPlayer timing and paused-overlay behavior."""
 import pathlib
 import shutil
 import subprocess
@@ -107,6 +107,67 @@ int main(void) {
             binary = work / "timing"
             subprocess.run(["cc", "-fsanitize=undefined", str(test), "-lm", "-o", str(binary)], check=True)
             subprocess.run([str(binary)], check=True)
+
+    def test_overlay_refresh_requests_a_flip_only_while_paused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = pathlib.Path(directory)
+            source = work / "command.c"
+            shutil.copy(ROOT / "tools/testdata/mplayer-overlay-command.c", source)
+            subprocess.run(["patch", str(source), str(ROOT / "docker/mplayer_overlay_refresh.patch")], check=True, capture_output=True)
+            program = r'''
+#include <assert.h>
+#define MP_CMD_OSD_SHOW_TEXT 1
+#define MP_CMD_OSD_SHOW_PROPERTY_TEXT 2
+#define OSD_PAUSE 3
+#define OSD_MSG_TEXT 4
+static int osd_duration;
+static void set_osd_msg(int id, int level, int duration, const char *format, const char *text) {}
+typedef struct { int marker; } vf_instance_t;
+typedef struct { vf_instance_t *vfilter; } video_t;
+static struct { int osd_function; } context, *mpctx = &context;
+static struct {
+    struct { union { int i; const char *s; } v; } args[3];
+} command, *cmd = &command;
+static int flips;
+/* Count dispatches to MPlayer's existing redraw path. This stub does not
+ * exercise framebuffer presentation or the playback clock. */
+static void vf_extra_flip(vf_instance_t *vf) {
+    assert(vf && vf->marker == 42);
+    flips++;
+}
+static void handle(video_t *sh_video) {
+    switch (MP_CMD_OSD_SHOW_TEXT) {
+#include "command.c"
+    }
+}
+int main(void) {
+    vf_instance_t vf = {42};
+    video_t video = {&vf};
+    cmd->args[0].v.s = " ";
+    cmd->args[1].v.i = 1;
+    for (int i = 0; i < 20; i++) handle(&video);
+    assert(flips == 0);
+
+    mpctx->osd_function = OSD_PAUSE;
+    for (int i = 0; i < 20; i++) {
+        handle(&video);
+        assert(flips == i + 1);
+        assert(mpctx->osd_function == OSD_PAUSE);
+    }
+    handle(0);
+    video.vfilter = 0;
+    handle(&video);
+    assert(flips == 20);
+
+    mpctx->osd_function = 0;
+    video.vfilter = &vf;
+    handle(&video);
+    assert(flips == 20);
+}
+'''
+            (work / "test.c").write_text(program)
+            subprocess.run(["cc", "-fsanitize=undefined", str(work / "test.c"), "-o", str(work / "test")], check=True)
+            subprocess.run([str(work / "test")], check=True)
 
 
 if __name__ == "__main__":

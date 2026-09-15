@@ -148,6 +148,12 @@ The existing [Dockerfile](../docker/Dockerfile.misterfin-crt) builds the patched
 
 Recorded-video subtitle and audio-track selection, Live TV closed captions, Original picture mode, and Zoom are implemented as described in [GO_TRACKS.md](GO_TRACKS.md). Optional true interlaced CRT output is described in [GO_DISPLAY.md](GO_DISPLAY.md). Zaparoo DDR integration is deferred. Additional hardware layouts remain unverified. Existing browsing, seeking, overlays, and music have been confirmed on the maintainer’s CRT. The maintainer also confirmed the new subtitle and audio-track selection works in testing. See GO_TRACKS.md for validation details.
 
+## Paused overlay refresh
+
+Seeking pauses the old decoder while the next stream is prepared. The native player must still redraw Seeking, destination previews, subtitles, and controls over that retained frame. The Go client sends `pausing_keep_force osd_show_text " " 1` after a paused overlay changes. [mplayer_overlay_refresh.patch](../docker/mplayer_overlay_refresh.patch) makes that command draw and present the retained frame while MPlayer is paused. The command does not decode another frame, change the picture mode, or advance the playback clock. Playing video keeps its normal presentation path.
+
+A generated-video test on the maintainer’s RGB-configured MiSTer reproduced the failure at 480i: published overlays appeared during playback but disappeared when updated after pausing. The corrected player displayed the paused overlay on both framebuffer pages using the existing refresh command. The test restored the normal menu afterward. The command regression test verifies that paused refresh requests a redraw without changing the pause state and adds no redraw requests during normal playback. The test stubs framebuffer presentation. The MiSTer test verifies that the overlay actually appears. Separate timing tests cover timestamp accounting.
+
 ## Rendering architecture
 
 The concrete `PlaybackController` owns decoder handoff and media UX transitions. The shared video renderer consumes its value snapshot. See [the controller and rendering architecture](GO_RENDERING.md) for the boundaries and remaining coupling.

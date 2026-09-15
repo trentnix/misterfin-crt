@@ -13,6 +13,7 @@ func (s *browserSession) draw() error {
 	if item := scene.View.Item(); scene.Root && item != nil && item.ID == continueID {
 		scene.LibraryLoading = !s.home.loaded
 	}
+	scene.About = s.about
 	scene.Controls = s.controls
 	scene.Music, scene.MusicIndex = s.music.library, s.music.index
 	scene.Shuffle = s.shuffle.library != ""

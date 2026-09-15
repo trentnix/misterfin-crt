@@ -10,6 +10,8 @@ import (
 // than retaining a second library-wide artwork cache. Source identity and output
 // geometry determine validity. Unsupported image implementations bypass reuse.
 type sceneCache struct {
+	aboutBase                *ui.Canvas
+	aboutStatusY             int
 	videoBackground          *ui.Canvas
 	videoSource              image.Image
 	background               *ui.Canvas

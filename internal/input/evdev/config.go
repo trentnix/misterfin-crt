@@ -94,7 +94,7 @@ func validLabel(label string) bool {
 
 func validAction(action string) bool {
 	switch action {
-	case "", "up", "down", "previous", "next", "open", "back", "select", "retry", "quit", "track-previous", "track-next", "seek-backward", "seek-forward":
+	case "", "about", "up", "down", "previous", "next", "open", "back", "select", "retry", "quit", "track-previous", "track-next", "seek-backward", "seek-forward":
 		return true
 	}
 	return false

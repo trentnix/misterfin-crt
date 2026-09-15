@@ -32,6 +32,8 @@ func renderSceneWithMusic(c *ui.Canvas, cache *sceneCache, s Scene, anim Animati
 		width: c.Width, height: c.Height, safeY: sy, bottom: c.Height - 8 - sy,
 	}
 	switch {
+	case s.About.Visible:
+		p.about()
 	case s.Status != "":
 		p.status()
 	case s.View.Detail != nil && s.View.Detail.Type == "Photo":

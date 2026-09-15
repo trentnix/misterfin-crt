@@ -12,6 +12,7 @@ import (
 // read-only during Render. Renderers may retain immutable artwork for caching,
 // but must not retain or mutate View slices or detail pointers after Render returns.
 type Scene struct {
+	About          AboutPresentation
 	View           View
 	Root           bool
 	ListMode       bool

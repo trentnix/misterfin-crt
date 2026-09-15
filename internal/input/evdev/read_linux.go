@@ -93,6 +93,8 @@ func action(name string, kind, code uint16, value int32) string {
 		return "open" // BTN_EAST, Enter, X, as in C
 	case 304, 1, 158, 14, 44, 30:
 		return "back" // BTN_SOUTH, Escape, Back, Backspace, Z
+	case 315, 59:
+		return "about" // BTN_START (Xbox Menu), F1
 	case 314, 15:
 		return "select" // BTN_SELECT (Xbox View/Back), Tab. Y is unmapped.
 	case 19:

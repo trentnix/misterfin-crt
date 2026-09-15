@@ -1,15 +1,17 @@
 # Build the Go client. The native framebuffer adapter is compiled through cgo.
 GO ?= go
+VERSION ?= dev
+GO_LDFLAGS = -X misterfin-crt/internal/release.Version=$(VERSION)
 GO_ARM_CC ?= $(CURDIR)/tools/zig-cc-go.sh
 
 .DEFAULT_GOAL := host
 
 .PHONY: host arm test test-browse headless clean
 host:
-	CGO_ENABLED=1 $(GO) build -trimpath -o build/misterfin-crt ./cmd/misterfin-crt
+	CGO_ENABLED=1 $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/misterfin-crt ./cmd/misterfin-crt
 
 arm:
-	CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC="$(GO_ARM_CC)" $(GO) build -trimpath -o build/misterfin-crt-arm ./cmd/misterfin-crt
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC="$(GO_ARM_CC)" $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/misterfin-crt-arm ./cmd/misterfin-crt
 
 test:
 	CGO_ENABLED=1 $(GO) test ./...
