@@ -3,23 +3,23 @@
 package musicviz
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"image"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"misterfin-crt/internal/settings"
 )
 
 // Config describes the default effect and the ordered selection cycle.
 // A missing configuration uses Defaults. Assets are relative to the config file.
 type Config struct {
-	Default     string   `json:"default"`
-	Meters      bool     `json:"meters"`
+	Default     string   `json:"default_background"`
+	Meters      bool     `json:"show_audio_meters"`
 	Backgrounds []Preset `json:"backgrounds"`
 }
 
@@ -64,31 +64,51 @@ func Load(path string) (*Library, error) { return load(path, true) }
 // The browser can publish this library immediately and load a selected asset later.
 func LoadPresets(path string) (*Library, error) { return load(path, false) }
 
+// ParsePresets validates a music_visuals section without decoding images. Asset paths
+// resolve beside the settings file. Decoding stays on the browser's worker.
+func ParsePresets(source settings.Section) (*Library, error) { return parse(source, false) }
+
 func load(path string, decode bool) (*Library, error) {
+	return parse(settings.Read(path, 64<<10, false), decode)
+}
+
+func parse(source settings.Section, decode bool) (*Library, error) {
+	path := source.Path
 	config := Defaults()
-	file, err := os.Open(path)
-	var data []byte
-	if err == nil {
-		defer file.Close()
-		data, err = io.ReadAll(io.LimitReader(file, (64<<10)+1))
+	var overrides struct {
+		Default       json.RawMessage `json:"default_background"`
+		Meters        json.RawMessage `json:"show_audio_meters"`
+		LegacyDefault *string         `json:"default"`
+		LegacyMeters  *bool           `json:"meters"`
+		Backgrounds   *[]Preset       `json:"backgrounds"`
 	}
-	if err != nil && !os.IsNotExist(err) {
+	if err := source.Decode(&overrides); err != nil {
 		return nil, err
 	}
-	explicit := err == nil
-	if explicit {
-		if len(data) > 64<<10 {
-			return nil, fmt.Errorf("music configuration exceeds 64 KiB")
-		}
-		dec := json.NewDecoder(bytes.NewReader(data))
-		dec.DisallowUnknownFields()
-		if err = dec.Decode(&config); err != nil {
+	// Canonical fields take precedence even when null, which keeps the default.
+	// Raw messages distinguish an omitted field from an explicit null.
+	if len(overrides.Default) != 0 {
+		overrides.LegacyDefault = nil
+		if err := json.Unmarshal(overrides.Default, &overrides.LegacyDefault); err != nil {
 			return nil, err
 		}
-		var extra any
-		if dec.Decode(&extra) != io.EOF {
-			return nil, fmt.Errorf("music configuration must contain one JSON object")
+	}
+	if len(overrides.Meters) != 0 {
+		overrides.LegacyMeters = nil
+		if err := json.Unmarshal(overrides.Meters, &overrides.LegacyMeters); err != nil {
+			return nil, err
 		}
+	}
+	if overrides.LegacyDefault != nil {
+		config.Default = *overrides.LegacyDefault
+	}
+	if overrides.LegacyMeters != nil {
+		config.Meters = *overrides.LegacyMeters
+	}
+
+	explicitBackgrounds := overrides.Backgrounds != nil
+	if explicitBackgrounds {
+		config.Backgrounds = *overrides.Backgrounds
 	}
 	if len(config.Backgrounds) == 0 || len(config.Backgrounds) > 16 {
 		return nil, fmt.Errorf("music requires 1 to 16 backgrounds")
@@ -147,7 +167,7 @@ func load(path string, decode bool) (*Library, error) {
 					}
 				}
 				if p.toastyRoot == "" {
-					if explicit {
+					if explicitBackgrounds {
 						return nil, fmt.Errorf("Toasty sprite assets are missing")
 					}
 					continue

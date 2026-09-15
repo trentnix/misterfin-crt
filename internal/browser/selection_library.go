@@ -20,6 +20,10 @@ func (l *selectionLoader) loadLibrary(ctx context.Context, item jellyfin.Item, e
 	if item.CollectionType == "livetv" {
 		return
 	}
+	if l.customBackground {
+		l.loadCount(ctx, item, emit)
+		return
+	}
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() { defer wg.Done(); l.loadCount(ctx, item, emit) }()

@@ -4,18 +4,26 @@ MiSTerFin CRT can use the normal MiSTer display or a standalone interlaced menu 
 
 ## Enable or disable interlaced output
 
-Place `display.json` beside `jellyfin.conf`. The MiSTer launcher reads `/media/fat/misterfin-crt/display.json`. A missing file keeps the current display. Copy [display.example.json](../display.example.json) to start with the default.
+Set the `display` section in `settings.json` beside `jellyfin.conf`. The MiSTer launcher reads `/media/fat/misterfin-crt/settings.json`. An omitted section keeps the current display. The [shared example](../settings.example.json) preserves the progressive default.
 
 To enable interlaced output:
 
 ```json
-{"interlaced": true}
+{
+  "display": {
+    "interlaced": true
+  }
+}
 ```
 
 To return to the normal output on the next launch:
 
 ```json
-{"interlaced": false}
+{
+  "display": {
+    "interlaced": false
+  }
+}
 ```
 
 Install the matching Go executable and MPlayer build. Also place [InterlacedMenu.rbf v0.0.1](https://github.com/iwalton3/Menu_MiSTer/releases/tag/v0.0.1) beside `jellyfin.conf`. The application verifies the supported core before changing the display. Its SHA-256 must be:

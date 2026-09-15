@@ -24,15 +24,26 @@ func run() (err error) {
 	if err != nil {
 		return err
 	}
+	source, err := loadSettings(o)
+	if err != nil {
+		return err
+	}
+	if o.migrateSettings {
+		if err := source.Migrate(); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stdout, "Created", source.Path, "(legacy files preserved)")
+		return nil
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var mode displaymode.Config
 	var loadErr error
 	interlaced := os.Getenv(displaymode.ActiveEnv) == "1"
 	if o.headless == "" && !interlaced {
-		mode, loadErr = displaymode.Load(filepath.Join(filepath.Dir(o.config), "display.json"))
+		mode, loadErr = displaymode.Parse(source.Section("display"))
 	}
-	trace, err := openStartupDiagnostics(o, mode.Interlaced && loadErr == nil)
+	trace, err := openStartupDiagnostics(o, mode.Interlaced && loadErr == nil, source)
 	if err != nil {
 		return err
 	}
@@ -57,7 +68,7 @@ func run() (err error) {
 	g := d.Geometry()
 	trace.log.Record("application.display", slog.Int("ui_width", g.Width), slog.Int("ui_height", g.Height), slog.Int("output_width", g.OutputWidth), slog.Int("output_height", g.OutputHeight))
 	if o.browse {
-		return runBrowser(ctx, d, o, trace)
+		return runBrowser(ctx, d, o, trace, source)
 	}
 	return runPreview(ctx, d, o)
 }

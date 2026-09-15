@@ -7,7 +7,7 @@ import "context"
 func (l *selectionLoader) loadHomeArtwork(ctx context.Context, emit func(selectionUpdate)) {
 	lib := l.libraries.cached(continueID)
 	emit(selectionUpdate{kind: selectionCount, count: lib.count})
-	if !selectionDelay(ctx) {
+	if l.customBackground || !selectionDelay(ctx) {
 		return
 	}
 	l.emitCovers(lib.items, emit)

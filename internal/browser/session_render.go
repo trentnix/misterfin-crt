@@ -13,6 +13,14 @@ func (s *browserSession) draw() error {
 	if item := scene.View.Item(); scene.Root && item != nil && item.ID == continueID {
 		scene.LibraryLoading = !s.home.loaded
 	}
+	// Start the notice timer when browsing can actually display it, including
+	// after a long Quick Connect sign-in. Consume it so navigation cannot repeat it.
+	if len(s.startupNotices) > 0 && !now.Before(s.message.Until) && scene.Setup.Kind == SetupHidden && !s.about.Visible && scene.View.Detail == nil && !scene.View.Loading && scene.View.Error == "" {
+		s.message = MessagePresentation{Header: "Settings", Text: s.startupNotices[0], Until: now.Add(4 * time.Second)}
+		s.startupNotices = s.startupNotices[1:]
+	}
+	scene.Title = s.config.Title
+	scene.Background = s.config.Background
 	scene.Message = s.message
 	scene.About = s.about
 	scene.Controls = s.controls

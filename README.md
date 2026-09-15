@@ -36,21 +36,21 @@ To enable interlaced output:
 
 1. Exit MiSTerFin CRT. Install the matching client and MPlayer builds described above.
 2. Download the supported **InterlacedMenu.rbf v0.0.1** from the [display guide](docs/GO_DISPLAY.md#enable-or-disable-interlaced-output). Place it at `/media/fat/misterfin-crt/InterlacedMenu.rbf`.
-3. Create `/media/fat/misterfin-crt/display.json` with:
+3. Set the `display` section in `/media/fat/misterfin-crt/settings.json`:
 
 ```json
-{"interlaced": true}
+{"display": {"interlaced": true}}
 ```
 
 Launch **MiSTerFin-CRT** from the normal Scripts menu. The application switches to the interlaced core and restores the normal menu when you exit. Synchronization is automatic. The same launcher works for both modes.
 
-To return to the progressive default, exit the application and change `display.json` to:
+To return to the progressive default, exit the application and set `display.interlaced` to `false`:
 
 ```json
-{"interlaced": false}
+{"display": {"interlaced": false}}
 ```
 
-Removing `display.json` also restores the default on the next launch. The [display guide](docs/GO_DISPLAY.md) explains core verification, the scoped `MiSTer.ini` changes and backup, and hardware requirements.
+Omitting the `display` section also restores the default on the next launch. Preserve other sections when changing this setting. The [display guide](docs/GO_DISPLAY.md) explains core verification, the scoped `MiSTer.ini` changes and backup, and hardware requirements.
 
 ## Controls
 
@@ -78,25 +78,57 @@ Also see the [movie library](docs/images/screenshots/movies-list.png) and [movie
 
 To change video conversion limits, add a line such as `640x480@8000000` to `jellyfin.conf` and restart. The values are maximum width, maximum height, and bitrate in bits per second. The default is `720x576@12000000`. The profile applies to recorded video and Live TV. See [transcode configuration](docs/GO_PLAYBACK.md#transcode-configuration).
 
-Optional configuration files live beside `jellyfin.conf`. On MiSTer, that directory is `/media/fat/misterfin-crt`. Copy an example below, rename it, and edit the copy. Restart the application after changing settings. Missing files use the defaults.
-
-| File | Settings | Example and guide |
-| --- | --- | --- |
-| `diagnostics.json` | Optional request and playback diagnostics, log path, and size limit. Disabled by default. | [Example](diagnostics.example.json) · [Guide](docs/GO_DIAGNOSTICS.md) |
-| `display.json` | Optional true interlaced CRT output, applied on launch. Requires the standalone core and matching player. | [Example](display.example.json) · [Guide](docs/GO_DISPLAY.md) |
-| `sounds.json` | Navigation and selection sounds. Enabled by default at volume 10 out of 100. | [Example](sounds.example.json) · [Guide](docs/GO_SOUNDS.md) |
-| `input.json` | Controller bindings and button labels. | [Example](input.json.example) · [Guide](docs/GO_INPUT.md) |
-| `music.json` | Music backgrounds, custom images and animations, and stereo level meters. | [Example](music.example.json) · [Guide](docs/GO_MUSIC.md) |
-
-To turn off navigation sounds, create `sounds.json` containing:
+Application settings live in **`settings.json`** beside `jellyfin.conf`. On MiSTer, that is `/media/fat/misterfin-crt/settings.json`. For a new installation, copy [settings.example.json](settings.example.json) and edit the sections you need. For an existing installation, use the migration command below before creating this file. Omitted sections and fields use defaults. Restart after changing settings. Jellyfin connection details remain in `jellyfin.conf`.
 
 ```json
-{"enabled": false}
+{
+  "ui": {"title": "MiSTerFin CRT", "navigation_sounds": {"enabled": false}},
+  "background": {"image": "background.png"},
+  "display": {"interlaced": false}
+}
 ```
 
-Sound settings affect browsing feedback only. They do not change music or video volume. Each guide also describes how to select a different configuration path.
+| Setting | Defaults and options | Guide |
+| --- | --- | --- |
+| `ui.title` | Heading: `MiSTerFin CRT`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_BACKGROUND.md#browsing-title) |
+| `ui.navigation_sounds` | `enabled: true`, `volume: 10` out of 100. False or volume zero silences navigation sounds. | [Sounds](docs/GO_SOUNDS.md) |
+| `background` | Generated carousel mosaics and item artwork on lists. `image` selects one custom background. | [Background](docs/GO_BACKGROUND.md) |
+| `display` | `interlaced: false`. Keep the current display, normally progressive. | [Display](docs/GO_DISPLAY.md) |
+| `input` | Built-in controller mappings and button labels. Profiles override matching devices. | [Input](docs/GO_INPUT.md) |
+| `music_visuals` | Music playback appearance only. `default_background: "Starfield"`, `show_audio_meters: true`. Missing optional Toasty sprites are omitted. | [Music visuals](docs/GO_MUSIC.md) |
+| `diagnostics` | Off unless `DEBUGLOG` is set. Path: `debug.log`. Limit: 1 MiB per file. | [Diagnostics](docs/GO_DIAGNOSTICS.md) |
 
-`MISTERFIN_CACHE_ROOT` changes where artwork and carousel collages are cached. Go stores them under `misterfin-crt` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
+Existing installations still read the separate JSON files when `settings.json` is absent. To combine those files on MiSTer:
+
+```bash
+/media/fat/misterfin-crt/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/jellyfin.conf
+```
+
+Migration preserves the originals and refuses to overwrite `settings.json`. Once the new file exists, omitted sections use defaults instead of reading old files. See [configuration paths, migration, and recovery](docs/GO_CONFIGURATION.md).
+
+### Browsing background
+
+To use one custom image on the carousel and browsing lists, set `background.image` in `settings.json`:
+
+```json
+{"background": {"image": "background.png"}}
+```
+
+Place the image in the same directory, or use an absolute path. PNG and JPEG are supported, up to 4 MiB and 2048 pixels in either dimension. A 4:3 image fits best. The client crops and dims it to keep the interface readable. Restart to apply changes. An omitted or empty `image` keeps the normal artwork.
+
+The client checks the file contents, not its extension. A video, text file, unsupported image format, or corrupt image is rejected. Missing or invalid image files fall back to the normal artwork with a brief on-screen notice. With diagnostics enabled, the fallback also records a `configuration.fallback` event. Startup continues.
+
+### Sounds and caches
+
+To turn off navigation sounds, set `ui.navigation_sounds`:
+
+```json
+{"ui": {"navigation_sounds": {"enabled": false}}}
+```
+
+Sound settings affect browsing feedback only. They do not change music or video volume.
+
+`MISTERFIN_CACHE_ROOT` changes where artwork and carousel collages are cached. The default root is `/media/fat` on MiSTer and the user’s cache directory, usually `~/.cache`, for local testing. The client stores caches under `misterfin-crt` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
 
 ## Local development and testing
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"path/filepath"
 
 	"misterfin-crt/internal/browser"
 	"misterfin-crt/internal/input"
@@ -14,36 +13,39 @@ import (
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/release"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/settings"
 	"misterfin-crt/internal/sound"
 )
 
 // runBrowser owns input, preferences, and video output around the shared browser.
 // Target assembly supplies independent dependencies before any reader starts.
-func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace *startupDiagnostics) (err error) {
+func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace *startupDiagnostics, source *settings.File) (err error) {
 	trace.phase("input-config")
-	bindings, err := input.LoadConfig(o.inputConfig, o.config)
+	inputSettings := source.Section("input")
+	if o.inputConfig != "" {
+		inputSettings = settings.Read(o.inputConfig, 64<<10, true)
+	}
+	bindings, err := input.ParseConfig(inputSettings)
 	if err != nil {
 		return err
 	}
 	trace.phase("browser-config")
-	config, err := browserConfig(o)
+	config, err := browserConfig(o, trace.log, source)
 	if err != nil {
 		return err
 	}
 	config.Remote = func(client *jellyfin.Client) remote.Source { return jellyfinremote.New(client) }
-	config.Diagnostics = trace.log
 	config.Build = release.CurrentBuild()
 	config.CheckUpdate = func(ctx context.Context) (release.Status, error) {
 		return release.Check(ctx, config.Build.Version)
 	}
-	soundPath := o.soundConfig
-	if soundPath == "" {
-		soundPath = filepath.Join(filepath.Dir(o.config), "sounds.json")
+	if trace.notice != "" {
+		config.StartupNotices = append(config.StartupNotices, trace.notice)
 	}
 	trace.phase("sound-config")
-	soundConfig, err := sound.LoadConfig(soundPath)
-	if err != nil {
-		return err
+	soundConfig, notice := browsingSounds(o, trace.log, source)
+	if notice != "" {
+		config.StartupNotices = append(config.StartupNotices, notice)
 	}
 	target := selectBrowserTarget(d, o, bindings)
 	if target.activate != nil {
@@ -55,7 +57,8 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	trace.phase("sound-open")
 	sounds, err := sound.New(soundConfig, target.openSound)
 	if err != nil {
-		return err
+		trace.log.ConfigurationFallback("ui.navigation_sounds", "sounds-off", err)
+		config.StartupNotices = append(config.StartupNotices, "Navigation sounds unavailable. Continuing without feedback.")
 	}
 	defer sounds.Close()
 	var feedback sound.Feedback

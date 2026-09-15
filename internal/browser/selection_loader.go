@@ -12,10 +12,13 @@ import (
 // It refreshes non-photo details on every visit, caches library metadata, and
 // delegates decoded images to artworkLoader. It owns no browser model state.
 type selectionLoader struct {
-	client    *jellyfin.Client
-	artwork   *artworkLoader
-	libraries libraryCache
-	disk      *mosaicDiskCache
+	// customBackground suppresses invisible mosaic/backdrop downloads. Set
+	// before publishing the loader, then keep it immutable.
+	customBackground bool
+	client           *jellyfin.Client
+	artwork          *artworkLoader
+	libraries        libraryCache
+	disk             *mosaicDiskCache
 }
 
 // selectionCaches contains account-scoped persistence dependencies. Nil caches
@@ -76,6 +79,13 @@ func (l *selectionLoader) load(ctx context.Context, item jellyfin.Item, root, de
 	} else if !selectionDelay(ctx) {
 		return
 	}
+	if l.customBackground && !detail {
+		im, err := l.artwork.fetchImage(ctx, item, "Primary")
+		if ctx.Err() == nil {
+			emit(selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "Primary", image: im, err: err}, err: err})
+		}
+		return
+	}
 	l.artwork.itemImages(ctx, item, detail, func(update artUpdate) {
 		emit(selectionUpdate{kind: selectionArtwork, art: update, err: update.err})
 	})
@@ -106,7 +116,7 @@ func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData 
 	if time.Now().Before(lib.countUntil) {
 		data.count = lib.count
 	}
-	if time.Now().Before(lib.itemsUntil) {
+	if !l.customBackground && time.Now().Before(lib.itemsUntil) {
 		data.artwork.Covers = make([]image.Image, len(lib.items))
 		for i, item := range lib.items {
 			data.artwork.Covers[i] = l.artwork.cache.cached(artworkKey(item, "Primary"))

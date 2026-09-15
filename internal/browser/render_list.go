@@ -34,8 +34,10 @@ func (p *screenPainter) list() [][]controlHint {
 	hints = append(hints, hint(s.Controls, "back", back))
 	controls := controlRows(w, hints)
 
-	cache.backdrop(c, art, false, func(layer *ui.Canvas) {
-		if art.Backdrop != nil {
+	cache.backdrop(c, art, false, s.Background, func(layer *ui.Canvas) {
+		if s.Background != nil {
+			cache.customBackground(layer, s.Background)
+		} else if art.Backdrop != nil {
 			heroHeight := h * 3 / 4
 			layer.Blit(art.Backdrop, 0, 0, w, heroHeight)
 			for y := 0; y < heroHeight; y++ {
@@ -50,11 +52,7 @@ func (p *screenPainter) list() [][]controlHint {
 			layer.Image(art.Primary, w-24-175, sy+21, 175, dh)
 		}
 	})
-	title := v.Title
-	if s.Root {
-		title = "MiSTerFin CRT"
-	}
-	p.header(title, p.safeY)
+	p.header(s.title(), p.safeY)
 	width := w - 48
 	if art.Primary != nil {
 		width = w - 24 - 175 - 10 - 24

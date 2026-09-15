@@ -56,7 +56,7 @@ func TestLoad(t *testing.T) {
 		enabled, valid bool
 	}{
 		{`{"interlaced":true}`, true, true}, {`{"interlaced":false}`, false, true},
-		{`{}`, false, true}, {`null`, false, false}, {`{"interlcaed":true}`, false, false},
+		{strings.Repeat(" ", 4097), false, false}, {`{}`, false, true}, {`null`, false, false}, {`{"interlcaed":true}`, false, false},
 		{`{"interlaced":"true"}`, false, false}, {`{} {}`, false, false},
 	} {
 		if err := os.WriteFile(path, []byte(tc.data), 0600); err != nil {

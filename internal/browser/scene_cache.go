@@ -6,23 +6,26 @@ import (
 	"misterfin-crt/internal/ui"
 )
 
-// sceneCache keeps one prepared backdrop and one carousel's row strips, rather
-// than retaining a second library-wide artwork cache. Source identity and output
-// geometry determine validity. Unsupported image implementations bypass reuse.
+// sceneCache reuses static screen backgrounds, the current item backdrop, and
+// one carousel's row strips. It does not retain a second library-wide artwork
+// cache. Source identity and output geometry determine validity. Unsupported
+// image implementations bypass reuse.
 type sceneCache struct {
-	setupBase                *ui.Canvas
-	setupLogoHeight          int
-	aboutBase                *ui.Canvas
-	aboutStatusY             int
-	videoBackground          *ui.Canvas
-	videoSource              image.Image
-	background               *ui.Canvas
-	source, cover            image.Image
-	detail                   bool
-	rows                     []*ui.Canvas
-	covers                   []image.Image
-	music                    bool
-	width, height, tileWidth int
+	customBase                     *ui.Canvas
+	customSource, backgroundCustom image.Image
+	setupBase                      *ui.Canvas
+	setupLogoHeight                int
+	aboutBase                      *ui.Canvas
+	aboutStatusY                   int
+	videoBackground                *ui.Canvas
+	videoSource                    image.Image
+	background                     *ui.Canvas
+	source, cover                  image.Image
+	detail                         bool
+	rows                           []*ui.Canvas
+	covers                         []image.Image
+	music                          bool
+	width, height, tileWidth       int
 }
 
 func sameArtwork(a, b image.Image) bool {
@@ -45,7 +48,7 @@ func sameArtwork(a, b image.Image) bool {
 	return false
 }
 
-func (s *sceneCache) backdrop(c *ui.Canvas, art Artwork, detail bool, draw func(*ui.Canvas)) {
+func (s *sceneCache) backdrop(c *ui.Canvas, art Artwork, detail bool, custom image.Image, draw func(*ui.Canvas)) {
 	if s == nil {
 		draw(c)
 		return
@@ -54,10 +57,11 @@ func (s *sceneCache) backdrop(c *ui.Canvas, art Artwork, detail bool, draw func(
 	if detail {
 		cover = nil
 	}
-	if s.background == nil || s.background.Width != c.Width || s.background.Height != c.Height || s.detail != detail || !sameArtwork(s.source, art.Backdrop) || !sameArtwork(s.cover, cover) {
+	if s.background == nil || s.background.Width != c.Width || s.background.Height != c.Height || s.detail != detail || !sameArtwork(s.backgroundCustom, custom) || !sameArtwork(s.source, art.Backdrop) || !sameArtwork(s.cover, cover) {
 		s.background = ui.New(c.Width, c.Height)
 		draw(s.background)
 		s.source, s.cover, s.detail = art.Backdrop, cover, detail
+		s.backgroundCustom = custom
 	}
 	copy(c.Pixels, s.background.Pixels)
 }

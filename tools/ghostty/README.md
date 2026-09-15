@@ -28,6 +28,8 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
 
 The browser displays a Quick Connect code. Approve that code in Jellyfin to sign in. The existing three-line server URL, API key, and username format also works. Go saves its session separately under the user configuration directory in `misterfin-crt/session.json`. It does not read or overwrite the C client's token or device files. `--state-dir PATH` selects another Go session directory.
 
+Application options belong in `settings.json` beside `jellyfin.conf`. Use `--settings /path/to/settings.json` or `MISTERFIN_SETTINGS` to select another file. See [settings and migration](../../docs/GO_CONFIGURATION.md).
+
 Go browser controls:
 
 - Up and Down select an item.

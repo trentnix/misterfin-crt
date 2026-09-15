@@ -62,3 +62,15 @@ func TestSoundConfigOverride(t *testing.T) {
 		t.Fatalf("flag: %+v %v", o, err)
 	}
 }
+
+func TestSettingsPathFlagOverridesEnvironment(t *testing.T) {
+	t.Setenv("MISTERFIN_SETTINGS", "/tmp/from-env.json")
+	o, err := parseOptions(nil)
+	if err != nil || o.settingsPath != "/tmp/from-env.json" {
+		t.Fatal("settings environment lost", err)
+	}
+	o, err = parseOptions([]string{"-settings", "/tmp/from-flag.json", "-migrate-settings"})
+	if err != nil || o.settingsPath != "/tmp/from-flag.json" || !o.migrateSettings {
+		t.Fatal("settings flags lost", err)
+	}
+}

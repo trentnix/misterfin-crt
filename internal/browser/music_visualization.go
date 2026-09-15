@@ -1,8 +1,6 @@
 package browser
 
 import (
-	"os"
-	"path/filepath"
 	"time"
 
 	"misterfin-crt/internal/musicviz"
@@ -22,19 +20,17 @@ type musicPresentation struct {
 }
 
 func (s *browserSession) loadMusicConfig() {
-	path := os.Getenv("MISTERFIN_MUSIC_CONFIG")
-	if path == "" {
-		path = filepath.Join(filepath.Dir(s.config.ConfigPath), "music.json")
-	}
+	source := s.config.MusicConfig
 	go func() {
-		library, err := musicviz.LoadPresets(path)
+		library, err := musicviz.ParsePresets(source)
 		s.send(s.ctx, musicConfigResult{music: library, err: err})
 	}()
 }
 
 func (s *browserSession) handleMusicConfig(r musicConfigResult) bool {
 	if r.err != nil {
-		s.model.Notice = "Could not load music.json. Check music configuration and assets."
+		s.config.Diagnostics.ConfigurationFallback("music_visuals", "music-backgrounds-off", r.err)
+		s.startupNotices = append(s.startupNotices, "Check music configuration and assets. Music backgrounds are off.")
 		return true
 	}
 	s.music.library = r.music
@@ -67,6 +63,9 @@ func (s *browserSession) loadMusicAssets() {
 
 func (s *browserSession) handleMusicAssets(r musicAssetsResult) bool {
 	s.music.loading = false
+	if r.err != nil {
+		s.config.Diagnostics.ConfigurationFallback("music_visuals", "selected-background-unavailable", r.err)
+	}
 	if r.err == nil {
 		s.music.library = r.music
 	} else if r.index == s.music.index {

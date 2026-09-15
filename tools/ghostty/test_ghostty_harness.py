@@ -40,7 +40,8 @@ class LaunchOptionsTests(unittest.TestCase):
         self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-crt")
 
     def test_browse_preserves_explicit_config(self):
-        args = HARNESS.parse_args(["--browse", "--config", "/tmp/jellyfin.conf"])
+        args = HARNESS.parse_args(["--browse", "--config", "/tmp/jellyfin.conf", "--settings", "/tmp/settings.json"])
+        self.assertEqual(args.settings, Path("/tmp/settings.json"))
         self.assertEqual(args.config, Path("/tmp/jellyfin.conf"))
 
     def test_inline_video_rate_can_be_overridden(self):

@@ -270,6 +270,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--browse", action="store_true", help="browse Jellyfin with the Go client")
     parser.add_argument("--demo", action="store_true", help="browse a local mock server with the Go client")
     parser.add_argument("--config", type=Path, help="Go Jellyfin configuration path")
+    parser.add_argument("--settings", type=Path, help="sectioned settings.json path")
     parser.add_argument("--state-dir", type=Path, help="Go session directory")
     parser.add_argument(
         "--binary",
@@ -299,8 +300,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         if args.config or args.state_dir:
             parser.error("--demo uses temporary configuration and session files")
         args.browse = True
-    if (args.config or args.state_dir) and not args.browse:
-        parser.error("--config and --state-dir require --browse")
+    if (args.config or args.state_dir or args.settings) and not args.browse:
+        parser.error("--config, --settings, and --state-dir require --browse")
     if args.binary is None:
         args.binary = REPO_ROOT / "build/misterfin-crt"
     return args
@@ -410,6 +411,8 @@ def run(args: argparse.Namespace) -> int:
                     state_dir = Path(temp_dir) / "session"
                 if config:
                     command += ["-config", str(config.resolve())]
+                if args.settings:
+                    command += ["-settings", str(args.settings.resolve())]
                 if state_dir:
                     command += ["-state-dir", str(state_dir.resolve())]
             else:

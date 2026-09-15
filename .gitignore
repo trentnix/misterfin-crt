@@ -25,3 +25,8 @@ local-preview.png
 
 /diagnostics.json
 debug.log.1
+
+/background.json
+/ui.json
+
+/settings.json

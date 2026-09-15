@@ -4,9 +4,9 @@ Controller bindings are configurable without rebuilding. START/Menu or keyboard 
 
 ## Configuration path
 
-Copy [input.json.example](../input.json.example) to `input.json` beside your `jellyfin.conf`, then edit the profile for your controller. The MiSTer launcher uses `/media/fat/misterfin-crt/input.json`. The configuration persists across application restarts.
+Set controller profiles in the `input` section of `settings.json` beside `jellyfin.conf`. The MiSTer launcher uses `/media/fat/misterfin-crt/settings.json`. The [shared example](../settings.example.json) keeps built-in bindings with an empty profiles list.
 
-Use `-input-config /path/to/input.json` to choose another file. The `MISTERFIN_INPUT_CONFIG` environment variable supplies the flag's default and also works through the Ghostty harness. A missing default file keeps the built-in layout. An explicitly selected file must exist. Invalid configuration stops startup with an error that names the file. Restart the application after editing the configuration.
+For legacy compatibility, `-input-config /path/to/input.json` selects a separate input file and overrides the `input` section. The `MISTERFIN_INPUT_CONFIG` environment variable supplies the flag's default and also works through the Ghostty harness. An omitted `input` section keeps the built-in layout. An explicitly selected file must exist. The section or legacy override must contain one JSON object no larger than 64 KiB. Invalid configuration stops startup with an error that names the file. Restart the application after editing the configuration.
 
 Profiles configure Linux hardware input, including controllers and physical keyboards on MiSTer. Ghostty reads terminal key sequences and keeps the keyboard bindings documented in the playback guide. Playback and photo overlays show the bindings of the last physical input device used. Ghostty overlays show keyboard keys. Browsing hints use the same effective bindings.
 
@@ -20,15 +20,17 @@ The `buttons` object maps decimal Linux `EV_KEY` codes to actions. These codes c
 
 ```json
 {
-  "profiles": [
-    {
-      "match": "*Xbox*",
-      "buttons": {
-        "310": "seek-backward",
-        "311": "seek-forward"
+  "input": {
+    "profiles": [
+      {
+        "match": "*Xbox*",
+        "buttons": {
+          "310": "seek-backward",
+          "311": "seek-forward"
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
@@ -44,25 +46,31 @@ Common Linux button and axis codes have default names. Unknown codes appear as `
 
 ```json
 {
-  "profiles": [
-    {
-      "match": "My Controller",
-      "buttons": {
-        "310": "track-previous",
-        "311": "track-next"
-      },
-      "button_labels": {
-        "310": "L1",
-        "311": "R1",
-        "304": "Cross",
-        "305": "Circle"
-      },
-      "axis_labels": {
-        "2": { "positive": "L2" },
-        "5": { "positive": "R2" }
+  "input": {
+    "profiles": [
+      {
+        "match": "My Controller",
+        "buttons": {
+          "310": "track-previous",
+          "311": "track-next"
+        },
+        "button_labels": {
+          "310": "L1",
+          "311": "R1",
+          "304": "Cross",
+          "305": "Circle"
+        },
+        "axis_labels": {
+          "2": {
+            "positive": "L2"
+          },
+          "5": {
+            "positive": "R2"
+          }
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
@@ -84,16 +92,31 @@ For example, this profile adds stick navigation and uses an inverted trigger for
 
 ```json
 {
-  "profiles": [
-    {
-      "match": "My Controller",
-      "axes": {
-        "0": { "negative": "previous", "positive": "next", "press": 40, "release": 25 },
-        "1": { "negative": "up", "positive": "down", "press": 40, "release": 25 },
-        "5": { "rest": "maximum", "negative": "seek-forward" }
+  "input": {
+    "profiles": [
+      {
+        "match": "My Controller",
+        "axes": {
+          "0": {
+            "negative": "previous",
+            "positive": "next",
+            "press": 40,
+            "release": 25
+          },
+          "1": {
+            "negative": "up",
+            "positive": "down",
+            "press": 40,
+            "release": 25
+          },
+          "5": {
+            "rest": "maximum",
+            "negative": "seek-forward"
+          }
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 

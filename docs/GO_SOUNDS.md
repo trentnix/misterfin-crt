@@ -4,20 +4,26 @@ Browsing uses the inherited MiSTerFin navigation and confirmation clips at a qui
 
 ## Configuration
 
-Place `sounds.json` beside `jellyfin.conf`. On MiSTer, the default location is `/media/fat/misterfin-crt/sounds.json`. On the desktop, it is beside the Jellyfin configuration passed to the harness. Copy [sounds.example.json](../sounds.example.json) to start with the defaults:
+Set `ui.navigation_sounds` in `settings.json` beside `jellyfin.conf`. On MiSTer, the default location is `/media/fat/misterfin-crt/settings.json`. The [shared example](../settings.example.json) shows all sections. These are the navigation-sound defaults:
 
 ```json
 {
-  "enabled": true,
-  "volume": 10
+  "ui": {
+    "navigation_sounds": {
+      "enabled": true,
+      "volume": 10
+    }
+  }
 }
 ```
 
 `volume` ranges from 0 to 100 and scales the original clip amplitude. The default of 10 is about 14 dB below the C client's 50% gain. It does not change media volume or the system mixer. Set `enabled` to `false` to disable feedback, or set `volume` to 0. Restart the application after changing the file.
 
-A missing file uses the defaults. Omitted fields retain their defaults. Unknown keys, malformed JSON, and out-of-range volume values produce a configuration error at startup. Local `sounds.json` is ignored by Git.
+An omitted `navigation_sounds` object uses the defaults unless legacy sound settings are present. Omitted fields retain their defaults. Unknown keys, malformed JSON, unreadable files, and out-of-range volume values disable navigation sounds for that run and show a brief settings notice. Invalid settings never increase the volume. A missing explicit override also disables feedback with a notice. Local `settings.json` is ignored by Git.
 
-The Go executable accepts `-sound-config /path/to/sounds.json`. `MISTERFIN_SOUND_CONFIG` selects the same override and also works with the Ghostty harness. An explicit command-line flag takes precedence over the environment variable.
+For legacy compatibility, the Go executable accepts `-sound-config /path/to/sounds.json`. `MISTERFIN_SOUND_CONFIG` selects the same override and also works with the Ghostty harness. An explicit command-line flag takes precedence over the environment variable. Either override replaces `ui.navigation_sounds`. Prefer `settings.json` for new configurations.
+
+The old top-level `sounds` section and separate `sounds.json` remain accepted. The nested `ui.navigation_sounds` object takes precedence as a whole when present, including an empty object or an invalid value. Migration moves the old sound settings into `ui.navigation_sounds` and preserves the original files.
 
 ## Audio ownership
 

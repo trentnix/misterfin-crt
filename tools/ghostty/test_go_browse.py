@@ -35,6 +35,14 @@ class BrowseIntegrationTests(unittest.TestCase):
         mock = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mock)
         mock.ITEMS.update({channel["Id"]: channel for channel in mock.LIVE_CHANNELS})
+        if self._testMethodName == "test_custom_browsing_background":
+            (self.directory / "background.png").write_bytes(mock._png(200, 40, 20, 8, 6))
+            (self.directory / "background.json").write_text('{"image":"background.png"}\n')
+        if self._testMethodName == "test_missing_background_falls_back":
+            (self.directory / "background.json").write_text('{"image":"missing.png"}\n')
+        if self._testMethodName == "test_non_image_background_falls_back":
+            (self.directory / "background.json").write_text('{"image":"not-an-image.txt"}\n')
+            (self.directory / "not-an-image.txt").write_text("private non-image contents")
         if self._testMethodName == "test_select_restarts_resumable_video":
             mock.ITEMS["movie-tricky-0"]["UserData"]["PlaybackPositionTicks"] = 600000000
         if self._testMethodName == "test_music_advances_and_preserves_last_track":
@@ -184,6 +192,16 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.addCleanup(worker.join)
         self.addCleanup(self.server.shutdown)
         (self.directory / "music.json").write_text(json.dumps({"default":"Off", "meters":False, "backgrounds":[{"name":"Off","type":"none"}]}))
+        if self._testMethodName == "test_invalid_optional_settings_keep_browsing":
+            (self.directory / "ui.json").write_text('{"title":42}\n')
+            (self.directory / "sounds.json").write_text('{"volume":999}\n')
+            (self.directory / "music.json").write_text('{"backgrounds":[]}\n')
+        if self._testMethodName == "test_missing_music_asset_keeps_playback":
+            (self.directory / "music.json").write_text(json.dumps({
+                "default": "Custom", "meters": False,
+                "backgrounds": [{"name": "Custom", "type": "image", "files": ["missing.png"]},
+                                {"name": "Off", "type": "none"}],
+            }))
         config = self.directory / "jellyfin.conf"
         config.write_text(f"http://127.0.0.1:{self.server.server_port}\nmock-api-key\nmockuser\n")
         if self._testMethodName == "test_transcode_profile_from_configuration":
@@ -251,12 +269,33 @@ class BrowseIntegrationTests(unittest.TestCase):
             "enabled": True, "path": "logs/diagnostics.log", "max_bytes": 65536,
         }))
 
+        # Run the main suite through sectioned settings. Keep one legacy launch
+        # to cover installations that have not migrated yet.
+        if self._testMethodName != "test_legacy_settings_still_load":
+            settings = {}
+            for name in ("ui", "background", "sounds", "music", "diagnostics"):
+                legacy = self.directory / f"{name}.json"
+                if legacy.exists():
+                    value = json.loads(legacy.read_text())
+                    if name == "music":
+                        if "default" in value:
+                            value["default_background"] = value.pop("default")
+                        if "meters" in value:
+                            value["show_audio_meters"] = value.pop("meters")
+                        settings["music_visuals"] = value
+                    elif name == "sounds":
+                        settings.setdefault("ui", {})["navigation_sounds"] = value
+                    else:
+                        settings[name] = value
+                    legacy.unlink()
+            (self.directory / "settings.json").write_text(json.dumps(settings))
+
         self.process = subprocess.Popen(
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
              "-config", str(config), "-state-dir", str(self.directory / "state")] + player_args,
             stdin=slave, stdout=self.log, stderr=self.log, preexec_fn=terminal_session,
             # Keep release checks offline. Jellyfin fixtures use loopback HTTP.
-            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"),
+            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"), "MISTERFIN_SETTINGS": "",
                  "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"},
         )
         os.close(slave)
@@ -336,6 +375,68 @@ class BrowseIntegrationTests(unittest.TestCase):
 
     def key(self, key):
         os.write(self.master, key)
+
+    def test_custom_browsing_background(self):
+        self.wait_request("/Items", ParentId="view-movies", Limit=0)
+        self.assertEqual(self.read_frame()[-4:-1], bytes((8, 17, 86)))
+        self.assertFalse(any("/Images/" in request for request in self.requests))
+        self.assertFalse(any(parse_qs(urlparse(request).query).get("Limit") == ["12"]
+                             for request in self.requests))
+        # The source is decoded once. Navigating must not reopen the image.
+        (self.directory / "background.png").unlink()
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.wait_request("/Items/movie-tricky-0/Images/Primary")
+        self.assertEqual(self.read_frame()[-4:-1], bytes((8, 17, 86)))
+        self.assertFalse(any("/Images/Backdrop" in request for request in self.requests))
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.wait_request("/Items/movie-tricky-0/Images/Backdrop/0")
+
+    def test_missing_background_falls_back(self):
+        self.wait_event("configuration.fallback", configuration="background",
+                        error_kind="not-found", fallback="normal-artwork")
+        self.assert_normal_artwork_and_navigation()
+
+    def test_non_image_background_falls_back(self):
+        self.wait_event("configuration.fallback", configuration="background",
+                        error_kind="invalid", fallback="normal-artwork")
+        self.assert_normal_artwork_and_navigation()
+
+    def assert_normal_artwork_and_navigation(self):
+        """Failed custom images must retain mosaic loading and library navigation."""
+        self.wait_request("/Items", ParentId="view-movies", Limit=12)
+        self.assertTrue(any("/Images/" in request for request in self.requests))
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.wait_request("/Items/movie-tricky-0/Images/Primary")
+        self.wait_request("/Items/movie-tricky-0/Images/Backdrop/0")
+        self.assertIsNone(self.process.poll())
+
+    def test_invalid_optional_settings_keep_browsing(self):
+        for configuration, fallback in (("ui", "default-title"),
+                                        ("ui.navigation_sounds", "sounds-off"),
+                                        ("music_visuals", "music-backgrounds-off")):
+            self.wait_event("configuration.fallback", configuration=configuration,
+                            error_kind="invalid", fallback=fallback)
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.assertIsNone(self.process.poll())
+        self.key(b"aa")  # Return from details and the list to the carousel.
+        self.exercise_music_playback()
+
+    def test_missing_music_asset_keeps_playback(self):
+        self.wait_event("configuration.fallback", configuration="music_visuals",
+                        error_kind="not-found", fallback="selected-background-unavailable")
+        self.exercise_music_playback()
+
+    def test_legacy_settings_still_load(self):
+        self.assertFalse((self.directory / "settings.json").exists())
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.assertTrue(self.diagnostics.exists())
 
     def test_diagnostics_lifecycle(self):
         self.key(b"b")
@@ -834,7 +935,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             self.process.args, stdin=slave, stdout=self.log, stderr=self.log,
             preexec_fn=terminal_session,
             # Keep release checks offline. Jellyfin fixtures use loopback HTTP.
-            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"),
+            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"), "MISTERFIN_SETTINGS": "",
                  "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"},
         )
         os.close(slave)
@@ -1015,6 +1116,10 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.remote_done.set()
 
     def test_music_plays_with_browser_frame_and_stops(self):
+        self.exercise_music_playback()
+
+    def exercise_music_playback(self):
+        """Play, pause, change tracks, and stop using the application's real input loop."""
         self.key(b"\x1b[C\x1b[Cb")
         self.wait_request("/Items", ParentId="view-music")
         self.key(b"b")
@@ -1034,7 +1139,8 @@ class BrowseIntegrationTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, "pause was not reported")
             time.sleep(0.02)
         time.sleep(0.1)
-        self.assertEqual(self.read_frame()[220 * 640 * 4:], bytes(20 * 640 * 4))
+        if self._testMethodName == "test_music_plays_with_browser_frame_and_stops":
+            self.assertEqual(self.read_frame()[220 * 640 * 4:], bytes(20 * 640 * 4))
         self.key(b"b")
         time.sleep(0.1)
         self.key(b"]")  # Hidden controls must not consume navigation.

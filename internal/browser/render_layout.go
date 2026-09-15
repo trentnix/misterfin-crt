@@ -57,12 +57,15 @@ func (p *screenPainter) clock() {
 	p.canvas.Text(p.width-72, p.safeY+4, p.scene.Now.Format("15:04"), dimColor, p.width-32)
 }
 
-// header draws the scrolling title, clips both copies to the safe area, and
-// paints the clock. The marquee scratch layer preserves existing pixel output.
+// header truncates the root heading and scrolls longer library or item titles.
+// Both stay inside the safe area reserved beside the clock.
 func (p *screenPainter) header(title string, titleY int) {
 	c, w, h, sy, anim := p.canvas, p.width, p.height, titleY, p.animation
 
 	end := w - 84
+	if p.scene.Root {
+		title = truncate(title, end-24, 2)
+	}
 	x := 24
 	if textWidth(title, 2) > end-x {
 		x -= int(anim.TitleSeconds*15) % (textWidth(title, 2) + 40)

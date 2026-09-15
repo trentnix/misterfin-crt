@@ -4,15 +4,14 @@
 package displaymode
 
 import (
-	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"misterfin-crt/internal/settings"
 )
 
 // Config selects the native output at startup. The default preserves the
@@ -22,30 +21,14 @@ type Config struct {
 	Interlaced bool `json:"interlaced"`
 }
 
-// Load reads optional display.json settings. Unknown fields and malformed files
-// are errors so a misspelled display setting cannot silently select another mode.
-func Load(path string) (Config, error) {
+// Load reads legacy display settings. A missing file preserves the current mode.
+func Load(path string) (Config, error) { return Parse(settings.Read(path, 4096, false)) }
+
+// Parse validates the display section before any hardware changes occur.
+func Parse(source settings.Section) (Config, error) {
 	var c Config
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return c, nil
-	}
-	if err != nil {
-		return c, err
-	}
-	if len(data) > 4096 {
-		return c, errors.New("display configuration exceeds 4096 bytes")
-	}
-	if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
-		return c, errors.New("display configuration must be a JSON object")
-	}
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&c); err != nil {
-		return c, fmt.Errorf("display configuration: %w", err)
-	}
-	if err := dec.Decode(new(any)); err != io.EOF {
-		return c, errors.New("display configuration must contain one JSON object")
+	if err := source.Decode(&c); err != nil {
+		return c, fmt.Errorf("display configuration %s: %w", source.Path, err)
 	}
 	return c, nil
 }

@@ -1,48 +1,32 @@
 package input
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 
 	"misterfin-crt/internal/input/evdev"
+	"misterfin-crt/internal/settings"
 )
 
-// LoadConfig reads an optional input.json beside the Jellyfin configuration.
-// An explicit path must exist. Malformed files always fail with their path.
+// LoadConfig reads legacy controller settings. An explicit path must exist.
 func LoadConfig(path, jellyfinPath string) (evdev.Config, error) {
-	var config evdev.Config
-	explicit := path != ""
-	if !explicit {
+	required := path != ""
+	if !required {
 		path = filepath.Join(filepath.Dir(jellyfinPath), "input.json")
 	}
-	f, err := os.Open(path)
-	if !explicit && errors.Is(err, os.ErrNotExist) {
-		return config, nil
-	}
-	if err != nil {
-		return config, err
-	}
-	defer f.Close()
-	decoder := json.NewDecoder(f)
-	decoder.DisallowUnknownFields()
-	decoded := &config
-	if err = decoder.Decode(&decoded); err == nil && decoded == nil {
-		err = errors.New("expected a JSON object")
-	}
+	return ParseConfig(settings.Read(path, 64<<10, required))
+}
+
+// ParseConfig validates the input section before bindings reach a device.
+// Errors include the source path so users can repair hardware mappings.
+func ParseConfig(source settings.Section) (evdev.Config, error) {
+	var config evdev.Config
+	err := source.Decode(&config)
 	if err == nil {
-		var extra any
-		if err = decoder.Decode(&extra); errors.Is(err, io.EOF) {
-			err = config.Validate()
-		} else if err == nil {
-			err = errors.New("expected a single JSON object")
-		}
+		err = config.Validate()
 	}
 	if err != nil {
-		return config, fmt.Errorf("input configuration %s: %w", path, err)
+		return config, fmt.Errorf("input configuration %s: %w", source.Path, err)
 	}
 	return config, nil
 }

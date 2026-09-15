@@ -53,9 +53,11 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 				})
 				if err == nil {
 					caches := newSelectionCaches(config, client)
+					selection := newSelectionLoader(client, width, height, caches)
+					selection.customBackground = config.Background != nil
 					connection = &authenticatedConnection{
 						client:    client,
-						selection: newSelectionLoader(client, width, height, caches),
+						selection: selection,
 					}
 				}
 			}

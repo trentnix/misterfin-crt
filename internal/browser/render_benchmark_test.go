@@ -38,3 +38,26 @@ func BenchmarkBrowserFrame(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkCustomBackgroundFrame(b *testing.B) {
+	for _, list := range []bool{false, true} {
+		name := "carousel"
+		if list {
+			name = "list"
+		}
+		b.Run(name, func(b *testing.B) {
+			m, art := benchmarkScene()
+			m.ListMode = list
+			scene := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{artwork: art}, "", time.Unix(100, 0))
+			scene.Background = art.Backdrop
+			renderer := NewRenderer()
+			renderer.Render(640, 240, scene)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				scene.Now = time.Unix(100, 0).Add(time.Duration(i) * time.Second / 30)
+				renderer.Render(640, 240, scene)
+			}
+		})
+	}
+}

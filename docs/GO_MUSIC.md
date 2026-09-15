@@ -24,16 +24,18 @@ During music playback, SELECT/Tab cycles backgrounds. The screen briefly shows t
 
 These are Go implementations of the C client's background choices. Their motion and layouts are not pixel-identical ports. Nebula and the spinning bars currently use stereo RMS levels, not the C waveform or frequency analysis. Toasty reuses the existing asset files, resized during loading, with Go's movement and layering.
 
-Default Toasty assets are found under `assets/toasty` beside the configuration file, `assets/toasty` in the working directory, `/media/fat/misterfin-crt/toasty`, or the legacy `/media/fat/misterfin/toasty` directory. The default cycle omits Toasty when those assets are absent. Explicitly configured missing assets produce a configuration error.
+Default Toasty assets are found under `assets/toasty` beside the configuration file, `assets/toasty` in the working directory, `/media/fat/misterfin-crt/toasty`, or the legacy `/media/fat/misterfin/toasty` directory. The default cycle omits Toasty when those assets are absent, including when a partial configuration changes only `show_audio_meters` or `default_background`. Explicitly configured missing assets produce a configuration error.
 
 ## Configuration
 
-The client reads `music.json` beside `jellyfin.conf`. `MISTERFIN_MUSIC_CONFIG` can select another path. The configuration is optional and loads at application startup. [music.example.json](../music.example.json) contains the standard cycle. Copy the example to `music.json` and edit the copy. The repository ignores the root `music.json`.
+Music appearance settings belong in the `music_visuals` section of `settings.json` beside `jellyfin.conf`. This section controls backgrounds and stereo level meters during music playback. It does not change volume or playback controls.
+
+The [shared example](../settings.example.json) selects Starfield and enables meters. Omitted fields retain their defaults. Settings load at startup. The legacy `MISTERFIN_MUSIC_CONFIG` override still accepts a separate file and takes precedence over this section.
 
 | Setting | Meaning |
 | --- | --- |
-| `default` | Name of the background selected at startup. Must appear in `backgrounds`. |
-| `meters` | Show or hide stereo level meters. Defaults to `true`. |
+| `default_background` | Name of the background selected at startup. Defaults to `Starfield`. Must appear in `backgrounds`. |
+| `show_audio_meters` | Show or hide stereo level meters. Defaults to `true`. |
 | `backgrounds` | Ordered selection cycle, containing 1 to 16 presets. |
 | `name` | Unique preset label, 1 to 32 characters. |
 | `type` | `none`, `starfield`, `rain`, `nebula`, `spinning`, `tunnel`, `sprites`, or `image`. |
@@ -41,26 +43,46 @@ The client reads `music.json` beside `jellyfin.conf`. `MISTERFIN_MUSIC_CONFIG` c
 | `density` | Particle count, 1 to 128. Defaults to 40. Sprite formations use at most 15. |
 | `intensity` | Background brightness, 0 to 1. Defaults to 0.65. Album art remains at normal brightness. |
 | `color` | Optional hexadecimal RGB color. Applies to stars, rain, plasma, tunnel lines, and spinning bars. |
-| `files` | Image or animation paths for `image` and `sprites`, relative to `music.json` unless absolute. |
+| `files` | Image or animation paths for `image` and `sprites`, relative to `settings.json` unless absolute. A legacy override resolves beside its own file. |
 | `fps` | Frame rate for a sequence of still images, 1 to 60. Defaults to 12. Animated GIFs use their own frame delays. `speed` scales both. |
 
 For example, this configuration uses a custom GIF and a slower green starfield:
 
 ```json
 {
-  "default": "My animation",
-  "meters": true,
-  "backgrounds": [
-    {"name": "My animation", "type": "image", "files": ["music/night.gif"], "intensity": 0.5},
-    {"name": "Green stars", "type": "starfield", "color": "#70dd90", "speed": 0.5, "density": 24},
-    {"name": "Off", "type": "none"}
-  ]
+  "music_visuals": {
+    "default_background": "My animation",
+    "show_audio_meters": true,
+    "backgrounds": [
+      {
+        "name": "My animation",
+        "type": "image",
+        "files": [
+          "music/night.gif"
+        ],
+        "intensity": 0.5
+      },
+      {
+        "name": "Green stars",
+        "type": "starfield",
+        "color": "#70dd90",
+        "speed": 0.5,
+        "density": 24
+      },
+      {
+        "name": "Off",
+        "type": "none"
+      }
+    ]
+  }
 }
 ```
 
 An `image` preset fits PNG, JPEG, or GIF artwork to the display without stretching its aspect ratio. A `sprites` preset repeats its supplied sequence across moving sprites. Multiple paths play in the listed order. Users can change artwork, palettes, speed, and selection order without rebuilding. A new procedural effect requires a Go implementation of `musicviz.Effect` and registration in the effect factory.
 
-Settings load at startup. Images and sprite sequences decode on first selection in a worker, with a loading message. Decoded assets remain cached for the application session. Loading runs outside the browser event loop. Files must be no larger than 4 MiB, with dimensions no larger than 1024 pixels per axis. Custom presets must contain at most 128 decoded frames. A GIF must also fit within 32 MiB before resizing. The complete decoded asset library is limited to 32 MiB. Background images are reduced to at most 640 pixels on their longest side. Sprites are reduced to 96 pixels. Invalid configuration displays an error and leaves ordinary music playback available.
+Settings load at startup. Images and sprite sequences decode on first selection in a worker, with a loading message. Decoded assets remain cached for the application session. Loading runs outside the browser event loop. Files must be no larger than 4 MiB, with dimensions no larger than 1024 pixels per axis. Custom presets must contain at most 128 decoded frames. A GIF must also fit within 32 MiB before resizing. The complete decoded asset library is limited to 32 MiB. Background images are reduced to at most 640 pixels on their longest side. Sprites are reduced to 96 pixels. Invalid configuration disables music backgrounds for that run and queues a brief settings notice. Ordinary music playback remains available. A custom asset that fails on selection shows “Background unavailable. Check music assets.” The background selection control remains available to choose another preset.
+
+The old section name `music` and field names `default` and `meters` remain accepted. Use the new names in new configurations. The new fields take precedence over the old fields. An explicit `null` in a new field selects its default. If both section names exist, `music_visuals` takes precedence as a whole. Migration writes the new names.
 
 ## Audio and rendering
 

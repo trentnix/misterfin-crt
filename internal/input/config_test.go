@@ -35,7 +35,7 @@ func TestLoadConfigPathsAndValidation(t *testing.T) {
 		{`{"profiles":[{"match":"Pad","button_labels":{"310":"L1"},"axis_labels":{"5":{"positive":"R2"}}}]}`, true},
 		{`{"profiles":[{"match":"Pad","button_labels":{"310":"Label much too long"}}]}`, false},
 		{`{"profiles":[{"match":"Pad","axis_labels":{"5":{"positive":"line\nline"}}}]}`, false},
-		{`{} {}`, false}, {`{} garbage`, false}, {`null`, false}, {``, false},
+		{strings.Repeat(" ", 65537), false}, {`{} {}`, false}, {`{} garbage`, false}, {`null`, false}, {``, false},
 	}
 	for _, tc := range cases {
 		if err := os.WriteFile(path, []byte(tc.data), 0600); err != nil {

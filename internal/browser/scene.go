@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"image"
 	"time"
 
 	"misterfin-crt/internal/input/control"
@@ -12,6 +13,14 @@ import (
 // read-only during Render. Renderers may retain immutable artwork for caching,
 // but must not retain or mutate View slices or detail pointers after Render returns.
 type Scene struct {
+	// Title borrows the immutable root heading. Nil uses MiSTerFin CRT.
+	// An empty value hides the heading.
+	Title *string
+
+	// Background is borrowed immutable artwork for carousel and list screens.
+	// Nil selects the normal per-library and per-item backgrounds.
+	Background image.Image
+
 	Message        MessagePresentation
 	About          AboutPresentation
 	View           View
@@ -75,6 +84,9 @@ func (s Scene) title() string {
 		return "Now playing"
 	}
 	if s.Root {
+		if s.Title != nil {
+			return *s.Title
+		}
 		return "MiSTerFin CRT"
 	}
 	return s.View.Title

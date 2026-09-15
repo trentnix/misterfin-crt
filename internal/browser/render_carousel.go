@@ -14,11 +14,13 @@ func (p *screenPainter) carousel() [][]controlHint {
 	anim := p.animation
 	v := &p.scene.View
 
-	if len(art.Covers) > 0 {
+	if p.scene.Background != nil {
+		cache.customBackground(c, p.scene.Background)
+	} else if len(art.Covers) > 0 {
 		music := v.Item() != nil && v.Item().CollectionType == "music"
 		cache.mosaic(c, art.Covers, music, anim.Seconds)
 	}
-	p.header("MiSTerFin CRT", sy+4)
+	p.header(p.scene.title(), sy+4)
 	if p.scene.About.Release.Available {
 		if name := p.scene.Controls.Name("about"); name != "" {
 			c.Text(24, sy+24, truncate(name+": update available", w-48, 1), titleColor, w-24)

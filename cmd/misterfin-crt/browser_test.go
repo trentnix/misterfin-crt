@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/input/evdev"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/settings"
 )
 
 func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
@@ -76,7 +79,7 @@ func TestBrowserStartupResolvesStorage(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("MISTERFIN_CACHE_ROOT", tc.override)
-			got, err := browserConfig(launchOptions{config: "server.conf", headless: tc.headless, stateDir: tc.stateDir})
+			got, err := browserConfig(launchOptions{config: "server.conf", headless: tc.headless, stateDir: tc.stateDir}, nil, mustSettings(t, launchOptions{config: "server.conf", headless: tc.headless, stateDir: tc.stateDir}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,13 +102,13 @@ func TestMissingUserCacheDirectoryDisablesOnlyCaching(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", "")
 	t.Setenv("HOME", "")
 	o := launchOptions{headless: "640x240", stateDir: t.TempDir()}
-	got, err := browserConfig(o)
+	got, err := browserConfig(o, nil, mustSettings(t, o))
 	if err != nil || got.ArtworkCacheDir != "" || got.MosaicCacheDir != "" || got.StateDir != o.stateDir {
 		t.Fatalf("%+v: %v", got, err)
 	}
 	root := t.TempDir()
 	t.Setenv("MISTERFIN_CACHE_ROOT", root)
-	got, err = browserConfig(o)
+	got, err = browserConfig(o, nil, mustSettings(t, o))
 	if err != nil || got.ArtworkCacheDir != filepath.Join(root, "misterfin-crt", "covercache") {
 		t.Fatalf("override: %+v: %v", got, err)
 	}
@@ -119,3 +122,137 @@ type targetPresenter struct {
 }
 
 func (p targetPresenter) Geometry() platform.Geometry { return p.geometry }
+
+// Background failures must preserve browsing defaults without changing other configuration.
+func TestBrowserStartupFallsBackFromUnavailableBackground(t *testing.T) {
+	for _, data := range []string{`{"image":"missing.png"}`, `{"image":"invalid.png"}`, `not json`} {
+		t.Run(data, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, contents := range map[string]string{
+				"background.json": data,
+				"invalid.png":     "not an image",
+				"ui.json":         `{"title":"Trent's CRT"}`,
+			} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(contents), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			config, err := browserConfig(launchOptions{config: filepath.Join(dir, "jellyfin.conf"), stateDir: dir}, nil, mustSettings(t, launchOptions{config: filepath.Join(dir, "jellyfin.conf"), stateDir: dir}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if config.Background != nil || len(config.StartupNotices) == 0 || config.Title == nil || *config.Title != "Trent's CRT" {
+				t.Fatalf("fallback lost browsing settings: %+v", config)
+			}
+		})
+	}
+}
+
+func TestOptionalBrowsingSettingsRecoverTogether(t *testing.T) {
+	dir := t.TempDir()
+	for name, data := range map[string]string{"ui.json": `{"title":42}`, "background.json": `{"image":"missing.png"}`} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config, err := browserConfig(launchOptions{config: filepath.Join(dir, "jellyfin.conf"), stateDir: dir}, nil, mustSettings(t, launchOptions{config: filepath.Join(dir, "jellyfin.conf"), stateDir: dir}))
+	if err != nil || config.Title != nil || config.Background != nil || len(config.StartupNotices) != 2 {
+		t.Fatalf("optional failures: %+v, %v", config, err)
+	}
+}
+
+func TestBrowsingSoundDefaultsAndFailures(t *testing.T) {
+	dir := t.TempDir()
+	o := launchOptions{config: filepath.Join(dir, "jellyfin.conf")}
+	config, notice := browsingSounds(o, nil, mustSettings(t, o))
+	if !config.Enabled || config.Volume != 10 || notice != "" {
+		t.Fatal("missing optional settings lost defaults")
+	}
+	o.soundConfig = filepath.Join(dir, "override.json")
+	config, notice = browsingSounds(o, nil, mustSettings(t, o))
+	if config.Enabled || notice == "" {
+		t.Fatal("missing explicit override enabled sounds")
+	}
+	for _, tc := range []struct {
+		data    string
+		enabled bool
+		volume  int
+		invalid bool
+	}{
+		{`{}`, true, 10, false}, {`{"enabled":false}`, false, 10, false}, {`{"volume":0}`, true, 0, false},
+		{`{"enabled":false,"volume":999}`, false, 0, true}, {`{"volume":99,"typo":true}`, false, 0, true},
+		{`null`, false, 0, true}, {``, false, 0, true},
+	} {
+		if err := os.WriteFile(o.soundConfig, []byte(tc.data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		config, notice = browsingSounds(o, nil, mustSettings(t, o))
+		if config.Enabled != tc.enabled || config.Volume != tc.volume || (notice != "") != tc.invalid {
+			t.Fatalf("%s: %+v, %q", tc.data, config, notice)
+		}
+	}
+}
+
+func TestDefaultSettingsDoNotLogFallbacks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "log")
+	log, err := diagnostics.Open(diagnostics.Config{Enabled: true, Path: path, MaxBytes: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := launchOptions{config: filepath.Join(dir, "jellyfin.conf"), stateDir: dir}
+	if _, err := browserConfig(o, log, mustSettings(t, o)); err != nil {
+		t.Fatal(err)
+	}
+	browsingSounds(o, log, mustSettings(t, o))
+	if err := log.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) != 0 {
+		t.Fatal("ordinary defaults recorded as configuration failures")
+	}
+}
+
+// mustSettings loads a source without involving display or player resources.
+func mustSettings(t *testing.T, o launchOptions) *settings.File {
+	t.Helper()
+	source, err := loadSettings(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return source
+}
+
+func TestUnifiedSettingsAssemblyAndRelativePaths(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "custom-settings.json")
+	data := `{"ui":{"title":"","navigation_sounds":{"enabled":false}},"music_visuals":{"default_background":"Off","show_audio_meters":false,"backgrounds":[{"name":"Off","type":"none"}]},"diagnostics":{"enabled":true,"path":"logs/events","max_bytes":4096},"display":{"interlaced":true}}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	o := launchOptions{browse: true, settingsPath: path, config: filepath.Join(t.TempDir(), "jellyfin.conf"), stateDir: t.TempDir()}
+	source := mustSettings(t, o)
+	config, err := browserConfig(o, nil, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Title == nil || *config.Title != "" || config.MusicConfig.Path != path {
+		t.Fatal("lost explicit title or music source")
+	}
+	sounds, notice := browsingSounds(o, nil, source)
+	if sounds.Enabled || notice != "" {
+		t.Fatal("lost explicit mute")
+	}
+	trace, err := openStartupDiagnostics(o, false, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace.close(nil)
+	if _, err := os.Stat(filepath.Join(dir, "logs/events")); err != nil {
+		t.Fatal("log did not resolve beside settings", err)
+	}
+}

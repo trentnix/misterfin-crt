@@ -19,6 +19,7 @@ type browserSession struct {
 	remoteRequests remoteRequests
 	remotePlayback remotePlayback
 	message        MessagePresentation
+	startupNotices []string // Pending until browsing can show each notice.
 
 	ctx              context.Context
 	config           Config
@@ -52,7 +53,7 @@ type browserSession struct {
 func newBrowserSession(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer, feedback sound.Feedback) *browserSession {
 	geometry := output.Geometry()
 	s := &browserSession{
-		ctx: ctx, config: config, feedback: feedback,
+		ctx: ctx, config: config, feedback: feedback, startupNotices: append([]string(nil), config.StartupNotices...),
 		model: New(), output: output, renderer: renderer, geometry: geometry,
 		events: make(chan workerResult, 16), frameInterval: time.Second / 60,
 		connection: newConnectionManager(config, geometry.Width, geometry.Height),

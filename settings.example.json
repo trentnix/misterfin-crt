@@ -1,0 +1,27 @@
+{
+  "ui": {
+    "title": "MiSTerFin CRT",
+    "navigation_sounds": {
+      "enabled": true,
+      "volume": 10
+    }
+  },
+  "background": {
+    "image": ""
+  },
+  "display": {
+    "interlaced": false
+  },
+  "input": {
+    "profiles": []
+  },
+  "music_visuals": {
+    "default_background": "Starfield",
+    "show_audio_meters": true
+  },
+  "diagnostics": {
+    "enabled": false,
+    "path": "debug.log",
+    "max_bytes": 1048576
+  }
+}

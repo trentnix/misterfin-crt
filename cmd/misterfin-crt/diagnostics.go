@@ -8,19 +8,20 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/release"
+	"misterfin-crt/internal/settings"
 )
 
 // startupDiagnostics owns the process log through display and input cleanup.
 // Stages are static labels. Failures never record raw errors or command arguments.
 type startupDiagnostics struct {
 	log     *diagnostics.Log
+	notice  string // Safe startup warning forwarded to the shared UI.
 	stage   string
 	started time.Time
 }
@@ -28,14 +29,16 @@ type startupDiagnostics struct {
 // openStartupDiagnostics starts logging before framebuffer or browser setup.
 // The interlaced supervisor has a separate bounded log because its child opens
 // the application log independently. Preview runs retain their existing behavior.
-func openStartupDiagnostics(o launchOptions, supervisor bool) (*startupDiagnostics, error) {
+func openStartupDiagnostics(o launchOptions, supervisor bool, source *settings.File) (*startupDiagnostics, error) {
 	s := &startupDiagnostics{started: time.Now()}
 	if !o.browse {
 		return s, nil
 	}
-	c, err := diagnostics.LoadConfig(filepath.Join(filepath.Dir(o.config), "diagnostics.json"), legacyDebugLog(o.config))
+	c, err := diagnostics.ParseConfig(source.Section("diagnostics"), legacyDebugLog(o.config))
 	if err != nil {
-		return nil, err
+		s.notice = "Check diagnostics settings. Logging is off."
+		fmt.Fprintln(os.Stderr, s.notice)
+		return s, nil
 	}
 	role := "application"
 	if supervisor {
@@ -44,7 +47,8 @@ func openStartupDiagnostics(o launchOptions, supervisor bool) (*startupDiagnosti
 	}
 	s.log, err = diagnostics.Open(c)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Diagnostics unavailable: cannot open log.")
+		s.notice = "Cannot open diagnostic log. Check its path and permissions. Logging is off."
+		fmt.Fprintln(os.Stderr, s.notice)
 	}
 	s.log.Record("application.start", slog.String("build", release.CurrentBuild().String()),
 		slog.String("role", role), slog.Bool("headless", o.headless != ""),

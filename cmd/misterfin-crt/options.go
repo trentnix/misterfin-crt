@@ -9,6 +9,8 @@ import (
 
 // launchOptions contains command-line choices before opening any resources.
 type launchOptions struct {
+	settingsPath                        string
+	migrateSettings                     bool
 	headless, output, device            string
 	hold                                time.Duration
 	wait, browse                        bool
@@ -34,8 +36,10 @@ func parseOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.terminalPlayer, "terminal-player", "", "Python helper for video in the headless framebuffer")
 	flags.BoolVar(&o.browse, "browse", false, "browse Jellyfin with terminal keyboard input")
 	flags.StringVar(&o.config, "config", "jellyfin.conf", "Jellyfin configuration path")
-	flags.StringVar(&o.inputConfig, "input-config", os.Getenv("MISTERFIN_INPUT_CONFIG"), "controller bindings JSON (default: input.json beside Jellyfin configuration)")
-	flags.StringVar(&o.soundConfig, "sound-config", os.Getenv("MISTERFIN_SOUND_CONFIG"), "UI sounds JSON (default: sounds.json beside Jellyfin configuration)")
+	flags.StringVar(&o.settingsPath, "settings", os.Getenv("MISTERFIN_SETTINGS"), "sectioned settings JSON (default: settings.json beside jellyfin.conf)")
+	flags.BoolVar(&o.migrateSettings, "migrate-settings", false, "combine legacy JSON files into settings.json and exit without changing originals")
+	flags.StringVar(&o.inputConfig, "input-config", os.Getenv("MISTERFIN_INPUT_CONFIG"), "legacy controller settings override (prefer settings.json input section)")
+	flags.StringVar(&o.soundConfig, "sound-config", os.Getenv("MISTERFIN_SOUND_CONFIG"), "legacy sound settings override (prefer settings.json sounds section)")
 	flags.StringVar(&o.stateDir, "state-dir", "", "Go session directory (default: user config directory/misterfin-crt)")
 	if err := flags.Parse(args); err != nil {
 		return o, err

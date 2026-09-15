@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"misterfin-crt/internal/settings"
 	"time"
 
 	"misterfin-crt/internal/ui"
@@ -157,5 +159,67 @@ func TestLazyAssetsPublishNewLibrary(t *testing.T) {
 	}
 	if l.Ready(0) || !loaded.Ready(0) || len(l.Config.Backgrounds[0].frames) != 0 {
 		t.Fatal("asset loader mutated published library")
+	}
+}
+
+func TestPartialMusicSettingsKeepAvailableDefaults(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	path := filepath.Join(dir, "music.json")
+	for _, data := range []string{`{}`, `{"meters":false}`} {
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		library, err := LoadPresets(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if library.Index(library.Config.Default) < 0 || len(library.Config.Backgrounds) < 6 {
+			t.Fatal("lost built-in defaults")
+		}
+		if data != `{}` && library.Config.Meters {
+			t.Fatal("explicit false ignored")
+		}
+	}
+	for _, data := range []string{`null`, `[]`, `{"default":"Toasty","backgrounds":[{"name":"Toasty","type":"sprites"}]}`} {
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadPresets(path); err == nil {
+			t.Fatalf("accepted invalid settings or missing explicit assets: %s", data)
+		}
+	}
+}
+
+// TestDescriptiveVisualSettings verifies the documented names and legacy aliases
+// preserve explicit false values without changing the selected background.
+func TestDescriptiveVisualSettings(t *testing.T) {
+	for _, data := range []string{
+		`{"default_background":"Off","show_audio_meters":false}`,
+		`{"default":"Off","meters":false}`,
+		`{"default":"Starfield","meters":true,"default_background":"Off","show_audio_meters":false}`,
+	} {
+		library, err := ParsePresets(settings.Section{Path: filepath.Join(t.TempDir(), "settings.json"), Data: []byte(data)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if library.Config.Default != "Off" || library.Config.Meters {
+			t.Fatalf("lost explicit visual settings: %+v", library.Config)
+		}
+	}
+}
+
+func TestMusicVisualFieldsRejectInvalidTypesAndHonorNull(t *testing.T) {
+	for _, data := range []string{`{"show_audio_meters":"false"}`, `{"default_background":42}`} {
+		if _, err := ParsePresets(settings.Section{Data: []byte(data)}); err == nil {
+			t.Fatalf("accepted invalid visual setting %s", data)
+		}
+	}
+	library, err := ParsePresets(settings.Section{Data: []byte(`{"default":"Off","meters":false,"default_background":null,"show_audio_meters":null}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if library.Config.Default != "Starfield" || !library.Config.Meters {
+		t.Fatal("explicit null did not select defaults")
 	}
 }
