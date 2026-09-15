@@ -28,6 +28,7 @@ Each line is JSON with a timestamp and event name in `msg`.
 | `application.display` | Logical and physical dimensions. |
 | `input.backend`, `.device`, `.unavailable` | Backend, initial devices and bindings, and identification/open failures. No button presses. |
 | `mister.display`, `.framebuffer`, `.setting`, `.settings` | Interlaced state, kernel framebuffer geometry, and allowlisted numeric INI settings. |
+| `update.start`, `.end`, `.recovered` | Installation start, completion flags for failure/cancellation/recovery, and startup rollback. No download URLs or raw errors. |
 | `configuration.fallback` | Logical setting, safe error category, and selected recovery behavior. |
 | `authentication.session-recovered` | Damaged saved sign-in was backed up and replaced. No file contents or paths. |
 | `http.request`, `remote.socket` | Endpoint/status/timing or WebSocket connection result. No query strings or credentials. |

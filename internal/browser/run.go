@@ -73,6 +73,9 @@ func Run(ctx context.Context, config Config, player playback.Config, output vide
 		case r := <-s.events:
 			redraw = s.handleResult(r)
 		}
+		if s.model.Quit || (!s.update.exitAt.IsZero() && !time.Now().Before(s.update.exitAt)) {
+			return nil
+		}
 		if redraw {
 			if err := s.draw(); err != nil {
 				return err

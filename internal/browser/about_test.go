@@ -2,7 +2,6 @@ package browser
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -52,29 +51,6 @@ func TestAboutCannotInterruptPlayback(t *testing.T) {
 	}
 }
 
-func TestAboutUpdateIsOnlyPlaceholder(t *testing.T) {
-	s := testSession(t)
-	s.controller.running = false
-	s.about.Visible = true
-	s.handleKey(control.Open)
-	if !s.about.UpdateNoticeUntil.IsZero() {
-		t.Fatal("update without release")
-	}
-	s.handleResult(updateResult{status: release.Status{Latest: "v1.0.0", Available: true}})
-	s.handleKey(control.Open)
-	if s.about.Status(time.Now()) != "Not implemented yet." || !s.about.Visible || s.controller.running {
-		t.Fatal("missing placeholder or unexpected navigation")
-	}
-	s.handleResult(updateResult{err: errors.New("network failure")})
-	if !s.about.Release.Available || s.about.Message != "Could not check for updates." {
-		t.Fatal("failed retry discarded known release")
-	}
-	s.handleResult(updateResult{err: release.ErrUnavailable})
-	if s.about.Release.Available || s.about.Message != "No public release available." {
-		t.Fatal("404 falsely reports an available update")
-	}
-}
-
 func TestUpdateCheckIsAsyncAndSurvivesAboutClose(t *testing.T) {
 	s := testSession(t)
 	s.controller.running = false
@@ -117,35 +93,5 @@ func TestUpdateCheckIsAsyncAndSurvivesAboutClose(t *testing.T) {
 	}
 	if s.about.Visible || s.about.Checking || !s.about.Release.Available {
 		t.Fatal("release result did not update the hidden page")
-	}
-}
-
-func TestAboutUpdateNoticeSurvivesChecksForTwoSeconds(t *testing.T) {
-	s := testSession(t)
-	s.controller.running = false
-	s.about.Visible = true
-	s.about.Release = release.Status{Latest: "v1.0.0", Available: true}
-	before := time.Now()
-	s.handleKey(control.Open)
-	deadline := s.about.UpdateNoticeUntil
-	if deadline.Before(before.Add(2*time.Second)) || deadline.After(time.Now().Add(2*time.Second)) {
-		t.Fatal("update notice must last two seconds")
-	}
-	// A retry and its result must not erase the notice. Use explicit frame times
-	// to verify both sides of the deadline without sleeping in the test.
-	s.about.Checking = true
-	if got := s.about.Status(deadline.Add(-time.Second)); got != "Not implemented yet." {
-		t.Fatal(got)
-	}
-	s.handleResult(updateResult{err: release.ErrUnavailable})
-	if got := s.about.Status(deadline.Add(-time.Millisecond)); got != "Not implemented yet." {
-		t.Fatal(got)
-	}
-	if got := s.about.Status(deadline); got != "No public release available." {
-		t.Fatal(got)
-	}
-	s.handleKey(control.Back)
-	if s.about.Visible || !s.about.UpdateNoticeUntil.IsZero() {
-		t.Fatal("Back must dismiss the page and notice")
 	}
 }

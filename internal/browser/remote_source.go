@@ -20,7 +20,7 @@ type remoteSession struct {
 
 func (s *browserSession) startRemote() {
 	s.stopRemote()
-	if s.config.Remote == nil {
+	if s.config.Remote == nil || s.about.Updating || !s.update.exitAt.IsZero() {
 		return
 	}
 	source := s.config.Remote(s.client)

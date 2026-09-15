@@ -58,7 +58,7 @@ Omitting the `display` section also restores the default on the next launch. Pre
 
 Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
-The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_BROWSING.md#about-and-updates). About shows the installed version and checks for public releases. The Update action currently displays "Not implemented yet."
+The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_BROWSING.md#about-and-updates). About shows the installed version, checks for public releases, and lets you review release notes before installing an update on a standard MiSTer installation. Settings and sign-in are preserved. The published v0.1.0 release predates the updater and requires a [manual upgrade](docs/GO_BUILD.md#application-updates) to a release that includes it.
 
 To control playback from another Jellyfin client, select **MiSTerFin CRT** as the playback device. Remote play, queues, pause/resume, seeking, shuffle, and repeat are supported. See [remote control](docs/GO_REMOTE.md).
 

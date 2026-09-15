@@ -9,6 +9,7 @@ import (
 	"misterfin-crt/internal/musicviz"
 	"misterfin-crt/internal/release"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/update"
 )
 
 // Config supplies browsing settings, storage, and release information to [Run]. The caller
@@ -43,6 +44,9 @@ type Config struct {
 	// CheckUpdate optionally checks release availability. It must honor context
 	// cancellation. Nil disables network checks. The browser serializes calls.
 	CheckUpdate func(context.Context) (release.Status, error)
+	// Updater installs a release outside the event loop. Nil permits release
+	// notes but requires manual installation. Run cancels and joins active work.
+	Updater update.Installer
 
 	// ConfigPath names the Jellyfin connection configuration file.
 	ConfigPath string

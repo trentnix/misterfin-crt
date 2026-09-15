@@ -18,7 +18,7 @@ Start with the [project README](../README.md) for installation and everyday use.
 
 ## Current limits
 
-Update availability is displayed, but installation is a placeholder. Search, automatic photo slideshows, photo zoom, and Live TV audio-track selection are not implemented. Live TV has no seeking or timeshift support. The separate-window FFplay fallback has fewer controls than MiSTer and inline Ghostty. See the [playback guide](GO_PLAYBACK.md).
+About can install verified release bundles on a standard MiSTer installation. The published v0.1.0 release predates the updater and needs one manual upgrade. Custom and desktop installations remain manual. Search, automatic photo slideshows, photo zoom, and Live TV audio-track selection are not implemented. Live TV has no seeking or timeshift support. The separate-window FFplay fallback has fewer controls than MiSTer and inline Ghostty. See the [playback guide](GO_PLAYBACK.md).
 
 PAL/576i, direct MiSTer YPbPr output, Zaparoo DDR integration, and hardware validation of optional MiSTer background-music restoration are deferred. See [tested display scope](GO_DISPLAY.md#tested-scope) and [menu music](GO_PLAYBACK.md#mister-menu-music). Screenshot capture and exact reproduction of C music visualizers are outside the current scope.
 

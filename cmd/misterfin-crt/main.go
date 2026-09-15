@@ -24,6 +24,9 @@ func run() (err error) {
 	if err != nil {
 		return err
 	}
+	if err := recoverUpdate(o); err != nil {
+		return err
+	}
 	source, err := loadSettings(o)
 	if err != nil {
 		return err

@@ -97,6 +97,7 @@ def write_bundle(root, version, revision, output):
         "misterfin-crt/licenses/go-LICENSE": (root / "build/go-LICENSE").read_bytes(),
         "misterfin-crt/licenses/coder-websocket.txt": (root / "docs/licenses/coder-websocket.txt").read_bytes(),
         "misterfin-crt/VERSION": (version + "\n").encode(),
+        "misterfin-crt/UPDATE_FORMAT": b"1\n",
         "INSTALL.txt": (root / "tools/release-install.txt").read_bytes(),
         **licenses,
     }

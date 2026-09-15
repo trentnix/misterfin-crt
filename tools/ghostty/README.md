@@ -65,7 +65,7 @@ The viewer double-buffers terminal images to avoid flicker. It uploads a complet
 
 The presentation cap defaults to 20 FPS, or 60 FPS with `--inline-video`. Change the cap with `--fps NUMBER`. The presenter wakes when the Go frame file is complete, then uploads changed frames up to the configured cap. Upload time counts toward each interval. If an upload overruns a deadline, the presenter skips expired slots rather than building a backlog. This cap affects the terminal preview and does not change the decoder's playback clock.
 
-Press F1 while browsing to open About. Esc or F1 returns to the preceding screen. Tab or R checks for updates, and Enter selects Update when a release is available. Installation currently displays "Not implemented yet."
+Press F1 while browsing to open About. Esc or F1 returns to the preceding screen. Tab or R checks for updates, and Enter opens release notes when a release is available. Up/Down scrolls the notes. Desktop installations show a manual-installation message. Automatic installation is limited to the standard MiSTer installation.
 
 Add `--inline-video` to a real-server browsing command to play video inside Ghostty. Inline playback requires libmpv and FFmpeg. Without that flag, video opens in a separate FFplay window. See [desktop playback setup](../../docs/GO_PLAYBACK.md).
 

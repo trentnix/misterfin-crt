@@ -3,6 +3,7 @@ package release
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -117,5 +118,16 @@ func TestBuildLabel(t *testing.T) {
 	}
 	if (Build{}).String() != "dev" {
 		t.Fatal("empty version should identify development build")
+	}
+}
+
+func TestReleaseIncludesBoundedNotesAndMatchingAssets(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"tag_name":"v0.2.0","body":%q,"assets":[{"name":"misterfin-crt-v0.2.0-mister.zip"},{"name":"SHA256SUMS"}]}`, strings.Repeat("x", 9000))
+	}))
+	defer server.Close()
+	status, err := check(context.Background(), server.Client(), server.URL, "v0.1.0")
+	if err != nil || !status.HasBundle || !status.Available || len(status.Notes) > 8300 || !strings.HasSuffix(status.Notes, "[Release notes truncated]") {
+		t.Fatalf("status: %+v, %v", status, err)
 	}
 }

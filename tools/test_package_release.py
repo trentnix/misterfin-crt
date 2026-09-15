@@ -69,6 +69,7 @@ class ReleaseTest(unittest.TestCase):
             self.assertIn("misterfin-crt/licenses/mplayer/LICENSE", names)
             self.assertFalse(any("state/" in name or name.endswith(("/settings.json", "/jellyfin.conf")) for name in names))
             self.assertEqual(archive.read("misterfin-crt/VERSION"), b"v0.1.0\n")
+            self.assertEqual(archive.read("misterfin-crt/UPDATE_FORMAT"), b"1\n")
             for line in archive.read("SHA256SUMS").decode().splitlines():
                 digest, name = line.split("  ", 1)
                 self.assertEqual(digest, hashlib.sha256(archive.read(name)).hexdigest())

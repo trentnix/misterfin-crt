@@ -21,6 +21,11 @@ var ErrUnavailable = errors.New("no public release available")
 type Status struct {
 	Latest    string
 	Available bool
+	// Notes is bounded release text for the confirmation screen.
+	Notes string
+	// HasBundle reports that both the MiSTer ZIP and its checksum asset exist.
+	// Installation still verifies the archive and its update protocol.
+	HasBundle bool
 }
 
 // Check queries this project's latest public stable release with a bounded wait.
@@ -62,6 +67,10 @@ func check(ctx context.Context, client *http.Client, endpoint, installed string)
 		Tag        string `json:"tag_name"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
+		Body       string `json:"body"`
+		Assets     []struct {
+			Name string `json:"name"`
+		} `json:"assets"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return Status{}, err
@@ -72,5 +81,14 @@ func check(ctx context.Context, client *http.Client, endpoint, installed string)
 	if _, ok := stableParts(result.Tag); !ok || len(result.Tag) > 48 {
 		return Status{}, errors.New("release tag is not a stable semantic version")
 	}
-	return Status{Latest: result.Tag, Available: newer(result.Tag, installed)}, nil
+	archive, sums := false, false
+	for _, asset := range result.Assets {
+		archive = archive || asset.Name == "misterfin-crt-"+result.Tag+"-mister.zip"
+		sums = sums || asset.Name == "SHA256SUMS"
+	}
+	notes := []rune(result.Body)
+	if len(notes) > 8192 {
+		notes = append(notes[:8192], []rune("\n[Release notes truncated]")...)
+	}
+	return Status{Latest: result.Tag, Available: newer(result.Tag, installed), Notes: string(notes), HasBundle: archive && sums}, nil
 }

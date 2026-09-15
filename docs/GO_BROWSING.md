@@ -49,7 +49,11 @@ START/Menu or F1 opens and closes About while browsing. Back also closes it. Abo
 
 The client checks this repository's latest public stable release once per launch. View/Tab or R checks again after the preceding request finishes. Stable `vMAJOR.MINOR.PATCH` versions are compared numerically. Development builds can offer a public release without claiming it is newer than the checkout. Builds use the version described in the [build guide](GO_BUILD.md#go-client).
 
-No GitHub credentials are sent. A missing or inaccessible release displays “No public release available.” Network, rate-limit, and invalid-response failures display “Could not check for updates.” Neither means the installation is current. If an update is offered, Open displays “Not implemented yet.” for two seconds. No installation or restart occurs.
+No GitHub credentials are sent. A missing or inaccessible release displays “No public release available.” Network, rate-limit, and invalid-response failures display “Could not check for updates.” Neither means the installation is current. If an update is offered, Open shows its release notes. Up/Down scrolls the notes. Open again starts installation on a standard MiSTer installation. Desktop and custom installations show a manual-installation message.
+
+The updater downloads and verifies the release, backs up the installed files, then replaces the client and matching player. Back cancels during download or validation. During replacement, wait for completion. Success stays visible for two seconds before the app exits. Reopen it from Scripts.
+
+Failures restore the previous files. Startup recovers an interrupted replacement before opening the display. Settings, sign-in, playback choices, caches, and the optional 480i core stay intact. See [installation and recovery](GO_BUILD.md#application-updates).
 
 ## Persistent artwork cache
 

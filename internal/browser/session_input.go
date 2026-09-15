@@ -21,7 +21,7 @@ func (s *browserSession) dispatchKey(key control.Action) bool {
 	repeated := key.IsRepeat()
 	key = key.Base()
 	if repeated {
-		if key == control.About || s.about.Visible {
+		if key == control.About || (s.about.Visible && (!s.about.NotesVisible || (key != control.Up && key != control.Down))) {
 			return false
 		}
 		if playing && !s.controller.picker.visible && (menuDirection(key) || key == control.TrackPrevious || key == control.TrackNext) {

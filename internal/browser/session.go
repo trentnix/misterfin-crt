@@ -16,6 +16,7 @@ import (
 // browserSession owns one browser run. Only the event loop mutates its state.
 // Workers capture their inputs and return results through channels.
 type browserSession struct {
+	update         updateWork
 	remote         remoteSession
 	remoteRequests remoteRequests
 	remotePlayback remotePlayback
@@ -68,6 +69,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 	})
 	s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)
 	s.about.Build = config.Build
+	s.about.CanInstall = config.Updater != nil
 	s.music.library = config.MusicVisuals
 	if s.music.library != nil {
 		s.music.index = s.music.library.Index(s.music.library.Config.Default)
@@ -81,6 +83,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 // cannot block shutdown while the event loop is no longer receiving results.
 func (s *browserSession) close() {
 	s.ticker.Stop()
+	s.update.close()
 	s.connection.close()
 	s.stopRemote()
 	s.remote.workers.Wait()

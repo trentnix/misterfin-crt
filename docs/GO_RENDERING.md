@@ -110,6 +110,12 @@ Keep the launcher's two-core CPU affinity. Preserve MPlayer's dropped-frame time
 
 [`jellyfin/session.go`](../internal/jellyfin/session.go) owns bounded sign-in reads, damaged-file recovery, and atomic replacement. [`playback.Preferences`](../internal/playback/preferences.go) owns per-item choices and a background writer. Failed writes stay pending without overwriting newer choices. A later save or final shutdown flush retries them. Both components keep storage policy outside rendering.
 
+## Release installation
+
+[`release`](../internal/release) reads public release metadata. The browser owns release-note navigation and installation progress through [`update.Installer`](../internal/update/installer.go). [`mister/update`](../internal/mister/update) owns downloads, validation, file replacement, and rollback. Rendering reads a presentation snapshot and performs no installation I/O.
+
+Application assembly enables the installer only for the standard MiSTer client/player paths. Startup recovery runs before settings or display initialization and re-executes a restored client. Installation excludes playback and remote commands. Browser shutdown cancels and joins the worker so rollback finishes before the session closes.
+
 ## Extending and validating
 
 For another display destination, implement `videoout.Output` and, if needed, `platform.Presenter`, then wire it in target assembly. For another decoder, implement `player.Decoder` and its own feedback parser. For another control source, implement [`remote.Source`](../internal/remote/source.go). These interfaces can be reused independently.

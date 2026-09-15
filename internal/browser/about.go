@@ -7,13 +7,15 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/release"
+	"misterfin-crt/internal/rendering"
+	"misterfin-crt/internal/update"
 )
 
 // checkUpdate starts at most one request at a time. The application starts one
 // check per run. Explicit retries are allowed after completion. Closing About
 // keeps the check alive so the carousel can show an availability notice.
 func (s *browserSession) checkUpdate() {
-	if s.about.Checking || s.config.CheckUpdate == nil {
+	if s.about.Checking || s.about.NotesVisible || s.about.Updating || s.config.CheckUpdate == nil {
 		return
 	}
 	s.about.Checking = true
@@ -45,6 +47,8 @@ func (r updateResult) apply(s *browserSession) bool {
 		s.about.Message = "Could not check for updates."
 	default:
 		s.about.Release = r.status
+		s.about.Notes = rendering.ReleaseNotes(r.status.Notes, max(320, s.geometry.Width))
+		s.about.Scroll = 0
 		s.about.Message = ""
 	}
 	return true
@@ -53,13 +57,41 @@ func (r updateResult) apply(s *browserSession) bool {
 // handleAboutKey isolates page controls from navigation and playback. Returning
 // to the preceding screen preserves its selection, notices, and pending work.
 func (s *browserSession) handleAboutKey(key control.Action) bool {
+	if s.about.Updating {
+		if key == control.Back && s.about.Progress.Phase != update.Installing && s.update.cancel != nil {
+			s.update.cancel()
+		}
+		return true
+	}
+	if s.about.Installed || !s.update.exitAt.IsZero() {
+		s.model.Quit = true
+		return false
+	}
 	switch key {
 	case control.About, control.Back:
-		s.about.Visible = false
-		s.about.UpdateNoticeUntil = time.Time{}
+		if s.about.NotesVisible && key == control.Back {
+			s.about.NotesVisible = false
+			s.about.Message = ""
+		} else {
+			s.about.Visible = false
+			s.about.NotesVisible = false
+		}
 	case control.Open:
 		if s.about.Release.Available && !s.about.Checking {
-			s.about.UpdateNoticeUntil = time.Now().Add(2 * time.Second)
+			if s.about.NotesVisible {
+				s.installUpdate()
+			} else {
+				s.about.NotesVisible = true
+				s.about.Message = ""
+			}
+		}
+	case control.Up:
+		if s.about.NotesVisible {
+			s.about.Scroll = max(0, s.about.Scroll-1)
+		}
+	case control.Down:
+		if s.about.NotesVisible {
+			s.about.Scroll = min(s.about.ScrollLimit(max(320, s.geometry.Width), max(240, s.geometry.Height), s.controls), s.about.Scroll+1)
 		}
 	case control.Select, control.Retry:
 		s.checkUpdate()

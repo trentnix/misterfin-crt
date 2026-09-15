@@ -53,7 +53,7 @@ The ZIP contains only example configuration files. It contains no active `jellyf
 
 The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release. Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing and repository visibility remain manual decisions. Draft or private releases are unavailable to the application's unauthenticated checker.
 
-Use `v0.1.0` while packaging and updating are being completed. The planned public launch is `v1.0.0`. This packaging work does not implement the About page's Update action.
+The repository and [v0.1.0 release](https://github.com/trentnix/misterfin-crt/releases/tag/v0.1.0) are public. The v1.0.0 milestone follows packaging and updater validation. Bundles built from the current source include `misterfin-crt/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
 
 ## Install on MiSTer
 
@@ -69,9 +69,23 @@ Create `jellyfin.conf` beside the binaries with your server URL. Add optional [s
 
 The launcher enables both CPU cores, hides the console cursor, and reloads the normal menu after a successful exit. Failures leave their messages visible. Login and playback choices persist under `/media/fat/misterfin-crt/state`. Caches use separate [artwork directories](GO_BROWSING.md#persistent-artwork-cache). For 480i, follow the [display guide](GO_DISPLAY.md).
 
-Exit before replacing binaries. Copy replacements to temporary filenames in the installation directory, set executable permissions, then rename them over the installed files. Installation and updates are manual.
+For manual installation, exit before replacing binaries. Copy replacements to temporary filenames in the installation directory, set executable permissions, then rename them over the installed files. Always replace the client and matching player together.
 
 If migrating from `misterfin-go`, copy its state, caches, server configuration, settings, and referenced assets into the corresponding `misterfin-crt` directories. On desktop, use the user configuration and cache directories. Preserve the old installation until verified, and reconcile existing destinations before copying. [Settings migration](GO_CONFIGURATION.md#migration) combines legacy JSON files.
+
+## Application updates
+
+In About, select **View release**, review the notes, then select **Install**. Automatic installation requires the client at `/media/fat/misterfin-crt/misterfin-crt` and the configured player at `/media/fat/misterfin-crt/mplayer-arm`. The standard Scripts launcher is updated with the pair. Custom installations and desktop development retain manual installation.
+
+The published v0.1.0 application has no installer. Upgrade it manually to the first release that includes the updater. Keep the existing settings and state files. Do not copy example configuration over active configuration.
+
+Downloads use verified HTTPS from this repository's GitHub release assets without credentials. The installer verifies the outer SHA-256 checksum, every bundled file, the release version, transaction format, and ARM executable headers. File counts and sizes are bounded. Checksums detect damaged downloads. They are not signatures independent of GitHub.
+
+The SD card must have room for the download, staged files, rollback copies, and a temporary replacement file. The installer downloads, validates, and backs up everything before changing installed files. Storage or validation failures leave the installation intact. Settings, credentials, preferences, artwork caches, and the separately installed 480i core are excluded from replacement.
+
+A successful update exits the app. Reopen it from Scripts. Cancellation or a replacement failure restores the old files.
+
+If interrupted, startup uses `.update-pending` to finish rollback, then re-executes the restored client before opening the display. A committed transaction only needs backup cleanup. Do not delete pending recovery files. If recovery cannot finish, the app stops before playback. Correct the storage problem and relaunch, or manually reinstall the matching pair while preserving settings and state.
 
 ## Local development
 

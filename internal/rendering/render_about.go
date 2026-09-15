@@ -1,18 +1,24 @@
 package rendering
 
 import (
+	"fmt"
 	"misterfin-crt/internal/branding"
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/ui"
+	"misterfin-crt/internal/update"
 )
 
 // about draws project identity and release state using the shared raster path.
 // Controls use the same binding labels and safe margins as browsing screens.
 func (p *screenPainter) about() {
 	a := p.scene.About
+	if a.NotesVisible {
+		p.releaseNotes()
+		return
+	}
 	hints := []controlHint{hint(p.scene.Controls, control.Back, "Back")}
 	if a.Release.Available && !a.Checking {
-		hints = append(hints, hint(p.scene.Controls, control.Open, "Update"))
+		hints = append(hints, hint(p.scene.Controls, control.Open, "View release"))
 	}
 	if !a.Checking {
 		hints = append(hints, hint(p.scene.Controls, control.Select, "Check updates"))
@@ -21,9 +27,9 @@ func (p *screenPainter) about() {
 	statusY := controlsTop(p.bottom, rows) - 18
 	p.cache.about(p.canvas, statusY)
 	center(p.canvas, statusY-62, truncate("Version "+a.Build.String(), p.width-48, 1), dimColor, 1)
-	text := a.Status(p.scene.Now)
+	text := a.Status()
 	color := uint32(0xc0c0c0)
-	if a.Release.Available && !a.Checking && a.Message == "" && !p.scene.Now.Before(a.UpdateNoticeUntil) {
+	if a.Release.Available && !a.Checking && a.Message == "" {
 		color = titleColor
 	}
 	center(p.canvas, statusY, truncate(text, p.width-48, 1), color, 1)
@@ -53,4 +59,58 @@ func (s *sceneCache) about(c *ui.Canvas, statusY int) {
 		draw(s.aboutBase)
 	}
 	copy(c.Pixels, s.aboutBase.Pixels)
+}
+
+// releaseNotes keeps confirmation, progress, and scrolling in the shared UI.
+func (p *screenPainter) releaseNotes() {
+	a := p.scene.About
+	c := p.canvas
+	c.Rect(0, 0, p.width, c.Height, 0x0b0d13)
+	center(c, p.safeY+4, truncate("Release "+a.Release.Latest, p.width-48, 2), titleColor, 2)
+	layout := a.notesLayout(p.width, p.height, p.scene.Controls)
+	rows, statusY, top, count := layout.controls, layout.statusY, layout.top, layout.rows
+	start := min(a.Scroll, max(0, len(a.Notes)-count))
+	for index := start; index < min(len(a.Notes), start+count); index++ {
+		c.Text(24, top+(index-start)*12, a.Notes[index], 0xcccccc, p.width-24)
+	}
+	if len(a.Notes) > count {
+		center(c, statusY-12, fmt.Sprintf("%d-%d of %d", start+1, min(start+count, len(a.Notes)), len(a.Notes)), dimColor, 1)
+	}
+	center(c, statusY, truncate(a.Status(), p.width-48, 1), titleColor, 1)
+	if a.Updating {
+		setupActivity(c, statusY+12, p.animation.Seconds)
+	}
+	drawControls(c, p.bottom, rows)
+}
+
+type notesLayout struct {
+	controls           [][]controlHint
+	statusY, top, rows int
+}
+
+func (a AboutPresentation) notesLayout(width, height int, labels control.Labels) notesLayout {
+	var hints []controlHint
+	switch {
+	case a.Installed:
+	case a.Updating:
+		if a.Progress.Phase != update.Installing {
+			hints = append(hints, hint(labels, control.Back, "Cancel"))
+		}
+	default:
+		if a.CanInstall && a.Release.HasBundle {
+			hints = append(hints, hint(labels, control.Open, "Install"))
+		}
+		hints = append(hints, pairedHint(labels, control.Up, control.Down, "Scroll"), hint(labels, control.Back, "Back"))
+	}
+	rows := controlRows(width, hints)
+	statusY := controlsTop(height-8-safeY(width, height), rows) - 20
+	top := safeY(width, height) + 34
+	count := max(1, (statusY-top-12)/12)
+	return notesLayout{controls: rows, statusY: statusY, top: top, rows: count}
+}
+
+// ScrollLimit shares the renderer's visible-row calculation with input handling,
+// including extra footer rows needed by long configured button labels.
+func (a AboutPresentation) ScrollLimit(width, height int, labels control.Labels) int {
+	return max(0, len(a.Notes)-a.notesLayout(width, height, labels).rows)
 }

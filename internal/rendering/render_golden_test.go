@@ -30,7 +30,7 @@ func TestRenderScreenPixels(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, height := range []int{240, 288} {
-		for _, name := range []string{"about", "about-update", "about-unavailable", "about-placeholder", "connecting", "quick-connect", "connection-error", "carousel", "list", "empty", "loading", "error", "exit", "notice", "details", "live-details", "photo", "photo-loading", "photo-error", "music", "music-paused", "video", "video-seek", "video-controls"} {
+		for _, name := range []string{"about", "about-update", "about-unavailable", "about-notes", "connecting", "quick-connect", "connection-error", "carousel", "list", "empty", "loading", "error", "exit", "notice", "details", "live-details", "photo", "photo-loading", "photo-error", "music", "music-paused", "video", "video-seek", "video-controls"} {
 			m, art := benchmarkScene()
 			presentation := PlaybackPresentation{}
 			now := time.Unix(1800000000, 250000000).UTC()
@@ -117,16 +117,19 @@ func TestRenderScreenPixels(t *testing.T) {
 
 			scene := testScene(m, presentation, setup, art, artError, now)
 			scene.LibraryCount = &count
-			if name == "about" || name == "about-update" || name == "about-unavailable" || name == "about-placeholder" {
+			if name == "about" || name == "about-update" || name == "about-unavailable" || name == "about-notes" {
 				scene.About = AboutPresentation{Visible: true, Build: release.Build{Version: "v1.0.0", Revision: "abcdef123"}, Checked: true}
-				if name == "about-update" || name == "about-placeholder" {
+				if name == "about-update" || name == "about-notes" {
 					scene.About.Release = release.Status{Latest: "v1.1.0", Available: true}
 				}
 				if name == "about-unavailable" {
 					scene.About.Message = "No public release available."
 				}
-				if name == "about-placeholder" {
-					scene.About.UpdateNoticeUntil = now.Add(2 * time.Second)
+				if name == "about-notes" {
+					scene.About.NotesVisible = true
+					scene.About.CanInstall = true
+					scene.About.Release.HasBundle = true
+					scene.About.Notes = ReleaseNotes("A smoother CRT experience.\n\n- Improved browsing and playback.\n- Settings and sign-in are preserved.", 640)
 				}
 			}
 			pixels := renderScene(ui.New(640, height), nil, scene, Animation{Seconds: 2.5, TitleSeconds: 3, Selection: 0.4, Row: 0.5})

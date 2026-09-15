@@ -10,6 +10,9 @@ import (
 // handleRemote operates on media state directly. It never synthesizes a select
 // button, so About, track pickers, and hidden overlays cannot consume commands.
 func (s *browserSession) handleRemote(cmd remote.Command) bool {
+	if s.about.Updating || !s.update.exitAt.IsZero() {
+		return false
+	}
 	now := time.Now()
 	switch cmd.Kind {
 	case remote.Message:

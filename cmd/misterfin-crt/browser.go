@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 
 	"misterfin-crt/internal/browser"
 	"misterfin-crt/internal/input"
@@ -37,6 +38,16 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	}
 	config.Remote = func(client *jellyfin.Client) remote.Source { return jellyfinremote.New(client) }
 	config.Build = release.CurrentBuild()
+	if executable, err := os.Executable(); err == nil {
+		if installer := installedUpdater(o, executable); installer != nil {
+			config.Updater = installer
+		}
+	}
+	if os.Getenv("MISTERFIN_CRT_UPDATE_RECOVERED") == "1" {
+		_ = os.Unsetenv("MISTERFIN_CRT_UPDATE_RECOVERED")
+		trace.log.Record("update.recovered")
+		config.StartupNotices = append(config.StartupNotices, "An interrupted update was rolled back.")
+	}
 	config.CheckUpdate = func(ctx context.Context) (release.Status, error) {
 		return release.Check(ctx, config.Build.Version)
 	}
