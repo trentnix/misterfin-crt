@@ -32,6 +32,18 @@ Go stores its device identity and token in `misterfin-crt/session.json` under `o
 
 The original test frame remains available with `--go --ntsc`. The harness's default command continues to run the C client.
 
+## Setup and sign-in screens
+
+Setup uses the embedded project logo, shared button badges, and CRT-safe margins. Missing configuration displays "Setup needed" with the selected file path and an example server address. Invalid or unreadable configuration, connection failures, disabled Quick Connect, unknown usernames, and sign-in storage failures have separate instructions. File contents, API keys, raw error messages, and Quick Connect secrets are never shown.
+
+Quick Connect displays the public approval code and explains how to approve it from an already signed-in Jellyfin client. A small moving indicator shows that the client is waiting. The code and instructions stay still. New code cancels the current attempt and requests another code. After the existing five-minute approval timeout, the screen says "Code expired" and offers New code. Connecting displays only Exit, and repeated retry presses cannot restart an active connection attempt.
+
+Recovery uses the configured Open action, shown as Retry, Sign in, or New code according to the screen. The terminal defaults are Enter and Esc. R remains a retry alias when a recovery action is available. Labels follow the active input device, as on other browser screens. Retry reloads `jellyfin.conf`, so an edited server address can be tried without restarting the application. Other configuration files still load at application startup. Errors from those earlier startup steps remain on stderr and in diagnostics where available.
+
+Displayed paths resolve relative to the application's working directory. Long paths wrap onto two lines, with their middle shortened only when necessary. The sign-in storage screen identifies the state folder instead of the Jellyfin configuration file. These screens provide instructions and recovery actions. They do not edit configuration or clear saved credentials.
+
+`SetupPresentation` carries a typed screen state, public code, and relevant path from the connection worker to the shared renderer. Rendering never parses error text to choose a screen. The static logo/background is cached. Only the waiting indicator changes during idle connection frames. The same layout serves MiSTer and the desktop harness. No starfield is used.
+
 ## Behavior and boundaries
 
 `internal/jellyfin` owns HTTP, JSON, configuration, sessions, and artwork decoding. `internal/browser` owns navigation and request lifetimes. `internal/ui` draws BGRX text and artwork in Go using translated bitmap data from the inherited font. `internal/terminal` reads Linux terminal keys without cgo and restores terminal settings on shutdown. The existing platform adapter still owns framebuffer presentation.

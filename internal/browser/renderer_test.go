@@ -16,9 +16,9 @@ func TestRasterRendererMatchesSceneAndClearsOverlays(t *testing.T) {
 	for _, size := range [][2]int{{640, 240}, {640, 288}, {640, 240}} {
 		for _, list := range []bool{true, false} {
 			m.ListMode = list
-			scene := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{artwork: art}, "", now)
+			scene := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{artwork: art}, "", now)
 			frame := renderer.Render(size[0], size[1], scene)
-			want := render(size[0], size[1], m, "", art, "", Animation{}, now)
+			want := render(size[0], size[1], m, SetupPresentation{}, art, "", Animation{}, now)
 			if frame.Video || frame.Overlay != nil || !bytes.Equal(frame.UI, want) {
 				t.Fatal("renderer changed browser scene")
 			}
@@ -43,7 +43,7 @@ func TestSceneCopiesScalarState(t *testing.T) {
 	m, art := benchmarkScene()
 	m.Notice = "original"
 	playback := PlaybackPresentation{PositionTicks: 100}
-	scene := sceneFromModel(m, playback, "status", selectionData{artwork: art}, "", time.Unix(100, 0))
+	scene := sceneFromModel(m, playback, SetupPresentation{Kind: SetupConnecting}, selectionData{artwork: art}, "", time.Unix(100, 0))
 	m.Notice = "changed"
 	playback.PositionTicks = 200
 	m.Current().Selected = 1
@@ -57,7 +57,7 @@ func TestRendererAnimationOwnsTitleAndSelectionTiming(t *testing.T) {
 	m, _ := benchmarkScene()
 	m.Stack = append(m.Stack, View{Title: "first"})
 	now := time.Unix(100, 0)
-	s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{}, "", now)
+	s := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{}, "", now)
 	a.advance(s, 6)
 	s.Now = now.Add(35 * time.Millisecond)
 	s.View.Selected = 1
@@ -82,7 +82,7 @@ func TestVideoBackgroundCacheMatchesFreshRender(t *testing.T) {
 	r := NewRenderer()
 	for _, height := range []int{240, 288, 240} {
 		for _, backdrop := range []Artwork{art, {}, art} {
-			s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{artwork: backdrop}, "", time.Unix(100, 0))
+			s := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{artwork: backdrop}, "", time.Unix(100, 0))
 			s.Video = true
 			for i := 0; i < 2; i++ {
 				frame := r.Render(640, height, s)
@@ -102,7 +102,7 @@ func TestVideoBackdropReusesJPEGAndPNGImages(t *testing.T) {
 	} {
 		m, _ := benchmarkScene()
 		m.Current().Detail = &jellyfin.Item{Name: "Episode", Type: "Episode"}
-		s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{artwork: Artwork{Backdrop: source}}, "", time.Unix(100, 0))
+		s := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{artwork: Artwork{Backdrop: source}}, "", time.Unix(100, 0))
 		s.Video = true
 		r := NewRenderer()
 		r.Render(640, 240, s)

@@ -11,12 +11,12 @@ import (
 // Render draws one uncached navigation frame and returns an owned BGRX buffer.
 // For playback, supply a Scene with a PlaybackPresentation to Renderer.Render.
 // The application uses [RasterRenderer] to reuse canvases, animation, and artwork.
-func Render(w, h int, m *Model, status string, art image.Image, artError string) []byte {
-	return render(w, h, m, status, Artwork{Primary: art}, artError, Animation{Selection: float64(m.Current().Selected), Row: float64(m.Current().Selected - m.Current().Scroll)}, time.Now())
+func Render(w, h int, m *Model, setup SetupPresentation, art image.Image, artError string) []byte {
+	return render(w, h, m, setup, Artwork{Primary: art}, artError, Animation{Selection: float64(m.Current().Selected), Row: float64(m.Current().Selected - m.Current().Scroll)}, time.Now())
 }
 
-func render(w, h int, m *Model, status string, art Artwork, artError string, anim Animation, now time.Time) []byte {
-	return renderScene(ui.New(w, h), nil, sceneFromModel(m, PlaybackPresentation{}, status, selectionData{artwork: art}, artError, now), anim)
+func render(w, h int, m *Model, setup SetupPresentation, art Artwork, artError string, anim Animation, now time.Time) []byte {
+	return renderScene(ui.New(w, h), nil, sceneFromModel(m, PlaybackPresentation{}, setup, selectionData{artwork: art}, artError, now), anim)
 }
 
 // renderScene selects exactly one screen. Browsing screens share footer and
@@ -34,8 +34,8 @@ func renderSceneWithMusic(c *ui.Canvas, cache *sceneCache, s Scene, anim Animati
 	switch {
 	case s.About.Visible:
 		p.about()
-	case s.Status != "":
-		p.status()
+	case s.Setup.Kind != SetupHidden:
+		p.setup()
 	case s.View.Detail != nil && s.View.Detail.Type == "Photo":
 		p.photo()
 	case s.Video && s.View.Detail != nil:

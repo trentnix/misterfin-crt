@@ -72,7 +72,9 @@ func TestPhotoControlsAreIndependentOfPlayback(t *testing.T) {
 	m.Current().Location.Kind = "items"
 	m.Current().Page.Items = []jellyfin.Item{{ID: "photo", Type: "Photo"}}
 	m.Key("open")
-	scene := func() Scene { return sceneFromModel(m, f.c.Snapshot(f.now), "", selectionData{}, "", f.now) }
+	scene := func() Scene {
+		return sceneFromModel(m, f.c.Snapshot(f.now), SetupPresentation{}, selectionData{}, "", f.now)
+	}
 	if scene().PhotoControlsVisible {
 		t.Fatal("photo inherited the playback menu")
 	}

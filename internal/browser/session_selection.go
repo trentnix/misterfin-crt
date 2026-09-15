@@ -65,7 +65,7 @@ func (s *browserSession) handleSelection(r selectionResult) bool {
 		return false
 	}
 	if jellyfin.Rejected(r.update.err) {
-		s.status = "Session rejected. Press R to sign in again."
+		s.setup = setupFailure(connectionAuthentication, r.update.err, s.config)
 		return false
 	}
 	if r.update.err != nil {

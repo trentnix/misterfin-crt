@@ -71,13 +71,15 @@ func (s *browserSession) dispatchKey(key string) bool {
 	if photo {
 		s.handlePhotoKey(key)
 	}
-	if s.status != "" {
+	if s.setup.Kind != SetupHidden {
 		switch key {
 		case "back":
 			s.model.Quit = true
 			return false
 		case "retry", "open":
-			s.authenticate()
+			if s.setup.retryLabel() != "" {
+				s.authenticate()
+			}
 		}
 		return true
 	}

@@ -19,7 +19,7 @@ type browserSession struct {
 	config           Config
 	model            *Model
 	client           *jellyfin.Client
-	status           string
+	setup            SetupPresentation
 	about            AboutPresentation
 	connection       connectionManager
 	requests         requestState

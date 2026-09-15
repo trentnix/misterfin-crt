@@ -31,6 +31,7 @@ func (r authCodeResult) apply(s *browserSession) bool { return s.handleAuthCode(
 type authResult struct {
 	generation int
 	connection *authenticatedConnection
+	stage      connectionStage
 	err        error
 }
 

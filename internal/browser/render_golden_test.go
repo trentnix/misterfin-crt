@@ -34,18 +34,18 @@ func TestRenderScreenPixels(t *testing.T) {
 			m, art := benchmarkScene()
 			state := playbackState{}
 			now := time.Unix(1800000000, 250000000).UTC()
-			status, artError := "", ""
+			setup, artError := SetupPresentation{}, ""
 			count := 42
 			art.Photo = art.Primary
 			item := jellyfin.Item{Name: "A long title for a sample movie or track", Type: "Movie", ProductionYear: 1988, CommunityRating: 7.8, RunTimeTicks: 6000000000, Overview: "A description that wraps across the detail screen."}
 			item.UserData.PlaybackPositionTicks = 900000000
 			switch name {
 			case "connecting":
-				status = "Connecting to Jellyfin..."
+				setup.Kind = SetupConnecting
 			case "quick-connect":
-				status = "Quick Connect: 123456\nWaiting"
+				setup = SetupPresentation{Kind: SetupQuickConnect, Code: "123456"}
 			case "connection-error":
-				status = "Connection refused"
+				setup = SetupPresentation{Kind: SetupConnectionFailed, Path: "/media/fat/misterfin-crt/jellyfin.conf"}
 			case "list":
 				m.ListMode = true
 			case "empty":
@@ -103,7 +103,7 @@ func TestRenderScreenPixels(t *testing.T) {
 			presentation := state.presentation(m.Current().Detail, now)
 			presentation.Active = state.PlayingVideo || m.MusicQueueActive()
 			presentation.Audio = m.MusicQueueActive()
-			scene := sceneFromModel(m, presentation, status, selectionData{artwork: art, count: &count}, artError, now)
+			scene := sceneFromModel(m, presentation, setup, selectionData{artwork: art, count: &count}, artError, now)
 			if name == "about" || name == "about-update" || name == "about-unavailable" || name == "about-placeholder" {
 				scene.About = AboutPresentation{Visible: true, Build: release.Build{Version: "v1.0.0", Revision: "abcdef123"}, Checked: true}
 				if name == "about-update" || name == "about-placeholder" {

@@ -15,7 +15,7 @@ func TestCRTLayoutAndExitOverlay(t *testing.T) {
 		m.ListMode = true
 		m.Rows = visibleRows(640, h)
 		m.Current().Page.Items = []jellyfin.Item{{Name: "Movie", Type: "Movie"}}
-		pixels := render(640, h, m, "", Artwork{}, "", Animation{}, time.Date(2026, 1, 1, 12, 34, 0, 0, time.UTC))
+		pixels := render(640, h, m, SetupPresentation{}, Artwork{}, "", Animation{}, time.Date(2026, 1, 1, 12, 34, 0, 0, time.UTC))
 		sy := safeY(640, h)
 		if (h == 240 && (sy != 12 || m.Rows != 6)) || (h == 288 && (sy != 14 || m.Rows != 7)) {
 			t.Fatalf("CRT geometry: height=%d margin=%d rows=%d", h, sy, m.Rows)
@@ -25,7 +25,7 @@ func TestCRTLayoutAndExitOverlay(t *testing.T) {
 			t.Fatal("selection placement or palette changed")
 		}
 		m.Key("back")
-		dialog := render(640, h, m, "", Artwork{}, "", Animation{}, time.Time{})
+		dialog := render(640, h, m, SetupPresentation{}, Artwork{}, "", Animation{}, time.Time{})
 		different := false
 		for i := (h/2 - 20) * 640 * 4; i < (h/2+20)*640*4; i++ {
 			if pixels[i] != dialog[i] {
@@ -62,16 +62,16 @@ func TestCarouselShowsLibraryName(t *testing.T) {
 	m := New()
 	m.Current().Page.Items = []jellyfin.Item{{Name: "Family Cinema", CollectionType: "movies"}}
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	frame := render(640, 240, m, "", Artwork{}, "", Animation{}, now)
+	frame := render(640, 240, m, SetupPresentation{}, Artwork{}, "", Animation{}, now)
 	m.Current().Page.Items[0].CollectionType = "tvshows"
-	sameName := render(640, 240, m, "", Artwork{}, "", Animation{}, now)
+	sameName := render(640, 240, m, SetupPresentation{}, Artwork{}, "", Animation{}, now)
 	for i := range frame {
 		if frame[i] != sameName[i] {
 			t.Fatal("library type changed the displayed name")
 		}
 	}
 	m.Current().Page.Items[0].Name = "Family Cinema 4K"
-	otherName := render(640, 240, m, "", Artwork{}, "", Animation{}, now)
+	otherName := render(640, 240, m, SetupPresentation{}, Artwork{}, "", Animation{}, now)
 	for i := range frame {
 		if frame[i] != otherName[i] {
 			t.Fatal("carousel name exceeds the C client's 160-pixel limit")
@@ -85,7 +85,7 @@ func TestPhotoFitsPhysicalCRTAspect(t *testing.T) {
 		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{ID: "photo", Name: "Portrait", Type: "Photo"}})
 		photo := image.NewRGBA(image.Rect(0, 0, 9, 16))
 		draw.Draw(photo, photo.Bounds(), image.NewUniform(color.RGBA{R: 255, A: 255}), image.Point{}, draw.Src)
-		frame := render(640, height, m, "", Artwork{Photo: photo}, "", Animation{}, time.Time{})
+		frame := render(640, height, m, SetupPresentation{}, Artwork{Photo: photo}, "", Animation{}, time.Time{})
 		red := func(x, y int) bool { offset := (y*640 + x) * 4; return frame[offset+2] == 255 && frame[offset] == 0 }
 		// A 9:16 portrait fills the screen height and occupies 270 logical columns.
 		if !red(320, height/2) || !red(190, height/2) || red(180, height/2) || red(460, height/2) {
@@ -159,7 +159,7 @@ func TestListBackdropFadesWithinWideImage(t *testing.T) {
 		m.ListMode = true
 		source := image.NewRGBA(image.Rect(0, 0, 16, 9))
 		draw.Draw(source, source.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-		pixels := render(640, h, m, "", Artwork{Backdrop: source}, "", Animation{}, time.Time{})
+		pixels := render(640, h, m, SetupPresentation{}, Artwork{Backdrop: source}, "", Animation{}, time.Time{})
 		// Left edge avoids text and selection. The hero ends at three quarters height.
 		if pixels[0] != 110 || pixels[(h*3/4-1)*640*4] != 0 || pixels[(h-1)*640*4] != 0 {
 			t.Fatal("backdrop brightness or fade extent differs from C")
@@ -170,8 +170,8 @@ func TestListBackdropFadesWithinWideImage(t *testing.T) {
 func TestHeaderMarqueePreservesSafeMargins(t *testing.T) {
 	m := New()
 	m.Stack = append(m.Stack, View{Title: "A very long library title that must scroll without covering the clock"})
-	start := render(640, 240, m, "", Artwork{}, "", Animation{}, time.Time{})
-	moved := render(640, 240, m, "", Artwork{}, "", Animation{TitleSeconds: 2}, time.Time{})
+	start := render(640, 240, m, SetupPresentation{}, Artwork{}, "", Animation{}, time.Time{})
+	moved := render(640, 240, m, SetupPresentation{}, Artwork{}, "", Animation{TitleSeconds: 2}, time.Time{})
 	if string(start) == string(moved) {
 		t.Fatal("long header did not scroll")
 	}

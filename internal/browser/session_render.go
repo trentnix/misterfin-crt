@@ -9,7 +9,7 @@ import (
 // draw owns frame pacing and the paused-overlay refresh check.
 func (s *browserSession) draw() error {
 	now := time.Now()
-	scene := sceneFromModel(s.model, s.controller.Snapshot(now), s.status, s.selection.current, s.selection.err, now)
+	scene := sceneFromModel(s.model, s.controller.Snapshot(now), s.setup, s.selection.current, s.selection.err, now)
 	if item := scene.View.Item(); scene.Root && item != nil && item.ID == continueID {
 		scene.LibraryLoading = !s.home.loaded
 	}

@@ -32,7 +32,7 @@ func (s *browserSession) authenticate() {
 	s.selection.current = selectionData{}
 	s.selection.err = ""
 	s.selection.key = ""
-	s.status = "Connecting to Jellyfin..."
+	s.setup = SetupPresentation{Kind: SetupConnecting}
 	s.connection.connect(s.ctx, s.send)
 }
 
@@ -67,7 +67,7 @@ func (s *browserSession) handleAuthCode(r authCodeResult) bool {
 	if !s.connection.current(r.generation) {
 		return false
 	}
-	s.status = "Quick Connect: " + r.code + "\nApprove this code in your Jellyfin client. Waiting for sign-in..."
+	s.setup = SetupPresentation{Kind: SetupQuickConnect, Code: r.code}
 	return true
 }
 
@@ -76,14 +76,14 @@ func (s *browserSession) handleAuth(r authResult) bool {
 		return false
 	}
 	if r.err != nil {
-		s.status = r.err.Error()
+		s.setup = setupFailure(r.stage, r.err, s.config)
 	} else {
 		s.client = r.connection.client
 		s.model = New()
 		s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
 		s.selection.key = ""
 		s.selection.loader = r.connection.selection
-		s.status = ""
+		s.setup = SetupPresentation{}
 		s.load(s.model.Load(0))
 		s.refreshHome()
 	}
@@ -101,7 +101,7 @@ func (s *browserSession) handlePage(r pageResult) bool {
 	if jellyfin.Rejected(r.err) {
 		s.selection.cancel()
 		s.selection.generation++
-		s.status = "Session rejected. Press R to sign in again."
+		s.setup = setupFailure(connectionAuthentication, r.err, s.config)
 	} else {
 		s.loadSelection()
 		s.load(s.model.Prefetch())

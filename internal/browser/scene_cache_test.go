@@ -26,8 +26,8 @@ func TestSceneCacheMatchesFreshFrames(t *testing.T) {
 			m.ListMode = list
 			for _, seconds := range []float64{0, 0.1, 3.7, 10.5, 10.6, 10.7} {
 				anim := Animation{Seconds: seconds, TitleSeconds: seconds, Selection: 0.4, Row: 0.4}
-				want := render(size[0], size[1], m, "", art, "", anim, time.Unix(100, 0))
-				got := renderCached(&renderer, size[0], size[1], m, "", art, "", anim, time.Unix(100, 0))
+				want := render(size[0], size[1], m, SetupPresentation{}, art, "", anim, time.Unix(100, 0))
+				got := renderCached(&renderer, size[0], size[1], m, SetupPresentation{}, art, "", anim, time.Unix(100, 0))
 				if !bytes.Equal(got, want) {
 					t.Fatalf("cache changed pixels: size=%v list=%v seconds=%v", size, list, seconds)
 				}
@@ -46,8 +46,8 @@ func TestSceneCacheMatchesFreshFrames(t *testing.T) {
 			}
 			for _, list := range []bool{true, false} {
 				m.ListMode = list
-				want := render(640, 240, m, "", next, "", Animation{Seconds: 4}, time.Time{})
-				got := renderCached(&renderer, 640, 240, m, "", next, "", Animation{Seconds: 4}, time.Time{})
+				want := render(640, 240, m, SetupPresentation{}, next, "", Animation{Seconds: 4}, time.Time{})
+				got := renderCached(&renderer, 640, 240, m, SetupPresentation{}, next, "", Animation{Seconds: 4}, time.Time{})
 				if !bytes.Equal(got, want) {
 					t.Fatalf("stale cache after artwork/view change: detail=%v list=%v", detail, list)
 				}
@@ -57,7 +57,7 @@ func TestSceneCacheMatchesFreshFrames(t *testing.T) {
 }
 
 // Supply explicit animation coordinates to compare cached and uncached pixels.
-func renderCached(r *RasterRenderer, w, h int, m *Model, status string, art Artwork, artError string, anim Animation, now time.Time) []byte {
+func renderCached(r *RasterRenderer, w, h int, m *Model, setup SetupPresentation, art Artwork, artError string, anim Animation, now time.Time) []byte {
 	r.prepare(w, h)
-	return renderScene(r.canvas, &r.cache, sceneFromModel(m, PlaybackPresentation{}, status, selectionData{artwork: art}, artError, now), anim)
+	return renderScene(r.canvas, &r.cache, sceneFromModel(m, PlaybackPresentation{}, setup, selectionData{artwork: art}, artError, now), anim)
 }

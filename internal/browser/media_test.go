@@ -42,7 +42,7 @@ func TestCleanMusicPauseAndControlTimeout(t *testing.T) {
 	m.StartMusicQueue()
 	now := time.Unix(100, 0)
 	frame := func() []byte {
-		return renderScene(ui.New(640, 240), nil, sceneFromModel(m, state.presentation(m.Current().Detail, now), "", selectionData{}, "", now), Animation{})
+		return renderScene(ui.New(640, 240), nil, sceneFromModel(m, state.presentation(m.Current().Detail, now), SetupPresentation{}, selectionData{}, "", now), Animation{})
 	}
 	playing := frame()
 	state.Paused = true

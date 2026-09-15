@@ -49,7 +49,7 @@ func (c *Client) authenticateAPIKey(ctx context.Context) error {
 		}
 	}
 	if c.Session.UserID == "" {
-		return errors.New("configured username was not found")
+		return ErrUsernameNotFound
 	}
 	return nil
 }
@@ -63,7 +63,7 @@ func (c *Client) authenticateQuickConnect(ctx context.Context, dir string, showC
 		return err
 	}
 	if !enabled {
-		return errors.New("Quick Connect is disabled; configure an API key and username")
+		return ErrQuickConnectDisabled
 	}
 	var qc struct {
 		Secret, Code  string
@@ -85,7 +85,7 @@ func (c *Client) authenticateQuickConnect(ctx context.Context, dir string, showC
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-deadline.C:
-			return errors.New("Quick Connect expired; press R to retry")
+			return ErrQuickConnectExpired
 		case <-ticker.C:
 		}
 		var result struct{ Authenticated bool }
@@ -108,7 +108,7 @@ func (c *Client) authenticateQuickConnect(ctx context.Context, dir string, showC
 		c.Session.Token = login.AccessToken
 		c.Session.UserID = login.User.ID
 		if err := SaveSession(dir, c.Session); err != nil {
-			return errors.New("signed in but cannot save Go session")
+			return ErrSessionSave
 		}
 		return nil
 	}

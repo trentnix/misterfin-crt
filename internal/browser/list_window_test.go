@@ -147,7 +147,7 @@ func TestListAnimationPreservesPositionWhenWindowMoves(t *testing.T) {
 	m := windowModel(400, 6)
 	v := m.Current()
 	v.Start, v.Selected, v.Scroll = 0, 127, 124
-	s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{}, "", time.Unix(0, 0))
+	s := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{}, "", time.Unix(0, 0))
 	var a animationState
 	a.advance(s, 6)
 	// Dropping an old page changes relative indices, not the visible position.
@@ -170,7 +170,7 @@ func TestListWindowRebasePreservesPixelsAndClipsRows(t *testing.T) {
 		v := m.Current()
 		v.retainPage(64, windowPage(64, 400), 63, m.Rows)
 		v.retainPage(128, windowPage(128, 400), 100, m.Rows)
-		s := sceneFromModel(m, PlaybackPresentation{}, "", selectionData{}, "", time.Unix(0, 0))
+		s := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{}, "", time.Unix(0, 0))
 		anim := Animation{Row: float64(m.Rows / 2), ScrollOffset: -0.4}
 		want := renderScene(ui.New(640, height), nil, s, anim)
 		s.View.Page.Items = s.View.Page.Items[64:]

@@ -8,8 +8,6 @@ I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I t
 
 ![MiSTerFin CRT library carousel](docs/images/screenshots/home-carousel.png)
 
-Current UI captures: [Continue Watching](docs/images/screenshots/continue-watching.png), [movie library](docs/images/screenshots/movies-list.png), and [movie details](docs/images/screenshots/movie-info.png).
-
 ## Run on MiSTer
 
 Installation is manual. Build the client using the [build guide](docs/GO_BUILD.md) and its matching MPlayer using the [player build instructions](docs/GO_PLAYBACK.md#mister-use-and-remaining-work).
@@ -35,6 +33,20 @@ Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Conn
 Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
 The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_ABOUT.md). About shows the installed version and checks for public releases. The Update action currently displays "Not implemented yet."
+
+## Screenshots
+
+Browsing and playback captures are from MiSTer. Setup previews use the same renderer with example connection details.
+
+| Continue Watching | Video controls |
+| --- | --- |
+| ![Continue Watching with saved playback positions](docs/images/screenshots/continue-watching.png) | ![Video playback with seek, pause, stop, and options controls](docs/images/screenshots/video-controls.png) |
+
+| Setup help | Quick Connect |
+| --- | --- |
+| ![Setup screen showing where to add the Jellyfin server address](docs/images/screenshots/setup-needed.png) | ![Quick Connect instructions and an example approval code](docs/images/screenshots/quick-connect.png) |
+
+Also see the [movie library](docs/images/screenshots/movies-list.png) and [movie details](docs/images/screenshots/movie-info.png).
 
 ## Configuration
 

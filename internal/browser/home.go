@@ -54,7 +54,7 @@ func (s *browserSession) handleHome(r homeResult) bool {
 		s.home.items = r.page.Items
 	}
 	if jellyfin.Rejected(r.err) {
-		s.status = "Session rejected. Press R to sign in again."
+		s.setup = setupFailure(connectionAuthentication, r.err, s.config)
 	}
 	s.syncHomeViews()
 	s.seedHomeArtwork()

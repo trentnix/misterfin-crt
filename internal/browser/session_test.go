@@ -74,7 +74,7 @@ func TestSessionRejectsStaleAuthAndSelection(t *testing.T) {
 	s := testSession(t)
 	s.connection.generation = 2
 	s.selection.generation = 3
-	s.status = "current"
+	s.setup = SetupPresentation{Kind: SetupQuickConnect, Code: "current"}
 	for _, r := range []workerResult{
 		authCodeResult{generation: 1, code: "stale"},
 		selectionResult{generation: 2, update: selectionUpdate{kind: selectionDetails, detail: &jellyfin.Item{ID: "stale"}}},
@@ -85,7 +85,7 @@ func TestSessionRejectsStaleAuthAndSelection(t *testing.T) {
 			t.Fatal("stale result requested redraw")
 		}
 	}
-	if s.status != "current" || s.model.Current().Detail != nil || s.selection.current.count != nil || s.selection.current.artwork.Covers != nil {
+	if s.setup.Code != "current" || s.model.Current().Detail != nil || s.selection.current.count != nil || s.selection.current.artwork.Covers != nil {
 		t.Fatal("stale result changed current screen")
 	}
 }
@@ -132,7 +132,7 @@ func TestMusicQueueSurvivesDecoderCompletion(t *testing.T) {
 		t.Fatal("track completion did not request a redraw")
 	}
 	snapshot := s.controller.Snapshot(now)
-	scene := sceneFromModel(s.model, snapshot, "", selectionData{}, "", now)
+	scene := sceneFromModel(s.model, snapshot, SetupPresentation{}, selectionData{}, "", now)
 	if snapshot.Active || !scene.Audio || scene.Video || !scene.Playback.ControlsVisible || !s.media.pending {
 		t.Fatalf("between-track screen changed: %+v", scene)
 	}

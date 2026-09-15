@@ -18,7 +18,7 @@ type Scene struct {
 	ListMode       bool
 	ExitConfirm    bool
 	Notice         string
-	Status         string
+	Setup          SetupPresentation
 	SelectionError string
 	PhotoCount     string
 	Artwork        Artwork
@@ -46,14 +46,14 @@ type Scene struct {
 
 // sceneFromModel combines navigation and a decoder snapshot once per frame.
 // Music stays visible between tracks. Photo menus never read decoder state.
-func sceneFromModel(m *Model, playback PlaybackPresentation, status string, selection selectionData, selectionError string, now time.Time) Scene {
+func sceneFromModel(m *Model, playback PlaybackPresentation, setup SetupPresentation, selection selectionData, selectionError string, now time.Time) Scene {
 	s := Scene{
 		View:                 *m.Current(),
 		Root:                 len(m.Stack) == 1,
 		ListMode:             m.ListMode,
 		ExitConfirm:          m.ExitConfirm,
 		Notice:               m.Notice,
-		Status:               status,
+		Setup:                setup,
 		Artwork:              selection.artwork,
 		LibraryCount:         selection.count,
 		SelectionError:       selectionError,

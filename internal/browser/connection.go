@@ -37,12 +37,15 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 	m.cancel = cancel
 	config, width, height := m.config, m.width, m.height
 	go func() {
+		stage := connectionConfig
 		server, err := jellyfin.LoadConfig(config.ConfigPath)
 		var connection *authenticatedConnection
 		if err == nil {
+			stage = connectionSession
 			var session jellyfin.Session
 			session, err = jellyfin.LoadSession(config.StateDir, server.Server)
 			if err == nil {
+				stage = connectionAuthentication
 				client := jellyfin.NewClient(server, session)
 				client.Diagnostics = config.Diagnostics
 				err = client.Authenticate(work, config.StateDir, func(code string) {
@@ -57,7 +60,7 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 				}
 			}
 		}
-		send(work, authResult{generation: generation, connection: connection, err: err})
+		send(work, authResult{generation: generation, connection: connection, stage: stage, err: err})
 	}()
 }
 
