@@ -4,7 +4,7 @@
 
 MiSTerFin CRT is a Jellyfin client for MiSTer FPGA, designed for CRT televisions. It supports movies, TV, live TV, music, and photos.
 
-I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set.
+I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. I tested the client with Jellyfin 12.
 
 ![MiSTerFin CRT library carousel](docs/images/screenshots/home-carousel.png)
 
@@ -27,6 +27,30 @@ http://your-jellyfin-server:8096
 ```
 
 Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Connect code in Jellyfin. The launcher filename must contain no spaces. Login, playback choices, and artwork caches persist on the SD card.
+
+## Progressive and interlaced output
+
+The default uses MiSTer’s current display mode, normally 240p for NTSC or 288p for PAL. Interlaced output is optional: 480i for NTSC or 576i for PAL. I have tested 240p and 480i. PAL validation remains deferred.
+
+To enable interlaced output:
+
+1. Exit MiSTerFin CRT. Install the matching client and MPlayer builds described above.
+2. Download the supported **InterlacedMenu.rbf v0.0.1** from the [display guide](docs/GO_DISPLAY.md#enable-or-disable-interlaced-output). Place it at `/media/fat/misterfin-crt/InterlacedMenu.rbf`.
+3. Create `/media/fat/misterfin-crt/display.json` with:
+
+```json
+{"interlaced": true}
+```
+
+Launch **MiSTerFin-CRT** from the normal Scripts menu. The application switches to the interlaced core and restores the normal menu when you exit. Synchronization is automatic. The same launcher works for both modes.
+
+To return to the progressive default, exit the application and change `display.json` to:
+
+```json
+{"interlaced": false}
+```
+
+Removing `display.json` also restores the default on the next launch. The [display guide](docs/GO_DISPLAY.md) explains core verification, the scoped `MiSTer.ini` changes and backup, and hardware requirements.
 
 ## Controls
 
@@ -81,6 +105,12 @@ python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
 The harness builds the client automatically. See the [development harness guide](tools/ghostty/README.md) for dependencies, connecting to Jellyfin, and testing playback.
+
+## Deferred work
+
+- **PAL/576i and direct MiSTer YPbPr validation:** I do not have suitable hardware to test these output paths. My tested setup uses MiSTer configured for RGB through its 9-pin output and a Retrovision YPbPr cable to a consumer 4:3 CRT.
+- **Zaparoo DDR integration:** Deferred until I have a way to test it. Zaparoo is not required for the supported interlaced output.
+- **MiSTer background-music hardware validation:** Suspension and restoration are implemented and covered by automated tests. Testing with the actual add-on is deferred because I do not use it. This is separate from Jellyfin music playback.
 
 ## More information
 
