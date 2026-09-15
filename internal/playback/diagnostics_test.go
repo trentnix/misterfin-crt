@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -97,5 +98,36 @@ func TestPlaybackDiagnosticsRecordMilestonesWithoutMediaSecrets(t *testing.T) {
 		if strings.Contains(string(data), secret) {
 			t.Fatalf("leaked %s", secret)
 		}
+	}
+}
+
+func TestTranscodeDiagnosticsAcceptNegotiatedParameterCase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "debug.log")
+	log, err := diagnostics.Open(diagnostics.Config{Enabled: true, Path: path, MaxBytes: 8192})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer log.Close()
+	trace := newPlaybackTrace(log, Config{}, Request{})
+	trace.prepared(&playbackSession{liveTV: true, streamURL: "http://private-host/stream?MaxWidth=640&MaxHeight=480&VideoBitrate=8000000&MaxFramerate=29.97&ApiKey=private-token"})
+	if err := log.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	var event map[string]any
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &event); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]float64{"maxWidth": 640, "maxHeight": 480, "videoBitRate": 8000000, "maxFramerate": 29.97} {
+		if event[key] != want {
+			t.Errorf("%s: got %v", key, event[key])
+		}
+	}
+	if strings.Contains(string(data), "private-") {
+		t.Fatal("logged stream credentials or origin")
 	}
 }

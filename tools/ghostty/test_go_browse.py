@@ -144,6 +144,9 @@ class BrowseIntegrationTests(unittest.TestCase):
         (self.directory / "music.json").write_text(json.dumps({"default":"Off", "meters":False, "backgrounds":[{"name":"Off","type":"none"}]}))
         config = self.directory / "jellyfin.conf"
         config.write_text(f"http://127.0.0.1:{self.server.server_port}\nmock-api-key\nmockuser\n")
+        if self._testMethodName == "test_transcode_profile_from_configuration":
+            with config.open("a") as config_file:
+                config_file.write("640x480@8000000\n")
         self.frame = self.directory / "frame.raw"
         player = self.directory / "test-player"
         player.write_text("#!/bin/sh\nprintf 'ANS_TIME_POSITION=2\\n'\nsleep 30\n")
@@ -396,6 +399,16 @@ class BrowseIntegrationTests(unittest.TestCase):
                     and query.get("Limit") == ["64"]):
                 pages.append(query.get("StartIndex"))
         self.assertEqual(pages, [["0"], ["64"]])
+
+    def test_transcode_profile_from_configuration(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", maxWidth=640, maxHeight=480,
+                          videoBitRate=8000000, maxFramerate=30, allowVideoStreamCopy="false")
+        self.assertEqual(len(self.read_frame()), 640 * 240 * 4)
 
     def test_playback_stop_returns_to_details(self):
         self.key(b"b")

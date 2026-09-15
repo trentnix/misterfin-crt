@@ -15,11 +15,12 @@ import (
 // VideoStreamURL follows jf_stream_url in the C baseline. Keep this URL private:
 // the ApiKey query parameter authenticates Jellyfin's progressive stream.
 func (c *Client) VideoStreamURL(itemID, sessionID string, start int64, ntsc bool) string {
+	profile := c.Config.transcodeProfile()
 	fps := "25"
 	if ntsc {
 		fps = "30"
 	}
-	q := url.Values{"static": {"false"}, "videoCodec": {"mpeg2video"}, "container": {"ts"}, "audioCodec": {"mp3"}, "audioChannels": {"2"}, "allowVideoStreamCopy": {"false"}, "audioSampleRate": {"48000"}, "maxWidth": {"720"}, "maxHeight": {"576"}, "videoBitRate": {"12000000"}, "maxFramerate": {fps}, "startTimeTicks": {strconv.FormatInt(max(0, start), 10)}, "playSessionId": {sessionID}, "deviceId": {c.Session.DeviceID}, "ApiKey": {c.Session.Token}}
+	q := url.Values{"static": {"false"}, "videoCodec": {"mpeg2video"}, "container": {"ts"}, "audioCodec": {"mp3"}, "audioChannels": {"2"}, "allowVideoStreamCopy": {"false"}, "audioSampleRate": {"48000"}, "maxWidth": {strconv.Itoa(profile.MaxWidth)}, "maxHeight": {strconv.Itoa(profile.MaxHeight)}, "videoBitRate": {strconv.Itoa(profile.VideoBitrate)}, "maxFramerate": {fps}, "startTimeTicks": {strconv.FormatInt(max(0, start), 10)}, "playSessionId": {sessionID}, "deviceId": {c.Session.DeviceID}, "ApiKey": {c.Session.Token}}
 	return c.Config.Server + "/Videos/" + url.PathEscape(itemID) + "/stream?" + q.Encode()
 }
 

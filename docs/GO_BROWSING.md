@@ -16,7 +16,7 @@ To connect to a real server, create a configuration file with the server URL on 
 python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
 ```
 
-Approve the displayed Quick Connect code in another Jellyfin client. Alternatively, put the API key and username on the second and third lines. Blank lines and comments are ignored. `PAL`, `NTSC`, and `INSECURE_TLS` are recognized independently of line position. The inherited transcode-profile and `DEBUGLOG` lines are accepted but have no effect in this browsing prototype. The harness's PAL/NTSC flag controls headless geometry.
+Approve the displayed Quick Connect code in another Jellyfin client. Alternatively, put the API key and username on the second and third lines. Blank lines and comments are ignored. `PAL`, `NTSC`, and `INSECURE_TLS` are recognized independently of line position. A `WIDTHxHEIGHT[@BITRATE]` line configures [video conversion limits](GO_PLAYBACK.md#transcode-configuration). `DEBUGLOG` enables [optional diagnostics](GO_DIAGNOSTICS.md). The harness's PAL/NTSC flag controls headless geometry.
 
 Go stores its device identity and token in `misterfin-crt/session.json` under `os.UserConfigDir()`, normally `$XDG_CONFIG_HOME` or `$HOME/.config` on Linux. `--state-dir` overrides that directory. Session writes use a private temporary file and atomic rename. Saved sessions are bound to the configured server URL. The C client's `token.conf` and `device.conf` are not imported or changed.
 

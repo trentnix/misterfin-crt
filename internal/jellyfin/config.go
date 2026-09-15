@@ -11,20 +11,23 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
+// Config holds server credentials, display convention, and video conversion limits.
+// LoadConfig validates file-based profiles before authentication or playback.
 type Config struct {
+	// Transcode sets server-side limits for recorded video and Live TV. Zero uses defaults.
+	Transcode                        TranscodeProfile
 	Server, APIKey, Username, TVMode string
 	InsecureTLS                      bool
 	DebugLog                         bool // Enables optional diagnostics unless diagnostics.json overrides it.
 }
 
-var profileLine = regexp.MustCompile(`^\d+x\d+(@\d+)?$`)
-
+// LoadConfig reads credentials and independent option lines. Invalid transcode
+// profiles report a line number without exposing configuration contents.
 func LoadConfig(path string) (Config, error) {
-	c := Config{TVMode: "PAL"}
+	c := Config{TVMode: "PAL", Transcode: DefaultTranscodeProfile()}
 	f, err := os.Open(path)
 	if err != nil {
 		return c, fmt.Errorf("open configuration: %w", err)
@@ -32,9 +35,19 @@ func LoadConfig(path string) (Config, error) {
 	defer f.Close()
 	var values []string
 	s := bufio.NewScanner(f)
+	lineNumber := 0
 	for s.Scan() {
+		lineNumber++
 		line := strings.TrimSpace(s.Text())
-		if line == "" || strings.HasPrefix(line, "#") || profileLine.MatchString(line) {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if profileLine.MatchString(line) {
+			profile, err := parseTranscodeProfile(line, c.Transcode)
+			if err != nil {
+				return c, fmt.Errorf("invalid transcode profile on line %d: %w", lineNumber, err)
+			}
+			c.Transcode = profile
 			continue
 		}
 		switch strings.ToUpper(line) {

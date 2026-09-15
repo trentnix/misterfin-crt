@@ -103,13 +103,39 @@ FFplay does not expose the same cache signal through the current adapter. Its bu
 
 Select a channel with B or Enter to tune it immediately. A stops the stream and returns to the channels list with the same channel selected. If playback ends or fails, the browser also returns to the channels list. Live TV works with both desktop player modes. On MiSTer and inline Ghostty, the View menu offers Original and Zoom without reopening the stream. Subtitles offers locally decoded closed captions when available. Live audio-track selection remains unavailable. Picture mode resets to Original when the channel is reopened.
 
-The client posts the C device profile to `/Items/{id}/PlaybackInfo`, requests automatic tuner opening, and uses the returned transcode URL and session identifiers. The profile requests progressive MPEG-2/MP3 transport streams rather than direct tuner playback. The client removes the incompatible MPEG-2 level hints, matching the C workaround, and preserves the other negotiated parameters. Session reports include the media source and tuner identifiers with seeking disabled. Channels start live and never write movie resume or watched state.
+The client posts the C device profile to `/Items/{id}/PlaybackInfo`, requests automatic tuner opening, and uses the returned transcode URL and session identifiers. The profile requests progressive MPEG-2/MP3 transport streams with the configured dimensions and bitrate budget. The client removes the incompatible MPEG-2 level hints, matching the C workaround, and preserves the other negotiated parameters. Session reports include the media source and tuner identifiers with seeking disabled. Channels start live and never write movie resume or watched state.
 
 Stopping, stream failure, player failure, and invalid negotiation responses release the returned tuner ID. If the user cancels while negotiation is running, Go lets the bounded request finish so it can read and close the acquired tuner ID. The harness gives Go up to 30 seconds to finish shutdown before forcing termination.
 
+## Transcode configuration
+
+Add one profile line to the `jellyfin.conf` used by the launcher, then restart the application:
+
+```text
+640x480@8000000
+```
+
+The format is `WIDTHxHEIGHT@BITRATE`, using a lowercase `x`. Bitrate is measured in bits per second. `WIDTHxHEIGHT` is also accepted and retains the current bitrate. Without a profile line, the default is `720x576@12000000`. Profiles can appear before or after the server URL and credentials. If several profiles appear, the last dimensions win and an omitted bitrate retains the preceding value.
+
+| Setting | Default | Accepted range |
+| --- | --- | --- |
+| Maximum width | 720 | 160–1920 pixels |
+| Maximum height | 576 | 120–1080 pixels |
+| Video bitrate | 12,000,000 | 100,000–50,000,000 bits per second |
+
+These bounds match the C client's configuration ranges. Invalid profile-shaped lines produce a setup error with the line number. They do not silently become credentials or fall back to defaults. Error messages omit the configuration contents. Profile lines must contain only the profile, with optional surrounding whitespace. Comments belong on separate lines.
+
+The same profile supplies recorded-video stream parameters and Live TV negotiation. Recorded video requests the specified video bitrate. Live TV uses it as the streaming bitrate budget in Jellyfin's device profile and keeps the returned transcode URL. Audio overhead and server choices can make the negotiated video bitrate lower than that budget. Original music streams, artwork requests, and photo downloads retain their existing behavior.
+
+Dimensions constrain the server's conversion while preserving the picture's aspect ratio. UI geometry, CRT output mode, and local Original/Zoom behavior remain controlled by the display and player. Frame-rate caps stay automatic: recorded video uses 30 fps for NTSC or 25 fps for PAL, and 480i Live TV retains its 30000/1001 fps cap. Smaller sources are not required to fill the configured dimensions.
+
+Start with the defaults. Larger frames increase decoding work, and accepting a profile does not establish smooth playback on MiSTer at that size. Lower dimensions can reduce decoder load. Bitrate controls compression and bandwidth independently of the frame dimensions.
+
+With [diagnostics](GO_DIAGNOSTICS.md) enabled, `playback.prepared` records numeric transcode parameters from the requested stream URL. Both recorded-video and Live TV parameter capitalization are recognized. Missing negotiated values appear as zero. The event describes the request, not a measurement of the stream that Jellyfin actually delivers.
+
 ## Stream and session behavior
 
-The stream query follows `jf_stream_url` in `src/jellyfin.c`: progressive MPEG-2 video in MPEG-TS, stereo MP3 at 48 kHz, no video stream copy, a 720×576 maximum frame, 12 Mbps video, and a 25 or 30 fps cap based on the display mode. Each attempt gets a unique play session ID. Custom transcode profiles remain pending.
+The stream query follows `jf_stream_url` in `src/jellyfin.c`: progressive MPEG-2 video in MPEG-TS, stereo MP3 at 48 kHz, no video stream copy, configurable maximum frame dimensions and video bitrate, and a 25 or 30 fps cap based on the display mode. Each attempt gets a unique play session ID. The defaults remain 720×576 and 12 Mbps. See [transcode configuration](#transcode-configuration).
 
 Go owns HTTP and TLS. Video reaches the player through an anonymous pipe. Controllable music uses the private loopback adapter described above. Player arguments contain no Jellyfin URL or token. TLS verification follows the browser configuration, and redirects remain limited to the configured server origin. Player output is consumed only for numeric playback positions. Raw player diagnostics are not printed or logged.
 

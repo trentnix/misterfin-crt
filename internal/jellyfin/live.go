@@ -21,22 +21,23 @@ func IsLive(item Item) bool {
 	return item.Type == "TvChannel" || item.Type == "LiveTvChannel"
 }
 
-// liveProfile retains the C client's codec and size limits. The caller
+// liveProfile combines configured size/bitrate limits with the C codecs. The caller
 // supplies the frame-rate cap to match its output cadence.
 func (c *Client) liveProfile(maxFrameRate float64) any {
+	profile := c.Config.transcodeProfile()
 	conditions := []any{}
 	for _, limit := range []struct {
 		name  string
 		value float64
-	}{{"Width", 720}, {"Height", 576}, {"VideoFramerate", maxFrameRate}} {
+	}{{"Width", float64(profile.MaxWidth)}, {"Height", float64(profile.MaxHeight)}, {"VideoFramerate", maxFrameRate}} {
 		conditions = append(conditions, map[string]any{"Condition": "LessThanEqual", "Property": limit.name, "Value": strconv.FormatFloat(limit.value, 'f', -1, 64), "IsRequired": true})
 	}
 	return map[string]any{
 		"UserId": c.Session.UserID, "StartTimeTicks": 0, "IsPlayback": true, "AutoOpenLiveStream": true,
 		"EnableDirectPlay": false, "EnableDirectStream": false, "EnableTranscoding": true,
-		"AllowVideoStreamCopy": false, "AllowAudioStreamCopy": false, "MaxStreamingBitrate": 12000000,
+		"AllowVideoStreamCopy": false, "AllowAudioStreamCopy": false, "MaxStreamingBitrate": profile.VideoBitrate,
 		"DeviceProfile": map[string]any{
-			"Name": "MiSTerFin", "MaxStreamingBitrate": 12000000, "MaxStaticBitrate": 12000000,
+			"Name": "MiSTerFin", "MaxStreamingBitrate": profile.VideoBitrate, "MaxStaticBitrate": profile.VideoBitrate,
 			"DirectPlayProfiles": []any{}, "SubtitleProfiles": []any{},
 			"TranscodingProfiles": []any{map[string]any{"Container": "ts", "Type": "Video", "Protocol": "http", "AudioCodec": "mp3", "VideoCodec": "mpeg2video", "Context": "Streaming", "MaxAudioChannels": "2"}},
 			"CodecProfiles":       []any{map[string]any{"Type": "Video", "Codec": "mpeg2video", "Conditions": conditions}},

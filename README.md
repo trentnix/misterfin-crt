@@ -38,6 +38,8 @@ The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and
 
 ## Configuration
 
+To change video conversion limits, add a line such as `640x480@8000000` to `jellyfin.conf` and restart. The values are maximum width, maximum height, and bitrate in bits per second. The default is `720x576@12000000`. The profile applies to recorded video and Live TV. See [transcode configuration](docs/GO_PLAYBACK.md#transcode-configuration).
+
 Optional configuration files live beside `jellyfin.conf`. On MiSTer, that directory is `/media/fat/misterfin-crt`. Copy an example below, rename it, and edit the copy. Restart the application after changing settings. Missing files use the defaults.
 
 | File | Settings | Example and guide |

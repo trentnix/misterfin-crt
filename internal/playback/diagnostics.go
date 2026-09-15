@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -83,7 +84,16 @@ func (t *playbackTrace) prepared(s *playbackSession) {
 	if u, err := url.Parse(s.streamURL); err == nil {
 		q := u.Query()
 		for _, key := range []string{"maxWidth", "maxHeight", "videoBitRate", "maxFramerate"} {
-			n, _ := strconv.ParseFloat(q.Get(key), 64)
+			value := q.Get(key)
+			if value == "" {
+				for name, values := range q {
+					if strings.EqualFold(name, key) && len(values) > 0 {
+						value = values[0]
+						break
+					}
+				}
+			}
+			n, _ := strconv.ParseFloat(value, 64)
 			if n < 0 || n > 1e9 || n != n {
 				n = 0
 			}
