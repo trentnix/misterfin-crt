@@ -77,7 +77,7 @@ If migrating from `misterfin-go`, copy its state, caches, server configuration, 
 
 In About, select **View release**, review the notes, then select **Install**. Automatic installation requires the client at `/media/fat/misterfin-crt/misterfin-crt` and the configured player at `/media/fat/misterfin-crt/mplayer-arm`. The standard Scripts launcher is updated with the pair. Custom installations and desktop development retain manual installation.
 
-The published v0.1.0 application has no installer. Upgrade it manually with the latest release ZIP. Keep the existing settings and state files. Do not copy example configuration over active configuration.
+For manual upgrades, use the latest release ZIP. Keep the existing settings and state files. Do not copy example configuration over active configuration.
 
 Downloads use verified HTTPS from this repository's GitHub release assets without credentials. The installer verifies the outer SHA-256 checksum, every bundled file, the release version, transaction format, and ARM executable headers. File counts and sizes are bounded. Checksums detect damaged downloads. They are not signatures independent of GitHub.
 
