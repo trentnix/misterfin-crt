@@ -5,11 +5,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
+	"misterfin-crt/internal/mister"
 	"misterfin-crt/internal/mister/displaymode"
 	"misterfin-crt/internal/platform"
 )
@@ -24,22 +26,38 @@ func run() (err error) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if o.headless == "" && os.Getenv(displaymode.ActiveEnv) != "1" {
-		mode, loadErr := displaymode.Load(filepath.Join(filepath.Dir(o.config), "display.json"))
-		if loadErr != nil {
-			return loadErr
-		}
-		if mode.Interlaced {
-			return displaymode.Run(ctx, filepath.Dir(o.config), os.Args[1:])
-		}
+	var mode displaymode.Config
+	var loadErr error
+	interlaced := os.Getenv(displaymode.ActiveEnv) == "1"
+	if o.headless == "" && !interlaced {
+		mode, loadErr = displaymode.Load(filepath.Join(filepath.Dir(o.config), "display.json"))
 	}
+	trace, err := openStartupDiagnostics(o, mode.Interlaced && loadErr == nil)
+	if err != nil {
+		return err
+	}
+	defer func() { trace.close(err) }()
+	trace.phase("display-config")
+	if loadErr != nil {
+		return loadErr
+	}
+	if o.headless == "" {
+		mister.RecordStartup(trace.log, interlaced)
+	}
+	if mode.Interlaced {
+		trace.phase("interlaced-supervisor")
+		return displaymode.Run(ctx, filepath.Dir(o.config), os.Args[1:])
+	}
+	trace.phase("display-open")
 	d, err := platform.Open(platform.Options{Device: o.device, Headless: o.headless, Output: o.output})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, d.Close()) }()
+	g := d.Geometry()
+	trace.log.Record("application.display", slog.Int("ui_width", g.Width), slog.Int("ui_height", g.Height), slog.Int("output_width", g.OutputWidth), slog.Int("output_height", g.OutputHeight))
 	if o.browse {
-		return runBrowser(ctx, d, o)
+		return runBrowser(ctx, d, o, trace)
 	}
 	return runPreview(ctx, d, o)
 }

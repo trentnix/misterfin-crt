@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/input/evdev"
 	"misterfin-crt/internal/mister/bgm"
@@ -19,8 +20,8 @@ func misterTarget(d platform.Presenter, o launchOptions, bindings evdev.Config) 
 		activate: bgm.Suspend,
 		player:   misterPlayback(o, d.Geometry()),
 		output:   native.New(d, native.OverlayPath),
-		readInput: func(ctx context.Context) (<-chan control.Event, <-chan struct{}, error) {
-			return evdev.Read(ctx, bindings)
+		readInput: func(ctx context.Context, log *diagnostics.Log) (<-chan control.Event, <-chan struct{}, error) {
+			return evdev.Read(ctx, bindings, log)
 		},
 	}
 }

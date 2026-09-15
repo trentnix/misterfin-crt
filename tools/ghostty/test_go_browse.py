@@ -269,7 +269,10 @@ class BrowseIntegrationTests(unittest.TestCase):
         path = self.directory / "logs" / "diagnostics.log"
         events = [json.loads(line) for line in path.read_text().splitlines()]
         self.assertEqual(events[0]["msg"], "application.start")
-        self.assertEqual(events[0]["output_height"], 240)
+        display = next(e for e in events if e["msg"] == "application.display")
+        self.assertEqual(display["output_height"], 240)
+        self.assertTrue(any(e["msg"] == "application.phase" and e["stage"] == "browser" for e in events))
+        self.assertTrue(any(e["msg"] == "input.backend" and e["terminal"] for e in events))
         self.assertEqual(events[-1]["msg"], "application.exit")
         self.assertFalse(events[-1]["failed"])
         self.assertTrue(any(e["msg"] == "http.request" and e["path"] == "/UserViews" for e in events))

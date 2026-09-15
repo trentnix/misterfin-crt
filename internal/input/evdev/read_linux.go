@@ -7,12 +7,14 @@ package evdev
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
+	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/input/control"
 )
 
@@ -187,7 +189,9 @@ func direction(key string) bool {
 	return key == "up" || key == "down" || key == "previous" || key == "next" || key == "track-previous" || key == "track-next" || key == "seek-backward" || key == "seek-forward"
 }
 
-func openDevices(devices map[string]*device, config Config) {
+// openDevices adds newly available nodes without grabbing them exclusively.
+// The optional log describes only this scan and never records input events.
+func openDevices(devices map[string]*device, config Config, log *diagnostics.Log) {
 	paths, _ := filepath.Glob("/dev/input/event*")
 	for _, path := range paths {
 		if devices[path] != nil {
@@ -195,28 +199,41 @@ func openDevices(devices map[string]*device, config Config) {
 		}
 		fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
 		if err != nil {
+			log.Record("input.unavailable", slog.String("node", filepath.Base(path)), slog.String("stage", "open"), slog.String("error_kind", diagnostics.ErrorKind(err)))
 			continue
 		}
 		var name [128]byte
 		// EVIOCGNAME(sizeof(name)), from linux/input.h. No exclusive grab.
 		_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), 0x80804506, uintptr(unsafe.Pointer(&name[0])))
 		if errno != 0 {
+			log.Record("input.unavailable", slog.String("node", filepath.Base(path)), slog.String("stage", "identify"), slog.String("error_kind", diagnostics.ErrorKind(errno)))
 			syscall.Close(fd)
 			continue
 		}
 		devices[path] = &device{fd: fd, name: strings.TrimRight(string(name[:]), "\x00"), held: make(map[uint16]string), triggers: discoverTriggers(fd)}
 		devices[path].configure(config)
+		if log != nil {
+			d := devices[path]
+			name := strings.Map(func(r rune) rune {
+				if r < 32 || r == 127 {
+					return -1
+				}
+				return r
+			}, strings.ToValidUTF8(d.name, "?"))
+			log.Record("input.device", slog.String("node", filepath.Base(path)), slog.String("name", name), slog.Bool("virtual", d.name == "MiSTer virtual input"), slog.Bool("replace_bindings", d.bindings.Replace), slog.Int("mapped_buttons", len(d.bindings.Buttons)), slog.Int("mapped_axes", len(d.axes)), slog.Int("triggers", len(d.triggers)))
+		}
 	}
 }
 
 // Read owns all event descriptors and rescans for hotplugged controllers.
+// A non-nil log records the initial device scan, never input events or hotplug polls.
 // The terminal is not read here, so virtual joystick echoes cannot fire twice.
-func Read(ctx context.Context, config Config) (<-chan control.Event, <-chan struct{}, error) {
+func Read(ctx context.Context, config Config, log *diagnostics.Log) (<-chan control.Event, <-chan struct{}, error) {
 	if err := config.Validate(); err != nil {
 		return nil, nil, err
 	}
 	devices := make(map[string]*device)
-	openDevices(devices, config)
+	openDevices(devices, config, log)
 	if len(devices) == 0 {
 		return nil, nil, errors.New("cannot open hardware input devices")
 	}
@@ -252,7 +269,7 @@ func Read(ctx context.Context, config Config) (<-chan control.Event, <-chan stru
 				return
 			case now := <-ticker.C:
 				if !now.Before(scan) {
-					openDevices(devices, config)
+					openDevices(devices, config, nil)
 					scan = now.Add(2 * time.Second)
 				}
 				pressed := make(map[string]bool)

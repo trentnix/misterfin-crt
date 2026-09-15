@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/input/evdev"
 	"misterfin-crt/internal/platform"
@@ -22,7 +23,7 @@ type browserTarget struct {
 	openSound sound.OpenFunc
 	player    playback.Config
 	output    videoout.Output
-	readInput func(context.Context) (<-chan control.Event, <-chan struct{}, error)
+	readInput func(context.Context, *diagnostics.Log) (<-chan control.Event, <-chan struct{}, error)
 }
 
 // selectBrowserTarget chooses the native target unless a headless output was
