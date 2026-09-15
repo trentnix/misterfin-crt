@@ -40,7 +40,7 @@ func TestArtworkLoaderOnlyFetchesImagesAndSharesRequestLimit(t *testing.T) {
 	}))
 	defer server.Close()
 	defer once.Do(func() { close(release) })
-	loader := newArtworkLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240)
+	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240, selectionCaches{})
 	var wg sync.WaitGroup
 	var completed atomic.Int32
 	for _, id := range []string{"a", "b"} {

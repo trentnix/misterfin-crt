@@ -1,19 +1,19 @@
-package browser
+package artwork
 
 import (
 	"context"
 	"errors"
 	"image"
 	"image/draw"
-	"sync"
 
 	"misterfin-crt/internal/jellyfin"
 )
 
-// fetchImage reuses tagged artwork before acquiring a request slot and checks
+// Fetch reuses tagged artwork before acquiring a request slot and checks
 // the cache again afterward. Successful uncanceled loads are normalized to RGBA
-// and retained. The image must not be mutated after returning.
-func (l *artworkLoader) fetchImage(ctx context.Context, item jellyfin.Item, kind string) (image.Image, error) {
+// and retained. Kind must be Primary, Backdrop, Logo, or Photo. The returned
+// image is immutable. Call Fetch on a worker, not the browser event loop.
+func (l *Loader) Fetch(ctx context.Context, item jellyfin.Item, kind string) (image.Image, error) {
 	key := artworkKey(item, kind)
 	if key.tag == "" {
 		if kind == "Photo" {
@@ -64,25 +64,4 @@ func (l *artworkLoader) fetchImage(ctx context.Context, item jellyfin.Item, kind
 		}
 	}
 	return im, err
-}
-
-// itemImages requests each image independently and waits for all workers.
-// emit may run concurrently and must return promptly.
-func (l *artworkLoader) itemImages(ctx context.Context, item jellyfin.Item, detail bool, emit func(artUpdate)) {
-	kinds := []string{"Primary", "Backdrop"}
-	if detail {
-		kinds = append(kinds, "Logo")
-	}
-	var wg sync.WaitGroup
-	for _, kind := range kinds {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			im, err := l.fetchImage(ctx, item, kind)
-			if ctx.Err() == nil {
-				emit(artUpdate{kind: kind, image: im, err: err})
-			}
-		}()
-	}
-	wg.Wait()
 }

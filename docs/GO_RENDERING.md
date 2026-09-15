@@ -158,29 +158,35 @@ The controller has no dependency on `platform`, `videoout`, terminal input, font
 
 ## Selection loading and artwork ownership
 
-`selectionLoader` coordinates metadata and images for the selected item. Its constructor receives the mosaic and artwork disk caches as one account-scoped dependency set. The connection worker finishes this construction before publishing the authenticated connection, so selection workers never observe partially attached persistence. It refreshes non-photo detail metadata on every visit, including watched state after playback. Detail images use the refreshed metadata. If metadata fails, images can still load from the existing item. Photos start immediately without a detail request. List images and carousel cover samples wait for the existing 120-millisecond selection debounce.
+`selectionLoader` coordinates metadata and images for the selected item. Its constructor receives the mosaic and artwork disk caches as one account-scoped dependency set. The connection worker finishes this construction before publishing the authenticated connection, so selection workers never observe partially attached persistence. It refreshes non-photo detail metadata on every visit, including watched state after playback. Detail images use the refreshed metadata. If metadata fails, images can still load from the existing item.
+
+Photos start immediately without a detail request. List images and carousel cover samples wait for the existing 120-millisecond selection debounce.
 
 Library counts start independently of carousel samples and images. A slow count does not delay covers, and slow images do not delay counts. `libraryCache` retains at most 32 libraries, with separate one-minute deadlines for counts and sample metadata. Metadata expiry does not evict decoded images.
 
-`mosaicDiskCache` persists each library's decoded collage separately from the C cache. Selection workers restore saved images before querying current sample IDs and tags, then delegate missing images to `artworkLoader`. Cached pixels populate the existing image cache, so unchanged tags avoid both downloads and decoding after restart. The browser loop performs no cache file I/O. Counts remain independent of collage persistence.
+`artwork.MosaicCache` persists each library's decoded collage separately from the C cache. Selection workers restore saved images before querying current sample IDs and tags, then delegate missing images to `artwork.Loader`. Cached pixels populate the existing image cache, so unchanged tags avoid both downloads and decoding after restart. The browser loop performs no cache file I/O. Counts remain independent of collage persistence.
 
 A complete `covers` artwork update replaces the sample as a unit before individual cover updates arrive. This also clears an obsolete collage when a refreshed library is empty. Only complete, uncanceled samples replace the disk file, and identical contents do not rewrite it. Retry defers disk invalidation to the selection worker. See [cache locations and limits](GO_BROWSING.md#persistent-collage-cache).
 
-`artworkLoader` handles only image requests, normalization, and retention. Its three-request limit is shared across selections. `artworkCache` retains at most 16 MiB and 128 decoded images. The cache performs no network requests. Cached images remain immutable after publication, and completed images survive selection cancellation. Carousel image workers retain the sample order when publishing completed covers.
+`artwork.Loader` handles only image requests, normalization, and retention. Its three-request limit is shared across selections. `Cached` provides memory-only lookup, and `Restore` primes saved mosaic covers without replacing newer images. The package-private `artworkCache` retains at most 16 MiB and 128 decoded images. The cache performs no network requests. Cached images remain immutable after publication, and completed images survive selection cancellation.
+
+The browser retains image batching and result ordering in `selection_images.go`. Carousel image workers retain the sample order when publishing completed covers. Metadata freshness and cancellation belong to `selectionLoader`. The artwork package does not import the browser or renderer.
 
 `selectionState` belongs to the browser loop. It tracks the current selection, cancellation, generation, presentation data, and error. `selectionUpdate` distinguishes detail metadata, library counts, and artwork. Its generation is checked before any result changes the model or screen. `Artwork` contains only images. `Scene.LibraryCount` carries the count separately. Retry invalidates the selected item's metadata and images through `selectionLoader.forget`.
 
 - [`selection_loader.go`](../internal/browser/selection_loader.go): detail loading, image coordination, debounce, cached snapshots, and retry invalidation.
 - [`selection_library.go`](../internal/browser/selection_library.go): independent library counts and carousel sample queries.
 - [`selection_update.go`](../internal/browser/selection_update.go): selection presentation data and typed progressive results.
-- [`mosaic_disk_cache.go`](../internal/browser/mosaic_disk_cache.go): cache locations, server/user isolation, atomic file replacement, and disk limits.
-- [`mosaic_cache_format.go`](../internal/browser/mosaic_cache_format.go): versioned manifests, bounded RGBA records, and checksum validation.
+- [`mosaic_disk_cache.go`](../internal/artwork/mosaic_disk_cache.go): cache locations, server/user isolation, atomic file replacement, and disk limits.
+- [`mosaic_cache_format.go`](../internal/artwork/mosaic_cache_format.go): versioned manifests, bounded RGBA records, and checksum validation.
 - [`library_cache.go`](../internal/browser/library_cache.go): bounded library metadata retention and separate expiry deadlines.
 - [`artwork.go`](../internal/browser/artwork.go): immutable image inputs for rendering.
-- [`artwork_loader.go`](../internal/browser/artwork_loader.go): image loader resources, dimensions, and request limit.
-- [`artwork_cache.go`](../internal/browser/artwork_cache.go): tagged image retention, eviction, snapshots, and invalidation.
-- [`artwork_fetch.go`](../internal/browser/artwork_fetch.go): cache lookup, request slots, RGBA normalization, and independent item images.
-- [`artwork_covers.go`](../internal/browser/artwork_covers.go): bounded image workers for a resolved carousel sample.
+- [`cache_files.go`](../internal/artwork/cache_files.go): shared file mechanics and disk-budget inventory.
+- [`artwork_disk_cache.go`](../internal/artwork/artwork_disk_cache.go): ordinary artwork persistence and retry publication guards.
+- [`artwork_loader.go`](../internal/artwork/artwork_loader.go): image loader resources, dimensions, and request limit.
+- [`artwork_cache.go`](../internal/artwork/artwork_cache.go): tagged image retention, eviction, and invalidation.
+- [`artwork_fetch.go`](../internal/artwork/artwork_fetch.go): cache lookup, request slots, and RGBA normalization.
+- [`selection_images.go`](../internal/browser/selection_images.go): independent detail images and bounded workers for carousel samples.
 - [`artwork_update.go`](../internal/browser/artwork_update.go): image results and their application to displayed artwork.
 
 ## Jellyfin client ownership
@@ -311,7 +317,11 @@ Video playback must have access to both MiSTer CPU cores. Main_MiSTer pins Scrip
 
 ## Ordinary artwork persistence
 
-`artworkLoader` checks its bounded decoded-memory cache, then `artworkDiskCache`, before requesting an image from Jellyfin. `artworkDiskCache` stores covers, backdrops, and logos under the shared configurable cache root. `cache_paths.go` resolves root and account partitions for both artwork and collages. `artwork_cache_format.go` preserves decoded RGBA pixels with a version and checksum, including logo transparency. Image tags and parent backdrop ownership determine identity. Photos keep their existing memory-only path because their requested dimensions depend on output geometry.
+`artwork.Loader` checks its bounded decoded-memory cache, then `artwork.DiskCache`, before requesting an image from Jellyfin. `artwork.DiskCache` stores covers, backdrops, and logos under the shared configurable cache root. `cache_paths.go` isolates accounts for both artwork and collages. The private `cacheFiles` implementation shares bounded reads, staging, atomic rename, and budget inventory. Each cache serializes its file operations and retains its own freshness rules.
+
+Both caches scan existing files once, then track publications and removals in memory. Cache hits do not rewrite timestamps. Concurrent application processes sharing a directory do not coordinate their inventories.
+
+`artwork_cache_format.go` preserves decoded RGBA pixels with a version and checksum, including logo transparency. Image tags and parent backdrop ownership determine identity. Photos keep their existing memory-only path because their requested dimensions depend on output geometry.
 
 Image workers own disk I/O and pruning. Immediate selection snapshots remain memory-only. Retry invalidates a revision without waiting for file reads or pixel writes. Workers remove invalidated files and check their revision before publishing replacements. A canceled or superseded request cannot repopulate the memory cache or replace a newer disk entry. Artwork persistence does not add filesystem work to rendering or playback.
 

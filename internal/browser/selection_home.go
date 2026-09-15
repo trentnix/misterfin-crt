@@ -11,5 +11,5 @@ func (l *selectionLoader) loadHomeArtwork(ctx context.Context, emit func(selecti
 		return
 	}
 	l.emitCovers(lib.items, emit)
-	l.artwork.coverImages(ctx, lib.items, func(update artUpdate) { emit(selectionUpdate{kind: selectionArtwork, art: update, err: update.err}) })
+	l.coverImages(ctx, lib.items, func(update artUpdate) { emit(selectionUpdate{kind: selectionArtwork, art: update, err: update.err}) })
 }

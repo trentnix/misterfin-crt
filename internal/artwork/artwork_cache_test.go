@@ -1,9 +1,10 @@
-package browser
+package artwork
 
 import (
 	"image"
-	"misterfin-crt/internal/jellyfin"
 	"testing"
+
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestImageCacheEvictsLeastRecentlyUsedWithinBudget(t *testing.T) {

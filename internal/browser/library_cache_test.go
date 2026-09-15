@@ -1,11 +1,13 @@
 package browser
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/artwork"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -37,7 +39,7 @@ func TestSelectionSnapshotExpiryAndRetry(t *testing.T) {
 	item := jellyfin.Item{ID: "library"}
 	cover := jellyfin.Item{ID: "cover", ImageTags: map[string]string{"Primary": "tag"}}
 	im := image.NewRGBA(image.Rect(0, 0, 2, 2))
-	loader.artwork.cache.remember(artworkKey(cover, "Primary"), im)
+	loader.artwork.Restore(context.Background(), []artwork.Cover{{ID: cover.ID, Tag: "tag", Image: im}})
 	count := 42
 	future := time.Now().Add(time.Minute)
 	loader.libraries.remember(item.ID, func(v *cachedLibrary) {
@@ -59,15 +61,16 @@ func TestSelectionSnapshotExpiryAndRetry(t *testing.T) {
 	if data.count == nil || *data.count != 42 || data.artwork.Covers != nil {
 		t.Fatal("sample expiry discarded the count or reused stale sample")
 	}
-	if loader.artwork.cache.cached(artworkKey(cover, "Primary")) != im {
+	if loader.artwork.Cached(cover, "Primary") != im {
 		t.Fatal("metadata expiry evicted an image")
 	}
-	loader.artwork.cache.remember(imageKey{item.ID, "Logo", "tag"}, im)
+	item.ImageTags = map[string]string{"Primary": "tag"}
+	loader.artwork.Restore(context.Background(), []artwork.Cover{{ID: item.ID, Tag: "tag", Image: im}})
 	loader.forget(item)
-	if loader.libraries.cached(item.ID).count != nil || loader.artwork.cache.cached(imageKey{item.ID, "Logo", "tag"}) != nil {
+	if loader.libraries.cached(item.ID).count != nil || loader.artwork.Cached(item, "Primary") != nil {
 		t.Fatal("retry did not invalidate both metadata and images")
 	}
-	if loader.artwork.cache.cached(artworkKey(cover, "Primary")) != im {
+	if loader.artwork.Cached(cover, "Primary") != im {
 		t.Fatal("retry evicted an unrelated image")
 	}
 }

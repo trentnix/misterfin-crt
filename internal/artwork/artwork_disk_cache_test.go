@@ -1,4 +1,4 @@
-package browser
+package artwork
 
 import (
 	"bytes"
@@ -31,16 +31,16 @@ func TestArtworkPersistsAcrossLoadersAndRefreshesChangedTags(t *testing.T) {
 	defer server.Close()
 	root := t.TempDir()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{UserID: "user"})
-	loader := func() *artworkLoader {
-		l := newArtworkLoader(client, 640, 240)
-		l.disk = newArtworkDiskCache(root, server.URL, "user")
+	loader := func() *Loader {
+		l := NewLoader(client, 640, 240, nil)
+		l.disk = NewDiskCache(root, server.URL, "user")
 		return l
 	}
 	item := jellyfin.Item{ID: "series", ImageTags: map[string]string{"Primary": "p", "Logo": "l"}, BackdropImageTags: []string{"b"}}
 	ctx := context.Background()
-	fetch := func(l *artworkLoader, item jellyfin.Item, kind string) image.Image {
+	fetch := func(l *Loader, item jellyfin.Item, kind string) image.Image {
 		t.Helper()
-		im, err := l.fetchImage(ctx, item, kind)
+		im, err := l.Fetch(ctx, item, kind)
 		if err != nil || im == nil {
 			t.Fatalf("%s: %v, %v", kind, im, err)
 		}
@@ -73,7 +73,7 @@ func TestArtworkPersistsAcrossLoadersAndRefreshesChangedTags(t *testing.T) {
 	if calls.Load() != 4 {
 		t.Fatal("changed tag did not fetch new artwork")
 	}
-	second.forget(item)
+	second.Forget(item)
 	fetch(second, item, "Primary")
 	if calls.Load() != 5 {
 		t.Fatal("explicit retry reused old pixels")
@@ -121,18 +121,18 @@ func TestArtworkDiskFormatPreservesAlphaAndRejectsCorruption(t *testing.T) {
 
 func TestArtworkDiskIsolationCancellationAndRetry(t *testing.T) {
 	root := t.TempDir()
-	c := newArtworkDiskCache(root, "http://server/", "user")
+	c := NewDiskCache(root, "http://server/", "user")
 	key := imageKey{"id", "Logo", "tag"}
 	im := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	ctx := context.Background()
 	rev := c.revision(key)
 	c.save(ctx, key, rev, im)
-	for _, other := range []*artworkDiskCache{newArtworkDiskCache(root, "http://other", "user"), newArtworkDiskCache(root, "http://server", "other")} {
+	for _, other := range []*DiskCache{NewDiskCache(root, "http://other", "user"), NewDiskCache(root, "http://server", "other")} {
 		if other.load(key, other.revision(key)) != nil {
 			t.Fatal("cross-account artwork leak")
 		}
 	}
-	if newArtworkDiskCache(root, "http://server", "user").load(key, rev) == nil {
+	if NewDiskCache(root, "http://server", "user").load(key, rev) == nil {
 		t.Fatal("trailing slash changed namespace")
 	}
 	for _, other := range []imageKey{{"other", "Logo", "tag"}, {"id", "Primary", "tag"}, {"id", "Logo", "other"}} {
@@ -146,7 +146,7 @@ func TestArtworkDiskIsolationCancellationAndRetry(t *testing.T) {
 		t.Fatal("retry loaded stale image")
 	}
 	c.save(ctx, key, rev, im)
-	if newArtworkDiskCache(root, "http://server", "user").load(key, rev) != nil {
+	if NewDiskCache(root, "http://server", "user").load(key, rev) != nil {
 		t.Fatal("stale worker recreated invalidated file")
 	}
 	canceled, cancel := context.WithCancel(ctx)
@@ -159,10 +159,10 @@ func TestArtworkDiskIsolationCancellationAndRetry(t *testing.T) {
 	if c.load(key, c.revision(key)) == nil || c.load(key, rev) != nil {
 		t.Fatal("retry revision was not enforced")
 	}
-	l := newArtworkLoader(nil, 640, 240)
+	l := NewLoader(nil, 640, 240, nil)
 	l.disk = c
 	rev = c.revision(key)
-	l.forget(jellyfin.Item{ID: key.id, ImageTags: map[string]string{"Logo": key.tag}})
+	l.Forget(jellyfin.Item{ID: key.id, ImageTags: map[string]string{"Logo": key.tag}})
 	if l.remember(ctx, key, c, rev, im) || l.cache.cached(key) != nil {
 		t.Fatal("stale worker repopulated memory after retry")
 	}
@@ -176,14 +176,14 @@ func TestArtworkDiskFailureDoesNotBlockImagesAndPhotosStayInMemory(t *testing.T)
 	if err := os.WriteFile(root, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
-	l := newArtworkLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240)
-	l.disk = newArtworkDiskCache(root, server.URL, "user")
+	l := NewLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240, nil)
+	l.disk = NewDiskCache(root, server.URL, "user")
 	item := jellyfin.Item{ID: "id", ImageTags: map[string]string{"Primary": "tag"}}
-	if im, err := l.fetchImage(context.Background(), item, "Primary"); im == nil || err != nil {
+	if im, err := l.Fetch(context.Background(), item, "Primary"); im == nil || err != nil {
 		t.Fatal("cache failure broke loading", err)
 	}
-	l.disk = newArtworkDiskCache(t.TempDir(), server.URL, "user")
-	if im, err := l.fetchImage(context.Background(), item, "Photo"); im == nil || err != nil {
+	l.disk = NewDiskCache(t.TempDir(), server.URL, "user")
+	if im, err := l.Fetch(context.Background(), item, "Photo"); im == nil || err != nil {
 		t.Fatal("photo failed", err)
 	}
 	if _, err := os.Stat(l.disk.dir); !os.IsNotExist(err) {
@@ -193,7 +193,7 @@ func TestArtworkDiskFailureDoesNotBlockImagesAndPhotosStayInMemory(t *testing.T)
 
 func TestArtworkDiskPruning(t *testing.T) {
 	for _, size := range []int64{20, 1024 * 1024} {
-		c := newArtworkDiskCache(t.TempDir(), "server", "user")
+		c := NewDiskCache(t.TempDir(), "server", "user")
 		if err := os.MkdirAll(c.dir, 0700); err != nil {
 			t.Fatal(err)
 		}
@@ -225,7 +225,7 @@ func TestArtworkDiskPruning(t *testing.T) {
 }
 
 func BenchmarkArtworkDiskRestore(b *testing.B) {
-	c := newArtworkDiskCache(b.TempDir(), "server", "user")
+	c := NewDiskCache(b.TempDir(), "server", "user")
 	key := imageKey{"id", "Backdrop", "tag"}
 	im := image.NewRGBA(image.Rect(0, 0, 640, 360))
 	revision := c.revision(key)

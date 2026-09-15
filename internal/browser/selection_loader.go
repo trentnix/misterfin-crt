@@ -5,44 +5,44 @@ import (
 	"image"
 	"time"
 
+	"misterfin-crt/internal/artwork"
 	"misterfin-crt/internal/jellyfin"
 )
 
 // selectionLoader coordinates metadata and images for one authenticated session.
 // It refreshes non-photo details on every visit, caches library metadata, and
-// delegates decoded images to artworkLoader. It owns no browser model state.
+// delegates decoded images to artwork.Loader. It owns no browser model state.
 type selectionLoader struct {
 	// customBackground suppresses invisible mosaic/backdrop downloads. Set
 	// before publishing the loader, then keep it immutable.
 	customBackground bool
 	client           *jellyfin.Client
-	artwork          *artworkLoader
+	artwork          *artwork.Loader
 	libraries        libraryCache
-	disk             *mosaicDiskCache
+	disk             *artwork.MosaicCache
 }
 
 // selectionCaches contains account-scoped persistence dependencies. Nil caches
 // preserve the same in-memory behavior for disabled storage and tests.
 type selectionCaches struct {
-	mosaics *mosaicDiskCache
-	artwork *artworkDiskCache
+	mosaics *artwork.MosaicCache
+	artwork *artwork.DiskCache
 }
 
 func newSelectionCaches(config Config, client *jellyfin.Client) selectionCaches {
 	return selectionCaches{
-		mosaics: newMosaicDiskCache(config.MosaicCacheDir, client.Config.Server, client.Session.UserID),
-		artwork: newArtworkDiskCache(config.ArtworkCacheDir, client.Config.Server, client.Session.UserID),
+		mosaics: artwork.NewMosaicCache(config.MosaicCacheDir, client.Config.Server, client.Session.UserID),
+		artwork: artwork.NewDiskCache(config.ArtworkCacheDir, client.Config.Server, client.Session.UserID),
 	}
 }
 
 // newSelectionLoader returns a complete loader. Callers cannot attach disk
 // caches after workers begin using it.
 func newSelectionLoader(client *jellyfin.Client, photoWidth, photoHeight int, caches selectionCaches) *selectionLoader {
-	artwork := newArtworkLoader(client, photoWidth, photoHeight)
-	artwork.disk = caches.artwork
+	images := artwork.NewLoader(client, photoWidth, photoHeight, caches.artwork)
 	return &selectionLoader{
 		client:    client,
-		artwork:   artwork,
+		artwork:   images,
 		libraries: newLibraryCache(),
 		disk:      caches.mosaics,
 	}
@@ -55,7 +55,7 @@ func newSelectionLoader(client *jellyfin.Client, photoWidth, photoHeight int, ca
 // requests run across all loads sharing this loader.
 func (l *selectionLoader) load(ctx context.Context, item jellyfin.Item, root, detail bool, emit func(selectionUpdate)) {
 	if detail && item.Type == "Photo" {
-		im, err := l.artwork.fetchImage(ctx, item, "Photo")
+		im, err := l.artwork.Fetch(ctx, item, "Photo")
 		if ctx.Err() == nil {
 			emit(selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "Photo", image: im, err: err}, err: err})
 		}
@@ -80,13 +80,13 @@ func (l *selectionLoader) load(ctx context.Context, item jellyfin.Item, root, de
 		return
 	}
 	if l.customBackground && !detail {
-		im, err := l.artwork.fetchImage(ctx, item, "Primary")
+		im, err := l.artwork.Fetch(ctx, item, "Primary")
 		if ctx.Err() == nil {
 			emit(selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "Primary", image: im, err: err}, err: err})
 		}
 		return
 	}
-	l.artwork.itemImages(ctx, item, detail, func(update artUpdate) {
+	l.itemImages(ctx, item, detail, func(update artUpdate) {
 		emit(selectionUpdate{kind: selectionArtwork, art: update, err: update.err})
 	})
 }
@@ -109,7 +109,12 @@ func selectionDelay(ctx context.Context) bool {
 // slice. Images and count values remain immutable after publication.
 func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData {
 	if !root {
-		return selectionData{artwork: l.artwork.cache.snapshot(item)}
+		return selectionData{artwork: Artwork{
+			Primary:  l.artwork.Cached(item, "Primary"),
+			Backdrop: l.artwork.Cached(item, "Backdrop"),
+			Logo:     l.artwork.Cached(item, "Logo"),
+			Photo:    l.artwork.Cached(item, "Photo"),
+		}}
 	}
 	lib := l.libraries.cached(item.ID)
 	data := selectionData{}
@@ -119,7 +124,7 @@ func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData 
 	if !l.customBackground && time.Now().Before(lib.itemsUntil) {
 		data.artwork.Covers = make([]image.Image, len(lib.items))
 		for i, item := range lib.items {
-			data.artwork.Covers[i] = l.artwork.cache.cached(artworkKey(item, "Primary"))
+			data.artwork.Covers[i] = l.artwork.Cached(item, "Primary")
 		}
 	}
 	return data
@@ -130,5 +135,5 @@ func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData 
 func (l *selectionLoader) forget(item jellyfin.Item) {
 	l.libraries.forget(item.ID)
 	l.libraries.remember(item.ID, func(value *cachedLibrary) { value.discardMosaic = true })
-	l.artwork.forget(item)
+	l.artwork.Forget(item)
 }

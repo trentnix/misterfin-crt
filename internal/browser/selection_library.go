@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"misterfin-crt/internal/artwork"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -49,7 +50,7 @@ func (l *selectionLoader) loadCount(ctx context.Context, item jellyfin.Item, emi
 }
 
 // loadCovers waits for selection to settle and refreshes the sample if needed.
-// It delegates the resolved sample to artworkLoader for progressive image loads.
+// It delegates the resolved sample to artwork.Loader for progressive image loads.
 func (l *selectionLoader) loadCovers(ctx context.Context, item jellyfin.Item, emit func(selectionUpdate)) {
 	if !selectionDelay(ctx) {
 		return
@@ -58,7 +59,7 @@ func (l *selectionLoader) loadCovers(ctx context.Context, item jellyfin.Item, em
 	// Disk reads run in this worker. The browser loop never waits for the SD
 	// card, and saved images can appear before metadata revalidation finishes.
 	if lib.discardMosaic {
-		l.disk.forget(item.ID, item.CollectionType)
+		l.disk.Forget(item.ID, item.CollectionType)
 		l.libraries.remember(item.ID, func(value *cachedLibrary) { value.discardMosaic = false })
 	}
 	if l.missingCovers(lib) {
@@ -87,15 +88,15 @@ func (l *selectionLoader) loadCovers(ctx context.Context, item jellyfin.Item, em
 	// Replace the sample as a unit, including an empty library. Individual
 	// downloads then fill only the slots whose tagged images were not cached.
 	l.emitCovers(items, emit)
-	covers := make([]mosaicCover, len(items))
+	covers := make([]artwork.Cover, len(items))
 	for i, item := range items {
-		covers[i].key = artworkKey(item, "Primary")
+		covers[i] = artwork.Cover{ID: item.ID, Tag: item.ImageTags["Primary"]}
 	}
-	l.artwork.coverImages(ctx, items, func(update artUpdate) {
-		covers[update.slot].image = update.image
+	l.coverImages(ctx, items, func(update artUpdate) {
+		covers[update.slot].Image = update.image
 		emit(selectionUpdate{kind: selectionArtwork, art: update, err: update.err})
 	})
-	l.disk.save(ctx, item.ID, item.CollectionType, covers)
+	l.disk.Save(ctx, item.ID, item.CollectionType, covers)
 }
 
 func (l *selectionLoader) missingCovers(lib cachedLibrary) bool {
@@ -103,8 +104,7 @@ func (l *selectionLoader) missingCovers(lib cachedLibrary) bool {
 		return true
 	}
 	for _, item := range lib.items {
-		key := artworkKey(item, "Primary")
-		if key.tag != "" && l.artwork.cache.cached(key) == nil {
+		if item.ImageTags["Primary"] != "" && l.artwork.Cached(item, "Primary") == nil {
 			return true
 		}
 	}
@@ -114,16 +114,14 @@ func (l *selectionLoader) missingCovers(lib cachedLibrary) bool {
 // restoreMosaic primes decoded images and cold sample metadata without marking
 // that metadata fresh. Jellyfin still checks IDs and image tags on each launch.
 func (l *selectionLoader) restoreMosaic(ctx context.Context, item jellyfin.Item) {
-	covers, ok := l.disk.load(item.ID, item.CollectionType)
+	covers, ok := l.disk.Load(item.ID, item.CollectionType)
 	if !ok || ctx.Err() != nil {
 		return
 	}
+	l.artwork.Restore(ctx, covers)
 	items := make([]jellyfin.Item, len(covers))
 	for i, cover := range covers {
-		items[i] = jellyfin.Item{ID: cover.key.id, ImageTags: map[string]string{"Primary": cover.key.tag}}
-		if l.artwork.cache.cached(cover.key) == nil {
-			l.artwork.cache.remember(cover.key, cover.image)
-		}
+		items[i] = jellyfin.Item{ID: cover.ID, ImageTags: map[string]string{"Primary": cover.Tag}}
 	}
 	l.libraries.remember(item.ID, func(value *cachedLibrary) {
 		if value.items == nil && value.itemsUntil.IsZero() {
@@ -135,7 +133,7 @@ func (l *selectionLoader) restoreMosaic(ctx context.Context, item jellyfin.Item)
 func (l *selectionLoader) emitCovers(items []jellyfin.Item, emit func(selectionUpdate)) {
 	covers := make([]image.Image, len(items))
 	for i, item := range items {
-		covers[i] = l.artwork.cache.cached(artworkKey(item, "Primary"))
+		covers[i] = l.artwork.Cached(item, "Primary")
 	}
 	emit(selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "covers", covers: covers}})
 }

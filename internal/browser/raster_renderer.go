@@ -8,7 +8,7 @@ import (
 
 // RasterRenderer belongs to the browser event loop. Its returned pixels are
 // borrowed until the next draw, matching Output.Present's synchronous contract.
-// Artwork from artworkLoader is immutable after publication.
+// Artwork from artwork.Loader is immutable after publication.
 type RasterRenderer struct {
 	music     musicviz.Renderer
 	canvas    *ui.Canvas

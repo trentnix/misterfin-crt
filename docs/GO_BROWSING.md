@@ -46,7 +46,7 @@ Displayed paths resolve relative to the application's working directory. Long pa
 
 ## Behavior and boundaries
 
-`internal/jellyfin` owns HTTP, JSON, configuration, sessions, and artwork decoding. `internal/browser` owns navigation and request lifetimes. `internal/ui` draws BGRX text and artwork in Go using translated bitmap data from the inherited font. `internal/terminal` reads Linux terminal keys without cgo and restores terminal settings on shutdown. The existing platform adapter still owns framebuffer presentation.
+`internal/jellyfin` owns HTTP, JSON, configuration, sessions, and artwork decoding. `internal/artwork` owns image fetching, bounded memory retention, and account-scoped disk caches. `internal/browser` owns navigation, metadata freshness, and request lifetimes. `internal/ui` draws BGRX text and artwork in Go using translated bitmap data from the inherited font. `internal/terminal` reads Linux terminal keys without cgo and restores terminal settings on shutdown. The existing platform adapter still owns framebuffer presentation.
 
 Movies and Music Videos use recursive lists filtered to their item types. Music retains artist, album, and track traversal. Home Videos and Mixed libraries retain folders and omit expensive folder user data.
 

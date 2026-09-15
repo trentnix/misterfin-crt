@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/artwork"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -52,7 +53,7 @@ func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {
 	makeLoader := func() *selectionLoader {
 		client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{UserID: "user"})
 		return newSelectionLoader(client, 640, 240, selectionCaches{
-			mosaics: newMosaicDiskCache(root, server.URL, "user"),
+			mosaics: artwork.NewMosaicCache(root, server.URL, "user"),
 		})
 	}
 	library := jellyfin.Item{ID: "library", CollectionType: "movies"}
@@ -116,7 +117,7 @@ func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {
 			cleared = true
 		}
 	})
-	covers, ok := makeLoader().disk.load(library.ID, library.CollectionType)
+	covers, ok := makeLoader().disk.Load(library.ID, library.CollectionType)
 	if !cleared || !ok || len(covers) != 0 {
 		t.Fatal("empty library retained an obsolete collage")
 	}

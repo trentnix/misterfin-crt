@@ -1,4 +1,4 @@
-package browser
+package artwork
 
 import (
 	"image"
@@ -98,7 +98,7 @@ func (c *artworkCache) remember(key imageKey, im image.Image) {
 }
 
 // forget invalidates retry targets, including a shared parent backdrop, without
-// evicting unrelated artwork. Metadata invalidation belongs to selectionLoader.
+// evicting unrelated artwork. The caller owns metadata invalidation.
 func (c *artworkCache) forget(item jellyfin.Item) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -108,10 +108,4 @@ func (c *artworkCache) forget(item jellyfin.Item) {
 			delete(c.images, key)
 		}
 	}
-}
-
-// snapshot assembles an item's cached images without network requests.
-// The returned images remain immutable after publication.
-func (c *artworkCache) snapshot(item jellyfin.Item) Artwork {
-	return Artwork{Photo: c.cached(artworkKey(item, "Photo")), Primary: c.cached(artworkKey(item, "Primary")), Backdrop: c.cached(artworkKey(item, "Backdrop")), Logo: c.cached(artworkKey(item, "Logo"))}
 }

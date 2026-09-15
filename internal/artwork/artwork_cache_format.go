@@ -1,4 +1,4 @@
-package browser
+package artwork
 
 import (
 	"encoding/binary"
