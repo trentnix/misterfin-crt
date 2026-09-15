@@ -10,7 +10,7 @@ I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I t
 
 ## Run on MiSTer
 
-Installation is manual. Build the client using the [build guide](docs/GO_BUILD.md) and its matching MPlayer using the [player build instructions](docs/GO_PLAYBACK.md#mister-use-and-remaining-work).
+Installation is manual. Build the client using the [build guide](docs/GO_BUILD.md) and its matching MPlayer using the [player build instructions](docs/GO_BUILD.md#mplayer).
 
 Copy these files to the SD card and make them executable:
 
@@ -56,7 +56,7 @@ Omitting the `display` section also restores the default on the next launch. Pre
 
 Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
-The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_ABOUT.md). About shows the installed version and checks for public releases. The Update action currently displays "Not implemented yet."
+The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_BROWSING.md#about-and-updates). About shows the installed version and checks for public releases. The Update action currently displays "Not implemented yet."
 
 To control playback from another Jellyfin client, select **MiSTerFin CRT** as the playback device. Remote play, queues, pause/resume, seeking, shuffle, and repeat are supported. See [remote control](docs/GO_REMOTE.md).
 
@@ -90,9 +90,9 @@ Application settings live in **`settings.json`** beside `jellyfin.conf`. On MiST
 
 | Setting | Defaults and options | Guide |
 | --- | --- | --- |
-| `ui.title` | Heading: `MiSTerFin CRT`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_BACKGROUND.md#browsing-title) |
-| `ui.navigation_sounds` | `enabled: true`, `volume: 10` out of 100. False or volume zero silences navigation sounds. | [Sounds](docs/GO_SOUNDS.md) |
-| `background` | Generated carousel mosaics and item artwork on lists. `image` selects one custom background. | [Background](docs/GO_BACKGROUND.md) |
+| `ui.title` | Heading: `MiSTerFin CRT`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_CONFIGURATION.md#browsing-title) |
+| `ui.navigation_sounds` | `enabled: true`, `volume: 10` out of 100. False or volume zero silences navigation sounds. | [Sounds](docs/GO_CONFIGURATION.md#navigation-sounds) |
+| `background` | Generated carousel mosaics and item artwork on lists. `image` selects one custom background. | [Background](docs/GO_CONFIGURATION.md#browsing-background) |
 | `display` | `interlaced: false`. Keep the current display, normally progressive. | [Display](docs/GO_DISPLAY.md) |
 | `input` | Built-in controller mappings and button labels. Profiles override matching devices. | [Input](docs/GO_INPUT.md) |
 | `music_visuals` | Music playback appearance only. `default_background: "Starfield"`, `show_audio_meters: true`. Missing optional Toasty sprites are omitted. | [Music visuals](docs/GO_MUSIC.md) |
@@ -148,9 +148,11 @@ The harness builds the client automatically. See the [development harness guide]
 
 ## More information
 
+See the [documentation index](docs/README.md) for all guides and current limits.
+
 - [Browsing, Continue Watching, and artwork caches](docs/GO_BROWSING.md)
 - [Playback and controls](docs/GO_PLAYBACK.md)
-- [Subtitles, audio tracks, and picture modes](docs/GO_TRACKS.md)
+- [Subtitles, audio tracks, and picture modes](docs/GO_PLAYBACK.md#video-options)
 - [Builds and tests](docs/GO_BUILD.md)
 - [Rendering architecture](docs/GO_RENDERING.md)
 

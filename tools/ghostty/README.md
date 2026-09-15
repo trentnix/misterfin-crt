@@ -1,6 +1,6 @@
 # Ghostty interactive harness
 
-This helper presents MiSTerFin CRT's desktop framebuffer inside Ghostty. MiSTerFin still reads the terminal directly, so the helper does not translate or intercept input.
+This helper presents MiSTerFin CRT's desktop framebuffer inside Ghostty. MiSTerFin CRT reads the terminal directly, so the helper does not translate or intercept input.
 
 From the repository root, run:
 
@@ -33,9 +33,9 @@ Application options belong in `settings.json` beside `jellyfin.conf`. Use `--set
 Go browser controls:
 
 - Up and Down select an item.
-- B, Enter, or X opens a library, folder, or item summary. On a video details screen, B starts or resumes playback in a separate FFplay window.
+- B, Enter, or X opens a library, folder, or item summary. On a video details screen, B starts or resumes playback.
 - During playback, any arrow toggles the menu. J/L seeks backward/forward by 30 seconds for video or 10 seconds for music. Brackets or Page Up/Page Down change music tracks. B/Enter pauses or resumes without showing controls. A/Escape stops playback. Keep focus in Ghostty when using a separate video window.
-- Desktop playback requires `ffplay`. See [the playback guide](../../docs/GO_PLAYBACK.md). The mock-server demo provides browsing data, not playable media.
+- Inline video and controllable music require libmpv. Separate-window video requires `ffplay`. See [the playback guide](../../docs/GO_PLAYBACK.md). The mock-server demo provides browsing data, not playable media.
 - A, Escape, Backspace, or Z goes back or cancels loading.
 - Left and Right move between home cards. In lists, Left and Right or Page Up and Page Down jump one screen.
 - Tab (SELECT) toggles the home carousel and library list.

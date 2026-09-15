@@ -1,77 +1,36 @@
-# MiSTerFin config — copy to /media/fat/misterfin/jellyfin.conf and fill in.
-# Lines starting with # and blank lines are ignored.
-#
-# The server URL is the only line you need. On first launch MiSTerFin shows a
-# Quick Connect code: open Jellyfin on any device you're already signed in on,
-# go to your user menu -> Quick Connect, and enter it. The login is saved to
-# token.conf next to this file, so it only has to be done once.
-#
-# PAL or NTSC is optional (defaults to PAL) and is recognised on whichever
-# line it appears, so it doesn't have to sit below anything.
-#
-# So is the transcode profile: "WxH" or "WxH@BITRATE", e.g. 640x480@12000000.
-# It's what the server is asked to scale video down to before mplayer scales
-# it back up; the default is 480x270@8000000. Raising it is the main lever on
-# picture quality and the main way to run out of CPU — 720x576 is confirmed
-# unsustainable on this hardware (audio drifts out of sync and keeps
-# drifting). The pause screen shows which profile is actually in effect.
+# MiSTerFin CRT: copy to /media/fat/misterfin-crt/jellyfin.conf.
+# Blank lines and lines beginning with # are ignored.
+# A server URL is enough to use Quick Connect. Approve the displayed code
+# from an already signed-in Jellyfin client.
+# The launcher saves login in /media/fat/misterfin-crt/state/session.json.
 
-http://192.168.2.10:8096
-PAL
+http://your-jellyfin-server:8096
 
+# Optional API-key login: add the key and username after the server URL.
+# your-api-key
+# your-username
 
-# ── Using an API key instead ────────────────────────────────────────────────
-# Still supported. Replace the two lines above with the four below:
-#
-#   1) Jellyfin server URL (no trailing slash)
-#   2) API key — Jellyfin admin dashboard -> Advanced -> API Keys -> +
-#   3) Your Jellyfin username (resolved to the real user id at startup —
-#      the raw id isn't easily findable in the Jellyfin UI, your username is)
-#   4) TV mode — PAL or NTSC (optional, defaults to PAL)
-#
-# http://192.168.2.10:8096
-# your-api-key-here
-# your-username-here
-# PAL
-#
-# Quick Connect is preferable where you have the choice. An API key isn't
-# scoped to a user: it authenticates as the server, and the username on line 3
-# only decides which account this client writes watch state to. That works,
-# but the same key can read and write any account on the server — a much
-# broader credential than the job needs — and creating one needs admin
-# dashboard access. A Quick Connect token simply is the user.
+# Independent options can appear on separate lines anywhere in the file.
+# PAL and NTSC are accepted for compatibility. Output geometry determines
+# playback's frame-rate convention. These lines do not switch the CRT mode.
+# NTSC
 
+# Video conversion limits: WIDTHxHEIGHT@BITRATE (bits per second).
+# Default: 720x576@12000000. Width: 160-1920. Height: 120-1080.
+# Bitrate: 100000-50000000. Omitting @BITRATE keeps the current bitrate.
+# Larger accepted values do not guarantee smooth playback.
+# 640x480@8000000
 
-# ── Troubleshooting: request log ────────────────────────────────────────────
-# Add a line containing just DEBUGLOG (case-insensitive, works anywhere in
-# this file, same as PAL/NTSC above) and MiSTerFin writes
-# /media/fat/misterfin/debug.log. Off by default; the file is overwritten
-# fresh on every launch, so it only ever holds one session's worth.
-#
-# One line per server request (method, endpoint, ok/FAIL, how long it took,
-# how many bytes came back), plus a handful of one-shot lines at startup and
-# during playback: framebuffer geometry, which input devices were found,
-# the relevant MiSTer.ini display settings (ypbpr/scandoubler/video_mode/...
-# — see docs/DISPLAY_COMPATIBILITY.md), which menu core/DDR path is active,
-# the GitHub update check result, and the transcode profile/resolution each
-# time something plays.
-#
-# It does NOT log your server URL, API key, access token, Quick Connect
-# secret, anything from a request's query string, or what's actually in your
-# library (no titles/ids) — safe to attach debug.log to a GitHub issue as-is.
-# It's meant for exactly that: turn it on, reproduce whatever went wrong, and
-# attach the file to the report instead of walking through an SSH session
-# together.
-#
+# HTTPS verifies certificates. Prefer a trusted certificate.
+# INSECURE_TLS disables verification for this server, including remote control.
+# INSECURE_TLS
+
+# DEBUGLOG enables diagnostics unless settings.json explicitly overrides it.
+# Logs default to debug.log beside settings, with one rotated .1 file.
+# Copy logs before restarting: each launch clears its log pair.
+# Logs exclude credentials and media titles but can contain item/user IDs,
+# device names, and playback timing. Review logs before sharing.
 # DEBUGLOG
 
-
-# ── HTTPS with a self-signed certificate ────────────────────────────────────
-# MiSTerFin verifies your server's TLS certificate by default. If your
-# Jellyfin server is https:// with a self-signed certificate, that
-# verification will fail — add a line containing just INSECURE_TLS
-# (case-insensitive, works anywhere in this file) to skip it. Only needed for
-# https with a self-signed cert; a plain http:// server (the usual setup)
-# doesn't use TLS at all and ignores this.
-#
-# INSECURE_TLS
+# Application settings belong in settings.json beside this file.
+# See docs/GO_CONFIGURATION.md and docs/GO_DIAGNOSTICS.md.

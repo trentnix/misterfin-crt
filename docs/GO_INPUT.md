@@ -1,150 +1,67 @@
-# Go input configuration
+# Controller configuration
 
-Controller bindings are configurable without rebuilding. START/Menu or keyboard F1 opens About while browsing. The `about` action can be remapped like other actions. The default layout uses the D-pad to toggle playback controls, shoulders to change music tracks, and triggers to seek. See [the playback guide](GO_PLAYBACK.md) for the default controller and keyboard controls.
+Set device profiles in the `input` section of `settings.json`. Omission or `{"profiles": []}` keeps built-in bindings. Invalid input settings stop startup. Restart after editing. See [settings paths and overrides](GO_CONFIGURATION.md#paths-and-precedence) and [default playback controls](GO_PLAYBACK.md#playback-controls).
 
-## Configuration path
+Profiles configure Linux evdev devices, including MiSTer controllers and physical keyboards. Ghostty uses terminal key sequences instead. Hints follow the last physical device used, while terminal input supplies keyboard labels.
 
-Set controller profiles in the `input` section of `settings.json` beside `jellyfin.conf`. The MiSTer launcher uses `/media/fat/misterfin-crt/settings.json`. The [shared example](../settings.example.json) keeps built-in bindings with an empty profiles list.
+## Profiles and labels
 
-For legacy compatibility, `-input-config /path/to/input.json` selects a separate input file and overrides the `input` section. The `MISTERFIN_INPUT_CONFIG` environment variable supplies the flag's default and also works through the Ghostty harness. An omitted `input` section keeps the built-in layout. An explicitly selected file must exist. The section or legacy override must contain one JSON object no larger than 64 KiB. Invalid configuration stops startup with an error that names the file. Restart the application after editing the configuration.
+`match` is a case-sensitive glob for the Linux device name. Read `/proc/bus/input/devices` or use an event inspector such as `evtest` to identify names, button codes, and axes. Matching profiles apply in file order, including after hotplug.
 
-Profiles configure Linux hardware input, including controllers and physical keyboards on MiSTer. Ghostty reads terminal key sequences and keeps the keyboard bindings documented in the playback guide. Playback and photo overlays show the bindings of the last physical input device used. Ghostty overlays show keyboard keys. Browsing hints use the same effective bindings.
-
-## Device profiles
-
-Each profile's `match` is a case-sensitive glob for the Linux input device name. For example, `*Xbox*` matches `Microsoft Xbox Controller`. Read `/proc/bus/input/devices` to find device names. Device names remain useful when event numbers change after reconnection. Profiles apply to hotplugged devices too.
-
-Matching profiles apply in file order. Omitted inputs retain the built-in bindings. Set an action to `""` to disable one input. Set `"replace": true` to clear all inherited bindings for a matching device before applying the profile. A replacement profile must include every input you want to use, including navigation and Back.
-
-The `buttons` object maps decimal Linux `EV_KEY` codes to actions. These codes come from the controller driver, not the labels printed on the controller. For example, Xbox shoulder buttons usually report 310 and 311. To make those buttons seek instead of changing tracks:
+Omitted bindings retain defaults. An empty action disables one binding. `replace: true` clears all inherited bindings first, so a replacement profile must provide every needed action. Buttons use decimal Linux `EV_KEY` codes, which depend on the driver rather than the printed controller labels.
 
 ```json
 {
   "input": {
-    "profiles": [
-      {
-        "match": "*Xbox*",
-        "buttons": {
-          "310": "seek-backward",
-          "311": "seek-forward"
-        }
-      }
-    ]
+    "profiles": [{
+      "match": "*Xbox*",
+      "buttons": {"310": "track-previous", "311": "track-next"},
+      "button_labels": {"310": "LB", "311": "RB"},
+      "axes": {
+        "0": {"negative": "previous", "positive": "next", "press": 40, "release": 25},
+        "1": {"negative": "up", "positive": "down", "press": 40, "release": 25},
+        "2": {"rest": "minimum", "positive": "seek-backward"},
+        "5": {"rest": "minimum", "positive": "seek-forward"}
+      },
+      "axis_labels": {"2": {"positive": "LT"}, "5": {"positive": "RT"}}
+    }]
   }
 }
 ```
 
-Use an input-event inspector such as `evtest` on Linux to identify a controller's button codes, axis codes, and ranges. An input device name alone does not guarantee identical codes across different drivers.
+Common codes have built-in names. Unknown inputs display labels such as `Btn 288` or `Axis 4+`. Custom labels allow at most 12 printable ASCII characters. Empty labels restore built-in names. Labels follow their physical inputs when actions change. Badges prefer explicit bindings, omit disabled actions, and wrap within the CRT safe area.
 
-MiSTer's synthetic action-key echoes remain filtered to prevent duplicate presses. Virtual arrow events remain available for controllers that depend on MiSTer routing. If you remap physical directions, apply the same direction mappings to `MiSTer virtual input`, or disable that virtual device with a matching replacement profile if your controller supplies all directions directly.
+MiSTer's synthetic action-key echoes are filtered to avoid duplicate presses. Virtual arrows remain available. If remapping physical directions, apply the same mappings to `MiSTer virtual input`, or disable that virtual device with a replacement profile when physical input supplies every direction. Virtual echoes do not replace the physical device's labels.
 
-## Overlay labels
+## Axes
 
-Button badges on the home carousel, library lists, previews, and playback overlays come from the same effective bindings that handle input. Browsing badges show the available actions, including view switching, whole-library shuffle, and Retry when a request fails. Exit confirmation uses the same badges. A remapped action shows its new button or axis. Disabled actions disappear. If several inputs perform an action, the overlay shows one binding, preferring explicitly configured inputs over inherited aliases. MiSTer's virtual arrow echoes do not replace the physical controller's labels.
+`axes` maps decimal Linux `EV_ABS` codes. The driver supplies each range. An empty axis object disables that axis.
 
-Common Linux button and axis codes have default names. Unknown codes appear as `Btn 288` or `Axis 4+`. Use `button_labels` and `axis_labels` in a profile to match the names printed on your controller. Labels name physical inputs, so they follow those inputs when you change their actions.
-
-```json
-{
-  "input": {
-    "profiles": [
-      {
-        "match": "My Controller",
-        "buttons": {
-          "310": "track-previous",
-          "311": "track-next"
-        },
-        "button_labels": {
-          "310": "L1",
-          "311": "R1",
-          "304": "Cross",
-          "305": "Circle"
-        },
-        "axis_labels": {
-          "2": {
-            "positive": "L2"
-          },
-          "5": {
-            "positive": "R2"
-          }
-        }
-      }
-    ]
-  }
-}
-```
-
-Labels must contain at most 12 printable ASCII characters. Empty labels restore the built-in name. Names follow the same profile merge and replacement rules as bindings. Long labels wrap onto another instruction row inside the CRT safe area. The renderer receives resolved labels and performs no configuration or device I/O.
-
-## Analog axes
-
-The `axes` object maps decimal Linux `EV_ABS` codes. Each axis can have `negative` and `positive` actions. An empty object disables that axis. Axis configuration overrides built-in hat and trigger mappings.
-
-The driver supplies the minimum and maximum values. Choose `rest` according to the input:
-
-| Rest | Use | Available actions |
+| `rest` | Input | Allowed directions |
 | --- | --- | --- |
-| `center` (default) | Stick or directional hat | `negative` and `positive` |
-| `minimum` | Trigger resting at its minimum | `positive` |
-| `maximum` | Trigger resting at its maximum | `negative` |
+| `center` (default) | Stick or hat | `negative`, `positive` |
+| `minimum` | Trigger resting at minimum | `positive` |
+| `maximum` | Trigger resting at maximum | `negative` |
 
-For example, this profile adds stick navigation and uses an inverted trigger for forward seeking:
-
-```json
-{
-  "input": {
-    "profiles": [
-      {
-        "match": "My Controller",
-        "axes": {
-          "0": {
-            "negative": "previous",
-            "positive": "next",
-            "press": 40,
-            "release": 25
-          },
-          "1": {
-            "negative": "up",
-            "positive": "down",
-            "press": 40,
-            "release": 25
-          },
-          "5": {
-            "rest": "maximum",
-            "negative": "seek-forward"
-          }
-        }
-      }
-    ]
-  }
-}
-```
-
-`press` and `release` are percentages of travel from rest toward the chosen end. Defaults are 25 and 15. Release must be greater than zero and less than press. Press must be at most 100. Separate thresholds prevent small fluctuations from producing repeated button presses. Unsupported axes produce no actions.
+`press` and `release` are percentages of travel from rest. Defaults are 25 and 15. Release must be greater than zero and less than press. Press must be at most 100. Separate thresholds prevent small fluctuations from repeating actions. Unsupported axes produce no actions.
 
 ## Actions
 
-Bindings describe intent. The browser decides how an action behaves in the current screen. Repeat timing follows the action, regardless of which physical input produces it.
-
-| Action | Behavior |
+| Action | Meaning |
 | --- | --- |
-| `up`, `down` | Navigate lists. Any direction toggles the controls during music or video playback. |
-| `previous`, `next` | Navigate the carousel, browse pages, or photos. Toggle controls during music or video playback. |
-| `track-previous`, `track-next` | Change music tracks. Navigate pages or photos outside playback. |
-| `seek-backward`, `seek-forward` | Seek music by 10 seconds or library video by 30 seconds. Live TV ignores seeking. |
-| `open` | Open the selection or pause/resume playback. |
-| `back` | Back out or stop playback. |
-| `about` | Open or close About outside media playback. Default: controller button 315 (START/Menu), keyboard F1 (code 59). |
-| `select` | Restart a resumable video from its selection screen. |
-| `retry` | Retry the current failed request. |
+| `up`, `down` | Select rows. Toggle controls during video/music. |
+| `previous`, `next` | Change home cards, jump list screens, or navigate photos. Toggle controls during video/music. |
+| `track-previous`, `track-next` | Change music tracks. Navigate list screens/photos outside playback. |
+| `seek-backward`, `seek-forward` | Seek music by 10 seconds or recorded video by 30 seconds. Ignored for Live TV. |
+| `open` | Open a selection, apply a choice, or pause/resume. |
+| `back` | Return, dismiss, cancel, or stop playback. |
+| `about` | Toggle About while browsing. Default: START/Menu or F1. |
+| `select` | Switch the home view, restart resumable video from details, open video options, start library shuffle, or cycle music backgrounds. |
+| `retry` | Retry or refresh the current request. |
 | `quit` | Exit the application. |
 
-Held navigation accelerates. Held seeking repeats at a steady rate. Playback menu toggles and music track changes happen once per press, including when assigned to an analog axis.
+Context determines the action. In video options, directions navigate tabs/rows and seek inputs adjust client-text subtitle timing. Applying a successful choice dismisses the picker. See [video options](GO_PLAYBACK.md#video-options).
 
-During recorded-video playback, SELECT opens [video Options](GO_TRACKS.md), with Subtitles, Audio, and Picture tabs. While the picker is open, directions navigate its tabs and rows, B applies a choice, and A closes it without showing the playback controls. Outside the picker, directions retain their normal menu toggle. Applying a Picture choice keeps the menu open for comparison. On MiSTer, picture changes preserve the running decoder and pause state. The subtitle tab uses the seek bindings to adjust client-rendered text timing while a text track is selected.
+Held navigation starts repeating after 350 ms, uses six 110 ms intervals, then accelerates to 45 ms. Held seeks repeat every 250 ms after 350 ms. Menu toggles and track changes act once per press. Supporting terminals report presses, repeats, and releases through the Kitty keyboard protocol. Legacy terminal input cannot distinguish held repeats from repeated presses.
 
-## Code ownership
-
-[`control.Action`](../internal/input/control/action.go) defines semantic actions shared by terminal decoding, evdev bindings, browser handlers, and button labels. Controller JSON decodes through `Action.UnmarshalText`, which rejects unknown names, internal menu actions, and repeat suffixes. `Config.Validate` also checks programmatically constructed bindings. The configuration names above remain unchanged.
-
-Readers mark held inputs with `Action.Repeat`. Browser dispatch uses `IsRepeat` and `Base` to preserve scrolling and seeking while suppressing repeated menu toggles and track changes. Repeat timing remains in the evdev reader. The internal `ToggleControls` action is synthesized from directional input during playback.
+[`control.Action`](../internal/input/control/action.go) defines and validates semantic actions. The input readers own physical mapping and repeat timing. Renderers receive resolved labels and perform no device or configuration I/O.

@@ -1,73 +1,83 @@
-# Application settings
+# Configuration
 
-Application options belong in one `settings.json` beside `jellyfin.conf`. The standard MiSTer path is `/media/fat/misterfin-crt/settings.json`. The current separate 480i launcher uses `/media/fat/misterfin-crt/interlaced-test/settings.json`. Jellyfin connection details remain in `jellyfin.conf`. Saved sign-in and playback-choice files are application state, not settings to combine.
+Jellyfin connection details belong in `jellyfin.conf`. Application options belong in one `settings.json` beside it. The standard installation directory is `/media/fat/misterfin-crt`. Restart after changing application settings. Setup Retry reloads only `jellyfin.conf`.
 
-Copy [settings.example.json](../settings.example.json), or create a file containing only the sections you need:
+## Server connection
+
+The only required line is the server URL:
+
+```text
+http://your-jellyfin-server:8096
+```
+
+Approve the displayed Quick Connect code from an already signed-in Jellyfin client. Alternatively, add the API key and username as the next two non-option lines. Blank lines and lines beginning with `#` are ignored. HTTP, HTTPS, and reverse-proxy base paths are supported. URLs must not contain embedded credentials, queries, or fragments.
+
+`PAL`, `NTSC`, `DEBUGLOG`, `INSECURE_TLS`, and a [transcode profile](GO_PLAYBACK.md#transcode-configuration) can appear on separate lines anywhere in the file. PAL is the parser default. Actual output geometry determines the playback frame-rate convention. `PAL`/`NTSC` does not switch the CRT output mode.
+
+TLS certificates are verified by default. `INSECURE_TLS` disables certificate verification for this server, including remote control. Prefer a trusted certificate. Saved sign-in data lives in `session.json` in the application state directory, not beside the server configuration. See [sign-in](GO_BROWSING.md#setup-and-sign-in).
+
+## Application settings
+
+Copy [settings.example.json](../settings.example.json), or include only the sections you need:
 
 ```json
 {
-  "ui": {"title": "Trent's CRT", "navigation_sounds": {"enabled": false}},
+  "ui": {"title": "MiSTerFin CRT", "navigation_sounds": {"enabled": false}},
   "background": {"image": "background.png"},
-  "display": {"interlaced": true}
+  "display": {"interlaced": false}
 }
 ```
 
-Sections and their fields can be omitted to keep defaults. An empty object uses all defaults. An explicit `ui.title` of `""` hides the heading. Explicit `false` and zero values retain their documented meaning. Merge changes into the existing file to preserve its other sections. Restart after editing.
+Omitted fields use defaults. Preserve other sections when editing. Explicit empty strings, false, and zero values keep their documented meanings.
+
+| Section | Default | Failure behavior |
+| --- | --- | --- |
+| `ui.title` | `MiSTerFin CRT`. Empty hides the heading. | Restore default title with a notice. |
+| `ui.navigation_sounds` | `enabled: true`, `volume: 10`. | Disable sounds with a notice. Media volume is unchanged. |
+| `background` | Carousel mosaics and item artwork. | Restore normal artwork with a notice. |
+| [`display`](GO_DISPLAY.md) | `interlaced: false`. | Invalid settings stop startup. |
+| [`input`](GO_INPUT.md) | Built-in device bindings. | Invalid settings stop startup. |
+| [`music_visuals`](GO_MUSIC.md) | Starfield, stereo meters enabled. | Invalid settings disable backgrounds. Missing custom assets leave music playable. |
+| [`diagnostics`](GO_DIAGNOSTICS.md) | Off unless `DEBUGLOG` is set. `debug.log`, 1 MiB per file. | Disable logging and report the failure. |
+
+Title and sound failures recover independently. An invalid entire `ui` object restores the title and disables sounds. Notices display for four seconds once browsing is ready. Quick Connect does not consume their display time. Enabled diagnostics records handled failures as `configuration.fallback`. Intentional defaults do not produce failure events. Recovery never rewrites settings.
+
+The file must be one JSON object, at most 256 KiB, with known sections. `input` and `music_visuals` allow 64 KiB each. Other sections allow 4 KiB each, excluding formatting whitespace. A malformed document, unknown top-level section, unreadable file, or missing explicit settings file stops startup because display and input intent cannot be recovered safely.
+
+## Browsing title
+
+`ui.title` changes the carousel and root-list heading. An omitted title uses `MiSTerFin CRT`. `""` or whitespace-only text hides it while keeping the clock. Whitespace is collapsed and control characters are removed. Long titles end in `...` within the heading area, which fits 33 characters at the standard width. Library titles and About keep their own names.
+
+## Browsing background
+
+`background.image` selects one static image for the carousel and browsing lists. An omitted or empty value keeps mosaics and item artwork. Posters, details, About, setup, photos, and playback retain their own presentation.
+
+PNG and JPEG are supported, up to 4 MiB and 2048 pixels per axis. A 4:3 image fits best. The renderer preserves proportions, crops from the center, dims the image, and composites transparency over black. Relative paths resolve beside the settings file. Absolute paths also work.
+
+The client checks image contents, not the extension. Missing files, text, video, unsupported formats, and corrupt images fall back to normal artwork with a notice. The image decodes once at startup. Prepared pixels are cached, and hidden mosaic/backdrop downloads are skipped. Music backgrounds use `music_visuals` instead.
+
+## Navigation sounds
+
+`ui.navigation_sounds.enabled` controls browsing clicks and confirmations. `volume` scales clip amplitude from 0 to 100. Zero silences feedback. The default is 10. These settings do not change music/video volume or the system mixer.
+
+Only visible browsing actions produce cues. Boundaries, redraws, and media controls stay silent. Before playback, the sound worker discards queued cues and releases the audio device. Missing or busy devices suppress feedback without blocking navigation. Invalid sound values disable feedback for that run.
 
 ## Paths and precedence
 
-The Go executable accepts `-settings /path/to/settings.json`. `MISTERFIN_SETTINGS` supplies the default for that flag. The Ghostty harness accepts `--settings /path/to/settings.json`. A command-line path takes precedence over the environment. An explicitly selected file must exist.
+The executable accepts `-settings PATH`. `MISTERFIN_SETTINGS` supplies its default. The harness accepts `--settings PATH`. Flags override the environment. Relative image, music-asset, and log paths resolve beside the file that supplied them. The interlaced core remains beside `jellyfin.conf`.
 
-The shared file or legacy files are read once per process. Relative background, music-asset, and diagnostic-log paths resolve beside their source file. A legacy per-section override resolves relative paths beside its own file. The interlaced core remains installed beside `jellyfin.conf`.
+When `settings.json` exists, omitted sections use defaults rather than legacy files. Legacy `-input-config`, `-sound-config`, `MISTERFIN_INPUT_CONFIG`, `MISTERFIN_SOUND_CONFIG`, and `MISTERFIN_MUSIC_CONFIG` overrides still replace their sections. Remove those overrides when adopting the shared file.
 
-Navigation sounds live under `ui.navigation_sounds`. The old top-level `sounds` section remains accepted when the nested setting is omitted. If both exist, the nested object takes precedence as a whole.
-
-The old `music` section remains accepted as an alias for `music_visuals`. If both exist, `music_visuals` takes precedence as a whole.
-
-When `settings.json` exists, its sections are authoritative. Omitted sections use defaults and do not read old JSON files. The legacy `-input-config`, `-sound-config`, `MISTERFIN_INPUT_CONFIG`, `MISTERFIN_SOUND_CONFIG`, and `MISTERFIN_MUSIC_CONFIG` overrides remain supported and take precedence over their corresponding sections. Remove those overrides when migrating to the shared file.
+The old top-level `sounds` and `music` sections remain aliases. Explicit `ui.navigation_sounds` and `music_visuals` take precedence as whole sections, even if empty or invalid. In music settings, `default_background` and `show_audio_meters` replace `default` and `meters`. Explicit current fields win, including null values that select their defaults.
 
 ## Migration
 
-If the default `settings.json` is absent, the client reads the old `ui.json`, `background.json`, `display.json`, `sounds.json`, `input.json`, `music.json`, and `diagnostics.json` files beside it. Existing installations continue to work without an immediate configuration change.
+If the default `settings.json` is absent, the client reads legacy `ui.json`, `background.json`, `display.json`, `sounds.json`, `input.json`, `music.json`, and `diagnostics.json` beside it. To combine them:
 
-To combine those files on the standard MiSTer installation:
-
-```bash
+```sh
 /media/fat/misterfin-crt/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/jellyfin.conf
 ```
 
-For the separate 480i installation:
+Use the configuration path of the installation being migrated. Separate 480i test installations can have their configuration under `interlaced-test`. Migration preserves originals and relative paths, writes current names, rejects malformed input, and refuses to overwrite `settings.json`. It does not open a display or connect to Jellyfin. Section values are validated on normal startup. Archive old files after verifying the new settings.
 
-```bash
-/media/fat/misterfin-crt/interlaced-test/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/interlaced-test/jellyfin.conf
-```
-
-For local development, run `build/misterfin-crt -migrate-settings -config /path/to/jellyfin.conf`. Migration reads legacy files from the destination settings directory. It moves `sounds` into `ui.navigation_sounds` and renames `music` to `music_visuals`, `default` to `default_background`, and `meters` to `show_audio_meters`. It preserves their values, relative paths, and originals.
-
-Migration refuses to overwrite `settings.json` and rejects malformed legacy JSON or invalid types in legacy music aliases. Migration does not open a display, connect to Jellyfin, or modify sign-in state. Section values are validated during normal startup. After testing the new file, the old settings files can be archived or removed.
-
-## Defaults and recovery
-
-| Setting | Default | Invalid section or unavailable asset |
-| --- | --- | --- |
-| `ui.title` | `MiSTerFin CRT` when `title` is omitted. An explicit empty string hides the heading. | Restore the default heading with a notice. |
-| `ui.navigation_sounds` | Navigation sounds enabled at volume 10. | Disable navigation sounds with a notice. Missing or busy audio devices temporarily suppress feedback. Media volume is unchanged. |
-| `background` | Carousel mosaics and item artwork. | Restore normal artwork with a notice. Non-images, unsupported formats, and corrupt images are rejected. |
-| `diagnostics` | Off unless `DEBUGLOG` is set. Path: `debug.log`. Limit: 1 MiB per file. | Disable logging with a notice. Write failures stop logging without stopping playback. |
-| `music_visuals` | Starfield and stereo meters. Missing optional Toasty sprites are omitted. | Disable backgrounds with a notice. Custom asset failures show a message, and another preset can be selected. Music playback remains available. |
-| `input` | Built-in controller mappings. | Stop startup with an error naming the source. Correct the section or omit it to use built-in mappings. |
-| `display` | Keep the current Menu core display, normally progressive. | Stop startup instead of silently changing the intended hardware mode. |
-
-A missing default file uses legacy settings or defaults. A malformed settings document, unknown top-level section, unreadable file, or missing explicit settings path stops startup with a file error. The client cannot safely recover display and input intent from a broken document. Within a valid document, section failures follow the table above. Invalid title and navigation-sound values recover independently. If the entire `ui` object is invalid or exceeds its size limit, the heading returns to its default and navigation sounds turn off. Settings files are not rewritten during recovery.
-
-Settings notices appear one at a time for four seconds once browsing is ready. Quick Connect does not consume their display time. Notices do not block navigation or replace an active message. When diagnostics are enabled, each handled fallback records its section name, error category, and selected behavior. Normal defaults do not create failure events. Diagnostic startup failures also report a message on stderr. See [fallback logging](GO_DIAGNOSTICS.md#configuration-fallbacks).
-
-The document must contain one JSON object no larger than 256 KiB. Sections must be objects with known keys. The `input` and `music_visuals` sections are limited to 64 KiB each. Other sections are limited to 4 KiB each. Section limits exclude formatting whitespace in the shared file. Custom artwork has separate image-size limits described in its guide.
-
-Server configuration and sign-in storage errors show retryable setup screens. The default transcode limit remains `720x576@12000000`. Corrupt artwork caches become misses and can be rebuilt. Unwritable caches leave browsing available without disk caching. Missing or damaged playback preferences use defaults. Choices that cannot be saved remain usable during the run, and saving failures are reported at exit.
-
-See the guides for [backgrounds and title](GO_BACKGROUND.md), [sounds](GO_SOUNDS.md), [diagnostics](GO_DIAGNOSTICS.md), [music](GO_MUSIC.md), [input](GO_INPUT.md), and [interlaced display](GO_DISPLAY.md).
-
-## Code ownership
-
-[`internal/settings`](../internal/settings/settings.go) reads startup snapshots and owns the UI schema and legacy names. [Compatibility normalization](../internal/settings/compatibility.go) serves both parsing and [migration](../internal/settings/migration.go). Each component validates its own values and supplies its defaults. [Startup assembly](../cmd/misterfin-crt/paths.go) passes the decoded title and validated music presets to the browser. The browser loads music images on its asset worker and does not parse settings JSON.
+Saved sign-in, playback preferences, and caches are application state and remain separate. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.

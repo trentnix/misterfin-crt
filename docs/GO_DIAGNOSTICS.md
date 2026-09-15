@@ -1,82 +1,62 @@
 # Diagnostics
 
-Diagnostics records request results, startup details, and playback milestones for troubleshooting. It is disabled by default and uses the same implementation on MiSTer and the desktop harness.
+Diagnostics records startup, requests, and playback milestones. It is off by default and uses the same implementation on MiSTer and desktop.
 
-## Enable logging
+## Enable and collect logs
 
-Set the `diagnostics` section in `settings.json` beside the `jellyfin.conf` used by your launcher:
+Add this section to `settings.json`, restart, reproduce the issue, then exit normally:
 
 ```json
-{
-  "diagnostics": {
-    "enabled": true,
-    "path": "debug.log",
-    "max_bytes": 1048576
-  }
-}
+{"diagnostics": {"enabled": true, "path": "debug.log", "max_bytes": 1048576}}
 ```
 
-Restart the application, reproduce the issue, then exit normally to flush accepted events. Collect `debug.log` and `debug.log.1` if the latter exists. A fresh application launch clears its two logs, so copy them before launching again.
+Collect `debug.log` and `debug.log.1` before launching again. Each process clears its log pair at startup. Relative paths resolve beside the settings file. The standard MiSTer log is `/media/fat/misterfin-crt/debug.log`. An absolute path can select other storage, including `/tmp`.
 
-On the ordinary MiSTer installation, the default log is `/media/fat/misterfin-crt/debug.log`. The 480i installation currently uses `/media/fat/misterfin-crt/interlaced-test/debug.log` because its `jellyfin.conf` is in that directory. The Ghostty harness writes beside the configuration supplied to the client. Relative log paths resolve beside `settings.json`. An absolute path can place the log elsewhere, including `/tmp` to avoid SD-card writes.
+`DEBUGLOG` on a line in `jellyfin.conf` enables the same defaults. Explicit `diagnostics.enabled` overrides it. To disable logging, set false, or omit the section and remove `DEBUGLOG`.
 
-Adding `DEBUGLOG` on its own line in `jellyfin.conf` also enables logging with these defaults. An explicit `diagnostics.enabled` value overrides that switch. To disable logging, set `enabled` to `false`, or omit the `diagnostics` section and remove the `DEBUGLOG` line.
+`max_bytes` applies to each file and accepts 4,096–67,108,864 bytes. Use a dedicated path because startup truncates it and owns its `.1` companion. Only one application instance can use a log path.
 
-`max_bytes` limits each file and must be between 4,096 and 67,108,864 bytes. The default retains at most two 1 MiB files. Choose a dedicated log path because the logger truncates that file on launch and owns its `.1` companion. Only one application instance can use a given log path at a time.
+The interlaced supervisor has an additional pair, `debug.log.supervisor` and `debug.log.supervisor.1`. Collect both pairs for a 480i startup or exit problem. Each file uses the same limit, so defaults retain up to 4 MiB in interlaced mode. If the child never starts, its existing log can be from a previous run. Check timestamps.
 
-The 480i display supervisor uses a separate log at the configured path plus `.supervisor`, with `.supervisor.1` for rotation. Each supervisor file uses the same `max_bytes` limit. This keeps core-switch and restoration failures separate from the child application, which opens its own log. When diagnosing a 480i launch or exit failure, collect both pairs. Each process clears its own pair on launch. If the supervisor fails before starting the application, an existing application log can be from an earlier run. Check timestamps. An interlaced run can retain up to four files, totaling 4 MiB with the defaults.
+## Events
 
-## What the log contains
+Each line is JSON with a timestamp and event name in `msg`.
 
-Each line is a JSON object with a timestamp and an event name in `msg`.
-
-| Events | Recorded information |
+| Event family | Information |
 | --- | --- |
-| `application.start`, `application.exit` | Build revision, OS/architecture, headless/native selection, application or display-supervisor role, elapsed runtime, and failure/cancellation flags. |
-| `configuration.fallback` | Logical configuration name, error category, and the fallback selected after invalid settings or an unavailable asset. Recorded when recovery occurs, independently of on-screen notices. Overrides use the logical name, such as `ui.navigation_sounds`, without logging their paths. |
-| `application.phase`, `application.failure` | Startup stage and elapsed time, or the last stage and a safe error category on failure. Includes display configuration, framebuffer opening, browser/input/sound configuration, input opening, and browser execution. The supervisor reports failures from its core-switch, child-process, and restoration lifecycle under `interlaced-supervisor`. |
-| `application.display` | Logical UI and physical framebuffer dimensions after opening the display. |
-| `input.backend`, `input.device`, `input.unavailable` | Terminal/native selection, configured profile count, initial evdev node names, device names, virtual-input status, binding replacement, mapped-button/axis and trigger counts, or open/identification failures. No button presses or hotplug polls are logged. |
-| `mister.display`, `mister.framebuffer` | Whether the interlaced child is active and the kernel framebuffer's numeric format, swap, width, height, and stride before the application opens it. Missing or unreadable mode data is reported without raw error text. |
-| `mister.setting`, `mister.settings` | Allowlisted numeric display settings with their INI section, entry/rejection counts, and read/limit status. |
-| `http.request` | Method, endpoint path, HTTP status, elapsed milliseconds, received bytes, and failure status. Status zero means no HTTP response was received. Query strings and origins are excluded. |
-| `remote.socket` | HTTP status and failure flag for each remote-control WebSocket connection attempt. Status 101 means the upgrade succeeded. Status zero means no HTTP response was received. Socket URLs and authorization values are excluded. |
-| `browser.page`, `browser.home` | Accepted library/list pages and Continue Watching results after the browser applies them. Records page kind, escaped and bounded parent ID, page offset, item count for Continue Watching, and failure status. Stale results are excluded. These events indicate navigation state, not physical frame presentation. |
-| `playback.start`, `playback.phase`, `playback.prepared` | Decoder protocol, metadata/stream/gate/decoder milestones, resume offset, Live TV status, and numeric transcode limits when present. |
-| `playback.first-position`, `playback.first-frame` | Elapsed time until position feedback and the decoder's first-frame notification. They are different milestones. |
-| `playback.pause`, `playback.buffering` | Pause changes and distinct buffering-state notifications. |
-| `playback.progress` | Position and pause state every ten seconds while the decoder is monitored. |
-| `playback.decoder-exit`, `playback.end` | Numeric exit code and signal, failure/cancellation flags, elapsed time, and the last preparation/playback stage. |
-| `diagnostics.dropped` | Number of discarded entries when the writer fell behind. |
+| `application.start`, `.exit`, `.phase`, `.failure` | Build/platform, application or supervisor role, startup stage, elapsed time, and failure category. |
+| `application.display` | Logical and physical dimensions. |
+| `input.backend`, `.device`, `.unavailable` | Backend, initial devices and bindings, and identification/open failures. No button presses. |
+| `mister.display`, `.framebuffer`, `.setting`, `.settings` | Interlaced state, kernel framebuffer geometry, and allowlisted numeric INI settings. |
+| `configuration.fallback` | Logical setting, safe error category, and selected recovery behavior. |
+| `http.request`, `remote.socket` | Endpoint/status/timing or WebSocket connection result. No query strings or credentials. |
+| `browser.page`, `.home` | Accepted page/feed results, bounded identifiers, counts, and failures. |
+| `playback.start`, `.phase`, `.prepared` | Decoder, preparation stages, resume offset, and requested transcode limits. |
+| `playback.first-position`, `.first-frame` | Separate milestones for position feedback and first presented frame feedback. |
+| `playback.pause`, `.buffering`, `.progress` | State transitions and ten-second progress summaries. |
+| `playback.decoder-exit`, `.end` | Exit/signal, cancellation, elapsed time, and final stage. |
+| `diagnostics.dropped` | Events discarded when the writer queue filled. |
 
-MiSTer settings are read once per process from `/media/fat/MiSTer.ini`. The inventory includes `ypbpr`, `composite_sync`, `forced_scandoubler`, `vga_scaler`, `direct_video`, `vsync_adjust`, `video_mode`, `video_mode_ntsc`, and `video_mode_pal` in the top-level, `[MiSTer]`, `[Menu]`, and `[MiSTerFinInterlaced]` sections. It preserves section identity and does not resolve precedence or alternate MiSTer INI files. These are configured values, not proof of the active signal timing. Other sections, unrelated keys, comments, and nonnumeric values are excluded. Reads are limited to 128 KiB and 64 setting events. Overlong lines stop the inventory and report a read failure.
+For slow startup, compare request timing, `stream-open`, `decoder-start`, and first-frame feedback. For seeks, follow the new process-local `playback` counter. Cancellation can mean Stop, a superseded seek, or exit, rather than failure. First-frame feedback is not a measurement of light from the CRT.
 
-Logging begins after command-line parsing and before framebuffer or browser setup. An invalid `display` section is reported once the logger opens. A malformed settings document stops startup before its diagnostics section can be used. The `DEBUGLOG` switch is discovered independently of Jellyfin configuration validity, within the first 1 MiB and subject to a 64 KiB line limit. Invalid command-line arguments still use stderr. Invalid diagnostics settings and failures to open the log disable logging for that run, report the problem on stderr, and queue a brief settings notice for browsing. Preview commands do not enable diagnostics. After the browser starts, a failure tagged `browser` can include normal resource cleanup. It does not identify a specific cleanup operation.
+Metadata/artwork timings include buffered body reads. `/media-stream` measures opening through response headers, not the whole stream. `/audio-stream` includes one proxy request through completion. GitHub release checks are outside the Jellyfin request log.
 
-The `playback` field is a process-local counter that distinguishes overlapping seek replacements. It is not a Jellyfin session identifier. Playback elapsed times start when that decoder request begins. The first-frame event reflects player feedback, not a measurement of light emitted by the CRT. Not every decoder supplies first-frame or buffering notifications.
-
-Metadata and artwork requests include buffered-body read time. `/media-stream` represents opening video or native audio through response headers, with zero body bytes because the body continues streaming afterward. `/audio-stream` represents one desktop audio-proxy request through completion, including bytes copied. Those durations have different meanings. Non-success response bodies are not read just to count bytes. The GitHub release check is outside this Jellyfin request log.
-
-For a slow launch, compare metadata requests, `stream-open`, `decoder-start`, and `playback.first-frame`. For a failed seek, follow the new `playback` counter and its final stage. Cancellation can mean a user stop, a superseded seek, or application exit. It does not necessarily indicate an error. Process termination can produce a nonzero decoder exit even when cancellation was expected.
-
-## Performance and privacy
-
-The logger uses a 128-entry queue and one worker for JSON encoding and disk writes. Producers never wait for disk. A full queue drops diagnostic entries instead of delaying media or the UI. The application drains accepted entries on normal exit. Abrupt termination can lose queued entries. A file-write failure disables logging. Failure to open or write the log does not stop playback, and a short message reports the problem on stderr. Invalid JSON settings disable logging without stopping startup. The client does not open a different log path after a configuration failure.
-
-Request logging excludes origins, query strings, authorization headers, bodies, and raw network errors. Stream URLs, media titles, captions, Quick Connect codes, and raw player output are never logged. Endpoint paths can still contain item or user identifiers, and logs expose playback timing, local build details, hardware device names, and numeric display settings. Files request owner-only permissions where the filesystem supports them.
-
-The diagnostic log does not yet measure dropped frames, decoder load, rendered FPS, or audio/video drift. Position summaries and buffering events help locate a problem but cannot prove smooth frame presentation. Those measurements require separate player instrumentation.
+The MiSTer inventory reads numeric display settings from `/media/fat/MiSTer.ini`, preserving section identity. It does not resolve alternate INI files or prove active signal timing. Reads are bounded to 128 KiB and 64 setting events.
 
 ## Configuration fallbacks
 
-When diagnostics are enabled and available, invalid title, background, sound, and music visual settings record `configuration.fallback`. Missing custom music assets also record the selected background becoming unavailable. Missing optional configuration files and intentional empty or disabled settings are normal defaults and do not create fallback events.
-
-For example, an invalid title setting records these fields:
+Handled invalid title, background, sound, and music settings record one event when recovery occurs. Missing custom assets also record their fallback. Intentional omissions, empty values, and disabled settings are not failures.
 
 ```json
 {"msg":"configuration.fallback","configuration":"ui","error_kind":"invalid","fallback":"default-title"}
 ```
 
-The normal timestamp and level fields are also present in the log. Error categories distinguish invalid settings, missing files, permission failures, and other file I/O failures. Events exclude raw errors, configuration contents, credentials, and asset paths. Each handled failure records one event. Drawing its notice again does not repeat the event.
+Invalid diagnostics settings or file-open failures disable logging, write a short stderr message, and queue a settings notice. No alternate log file is opened. Malformed `settings.json` can stop startup before its diagnostics section is usable. Invalid command-line arguments use stderr. Preview commands do not enable logging.
 
-Disabled diagnostics do not write these events. If diagnostics configuration is invalid or the log cannot open, the client reports that failure on stderr and queues its settings notice. It does not open an alternate log file.
+## Limits and privacy
+
+A 128-entry queue and one writer keep disk I/O off playback and UI loops. A full queue drops events. Normal exit drains accepted events. Abrupt termination can lose them. Write failures disable logging without stopping playback.
+
+Logs exclude server origins, queries, authorization, response bodies, raw network/player errors, media titles, captions, and Quick Connect secrets. They can contain item/user identifiers in endpoint paths, device names, build details, numeric display settings, and playback timing. Review logs before sharing. Files request owner-only permissions where supported.
+
+Diagnostics does not measure dropped frames, rendered FPS, decoder load, or A/V drift. Those require player instrumentation and hardware checks. Position and buffering events alone cannot establish smooth playback.
