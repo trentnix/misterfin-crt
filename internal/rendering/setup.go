@@ -23,9 +23,11 @@ const (
 // the public approval code, never the Quick Connect secret. Path identifies the
 // configuration file or sign-in folder. No raw errors or credentials belong here.
 type SetupPresentation struct {
-	Kind SetupKind
-	Code string
-	Path string
+	// Recovered explains why a damaged saved session needs approval again.
+	Recovered bool
+	Kind      SetupKind
+	Code      string
+	Path      string
 }
 
 // RetryLabel describes the existing open/retry action for the current state.
@@ -49,6 +51,9 @@ func (s SetupPresentation) content() (string, string) {
 	case SetupConnecting:
 		return "Connecting to Jellyfin", "Checking your connection and saved sign-in."
 	case SetupQuickConnect:
+		if s.Recovered {
+			return "Quick Connect", "Saved sign-in was damaged and backed up.\nOpen Quick Connect in Jellyfin and approve this code."
+		}
 		return "Quick Connect", "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerFin CRT."
 	case SetupConfigMissing:
 		return "Setup needed", "Create this file and add your Jellyfin server address.\nFor example: http://192.168.1.10:8096"

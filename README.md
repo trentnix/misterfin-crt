@@ -1,6 +1,8 @@
 # MiSTerFin CRT
 
-![MiSTerFin CRT logo](internal/branding/misterfin_crt.png)
+<p align="center">
+  <img src="docs/images/misterfin-crt-logo.png" alt="MiSTerFin CRT logo" width="256" height="256">
+</p>
 
 MiSTerFin CRT is a Jellyfin client for MiSTer FPGA, designed for CRT televisions. It supports movies, TV, live TV, music, and photos.
 
@@ -10,7 +12,7 @@ I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I t
 
 ## Run on MiSTer
 
-Installation is manual. Build the client using the [build guide](docs/GO_BUILD.md) and its matching MPlayer using the [player build instructions](docs/GO_BUILD.md#mplayer).
+Installation is manual. Builds require Go 1.26.8 or later. Follow the [build guide](docs/GO_BUILD.md) for the client and its matching MPlayer.
 
 Copy these files to the SD card and make them executable:
 
@@ -82,9 +84,18 @@ Application settings live in **`settings.json`** beside `jellyfin.conf`. On MiST
 
 ```json
 {
-  "ui": {"title": "MiSTerFin CRT", "navigation_sounds": {"enabled": false}},
-  "background": {"image": "background.png"},
-  "display": {"interlaced": false}
+  "ui": {
+    "title": "MiSTerFin CRT",
+    "navigation_sounds": {
+      "enabled": false
+    }
+  },
+  "background": {
+    "image": "background.png"
+  },
+  "display": {
+    "interlaced": false
+  }
 }
 ```
 
@@ -111,7 +122,11 @@ Migration preserves the originals and refuses to overwrite `settings.json`. Once
 To use one custom image on the carousel and browsing lists, set `background.image` in `settings.json`:
 
 ```json
-{"background": {"image": "background.png"}}
+{
+  "background": {
+    "image": "background.png"
+  }
+}
 ```
 
 Place the image in the same directory, or use an absolute path. PNG and JPEG are supported, up to 4 MiB and 2048 pixels in either dimension. A 4:3 image fits best. The client crops and dims it to keep the interface readable. Restart to apply changes. An omitted or empty `image` keeps the normal artwork.
@@ -123,7 +138,13 @@ The client checks the file contents, not its extension. A video, text file, unsu
 To turn off navigation sounds, set `ui.navigation_sounds`:
 
 ```json
-{"ui": {"navigation_sounds": {"enabled": false}}}
+{
+  "ui": {
+    "navigation_sounds": {
+      "enabled": false
+    }
+  }
+}
 ```
 
 Sound settings affect browsing feedback only. They do not change music or video volume.

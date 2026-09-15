@@ -3,12 +3,14 @@ package playback
 import (
 	"context"
 	"encoding/json"
+	"misterfin-crt/internal/diagnostics"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"misterfin-crt/internal/jellyfin"
 	nativeplayer "misterfin-crt/internal/player/mplayer"
@@ -28,7 +30,7 @@ func TestPreferencesPersistAndIsolateAccountsAndItems(t *testing.T) {
 	c := jellyfin.NewClient(jellyfin.Config{Server: "http://server"}, jellyfin.Session{UserID: "user", Token: "private-token"})
 	key := preferenceKey(c, "movie")
 	tracks := preferenceTracks()
-	p := NewPreferences(dir)
+	p := NewPreferences(dir, nil)
 	for _, mode := range []PictureMode{PictureZoom43, PictureOriginal, PictureZoom43} {
 		tracks.Picture = mode
 		p.save(key, tracks)
@@ -39,7 +41,7 @@ func TestPreferencesPersistAndIsolateAccountsAndItems(t *testing.T) {
 	if err := p.Close(); err != nil {
 		t.Fatal(err)
 	}
-	p = NewPreferences(dir)
+	p = NewPreferences(dir, nil)
 	defer p.Close()
 	got := p.load(key)
 	if got == nil || got.restore(tracks) != tracks.TrackOptions {
@@ -58,7 +60,7 @@ func TestPreferencesPersistAndIsolateAccountsAndItems(t *testing.T) {
 }
 
 func TestSavedTracksFallBackWhenSourceOrStreamChanges(t *testing.T) {
-	p := NewPreferences(t.TempDir())
+	p := NewPreferences(t.TempDir(), nil)
 	defer p.Close()
 	original := preferenceTracks()
 	p.save("item", original)
@@ -88,7 +90,7 @@ func TestSavedTracksFallBackWhenSourceOrStreamChanges(t *testing.T) {
 
 func TestPreferencesOffAndDefaultReplacePreviousSelections(t *testing.T) {
 	dir := t.TempDir()
-	p := NewPreferences(dir)
+	p := NewPreferences(dir, nil)
 	tracks := preferenceTracks()
 	p.save("item", tracks)
 	tracks.TrackOptions = TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
@@ -96,7 +98,7 @@ func TestPreferencesOffAndDefaultReplacePreviousSelections(t *testing.T) {
 	if err := p.Close(); err != nil {
 		t.Fatal(err)
 	}
-	p = NewPreferences(dir)
+	p = NewPreferences(dir, nil)
 	defer p.Close()
 	if got := p.load("item"); got == nil || got.restore(tracks) != tracks.TrackOptions {
 		t.Fatal("Off, server default, or Original reverted to an earlier choice")
@@ -112,7 +114,7 @@ func TestPreferencesInvalidOrUnwritableStorage(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "playback", "item.json"), []byte(data), 0600); err != nil {
 			t.Fatal(err)
 		}
-		p := NewPreferences(dir)
+		p := NewPreferences(dir, nil)
 		if p.load("item") != nil {
 			t.Error("damaged record did not fall back to defaults")
 		}
@@ -122,7 +124,7 @@ func TestPreferencesInvalidOrUnwritableStorage(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "playback"), nil, 0600); err != nil {
 		t.Fatal(err)
 	}
-	p := NewPreferences(dir)
+	p := NewPreferences(dir, nil)
 	p.save("item", preferenceTracks())
 	if p.load("item") == nil {
 		t.Fatal("unwritable storage lost in-memory choices")
@@ -133,7 +135,7 @@ func TestPreferencesInvalidOrUnwritableStorage(t *testing.T) {
 }
 
 func TestUnstartedAndNonVideoSessionsDoNotSaveChoices(t *testing.T) {
-	p := NewPreferences(t.TempDir())
+	p := NewPreferences(t.TempDir(), nil)
 	defer p.Close()
 	for _, tc := range []struct {
 		started, live bool
@@ -182,13 +184,13 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	p := NewPreferences(dir)
+	p := NewPreferences(dir, nil)
 	run(p, &tracks.TrackOptions, nil)
 	<-queries
 	if err := p.Close(); err != nil {
 		t.Fatal(err)
 	}
-	p = NewPreferences(dir)
+	p = NewPreferences(dir, nil)
 	defer p.Close()
 	// A prepared replacement canceled behind its start gate must not save
 	// its explicit defaults over the choices used by the preceding decoder.
@@ -215,5 +217,80 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 		if err != nil || !strings.Contains(string(data), "misterfin=640:240:1.777777778:1") {
 			t.Fatal("decoder did not restore Zoom")
 		}
+	}
+}
+
+func TestPreferencesRetryAfterStorageRecovers(t *testing.T) {
+	for _, action := range []string{"save-again", "close", "newer-choice"} {
+		t.Run(action, func(t *testing.T) {
+			dir := t.TempDir()
+			blocked := filepath.Join(dir, "playback")
+			if err := os.WriteFile(blocked, nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			logPath := filepath.Join(dir, "diagnostics.log")
+			trace, err := diagnostics.Open(diagnostics.Config{Enabled: true, Path: logPath, MaxBytes: 4096})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer trace.Close()
+			p := NewPreferences(dir, trace)
+			closed := false
+			defer func() {
+				if !closed {
+					p.Close()
+				}
+			}()
+			tracks := preferenceTracks()
+			p.save("private-item", tracks)
+			deadline := time.Now().Add(3 * time.Second)
+			for {
+				data, _ := os.ReadFile(logPath)
+				if strings.Contains(string(data), "playback.preferences-write") {
+					if strings.Contains(string(data), "private-item") {
+						t.Fatal("failure log exposed item identity")
+					}
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("write failure was not logged")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			if got := p.load("private-item"); got == nil || got.Picture != tracks.Picture {
+				t.Fatal("failed write lost in-memory choice")
+			}
+			if err := os.Remove(blocked); err != nil {
+				t.Fatal(err)
+			}
+			if action == "newer-choice" {
+				tracks.Picture = PictureOriginal
+			}
+			if action != "close" {
+				p.save("private-item", tracks)
+			}
+			if action == "save-again" {
+				deadline = time.Now().Add(3 * time.Second)
+				for {
+					if _, err := os.Stat(filepath.Join(blocked, "private-item.json")); err == nil {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("unchanged save did not retry before Close")
+					}
+					time.Sleep(time.Millisecond)
+				}
+			}
+			closeErr := p.Close()
+			closed = true
+			if closeErr != nil {
+				t.Fatal(closeErr)
+			}
+			p2 := NewPreferences(dir, nil)
+			defer p2.Close()
+			if got := p2.load("private-item"); got == nil || got.restore(tracks) != tracks.TrackOptions {
+				t.Fatal("recovered storage did not preserve the latest choice")
+			}
+		})
 	}
 }

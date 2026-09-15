@@ -41,7 +41,7 @@ func TestConfigReuseKeepsRequestsIndependent(t *testing.T) {
 	if err := os.WriteFile(player, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
-	preferences := NewPreferences(dir)
+	preferences := NewPreferences(dir, nil)
 	defer preferences.Close()
 	config := Config{Preferences: preferences, VideoDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 240}, Height: 240, AudioDecoder: nativeplayer.Decoder{Width: 640, Height: 240}}
 	originalConfig := config

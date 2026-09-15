@@ -84,7 +84,14 @@ func (p *playerProcess) feed() {
 		p.writer.Close()
 		close(p.copyDone)
 	}()
-	go func() { p.done <- p.cmd.Wait() }()
+	go func() {
+		err := p.cmd.Wait()
+		// WaitDelay bounds the leader and inherited output pipes, but only
+		// kills the leader. Terminate the launch's remaining process group before
+		// releasing output or allowing another decoder to start.
+		_ = syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
+		p.done <- err
+	}()
 }
 
 // close follows process completion. Closing the stream unblocks a copier that

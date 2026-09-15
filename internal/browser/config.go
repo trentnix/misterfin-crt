@@ -38,7 +38,7 @@ type Config struct {
 
 	// Diagnostics is borrowed until Run and its tracked cleanup finish. Nil disables logging.
 	Diagnostics *diagnostics.Log
-	// Build identifies the installed executable on the About page.
+	// Build identifies the executable in About and in Jellyfin client requests.
 	Build release.Build
 	// CheckUpdate optionally checks release availability. It must honor context
 	// cancellation. Nil disables network checks. The browser serializes calls.

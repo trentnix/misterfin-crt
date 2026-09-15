@@ -1,6 +1,6 @@
 # Build and install
 
-Use Go 1.26 or later, a C compiler, and Python 3 on Linux. The Go module dependency is pinned in [go.mod](../go.mod). MiSTer builds also need an ARM cross-compiler. Docker builds the separate MPlayer executable on the development machine, not on MiSTer.
+Use Go 1.26.8 or later, a C compiler, and Python 3 on Linux. The Go module dependency is pinned in [go.mod](../go.mod). MiSTer builds also need an ARM cross-compiler. Docker builds the separate MPlayer executable on the development machine, not on MiSTer.
 
 ## Go client
 
@@ -13,7 +13,7 @@ ZIG=/absolute/path/to/zig make arm
 
 The outputs are `build/misterfin-crt` and `build/misterfin-crt-arm`. The ARM target enables cgo and uses `GOOS=linux GOARCH=arm GOARM=7`. The [compiler wrapper](../tools/zig-cc-go.sh) targets `arm-linux-gnueabihf.2.31` and Cortex-A9. Zig 0.14.1 has been tested. `GO_ARM_CC` can select another compatible compiler. Set `GOCACHE` and `ZIG_GLOBAL_CACHE_DIR` if their default directories are unwritable.
 
-Development builds show `dev`, the Git revision, and a modified marker when available. Set `VERSION` for a stable release label:
+Development builds show `dev`, the Git revision, and a modified marker when available. Jellyfin HTTP and WebSocket requests report the same version label, without the revision suffix. Set `VERSION` for a stable release label:
 
 ```sh
 make arm VERSION=v1.0.0
@@ -24,14 +24,20 @@ make arm VERSION=v1.0.0
 Build the matching patched player from [Dockerfile.misterfin-crt](../docker/Dockerfile.misterfin-crt):
 
 ```sh
-mkdir -p build
-docker build -f docker/Dockerfile.misterfin-crt -t misterfin-crt-mplayer docker
-docker run --name misterfin-crt-mplayer-build misterfin-crt-mplayer
-docker cp misterfin-crt-mplayer-build:/build/mplayer-arm build/misterfin-crt-mplayer-arm
-docker rm misterfin-crt-mplayer-build
+make native-player
 ```
 
-The Bullseye toolchain targets MiSTer's glibc 2.31. The patches provide shared overlays, picture changes, captions, interlaced presentation, and playback timing fixes. The original C client's player cannot substitute for this build. Update both binaries together when their protocol changes. See [third-party notices](THIRD_PARTY.md) for corresponding source and licenses.
+The outputs are `build/misterfin-crt-mplayer-arm` and its source/compiler record, `build/misterfin-crt-mplayer-build.txt`. The base image is pinned by digest, and the build verifies the MPlayer source archive with SHA-256. The Bullseye toolchain targets MiSTer's glibc 2.31. The patches provide shared overlays, picture changes, captions, interlaced presentation, and playback timing fixes. The original C client's player cannot substitute for this build. Update both binaries together when their protocol changes. See [third-party notices](THIRD_PARTY.md) for corresponding source and licenses.
+
+For a release, build both executables from the same checkout and record the pair:
+
+```sh
+make arm VERSION=v1.0.0
+make native-player
+make release-manifest
+```
+
+`build/release-manifest.txt` records Go build metadata, MPlayer source and compiler details, and both executable checksums. Keep it with the release artifacts. The Go vulnerability scan does not audit the separately compiled native dependencies.
 
 ## Install on MiSTer
 
@@ -75,11 +81,22 @@ Install a C compiler, Python 3, FFmpeg, libmpv, and the libavcodec/libavutil dev
 ```sh
 make host
 make lint
+make vulnerability-check
 make test
 go test -race ./...
 make test-browse
 ```
 
-[ci.yml](../.github/workflows/ci.yml) runs these checks on Ubuntu 24.04 with read-only repository permissions and a 15-minute timeout. `make lint` checks formatting, runs `go vet`, and uses a pinned Staticcheck version. [Linter settings](../staticcheck.conf) preserve proper-name capitalization in errors. `make test` covers Go with and without cgo plus Python/native adapter tests. `make test-browse` runs the built client against isolated HTTP/WebSocket fixtures. Generated media and local servers avoid a Jellyfin account or MiSTer dependency. Decoder tests can skip when their external dependencies are absent.
+`make lint` checks formatting, runs `go vet`, and uses pinned Staticcheck. [Linter settings](../staticcheck.conf) preserve proper-name capitalization in errors. `make vulnerability-check` uses pinned govulncheck to check reachable Go advisories. It does not scan native MPlayer dependencies.
 
-CI does not cross-compile ARM or establish physical CRT timing. Run `make arm` separately. Hardware checks must cover startup/exit, video and music, repeated overlay toggling, seeking, paused picture changes, and A/V synchronization in each supported output mode. See [tested scope](GO_DISPLAY.md#tested-scope).
+`make test` covers Go with and without cgo plus Python/native adapter tests. `make test-browse` runs the built client against isolated HTTP/WebSocket fixtures. Generated media and local servers avoid a Jellyfin account or MiSTer dependency. Decoder tests can skip when their external dependencies are absent.
+
+| CI job | Checks and triggers | Timeout |
+| --- | --- | --- |
+| [Host validation](../.github/workflows/ci.yml) | Commands above, on pushes, pull requests, and manual runs. | 15 minutes |
+| [ARM compilation](../.github/workflows/ci.yml) | `make arm` with checksum-verified Zig 0.14.1, on the same triggers. | 10 minutes |
+| [Native player](../.github/workflows/native-player.yml) | Complete patched MPlayer build and ARM verification when build inputs change, on `v*` tags, or on manual request. | 30 minutes |
+
+Both workflows use Ubuntu 24.04, read-only repository permissions, and Node.js 24 action runtimes. Node.js is not an application dependency. These workflows validate builds but do not publish or deploy them.
+
+CI does not establish physical CRT timing. Hardware checks must cover startup/exit, video and music, repeated overlay toggling, seeking, paused picture changes, and A/V synchronization in each supported output mode. See [tested scope](GO_DISPLAY.md#tested-scope).

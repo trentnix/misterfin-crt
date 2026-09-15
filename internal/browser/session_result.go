@@ -24,6 +24,7 @@ func (r pageResult) apply(s *browserSession) bool { return s.handlePage(r) }
 type authCodeResult struct {
 	generation int
 	code       string
+	recovered  bool
 }
 
 func (r authCodeResult) apply(s *browserSession) bool { return s.handleAuthCode(r) }

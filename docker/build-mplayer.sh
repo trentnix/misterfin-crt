@@ -11,22 +11,21 @@ export PKG_CONFIG_LIBDIR=$PREFIX/lib/pkgconfig
 
 MPLAYER_VER=1.5
 
-CFLAGS_ARM="-march=armv7-a -mfpu=neon -mfloat-abi=hard -O2"
+MPLAYER_SHA256=650cd55bb3cb44c9b39ce36dac488428559799c5f18d16d98edb2b7256cbbf85
 
 # ── MPlayer ──────────────────────────────────────────────────────────────────
-# MiSTerFin only ever plays a network stream (Jellyfin's HTTP transcode) —
-# no physical disc support needed, so this build skips libdvdcss/libdvdread/
-# libdvdnav entirely (and their autotools build deps).
+# Video uses a Jellyfin transcode through a pipe. Music uses the original
+# stream through the local Go proxy. Neither needs physical disc support.
 echo "=== Building MPlayer $MPLAYER_VER ==="
 wget -q https://mplayerhq.hu/MPlayer/releases/MPlayer-$MPLAYER_VER.tar.xz
+echo "$MPLAYER_SHA256  MPlayer-$MPLAYER_VER.tar.xz" | sha256sum -c -
 tar xf MPlayer-$MPLAYER_VER.tar.xz
 # Apply vsync patch: wait for blanking interval before each frame write to
-# eliminate tearing. The flag file it checks, /tmp/misterdvd_vsync, is
-# retains the C baseline's path for compatibility with the output driver.
+# eliminate tearing. The flag file, /tmp/misterdvd_vsync, retains the C
+# client's path for compatibility with the output driver.
 cp /build/vo_fbdev.c MPlayer-$MPLAYER_VER/libvo/vo_fbdev.c
 # The session-message banner in vo_fbdev.c renders text with the app's own
-# 8x8 font. docker/font8x8.h also supplies the font atlas generators.
-# Keep it in docker/ so the player build context remains self-contained.
+# 8x8 font. Keep the header in docker/ so the build context is self-contained.
 cp /build/font8x8.h MPlayer-$MPLAYER_VER/libvo/font8x8.h
 cd MPlayer-$MPLAYER_VER
 
@@ -77,4 +76,14 @@ make -j$(nproc)
 
 arm-linux-gnueabihf-strip mplayer
 cp mplayer /build/mplayer-arm
+if [ -n "${OUTPUT_DIR:-}" ]; then
+    cp mplayer "$OUTPUT_DIR/misterfin-crt-mplayer-arm"
+    {
+        echo "MPlayer source: $MPLAYER_VER"
+        echo "MPlayer source SHA256: $MPLAYER_SHA256"
+        printf 'Bundled FFmpeg: '
+        cat ffmpeg/RELEASE
+        arm-linux-gnueabihf-gcc --version | head -1
+    } > "$OUTPUT_DIR/misterfin-crt-mplayer-build.txt"
+fi
 echo "=== Done: /build/mplayer-arm ==="

@@ -625,6 +625,7 @@ class BrowseIntegrationTests(BrowserFixture):
         )
         os.close(slave)
         self.wait_request("/UserViews")
+        self.wait_event("browser.home", failed=False)
         open_movie()
         verify_restored()
         stop_video()

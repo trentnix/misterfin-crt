@@ -17,6 +17,7 @@ type LivePlayback struct {
 	MediaStreams                                          []MediaStream
 }
 
+// IsLive recognizes both channel type names returned by Jellyfin.
 func IsLive(item Item) bool {
 	return item.Type == "TvChannel" || item.Type == "LiveTvChannel"
 }
@@ -120,6 +121,8 @@ func (c *Client) OpenLive(ctx context.Context, channel string, maxFrameRate floa
 	return live, nil
 }
 
+// CloseLive releases a negotiated tuner. An empty identifier is a no-op.
+// Callers must supply a live, bounded context during cancellation cleanup.
 func (c *Client) CloseLive(ctx context.Context, id string) error {
 	if id == "" {
 		return nil

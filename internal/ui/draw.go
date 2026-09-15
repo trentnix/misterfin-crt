@@ -6,18 +6,28 @@ import (
 	"strings"
 )
 
+// Canvas owns a tightly packed pixel buffer. Ordinary canvases store BGRX,
+// while overlays store straight-alpha BGRA. Drawing is clipped to the canvas.
+// Callers must serialize drawing and must not resize Pixels or change dimensions.
 type Canvas struct {
 	Width, Height int
 	Pixels        []byte
 	transparent   bool
 }
 
+// New allocates a black BGRX canvas. Dimensions must be positive and their
+// four-byte pixel storage must fit in memory. The caller owns the returned buffer.
 func New(w, h int) *Canvas {
 	return &Canvas{Width: w, Height: h, Pixels: make([]byte, w*h*4)}
 }
+
+// NewOverlay allocates a transparent BGRA canvas with the same size requirements
+// as New. Rect and Text make covered pixels opaque. Shade adds translucent black.
 func NewOverlay(w, h int) *Canvas {
 	return &Canvas{Width: w, Height: h, Pixels: make([]byte, w*h*4), transparent: true}
 }
+
+// Rect fills the clipped rectangle with color in 0xRRGGBB format.
 func (c *Canvas) Rect(x, y, w, h int, color uint32) {
 	for yy := max(0, y); yy < min(c.Height, y+h); yy++ {
 		for xx := max(0, x); xx < min(c.Width, x+w); xx++ {
@@ -31,9 +41,15 @@ func (c *Canvas) Rect(x, y, w, h int, color uint32) {
 		}
 	}
 }
+
+// Text draws one line with 8x8 glyphs. maxWidth is the absolute right edge,
+// not a character count or width relative to x. Unsupported runes become question marks.
 func (c *Canvas) Text(x, y int, s string, color uint32, maxWidth int) {
 	c.TextScaled(x, y, s, color, maxWidth, 1)
 }
+
+// TextScaled draws Text at a positive integer scale. It stops before the first
+// glyph that exceeds maxWidth or the canvas right edge, and ignores later lines.
 func (c *Canvas) TextScaled(x, y int, s string, color uint32, maxWidth, scale int) {
 	for _, r := range s {
 		if x+8*scale > min(c.Width, maxWidth) {
@@ -59,6 +75,9 @@ func (c *Canvas) TextScaled(x, y int, s string, color uint32, maxWidth, scale in
 		x += 8 * scale
 	}
 }
+
+// Wrap word-wraps text within a pixel width using at most lines rows, spaced
+// ten pixels apart. Whitespace is collapsed and overlong words are clipped.
 func (c *Canvas) Wrap(x, y, width, lines int, s string, color uint32) {
 	var line string
 	for _, word := range strings.Fields(s) {
@@ -77,6 +96,9 @@ func (c *Canvas) Wrap(x, y, width, lines int, s string, color uint32) {
 		c.Text(x, y, line, color, x+width)
 	}
 }
+
+// Image centers artwork in the supplied box, preserving its aspect ratio on a
+// physical 4:3 screen. Nil is a no-op. Use this on opaque canvases.
 func (c *Canvas) Image(im image.Image, x, y, w, h int) {
 	if im == nil {
 		return
@@ -92,7 +114,9 @@ func (c *Canvas) Image(im image.Image, x, y, w, h int) {
 	c.Blit(im, x, y, dw, dh)
 }
 
-// Blit scales the complete image into a box and preserves transparency.
+// Blit scales the complete image into a box and blends its source alpha into
+// the destination colors. It leaves destination alpha unchanged and is intended
+// for opaque canvases. Nil images and nonpositive boxes are no-ops.
 func (c *Canvas) Blit(im image.Image, x, y, w, h int) {
 	if im == nil || w <= 0 || h <= 0 {
 		return
@@ -112,6 +136,9 @@ func (c *Canvas) Blit(im image.Image, x, y, w, h int) {
 		}
 	}
 }
+
+// Shade adds black over the clipped rectangle. alpha must be between 0
+// (unchanged) and 255 (black). Overlay canvases also accumulate coverage.
 func (c *Canvas) Shade(x, y, w, h, alpha int) {
 	if !c.transparent {
 		// Reuse the same channel transform instead of dividing every pixel on ARM.

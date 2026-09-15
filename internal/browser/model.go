@@ -11,6 +11,7 @@ import (
 	"misterfin-crt/internal/jellyfin"
 )
 
+// PageSize is the requested number of items per library page.
 const PageSize = 64
 
 // View retains one navigation screen. Start is the absolute index of the first
@@ -28,6 +29,9 @@ type View struct {
 	fetching, prefetchFailed      bool
 	direction                     int
 }
+
+// Request identifies a listing operation. Generation lets Apply reject results
+// from a superseded request. Start is an absolute, zero-based item index.
 type Request struct {
 	Generation int
 	Location   jellyfin.Location
@@ -46,9 +50,14 @@ type Model struct {
 	photoControlsUntil          time.Time
 }
 
+// New creates a model at the library carousel with a six-row list viewport.
+// Startup sets Rows to the renderer's capacity for the selected display.
 func New() *Model {
 	return &Model{Rows: 6, Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
 }
+
+// Current borrows the active view. Models created by New always have one.
+// The pointer must not be retained across navigation that changes Stack.
 func (m *Model) Current() *View { return &m.Stack[len(m.Stack)-1] }
 
 // Load requests a page needed for navigation or explicit retry. Existing rows
@@ -103,12 +112,18 @@ func (m *Model) Apply(req Request, page jellyfin.Page, err error) bool {
 	v.prefetchFailed = false
 	return true
 }
+
+// More reports whether another page may follow the retained items. Without a
+// server total, a full page remains a possible continuation until an empty reply.
 func (v *View) More() bool {
 	if v.Page.TotalRecordCount != nil {
 		return v.Start+len(v.Page.Items) < *v.Page.TotalRecordCount
 	}
 	return len(v.Page.Items) > 0 && len(v.Page.Items)%PageSize == 0
 }
+
+// Item borrows the detail item or selected list item, or returns nil when empty.
+// The pointer must not be retained across page replacement or navigation.
 func (v *View) Item() *jellyfin.Item {
 	if v.Detail != nil {
 		return v.Detail

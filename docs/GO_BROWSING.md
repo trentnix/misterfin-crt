@@ -10,7 +10,7 @@ Quick Connect displays a public approval code. Enter it in an already signed-in 
 
 The standard MiSTer launcher stores identity and sign-in in `/media/fat/misterfin-crt/state/session.json`. Desktop defaults to `misterfin-crt` under the user's configuration directory, normally `~/.config`. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Saved sessions are bound to the server URL. C `token.conf` and `device.conf` files are not imported.
 
-Network and server failures retain saved tokens. Only an explicit HTTP 401 or 403 triggers replacement authentication. TLS verification is enabled unless [configured otherwise](GO_CONFIGURATION.md#server-connection).
+For a complete, valid saved session, network and server failures retain its tokens. An explicit HTTP 401 or 403 triggers replacement authentication. Damaged local sign-in data is backed up before a fresh sign-in, with a notice explaining the recovery. Storage failures show setup help instead. See [saved sign-in recovery](GO_CONFIGURATION.md#saved-sign-in-recovery). TLS verification is enabled unless [configured otherwise](GO_CONFIGURATION.md#server-connection).
 
 ## Navigation
 

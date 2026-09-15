@@ -24,6 +24,9 @@ type framebuffer struct {
 	output   string
 }
 
+// Open owns a native framebuffer or a headless test buffer. It validates geometry
+// and pixel layout before mapping hardware. The caller must Close the display
+// after presentation and output cleanup. Empty Device selects /dev/fb0.
 func Open(options Options) (Display, error) {
 	var w, h int
 	if options.Headless != "" {

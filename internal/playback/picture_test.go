@@ -153,7 +153,7 @@ func TestNativePictureRequestStaysInCurrentSession(t *testing.T) {
 			pictures := make(chan PictureResult, 4)
 			done := make(chan error, 1)
 			client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
-			preferences := NewPreferences(t.TempDir())
+			preferences := NewPreferences(t.TempDir(), nil)
 			defer preferences.Close()
 			go func() {
 				done <- Run(ctx, client, Config{Preferences: preferences, Height: 240, VideoDecoder: mplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: mplayer.Decoder{Player: path, Width: 640, Height: 240}}, Request{Item: jellyfin.Item{ID: "film", Type: kind}, Controls: controls, Callbacks: Callbacks{TrackInfo: func(v VideoTracks) { info <- v }, Picture: func(v PictureResult) { pictures <- v }, Position: func(p int64) { positions <- p }}})

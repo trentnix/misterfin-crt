@@ -59,6 +59,8 @@ The frame-file backend watches atomic decoder publications with inotify. Notific
 
 Only the browser event loop mutates `browserSession`. Workers capture inputs and return typed results. Connection, list, selection, home, and media requests have cancellation scopes and generation checks. Stale responses cannot replace current state. Published content is immutable. Input arrives as `control.Event` with semantic actions and resolved labels, so rendering never reads controller configuration.
 
+[`connectionManager`](../internal/browser/connection.go) serializes sign-in workers so canceled attempts finish before another reads or writes the session file. Waiting stays off the browser loop. Shutdown cancels and joins the workers.
+
 [`browserSession.draw`](../internal/browser/session_render.go) projects the model and controller snapshot into a scene, calls the renderer, presents the frame, and requests a paused-player refresh when needed. Timer and frame-notification events drive redraws. Shutdown cancels session work before waiting for decoder callbacks.
 
 `Model` owns navigation, retained pages, music queue presentation, and photo controls. `PlaybackController` owns playback state, active/pending decoders, seek debounce, pause restoration, options, and notices. Its `Start`, `Key`, `Tick`, `Handle`, and `Snapshot` methods form the UX boundary. It has no framebuffer, font, terminal, or drawing dependency. [`playbackDriver`](../internal/browser/playback_driver.go) connects it to decoding and output handoff through callbacks.
@@ -88,6 +90,8 @@ Each process gets its own feedback writer. MPlayer and Python share the ANS pars
 
 [`playback.Run`](../internal/playback/player.go) retains process lifetime, stream feeding, start gates, cancellation, output callbacks, and Jellyfin reporting. The controller prepares seek replacements before transferring output ownership. First-frame feedback clears Loading immediately, while position feedback remains responsible for resume and seek state. Stale decoder events cannot clear a newer request's loading state.
 
+[`playerProcess`](../internal/playback/process.go) stops the whole decoder process group, first resuming a paused process and requesting termination. A two-second wait limit bounds process and output-pipe cleanup. After waiting for the process, it kills any remaining group members before publishing completion and releasing output ownership.
+
 [`progressReporter`](../internal/playback/progress_reporter.go) sends ordered reports outside the monitoring loop. Progress coalesces, but start and final stop are retained. Stop and seek can return after local cleanup while bounded reporting and tuner release finish asynchronously. Application shutdown waits for those jobs. Completed-state snapshots cannot observe later mutation.
 
 ## Native player constraints
@@ -103,6 +107,8 @@ Keep the launcher's two-core CPU affinity. Preserve MPlayer's dropped-frame time
 `RasterRenderer` caches prepared backdrops and carousel strips by immutable image identity and geometry. Dynamic drawing handles text, selection, clocks, and controls. Scrolling borrows a clipped canvas instead of copying a whole frame. Music effects own only animation state and drawing. Asset loading stays outside rendering.
 
 [`internal/settings`](../internal/settings/settings.go) owns startup snapshots, UI schema, and shared compatibility/migration rules. Components validate their own values. [`sound.Feedback`](../internal/sound/sound.go) receives semantic browsing cues. The sound worker never blocks the UI, bounds pending cues, and releases ALSA before playback. Counted suspensions cover overlapping decoder replacements. Neither settings nor audio-device work belongs in drawing.
+
+[`jellyfin/session.go`](../internal/jellyfin/session.go) owns bounded sign-in reads, damaged-file recovery, and atomic replacement. [`playback.Preferences`](../internal/playback/preferences.go) owns per-item choices and a background writer. Failed writes stay pending without overwriting newer choices. A later save or final shutdown flush retries them. Both components keep storage policy outside rendering.
 
 ## Extending and validating
 

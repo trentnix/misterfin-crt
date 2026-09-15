@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -17,6 +19,7 @@ import (
 // One writer coalesces changes without doing disk I/O on the playback loop.
 // Call Close after all playback sessions finish to flush pending writes.
 type Preferences struct {
+	trace   *diagnostics.Log // Borrowed until Close returns.
 	dir     string
 	mu      sync.Mutex
 	values  map[string]videoPreference
@@ -29,9 +32,11 @@ type Preferences struct {
 
 // NewPreferences starts the writer. Files are read lazily during playback
 // preparation. Missing or damaged records use the normal playback defaults.
-func NewPreferences(stateDir string) *Preferences {
+// trace is optional and must outlive Close. Failures log no paths or item data.
+func NewPreferences(stateDir string, trace *diagnostics.Log) *Preferences {
 	p := &Preferences{
 		dir:    filepath.Join(stateDir, "playback"),
+		trace:  trace,
 		values: make(map[string]videoPreference), pending: make(map[string]videoPreference),
 		wake: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{}),
 	}
@@ -39,7 +44,8 @@ func NewPreferences(stateDir string) *Preferences {
 	return p
 }
 
-// Close flushes queued choices and reports any records that could not be saved.
+// Close flushes queued choices, including failed writes, and reports any
+// records that still could not be saved.
 // The caller must stop playback before calling Close, and call it only once.
 func (p *Preferences) Close() error {
 	close(p.stop)
@@ -121,7 +127,8 @@ func (p *Preferences) save(key string, t VideoTracks) {
 		v.Subtitle = stream
 	}
 	p.mu.Lock()
-	if old, ok := p.values[key]; ok && old == v {
+	_, dirty := p.pending[key]
+	if old, ok := p.values[key]; ok && old == v && !dirty {
 		p.mu.Unlock()
 		return
 	}
@@ -136,7 +143,6 @@ func (p *Preferences) save(key string, t VideoTracks) {
 
 func (p *Preferences) writeLoop() {
 	defer close(p.done)
-	failed := make(map[string]bool)
 	for {
 		stopping := false
 		select {
@@ -150,13 +156,18 @@ func (p *Preferences) writeLoop() {
 		p.mu.Unlock()
 		for key, value := range pending {
 			if p.write(key, value) != nil {
-				failed[key] = true
-			} else {
-				delete(failed, key)
+				// Retain the failure without overwriting a newer queued choice.
+				// Only a later save or Close wakes another attempt.
+				p.mu.Lock()
+				if _, newer := p.pending[key]; !newer {
+					p.pending[key] = value
+				}
+				p.mu.Unlock()
+				p.trace.Record("playback.preferences-write", slog.Bool("failed", true))
 			}
 		}
 		if stopping {
-			if len(failed) != 0 {
+			if len(p.pending) != 0 {
 				p.err = errors.New("could not save playback choices")
 			}
 			return

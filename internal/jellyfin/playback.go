@@ -30,6 +30,8 @@ func (c *Client) AudioStreamURL(itemID, sessionID string) string {
 	return c.Config.Server + "/Audio/" + url.PathEscape(itemID) + "/stream?" + q.Encode()
 }
 
+// NewPlaySessionID returns a cryptographically random identifier for one
+// playback session, or an error if secure randomness is unavailable.
 func NewPlaySessionID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -129,6 +131,10 @@ func (c *Client) ReportPlaying(ctx context.Context, event string, state PlayStat
 	_, err := c.request(ctx, "POST", path, nil, state)
 	return err
 }
+
+// SavePlaybackPosition stores resume position in 100-nanosecond ticks. Negative
+// positions become zero. Marking an item played also clears its resume position.
+// The call honors ctx and returns transport or server errors.
 func (c *Client) SavePlaybackPosition(ctx context.Context, item string, ticks int64, played bool) error {
 	if played {
 		ticks = 0

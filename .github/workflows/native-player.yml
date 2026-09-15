@@ -1,0 +1,41 @@
+name: Native player validation
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+    paths:
+      - 'docker/**'
+      - 'Makefile'
+      - '.github/workflows/native-player.yml'
+  pull_request:
+    paths:
+      - 'docker/**'
+      - 'Makefile'
+      - '.github/workflows/native-player.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mplayer:
+    name: Build complete patched ARM player
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compile native player from verified source
+        run: make native-player
+      - name: Verify ARM executable and record checksum
+        run: |
+          file build/misterfin-crt-mplayer-arm
+          readelf -h build/misterfin-crt-mplayer-arm | grep -E 'Machine:.*ARM'
+          cat build/misterfin-crt-mplayer-build.txt
+          sha256sum build/misterfin-crt-mplayer-arm

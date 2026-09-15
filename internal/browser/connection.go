@@ -11,6 +11,7 @@ import (
 type authenticatedConnection struct {
 	client    *jellyfin.Client
 	selection *selectionLoader
+	recovered bool
 }
 
 // connectionManager owns configuration loading, authentication cancellation,
@@ -21,6 +22,7 @@ type connectionManager struct {
 	width, height int
 	cancel        context.CancelFunc
 	generation    int
+	done          <-chan struct{} // Closes after this attempt and all preceding attempts exit.
 }
 
 func newConnectionManager(config Config, width, height int) connectionManager {
@@ -28,7 +30,8 @@ func newConnectionManager(config Config, width, height int) connectionManager {
 }
 
 // connect replaces an earlier attempt and publishes progress and completion
-// through the browser's worker-result boundary.
+// through the browser's worker-result boundary. Workers join their predecessor
+// before touching session files, without blocking the browser loop.
 func (m *connectionManager) connect(ctx context.Context, send func(context.Context, workerResult)) {
 	m.cancel()
 	m.generation++
@@ -36,20 +39,35 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 	work, cancel := context.WithCancel(ctx)
 	m.cancel = cancel
 	config, width, height := m.config, m.width, m.height
+	previous := m.done
+	done := make(chan struct{})
+	m.done = done
 	go func() {
+		defer close(done)
+		if previous != nil {
+			<-previous
+		}
+		if work.Err() != nil {
+			return
+		}
 		stage := connectionConfig
 		server, err := jellyfin.LoadConfig(config.ConfigPath)
 		var connection *authenticatedConnection
 		if err == nil {
 			stage = connectionSession
 			var session jellyfin.Session
-			session, err = jellyfin.LoadSession(config.StateDir, server.Server)
+			var recovered bool
+			session, recovered, err = jellyfin.LoadSession(config.StateDir, server.Server)
 			if err == nil {
 				stage = connectionAuthentication
 				client := jellyfin.NewClient(server, session)
 				client.Diagnostics = config.Diagnostics
+				client.Version = config.Build.Version
+				if recovered {
+					config.Diagnostics.Record("authentication.session-recovered")
+				}
 				err = client.Authenticate(work, config.StateDir, func(code string) {
-					send(work, authCodeResult{generation: generation, code: code})
+					send(work, authCodeResult{generation: generation, code: code, recovered: recovered})
 				})
 				if err == nil {
 					caches := newSelectionCaches(config, client)
@@ -57,6 +75,7 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 					selection.customBackground = config.Background != nil
 					connection = &authenticatedConnection{
 						client:    client,
+						recovered: recovered,
 						selection: selection,
 					}
 				}
@@ -70,4 +89,9 @@ func (m *connectionManager) current(generation int) bool {
 	return generation == m.generation
 }
 
-func (m *connectionManager) close() { m.cancel() }
+func (m *connectionManager) close() {
+	m.cancel()
+	if m.done != nil {
+		<-m.done
+	}
+}

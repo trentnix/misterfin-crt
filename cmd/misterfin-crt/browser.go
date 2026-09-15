@@ -66,7 +66,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	if sounds != nil {
 		feedback = sounds
 	}
-	preferences := playback.NewPreferences(config.StateDir)
+	preferences := playback.NewPreferences(config.StateDir, trace.log)
 	defer func() { err = errors.Join(err, preferences.Close()) }()
 	player.Preferences = preferences
 

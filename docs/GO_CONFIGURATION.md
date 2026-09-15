@@ -81,3 +81,7 @@ If the default `settings.json` is absent, the client reads legacy `ui.json`, `ba
 Use the configuration path of the installation being migrated. Separate 480i test installations can have their configuration under `interlaced-test`. Migration preserves originals and relative paths, writes current names, rejects malformed input, and refuses to overwrite `settings.json`. It does not open a display or connect to Jellyfin. Section values are validated on normal startup. Archive old files after verifying the new settings.
 
 Saved sign-in, playback preferences, and caches are application state and remain separate. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.
+
+## Saved sign-in recovery
+
+If `session.json` in the selected [state directory](GO_BROWSING.md#setup-and-sign-in) is malformed or exceeds 64 KiB, the client preserves the original as `session-damaged-*` in that directory and starts a fresh sign-in. Quick Connect or the connected notice explains the recovery. Storage permission and read errors preserve the original file and show a setup error. Valid credentials survive temporary server failures. Backups request owner-only permissions where supported, contain private sign-in data, and must not be shared.

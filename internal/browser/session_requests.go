@@ -71,7 +71,7 @@ func (s *browserSession) handleAuthCode(r authCodeResult) bool {
 	if !s.connection.current(r.generation) {
 		return false
 	}
-	s.setup = rendering.SetupPresentation{Kind: rendering.SetupQuickConnect, Code: r.code}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupQuickConnect, Code: r.code, Recovered: r.recovered}
 	return true
 }
 
@@ -83,6 +83,9 @@ func (s *browserSession) handleAuth(r authResult) bool {
 		s.setup = setupFailure(r.stage, r.err, s.config)
 	} else {
 		s.client = r.connection.client
+		if r.connection.recovered {
+			s.startupNotices = append(s.startupNotices, "Damaged sign-in was backed up. Connected successfully.")
+		}
 		s.model = New()
 		s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)
 		s.selection.key = ""

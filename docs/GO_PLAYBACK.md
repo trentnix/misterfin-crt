@@ -62,6 +62,8 @@ Client text supports up to three lines, basic markup removal, and ASCII/Latin-1 
 
 Recorded-video picture, audio, and subtitle choices persist per server, user, and item under `playback` in the state directory. They survive seeks, restart-from-zero, and application restart. New items default to Original, server-default audio, and subtitles Off. Missing tracks fall back safely. A changed media source resets tracks while preserving picture mode. Only started playback and successful changes update saved choices.
 
+Failed writes of picture, audio-track, and subtitle preferences retain the latest choices in memory. A later save retries the write, and shutdown makes a final attempt. [Diagnostics](GO_DIAGNOSTICS.md#events) records `playback.preferences-write` when enabled, without item identifiers or credentials. If the final write fails, those choices cannot survive application exit.
+
 ## Loading and buffering
 
 A shared animated overlay covers stream preparation and decoder startup. MPlayer reports its first presented frame immediately. Decoders without that notification use position feedback. Cache-wait feedback shows Buffering over the retained frame. User pause suppresses waiting indicators. FFplay estimates buffering from three seconds without advancing position, and its indicator stays in the companion UI.

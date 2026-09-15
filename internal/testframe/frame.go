@@ -3,6 +3,8 @@ package testframe
 
 import "misterfin-crt/internal/platform"
 
+// Present draws color bars, a grayscale ramp, and a border in the display's
+// logical geometry. It borrows d and returns its presentation error.
 func Present(d platform.Display) error {
 	g := d.Geometry()
 	pixels := make([]byte, g.Width*g.Height*4)

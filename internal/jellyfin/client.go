@@ -21,15 +21,17 @@ import (
 
 // Client shares configuration, authentication, and HTTP transport across all
 // endpoint methods. After authentication, request methods can run concurrently.
-// Callers must serialize Authenticate and any mutation of Config, Session, or HTTP
+// Callers must serialize Authenticate and any mutation of Config, Session, Version, or HTTP
 // against other operations. Returned images and item data belong to the caller.
 type Client struct {
 	// Diagnostics is optional and borrowed. Set it before starting requests.
 	Diagnostics *diagnostics.Log
-	Config      Config
-	Session     Session
-	HTTP        *http.Client
-	queue       atomic.Pointer[PlaybackQueue]
+	// Version is the application build label. Empty reports dev. Set before requests.
+	Version string
+	Config  Config
+	Session Session
+	HTTP    *http.Client
+	queue   atomic.Pointer[PlaybackQueue]
 }
 
 // NewClient copies configuration and session values and creates an HTTP client
@@ -52,7 +54,11 @@ func NewClient(c Config, s Session) *Client {
 // credentials and must not be logged or forwarded to another origin.
 func (c *Client) Authorization() string {
 	// Quote saved values so they cannot inject authorization fields.
-	auth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="0.1", DeviceId=` + strconv.Quote(c.Session.DeviceID)
+	version := c.Version
+	if version == "" {
+		version = "dev"
+	}
+	auth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version=` + strconv.Quote(version) + `, DeviceId=` + strconv.Quote(c.Session.DeviceID)
 	if c.Session.Token != "" {
 		auth += ", Token=" + strconv.Quote(c.Session.Token)
 	}

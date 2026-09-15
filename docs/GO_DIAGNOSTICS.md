@@ -29,15 +29,19 @@ Each line is JSON with a timestamp and event name in `msg`.
 | `input.backend`, `.device`, `.unavailable` | Backend, initial devices and bindings, and identification/open failures. No button presses. |
 | `mister.display`, `.framebuffer`, `.setting`, `.settings` | Interlaced state, kernel framebuffer geometry, and allowlisted numeric INI settings. |
 | `configuration.fallback` | Logical setting, safe error category, and selected recovery behavior. |
+| `authentication.session-recovered` | Damaged saved sign-in was backed up and replaced. No file contents or paths. |
 | `http.request`, `remote.socket` | Endpoint/status/timing or WebSocket connection result. No query strings or credentials. |
 | `browser.page`, `.home` | Accepted page/feed results, bounded identifiers, counts, and failures. |
 | `playback.start`, `.phase`, `.prepared` | Decoder, preparation stages, resume offset, and requested transcode limits. |
 | `playback.first-position`, `.first-frame` | Separate milestones for position feedback and first presented frame feedback. |
 | `playback.pause`, `.buffering`, `.progress` | State transitions and ten-second progress summaries. |
 | `playback.decoder-exit`, `.end` | Exit/signal, cancellation, elapsed time, and final stage. |
+| `playback.preferences-write` | A failed preferences write, retained for retry. No item identifiers or paths. |
 | `diagnostics.dropped` | Events discarded when the writer queue filled. |
 
 For slow startup, compare request timing, `stream-open`, `decoder-start`, and first-frame feedback. For seeks, follow the new process-local `playback` counter. Cancellation can mean Stop, a superseded seek, or exit, rather than failure. First-frame feedback is not a measurement of light from the CRT.
+
+If picture or track choices disappear after restart, look for `playback.preferences-write` and check that the state directory is writable. A later save retries failed writes, and shutdown makes a final attempt. An unexpected sign-in prompt with `authentication.session-recovered` indicates [damaged saved sign-in](GO_CONFIGURATION.md#saved-sign-in-recovery). Do not share the backup file.
 
 Metadata/artwork timings include buffered body reads. `/media-stream` measures opening through response headers, not the whole stream. `/audio-stream` includes one proxy request through completion. GitHub release checks are outside the Jellyfin request log.
 

@@ -114,7 +114,7 @@ func TestTemporaryFailurePreservesSession(t *testing.T) {
 	if err := c.Authenticate(context.Background(), dir, func(string) { t.Error("started replacement sign-in") }); err == nil {
 		t.Fatal("accepted 503")
 	}
-	got, err := LoadSession(dir, s.URL)
+	got, _, err := LoadSession(dir, s.URL)
 	if err != nil || got != session {
 		t.Fatalf("lost session: %+v %v", got, err)
 	}
@@ -155,7 +155,7 @@ func TestQuickConnectReplacesRejectedSession(t *testing.T) {
 	if err := c.Authenticate(context.Background(), dir, func(code string) { seenCode = code }); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := LoadSession(dir, s.URL)
+	saved, _, err := LoadSession(dir, s.URL)
 	if err != nil || saved.Token != "new-token" || saved.UserID != "new-user" || seenCode != "123456" {
 		t.Fatalf("saved %+v code %q error %v", saved, seenCode, err)
 	}
@@ -174,7 +174,7 @@ func TestConfigAndServerBinding(t *testing.T) {
 		t.Fatalf("%+v %v", c, err)
 	}
 	SaveSession(dir, Session{Server: "http://old", DeviceID: "old-device", Token: "old-secret", UserID: "old-user"})
-	s, err := LoadSession(dir, "http://new")
+	s, _, err := LoadSession(dir, "http://new")
 	if err != nil || s.Token != "" || s.UserID != "" || s.DeviceID == "old-device" {
 		t.Fatalf("cross-server session reused: %+v %v", s, err)
 	}

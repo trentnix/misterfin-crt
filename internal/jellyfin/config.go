@@ -4,14 +4,10 @@ package jellyfin
 
 import (
 	"bufio"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -80,47 +76,4 @@ func LoadConfig(path string) (Config, error) {
 		c.Username = values[2]
 	}
 	return c, nil
-}
-
-// Session belongs only to the Go client and is bound to its server URL.
-type Session struct{ Server, DeviceID, Token, UserID string }
-
-func LoadSession(dir, server string) (Session, error) {
-	s := Session{Server: server}
-	data, err := os.ReadFile(filepath.Join(dir, "session.json"))
-	if err == nil {
-		if json.Unmarshal(data, &s) != nil {
-			return Session{}, errors.New("invalid Go session file")
-		}
-		if s.Server == server && s.DeviceID != "" {
-			return s, nil
-		}
-	} else if !os.IsNotExist(err) {
-		return s, fmt.Errorf("read Go session: %w", err)
-	}
-	b := make([]byte, 16)
-	if _, err = rand.Read(b); err != nil {
-		return s, err
-	}
-	s = Session{Server: server, DeviceID: hex.EncodeToString(b)}
-	return s, SaveSession(dir, s)
-}
-
-func SaveSession(dir string, s Session) error {
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, ".session-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	err = json.NewEncoder(f).Encode(s)
-	if e := f.Close(); err == nil {
-		err = e
-	}
-	if err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), filepath.Join(dir, "session.json"))
 }

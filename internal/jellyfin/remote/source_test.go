@@ -25,7 +25,7 @@ func TestSourceHTTPAndTLS(t *testing.T) {
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Jellyfin can reject query-only socket authentication. Require
 				// the same authenticated identity for the upgrade and API calls.
-				wantAuth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="0.1", DeviceId="device", Token="token"`
+				wantAuth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="v2.3.4", DeviceId="device", Token="token"`
 				if r.Header.Get("Authorization") != wantAuth {
 					w.WriteHeader(http.StatusForbidden)
 					return
@@ -76,6 +76,7 @@ func TestSourceHTTPAndTLS(t *testing.T) {
 			}
 			defer server.Close()
 			client := jellyfin.NewClient(jellyfin.Config{Server: server.URL + "/jellyfin"}, jellyfin.Session{Token: "token", DeviceID: "device"})
+			client.Version = "v2.3.4"
 			if secure {
 				roots := server.Client().Transport.(*http.Transport).TLSClientConfig.RootCAs
 				client.HTTP.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}

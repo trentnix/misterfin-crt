@@ -175,3 +175,77 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoveredSessionReachesAuthenticationAndPresentation(t *testing.T) {
+	for _, apiKey := range []bool{false, true} {
+		t.Run(fmt.Sprint("api-key=", apiKey), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.Contains(r.Header.Get("Authorization"), `Version="v2.3.4"`) {
+					t.Error("build identity not propagated")
+				}
+				switch r.URL.Path {
+				case "/Users":
+					fmt.Fprint(w, `[{"Id":"user","Name":"viewer"}]`)
+				case "/QuickConnect/Enabled":
+					fmt.Fprint(w, "true")
+				case "/QuickConnect/Initiate":
+					fmt.Fprint(w, `{"Code":"123456","Secret":"private"}`)
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			dir := t.TempDir()
+			config := Config{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+			config.Build.Version = "v2.3.4"
+			text := server.URL
+			if apiKey {
+				text += "\nkey\nviewer\n"
+			}
+			if err := os.WriteFile(config.ConfigPath, []byte(text), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "session.json"), []byte("broken"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			m := newConnectionManager(config, 640, 240)
+			defer m.close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			results := make(chan workerResult, 4)
+			m.connect(ctx, func(work context.Context, r workerResult) {
+				select {
+				case results <- r:
+				case <-work.Done():
+				}
+			})
+			select {
+			case result := <-results:
+				s := testSession(t)
+				s.connection.generation = 1
+				if apiKey {
+					r, ok := result.(authResult)
+					if !ok || r.err != nil || !r.connection.recovered {
+						t.Fatalf("API-key recovery failed: %#v", result)
+					}
+					// The authenticated snapshot carries recovery and build identity
+					// back to the browser without starting its library workers.
+					if r.connection.client.Version != "v2.3.4" {
+						t.Fatal("wrong client version")
+					}
+				} else {
+					r, ok := result.(authCodeResult)
+					if !ok || !r.recovered {
+						t.Fatalf("Quick Connect recovery failed: %#v", result)
+					}
+					s.handleAuthCode(r)
+					if !s.setup.Recovered || s.setup.Kind != rendering.SetupQuickConnect || s.setup.Code != "123456" {
+						t.Fatal("recovery was not presented with the new code")
+					}
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("damaged session blocked authentication")
+			}
+		})
+	}
+}

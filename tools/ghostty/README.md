@@ -2,7 +2,7 @@
 
 This helper presents MiSTerFin CRT's desktop framebuffer inside Ghostty. MiSTerFin CRT reads the terminal directly, so the helper does not translate or intercept input.
 
-From the repository root, run:
+Use Linux, Go 1.26.8 or later, a C compiler, and Python 3. Playback dependencies are listed below. See the [build guide](../../docs/GO_BUILD.md) for toolchain setup. From the repository root, run:
 
 ```bash
 python3 tools/ghostty/ghostty_harness.py --demo --ntsc
@@ -75,4 +75,4 @@ Run the helper tests with:
 python3 -m unittest tools/ghostty/test_ghostty_harness.py
 ```
 
-Run browser integration tests with `make test-browse`. Each test in [test_go_browse.py](test_go_browse.py) explicitly starts a [Scenario](fixtures/browser.py) with its settings, mock-server behavior, and simulated player. Ordinary tests write `settings.json` directly. One explicit scenario checks legacy files. The standalone player programs in [fixtures](fixtures/) publish controlled frames and playback feedback without opening a media decoder or audio device. These tests need the Go host build and loopback networking, but do not need Ghostty or a Jellyfin server.
+Run browser integration tests with `make test-browse`. Each test in [test_go_browse.py](test_go_browse.py) explicitly starts a [Scenario](fixtures/browser.py) with its settings, mock-server behavior, and simulated player. Ordinary tests write `settings.json` directly. One explicit scenario checks legacy files. The standalone player programs in [fixtures](fixtures/) publish controlled frames and playback feedback without opening a media decoder or audio device. These tests need the Go host build and loopback networking, but do not need Ghostty or a Jellyfin server. Before sending input that depends on loaded data, wait for the corresponding `browser.page` or `browser.home` diagnostic event. A completed HTTP response alone does not mean the browser has applied the result.

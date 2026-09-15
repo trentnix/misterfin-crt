@@ -1,13 +1,14 @@
 # Build the Go client. The native framebuffer adapter is compiled through cgo.
 GO ?= go
 STATICCHECK_VERSION := v0.8.1
+GOVULNCHECK_VERSION := v1.8.0
 VERSION ?= dev
 GO_LDFLAGS = -X misterfin-crt/internal/release.Version=$(VERSION)
 GO_ARM_CC ?= $(CURDIR)/tools/zig-cc-go.sh
 
 .DEFAULT_GOAL := host
 
-.PHONY: host arm lint test test-browse headless clean
+.PHONY: host arm lint vulnerability-check native-player release-manifest test test-browse headless clean
 host:
 	CGO_ENABLED=1 $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/misterfin-crt ./cmd/misterfin-crt
 
@@ -19,6 +20,20 @@ lint:
 	@files="$$(gofmt -l cmd internal)"; if [ -n "$$files" ]; then printf '%s\n' "$$files"; exit 1; fi
 	$(GO) vet ./...
 	$(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
+
+vulnerability-check:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+
+native-player:
+	mkdir -p build
+	docker build -f docker/Dockerfile.misterfin-crt -t misterfin-crt-mplayer docker
+	docker run --rm --mount "type=bind,src=$(CURDIR)/build,dst=/output" -e OUTPUT_DIR=/output misterfin-crt-mplayer
+
+# Run after arm and native-player so the manifest describes the matching pair.
+release-manifest:
+	$(GO) version -m build/misterfin-crt-arm > build/release-manifest.txt
+	cat build/misterfin-crt-mplayer-build.txt >> build/release-manifest.txt
+	cd build && sha256sum misterfin-crt-arm misterfin-crt-mplayer-arm >> release-manifest.txt
 
 test:
 	CGO_ENABLED=1 $(GO) test ./...
