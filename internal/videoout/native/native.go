@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"misterfin-crt/internal/videoout"
 )
 
+// OverlayPath is the shared publication path read by the patched MPlayer driver.
 const OverlayPath = "/tmp/misterfin_crt_overlay"
 
 var overlayMagic = [8]byte{'M', 'F', 'G', 'O', 'O', 'V', '1', 0}
@@ -29,6 +31,9 @@ type Backend struct {
 	sequence  uint64
 	published []byte
 	handoff   framebufferHandoff
+	physical  []byte // Scaled overlay, reused only while mu is held.
+	payload   []byte // Cropped publication, independent of borrowed input pixels.
+	loading   []byte // Black loading frame composited before decoder ownership.
 }
 
 // New publishes overlays for the patched MPlayer framebuffer driver.
@@ -36,6 +41,7 @@ func New(d platform.Presenter, path string) *Backend {
 	return &Backend{d: d, path: path}
 }
 
+// Acquire registers a decoder and resets the first-frame handoff.
 func (o *Backend) Acquire() {
 	o.mu.Lock()
 	if o.owners == 0 {
@@ -45,6 +51,8 @@ func (o *Backend) Acquire() {
 	o.published = nil
 	o.mu.Unlock()
 }
+
+// Release removes stale overlays after the last decoder relinquishes output.
 func (o *Backend) Release() {
 	o.mu.Lock()
 	if o.owners > 0 {
@@ -55,12 +63,16 @@ func (o *Backend) Release() {
 	}
 	o.mu.Unlock()
 }
+
+// Clear discards the last publication before a new item or browsing.
 func (o *Backend) Clear() {
 	o.mu.Lock()
 	o.published = nil
 	o.removeLocked()
 	o.mu.Unlock()
 }
+
+// Close removes publications and releases handoff resources, not the display.
 func (o *Backend) Close() error {
 	o.Clear()
 	o.mu.Lock()
@@ -72,6 +84,8 @@ func (o *Backend) removeLocked() {
 		return
 	}
 }
+
+// Geometry reports logical UI and physical framebuffer dimensions.
 func (o *Backend) Geometry() platform.Geometry { return o.d.Geometry() }
 
 // FrameInterval keeps browser motion at 60 Hz and overlay publication at 30 Hz.
@@ -83,6 +97,7 @@ func (o *Backend) FrameInterval(video bool) time.Duration {
 	return time.Second / 60
 }
 
+// Present draws browsing or loading pixels and publishes changed video overlays.
 func (o *Backend) Present(f videoout.Frame) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -108,9 +123,13 @@ func (o *Backend) Present(f videoout.Frame) error {
 		}
 		defer o.handoff.end()
 	}
-	frame := make([]byte, len(overlay))
-	ui.Composite(frame, overlay)
-	return o.d.Present(frame)
+	if len(o.loading) != len(overlay) {
+		o.loading = make([]byte, len(overlay))
+	} else {
+		clear(o.loading)
+	}
+	ui.Composite(o.loading, overlay)
+	return o.d.Present(o.loading)
 }
 
 func (o *Backend) publishLocked(logical []byte) error {
@@ -118,30 +137,37 @@ func (o *Backend) publishLocked(logical []byte) error {
 	if len(logical) != g.Width*g.Height*4 {
 		return errors.New("video overlay must contain exactly logical width * height * 4 BGRA bytes")
 	}
-	physical := scale(logical, g)
+	o.physical = scale(o.physical, logical, g)
+	physical := o.physical
 	x, y, w, h := bounds(physical, g.OutputWidth, g.OutputHeight)
 	if w == 0 || h == 0 {
 		o.removeLocked()
 		return nil
 	}
 	o.sequence++
-	header := make([]byte, 40)
-	copy(header, overlayMagic[:])
+	var header [40]byte
+	copy(header[:], overlayMagic[:])
 	values := []uint32{uint32(g.OutputWidth), uint32(g.OutputHeight), uint32(x), uint32(y), uint32(w), uint32(h)}
 	for i, value := range values {
 		binary.LittleEndian.PutUint32(header[8+i*4:], value)
 	}
 	binary.LittleEndian.PutUint64(header[32:], o.sequence)
-	payload := make([]byte, 0, w*h*4)
+	o.payload = slices.Grow(o.payload[:0], w*h*4)
 	for yy := y; yy < y+h; yy++ {
 		start := (yy*g.OutputWidth + x) * 4
-		payload = append(payload, physical[start:start+w*4]...)
+		o.payload = append(o.payload, physical[start:start+w*4]...)
 	}
-	return atomicWrite(o.path, header, payload)
+	return atomicWrite(o.path, header[:], o.payload)
 }
 
-func scale(source []byte, g platform.Geometry) []byte {
-	output := make([]byte, g.OutputWidth*g.OutputHeight*4)
+// scale reuses output storage and clears margins left by the previous geometry.
+func scale(output, source []byte, g platform.Geometry) []byte {
+	size := g.OutputWidth * g.OutputHeight * 4
+	if len(output) != size {
+		output = make([]byte, size)
+	} else {
+		clear(output)
+	}
 	bx, by, bw, bh := 0, 0, g.OutputWidth, g.OutputHeight
 	lineDoubled := g.OutputWidth == g.Width && g.OutputHeight == g.Height*2
 	if !lineDoubled && (g.OutputWidth != g.Width || g.OutputHeight != g.Height) {

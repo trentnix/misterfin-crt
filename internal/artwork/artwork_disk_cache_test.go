@@ -23,7 +23,7 @@ func TestArtworkPersistsAcrossLoadersAndRefreshesChangedTags(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		if offline.Load() {
-			http.Error(w, "offline", 503)
+			http.Error(w, "offline", http.StatusServiceUnavailable)
 			return
 		}
 		w.Write(png)
@@ -61,7 +61,7 @@ func TestArtworkPersistsAcrossLoadersAndRefreshesChangedTags(t *testing.T) {
 	for _, kind := range []string{"Primary", "Backdrop", "Logo"} {
 		fetch(second, item, kind)
 	}
-	episode := jellyfin.Item{ID: "episode", ParentBackdropItemId: "series", ParentBackdropImageTags: []string{"b"}}
+	episode := jellyfin.Item{ID: "episode", ParentBackdropItemID: "series", ParentBackdropImageTags: []string{"b"}}
 	fetch(loader(), episode, "Backdrop")
 	after, _ := os.Stat(path)
 	if calls.Load() != 3 || !before.ModTime().Equal(after.ModTime()) {

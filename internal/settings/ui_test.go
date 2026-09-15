@@ -50,6 +50,9 @@ func TestUIHeading(t *testing.T) {
 		if (err != nil) != tc.invalid {
 			t.Fatalf("config %q: unexpected error: %v", tc.data, err)
 		}
+		if tc.invalid && got != nil {
+			t.Fatalf("invalid config %q exposed a title: %q", tc.data, *got)
+		}
 		if !tc.invalid && (got == nil || *got != tc.want) {
 			t.Fatalf("config %q: expected explicit title %q, got %v", tc.data, tc.want, got)
 		}

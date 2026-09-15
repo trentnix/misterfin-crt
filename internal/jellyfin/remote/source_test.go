@@ -125,7 +125,7 @@ func TestTLSRejectsUntrustedAndRedirect(t *testing.T) {
 	if reached.Load() != 0 {
 		t.Fatal("untrusted certificate accepted")
 	}
-	redirected := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, 302) }))
+	redirected := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, http.StatusFound) }))
 	defer redirected.Close()
 	client = jellyfin.NewClient(jellyfin.Config{Server: redirected.URL, InsecureTLS: true}, jellyfin.Session{})
 	New(client).connect(ctx, func(remote.Command) { t.Error("unexpected command") })

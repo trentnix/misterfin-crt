@@ -1,4 +1,5 @@
 // Configuration and query behavior are derived from MiSTerFin (CC BY-NC 4.0).
+
 package jellyfin
 
 import (
@@ -21,7 +22,7 @@ type Config struct {
 	Transcode                        TranscodeProfile
 	Server, APIKey, Username, TVMode string
 	InsecureTLS                      bool
-	DebugLog                         bool // Enables optional diagnostics unless diagnostics.json overrides it.
+	DebugLog                         bool // Enables optional diagnostics unless settings.json diagnostics overrides it.
 }
 
 // LoadConfig reads credentials and independent option lines. Invalid transcode

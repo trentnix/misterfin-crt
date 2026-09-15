@@ -17,8 +17,13 @@ import (
 // It enables the shared scanout protocol after Main has stopped using SPI.
 const ActiveEnv = "MISTERFIN_CRT_INTERLACED"
 
+// LauncherEnv delegates successful menu restoration to the Scripts launcher.
+// Failures and standalone invocations always restore the menu in the supervisor.
+const LauncherEnv = "MISTERFIN_CRT_LAUNCHER"
+
 // Run starts a supervised copy of the client under the standalone interlaced
-// core. It owns the core switch, exclusive hardware access, and restoration.
+// core. It owns the core switch, exclusive hardware access, and failure recovery.
+// If LauncherEnv is "1", the launcher must restore the menu after successful exit.
 // Arguments are the original client arguments without the executable name.
 func Run(ctx context.Context, directory string, args []string) (err error) {
 	directory, err = filepath.Abs(directory)
@@ -47,6 +52,10 @@ func Run(ctx context.Context, directory string, args []string) (err error) {
 		err = errors.Join(err, stopOrphans(owner), restoreConsole())
 		if mainPID > 0 {
 			err = errors.Join(err, syscall.Kill(mainPID, syscall.SIGCONT))
+		}
+		if err == nil && os.Getenv(LauncherEnv) == "1" {
+			// Main can now accept the launcher's one normal menu-return command.
+			return
 		}
 		// Restore even if the load command timed out: Main may have received it.
 		restore, cancel := context.WithTimeout(context.Background(), 10*time.Second)

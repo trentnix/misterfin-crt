@@ -94,7 +94,7 @@ func TestCancelAndRedirect(t *testing.T) {
 	}
 	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("followed foreign redirect") }))
 	defer foreign.Close()
-	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, foreign.URL, 302) }))
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, foreign.URL, http.StatusFound) }))
 	defer redirect.Close()
 	_, err := NewClient(Config{Server: redirect.URL}, Session{Token: "private"}).List(context.Background(), Location{}, 0, 64)
 	if err == nil || strings.Contains(err.Error(), "private") {

@@ -1,6 +1,7 @@
 // Bitmap data translated from src/font8x8.h.
 // ASCII: Daniel Hepper, public domain, based on IBM VGA via Marcel Sondaar.
 // Latin-1 extensions: MiSTerFin, CC BY-NC 4.0, Copyright © 2026 Pudding Studio.
+
 package ui
 
 var font = [256][8]byte{

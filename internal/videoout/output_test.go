@@ -273,3 +273,109 @@ func TestFrameFileBrowserIgnoresStaleVideo(t *testing.T) {
 		t.Fatalf("stale decoder frame replaced browser: %v", d.frame)
 	}
 }
+
+func TestFrameFileReusesStorageWithoutStalePixels(t *testing.T) {
+	d := &testDisplay{geometry: platform.Geometry{Width: 1, Height: 1, OutputWidth: 1, OutputHeight: 1}}
+	path := filepath.Join(t.TempDir(), "video.raw")
+	o := framefile.New(d, path)
+	t.Cleanup(func() { _ = o.Close() })
+	for _, tc := range []struct {
+		name                  string
+		source, overlay, want []byte
+		width                 int
+	}{
+		{"controls", []byte{20, 40, 60, 0}, []byte{100, 120, 140, 128}, []byte{60, 80, 100, 0}, 1},
+		{"dismiss controls", []byte{20, 40, 60, 0}, nil, []byte{20, 40, 60, 0}, 1},
+		{"new frame", []byte{70, 80, 90, 0}, nil, []byte{70, 80, 90, 0}, 1},
+		{"short frame", []byte{70, 80}, nil, make([]byte, 4), 1},
+		{"oversized frame", []byte{70, 80, 90, 0, 1}, nil, make([]byte, 4), 1},
+		{"missing frame", nil, []byte{100, 120, 140, 128}, []byte{50, 60, 70, 0}, 1},
+		{"new geometry", []byte{10, 20, 30, 0, 40, 50, 60, 0}, nil, []byte{10, 20, 30, 0, 40, 50, 60, 0}, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d.geometry.Width = tc.width
+			if tc.source == nil {
+				o.Clear()
+			} else {
+				// Match atomic decoder publication rather than editing the old inode.
+				if err := os.WriteFile(path+".next", tc.source, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(path+".next", path); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := o.Present(videoout.Frame{Video: true, Overlay: tc.overlay}); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(d.frame, tc.want) {
+				t.Fatalf("got %v, want %v", d.frame, tc.want)
+			}
+		})
+	}
+}
+
+func TestNativeReusesOverlayStorageWithoutStalePixels(t *testing.T) {
+	d := &testDisplay{geometry: platform.Geometry{Width: 2, Height: 1, OutputWidth: 2, OutputHeight: 2}}
+	path := filepath.Join(t.TempDir(), "overlay")
+	o := native.New(d, path)
+	t.Cleanup(func() { _ = o.Close() })
+	unlock := claimNativeOutput(t, path)
+	defer unlock()
+	o.Acquire()
+	defer o.Release()
+	pixels := []byte{10, 20, 30, 255, 40, 50, 60, 255}
+	present := func() []byte {
+		t.Helper()
+		if err := o.Present(videoout.Frame{Video: true, Overlay: pixels}); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	full := present()
+	if len(full) != 40+16 {
+		t.Fatal("wrong full overlay size", len(full))
+	}
+	// Mutate the borrowed input and move the crop. The backend must own its cache.
+	clear(pixels[:4])
+	copy(pixels[4:], []byte{90, 80, 70, 128})
+	cropped := present()
+	if len(cropped) != 40+8 || binary.LittleEndian.Uint32(cropped[16:]) != 1 || binary.LittleEndian.Uint32(cropped[24:]) != 1 {
+		t.Fatalf("stale overlay bounds or payload: %v", cropped)
+	}
+	if !bytes.Equal(cropped[40:], bytes.Repeat(pixels[4:], 2)) {
+		t.Fatal("stale cropped pixels", cropped[40:])
+	}
+	if binary.LittleEndian.Uint64(cropped[32:]) <= binary.LittleEndian.Uint64(full[32:]) {
+		t.Fatal("changed overlay not published")
+	}
+	clear(pixels)
+	if err := o.Present(videoout.Frame{Video: true, Overlay: pixels}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("empty overlay left stale publication", err)
+	}
+}
+
+func TestNativeLoadingClearsReusedFrame(t *testing.T) {
+	d := &testDisplay{geometry: platform.Geometry{Width: 1, Height: 1, OutputWidth: 1, OutputHeight: 1}}
+	o := native.New(d, filepath.Join(t.TempDir(), "overlay"))
+	t.Cleanup(func() { _ = o.Close() })
+	for _, overlay := range [][]byte{{100, 120, 140, 128}, {100, 120, 140, 128}, {0, 0, 0, 0}} {
+		if err := o.Present(videoout.Frame{Video: true, Overlay: overlay}); err != nil {
+			t.Fatal(err)
+		}
+		want := []byte{50, 60, 70, 0}
+		if overlay[3] == 0 {
+			clear(want)
+		}
+		if !bytes.Equal(d.frame, want) {
+			t.Fatalf("loading retained previous pixels: %v", d.frame)
+		}
+	}
+}

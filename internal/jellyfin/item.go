@@ -36,7 +36,7 @@ type Item struct {
 	CommunityRating                float64
 	BackdropImageTags              []string
 	ImageTags                      map[string]string
-	ParentBackdropItemId           string
+	ParentBackdropItemID           string `json:"ParentBackdropItemId"`
 	ParentBackdropImageTags        []string
 	Number, ChannelNumber          string
 	CurrentProgram                 struct{ Name string }

@@ -18,19 +18,25 @@ type UI struct {
 // selects the default. An explicit empty title hides it. Sound values are left
 // to the sound package, so their errors cannot replace a valid heading.
 func ParseUI(source Section) UI {
-	var fields map[string]json.RawMessage
-	if err := source.Decode(&fields); err != nil {
-		return UI{TitleError: err, NavigationSounds: Section{Path: source.Path, Err: err}}
-	}
+	// Decode the schema before validating either value. Unknown fields invalidate
+	// the whole object, but a mistyped title must not change valid sound settings.
 	var values struct {
-		Title            *string         `json:"title"`
+		Title            json.RawMessage `json:"title"`
 		NavigationSounds json.RawMessage `json:"navigation_sounds"`
 	}
-	result := UI{TitleError: source.Decode(&values), NavigationSounds: Section{Path: source.Path, Data: fields["navigation_sounds"]}}
-	if result.TitleError != nil || values.Title == nil {
+	if err := source.Decode(&values); err != nil {
+		return UI{TitleError: err, NavigationSounds: Section{Path: source.Path, Err: err}}
+	}
+	result := UI{NavigationSounds: Section{Path: source.Path, Data: values.NavigationSounds}}
+	if values.Title == nil {
 		return result
 	}
-	title := strings.Join(strings.Fields(*values.Title), " ")
+	var value *string
+	result.TitleError = json.Unmarshal(values.Title, &value)
+	if result.TitleError != nil || value == nil {
+		return result
+	}
+	title := strings.Join(strings.Fields(*value), " ")
 	title = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
 			return -1

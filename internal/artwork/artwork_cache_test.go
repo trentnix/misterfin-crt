@@ -30,7 +30,7 @@ func TestImageCacheEvictsLeastRecentlyUsedWithinBudget(t *testing.T) {
 func TestArtworkCacheRetryInvalidatesParentBackdrop(t *testing.T) {
 	cache := newArtworkCache()
 	im := image.NewRGBA(image.Rect(0, 0, 2, 2))
-	item := jellyfin.Item{ID: "episode", ParentBackdropItemId: "series", ParentBackdropImageTags: []string{"tag"}}
+	item := jellyfin.Item{ID: "episode", ParentBackdropItemID: "series", ParentBackdropImageTags: []string{"tag"}}
 	shared := artworkKey(item, "Backdrop")
 	unrelated := imageKey{"other", "Primary", "tag"}
 	cache.remember(shared, im)

@@ -42,7 +42,7 @@ func artworkKey(item jellyfin.Item, kind string) imageKey {
 		if len(item.BackdropImageTags) > 0 {
 			key.tag = item.BackdropImageTags[0]
 		} else if len(item.ParentBackdropImageTags) > 0 {
-			key.id = item.ParentBackdropItemId
+			key.id = item.ParentBackdropItemID
 			key.tag = item.ParentBackdropImageTags[0]
 		}
 	}
@@ -103,7 +103,7 @@ func (c *artworkCache) forget(item jellyfin.Item) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for key, value := range c.images {
-		if key.id == item.ID || item.ParentBackdropItemId != "" && key.id == item.ParentBackdropItemId {
+		if key.id == item.ID || item.ParentBackdropItemID != "" && key.id == item.ParentBackdropItemID {
 			c.bytes -= value.bytes
 			delete(c.images, key)
 		}

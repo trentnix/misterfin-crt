@@ -36,7 +36,7 @@ func (c *Client) Photo(ctx context.Context, item Item, width, height int) (image
 func (c *Client) imageSized(ctx context.Context, item Item, kind string, requestedWidth, maxHeight, quality int) (image.Image, error) {
 	tag := item.ImageTags[kind]
 	if kind == "Backdrop" && len(item.BackdropImageTags) == 0 && len(item.ParentBackdropImageTags) > 0 {
-		item.ID = item.ParentBackdropItemId
+		item.ID = item.ParentBackdropItemID
 		item.BackdropImageTags = item.ParentBackdropImageTags
 	}
 	if kind == "Backdrop" && len(item.BackdropImageTags) > 0 {

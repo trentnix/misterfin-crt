@@ -74,12 +74,12 @@ Install a C compiler, Python 3, FFmpeg, libmpv, and the libavcodec/libavutil dev
 
 ```sh
 make host
-go vet ./...
+make lint
 make test
 go test -race ./...
 make test-browse
 ```
 
-[ci.yml](../.github/workflows/ci.yml) runs these checks on Ubuntu 24.04 with read-only repository permissions and a 15-minute timeout. `make test` covers Go with and without cgo plus Python/native adapter tests. `make test-browse` runs the built client against isolated HTTP/WebSocket fixtures. Generated media and local servers avoid a Jellyfin account or MiSTer dependency. Decoder tests can skip when their external dependencies are absent.
+[ci.yml](../.github/workflows/ci.yml) runs these checks on Ubuntu 24.04 with read-only repository permissions and a 15-minute timeout. `make lint` checks formatting, runs `go vet`, and uses a pinned Staticcheck version. [Linter settings](../staticcheck.conf) preserve proper-name capitalization in errors. `make test` covers Go with and without cgo plus Python/native adapter tests. `make test-browse` runs the built client against isolated HTTP/WebSocket fixtures. Generated media and local servers avoid a Jellyfin account or MiSTer dependency. Decoder tests can skip when their external dependencies are absent.
 
 CI does not cross-compile ARM or establish physical CRT timing. Run `make arm` separately. Hardware checks must cover startup/exit, video and music, repeated overlay toggling, seeking, paused picture changes, and A/V synchronization in each supported output mode. See [tested scope](GO_DISPLAY.md#tested-scope).

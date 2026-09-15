@@ -28,7 +28,7 @@ func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {
 				}
 			}
 			if failed.Load() {
-				http.Error(w, "unavailable", 503)
+				http.Error(w, "unavailable", http.StatusServiceUnavailable)
 				return
 			}
 			tag := "first"

@@ -33,7 +33,7 @@ jobs:
       - name: Build host client
         run: make host
       - name: Check Go code
-        run: go vet ./...
+        run: make lint
       - name: Test Go, playback, and native adapters
         run: make test
       - name: Check Go concurrency

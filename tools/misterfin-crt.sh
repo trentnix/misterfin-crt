@@ -44,7 +44,9 @@ fi
 # The Cortex-A9 decoder cannot keep up while competing with the UI on one core.
 taskset -p 3 "$$" >/dev/null
 
-"$binary" -browse \
+# The 480i supervisor leaves normal menu return to finish(), but still restores
+# hardware itself after a failure. Older launchers retain supervisor restoration.
+MISTERFIN_CRT_LAUNCHER=1 "$binary" -browse \
     -config /media/fat/misterfin-crt/jellyfin.conf \
     -state-dir /media/fat/misterfin-crt/state \
     -player "$player"

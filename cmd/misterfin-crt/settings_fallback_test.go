@@ -21,7 +21,6 @@ func TestSettingsFallbacks(t *testing.T) {
 		override                            bool
 	}{
 		{"title type", "ui", `{"title":42}`, "invalid", "default-title", false},
-		{"title unknown field", "ui", `{"typo":true}`, "invalid", "default-title", false},
 		{"background type", "background", `{"image":42}`, "invalid", "normal-artwork", false},
 		{"background missing", "background", `{"image":"missing.png"}`, "not-found", "normal-artwork", false},
 		{"background non-image", "background", `{"image":"private.txt"}`, "invalid", "normal-artwork", false},
@@ -119,7 +118,13 @@ func TestSettingsFallbacks(t *testing.T) {
 }
 
 func TestBrokenUIRestoresTitleAndMutesNavigationSounds(t *testing.T) {
-	for _, ui := range []string{`null`, `{"title":"` + strings.Repeat("x", 4096) + `"}`} {
+	for _, ui := range []string{
+		`null`,
+		`{"title":"` + strings.Repeat("x", 4096) + `"}`,
+		`{"typo":true}`,
+		`{"navigation_sound":{"enabled":false}}`,
+		`{"title":"Custom","navigation_sounds":{"enabled":true},"typo":true}`,
+	} {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "settings.json")
 		if err := os.WriteFile(path, []byte(`{"ui":`+ui+`,"sounds":{"enabled":true}}`), 0600); err != nil {
