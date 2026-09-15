@@ -142,3 +142,9 @@ Bindings describe intent. The browser decides how an action behaves in the curre
 Held navigation accelerates. Held seeking repeats at a steady rate. Playback menu toggles and music track changes happen once per press, including when assigned to an analog axis.
 
 During recorded-video playback, SELECT opens [video Options](GO_TRACKS.md), with Subtitles, Audio, and Picture tabs. While the picker is open, directions navigate its tabs and rows, B applies a choice, and A closes it without showing the playback controls. Outside the picker, directions retain their normal menu toggle. Applying a Picture choice keeps the menu open for comparison. On MiSTer, picture changes preserve the running decoder and pause state. The subtitle tab uses the seek bindings to adjust client-rendered text timing while a text track is selected.
+
+## Code ownership
+
+[`control.Action`](../internal/input/control/action.go) defines semantic actions shared by terminal decoding, evdev bindings, browser handlers, and button labels. Controller JSON decodes through `Action.UnmarshalText`, which rejects unknown names, internal menu actions, and repeat suffixes. `Config.Validate` also checks programmatically constructed bindings. The configuration names above remain unchanged.
+
+Readers mark held inputs with `Action.Repeat`. Browser dispatch uses `IsRepeat` and `Base` to preserve scrolling and seeking while suppressing repeated menu toggles and track changes. Repeat timing remains in the evdev reader. The internal `ToggleControls` action is synthesized from directional input during playback.

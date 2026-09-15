@@ -3,6 +3,7 @@ package browser
 import (
 	"math"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/ui"
 )
 
@@ -18,20 +19,20 @@ func (p *screenPainter) list() [][]controlHint {
 	s := p.scene
 	var hints []controlHint
 	if v.Item() != nil {
-		hints = append(hints, hint(s.Controls, "open", "Select"))
+		hints = append(hints, hint(s.Controls, control.Open, "Select"))
 	}
 	if canShuffle(*v) {
-		hints = append(hints, hint(s.Controls, "select", "Shuffle all"))
+		hints = append(hints, hint(s.Controls, control.Select, "Shuffle all"))
 	}
 	back := "Back"
 	if s.Root {
-		hints = append(hints, hint(s.Controls, "select", "Carousel"))
+		hints = append(hints, hint(s.Controls, control.Select, "Carousel"))
 		back = "Exit"
 	}
 	if v.Error != "" || s.SelectionError != "" {
-		hints = append(hints, hint(s.Controls, "retry", "Retry"))
+		hints = append(hints, hint(s.Controls, control.Retry, "Retry"))
 	}
-	hints = append(hints, hint(s.Controls, "back", back))
+	hints = append(hints, hint(s.Controls, control.Back, back))
 	controls := controlRows(w, hints)
 
 	cache.backdrop(c, art, false, s.Background, func(layer *ui.Canvas) {

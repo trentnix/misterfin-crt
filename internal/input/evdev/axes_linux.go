@@ -5,6 +5,8 @@ package evdev
 import (
 	"syscall"
 	"unsafe"
+
+	"misterfin-crt/internal/input/control"
 )
 
 // mappedAxis translates a configured axis into held actions. Each device owns
@@ -12,7 +14,7 @@ import (
 type mappedAxis struct {
 	binding        Axis
 	min, rest, max int64
-	held           string
+	held           control.Action
 }
 
 func newMappedAxis(binding Axis, min, max int32) *mappedAxis {
@@ -27,7 +29,7 @@ func newMappedAxis(binding Axis, min, max int32) *mappedAxis {
 	return a
 }
 
-func (a *mappedAxis) action(value int32) string {
+func (a *mappedAxis) action(value int32) control.Action {
 	key, travel, span := a.binding.Positive, int64(value)-a.rest, a.max-a.rest
 	if int64(value) < a.rest {
 		key, travel, span = a.binding.Negative, a.rest-int64(value), a.rest-a.min
@@ -63,7 +65,7 @@ func (d *device) configure(config Config) {
 	d.legend = d.labels(keyCapabilities(d.fd))
 }
 
-func (d *device) mappedAction(e event) string {
+func (d *device) mappedAction(e event) control.Action {
 	if e.Type == 1 {
 		if e.Value != 1 {
 			return ""

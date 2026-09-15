@@ -23,7 +23,7 @@ func TestRunBorrowsInputAndOutput(t *testing.T) {
 			var want string
 			switch mode {
 			case "quit":
-				keys <- control.Event{Action: "quit", Labels: control.KeyboardLabels()}
+				keys <- control.Event{Action: control.Quit, Labels: control.KeyboardLabels()}
 			case "closed":
 				close(keys)
 				want = "input closed"
@@ -48,7 +48,7 @@ func TestRunBorrowsInputAndOutput(t *testing.T) {
 			}
 			if mode == "quit" {
 				// Run must neither close nor retain ownership of the caller's channel.
-				keys <- control.Event{Action: "quit"}
+				keys <- control.Event{Action: control.Quit}
 				close(keys)
 			}
 		})

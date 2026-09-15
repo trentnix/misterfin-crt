@@ -27,7 +27,7 @@ type event struct {
 type device struct {
 	fd       int
 	name     string
-	held     map[uint16]string
+	held     map[uint16]control.Action
 	triggers map[uint16]*triggerAxis
 	bindings Profile
 	axes     map[uint16]*mappedAxis
@@ -37,7 +37,7 @@ type device struct {
 
 // action ignores MiSTer's synthetic action keys. Its arrow echoes are needed
 // by pads whose directional input is available only through that virtual node.
-func action(name string, kind, code uint16, value int32) string {
+func action(name string, kind, code uint16, value int32) control.Action {
 	virtual := name == "MiSTer virtual input"
 	if kind == 3 {
 		if virtual {
@@ -46,17 +46,17 @@ func action(name string, kind, code uint16, value int32) string {
 		switch code {
 		case 16:
 			if value < 0 {
-				return "previous"
+				return control.Previous
 			}
 			if value > 0 {
-				return "next"
+				return control.Next
 			}
 		case 17:
 			if value < 0 {
-				return "up"
+				return control.Up
 			}
 			if value > 0 {
-				return "down"
+				return control.Down
 			}
 		}
 		return ""
@@ -76,38 +76,38 @@ func action(name string, kind, code uint16, value int32) string {
 	}
 	switch code {
 	case 103:
-		return "up"
+		return control.Up
 	case 108:
-		return "down"
+		return control.Down
 	case 105:
-		return "previous"
+		return control.Previous
 	case 106:
-		return "next"
+		return control.Next
 	case 310, 104, 26:
-		return "track-previous" // LB, Page Up, [
+		return control.TrackPrevious // LB, Page Up, [
 	case 311, 109, 27:
-		return "track-next" // RB, Page Down, ]
+		return control.TrackNext // RB, Page Down, ]
 	case 312, 36:
-		return "seek-backward" // Digital LT, J
+		return control.SeekBackward // Digital LT, J
 	case 313, 38:
-		return "seek-forward" // Digital RT, L
+		return control.SeekForward // Digital RT, L
 	case 305, 28, 45, 48:
-		return "open" // BTN_EAST, Enter, X, as in C
+		return control.Open // BTN_EAST, Enter, X, as in C
 	case 304, 1, 158, 14, 44, 30:
-		return "back" // BTN_SOUTH, Escape, Back, Backspace, Z
+		return control.Back // BTN_SOUTH, Escape, Back, Backspace, Z
 	case 315, 59:
-		return "about" // BTN_START (Xbox Menu), F1
+		return control.About // BTN_START (Xbox Menu), F1
 	case 314, 15:
-		return "select" // BTN_SELECT (Xbox View/Back), Tab. Y is unmapped.
+		return control.Select // BTN_SELECT (Xbox View/Back), Tab. Y is unmapped.
 	case 19:
-		return "retry"
+		return control.Retry
 	case 16:
-		return "quit" // Q on a physical keyboard
+		return control.Quit // Q on a physical keyboard
 	}
 	return ""
 }
 
-func (d *device) accept(e event) string {
+func (d *device) accept(e event) control.Action {
 	if e.Type != 1 && e.Type != 3 {
 		return ""
 	}
@@ -138,7 +138,7 @@ func (d *device) accept(e event) string {
 // navigation merges physical directions and MiSTer's virtual arrow echoes.
 // One held direction produces one press and one repeat stream across devices.
 type navigation struct {
-	repeats map[string]navigationRepeat
+	repeats map[control.Action]navigationRepeat
 }
 
 // navigationRepeat follows the C client's two-stage hold timing. Scheduling
@@ -155,20 +155,20 @@ const (
 	repeatRampAfter = 6
 )
 
-func (n *navigation) update(held, pressed map[string]bool, now time.Time) []string {
+func (n *navigation) update(held, pressed map[control.Action]bool, now time.Time) []control.Action {
 	if n.repeats == nil {
-		n.repeats = make(map[string]navigationRepeat)
+		n.repeats = make(map[control.Action]navigationRepeat)
 	}
-	var keys []string
-	for _, key := range []string{"up", "down", "previous", "next", "track-previous", "track-next", "seek-backward", "seek-forward"} {
+	var keys []control.Action
+	for _, key := range []control.Action{control.Up, control.Down, control.Previous, control.Next, control.TrackPrevious, control.TrackNext, control.SeekBackward, control.SeekForward} {
 		repeat, active := n.repeats[key]
 		if !active && (held[key] || pressed[key]) {
 			keys = append(keys, key)
 			n.repeats[key] = navigationRepeat{next: now.Add(repeatDelay)}
 		} else if held[key] && !now.Before(repeat.next) {
-			keys = append(keys, key+"-repeat")
+			keys = append(keys, key.Repeat())
 			interval := repeatSlow
-			if key == "seek-backward" || key == "seek-forward" {
+			if key == control.SeekBackward || key == control.SeekForward {
 				interval = 250 * time.Millisecond
 			} else if repeat.count >= repeatRampAfter {
 				interval = repeatFast
@@ -185,8 +185,8 @@ func (n *navigation) update(held, pressed map[string]bool, now time.Time) []stri
 	return keys
 }
 
-func direction(key string) bool {
-	return key == "up" || key == "down" || key == "previous" || key == "next" || key == "track-previous" || key == "track-next" || key == "seek-backward" || key == "seek-forward"
+func direction(key control.Action) bool {
+	return key == control.Up || key == control.Down || key == control.Previous || key == control.Next || key == control.TrackPrevious || key == control.TrackNext || key == control.SeekBackward || key == control.SeekForward
 }
 
 // openDevices adds newly available nodes without grabbing them exclusively.
@@ -210,7 +210,7 @@ func openDevices(devices map[string]*device, config Config, log *diagnostics.Log
 			syscall.Close(fd)
 			continue
 		}
-		devices[path] = &device{fd: fd, name: strings.TrimRight(string(name[:]), "\x00"), held: make(map[uint16]string), triggers: discoverTriggers(fd)}
+		devices[path] = &device{fd: fd, name: strings.TrimRight(string(name[:]), "\x00"), held: make(map[uint16]control.Action), triggers: discoverTriggers(fd)}
 		devices[path].configure(config)
 		if log != nil {
 			d := devices[path]
@@ -252,7 +252,7 @@ func Read(ctx context.Context, config Config, log *diagnostics.Log) (<-chan cont
 		var nav navigation
 		scan := time.Now().Add(2 * time.Second)
 		var active control.Labels
-		send := func(key string) bool {
+		send := func(key control.Action) bool {
 			if key == "" {
 				return true
 			}
@@ -272,7 +272,7 @@ func Read(ctx context.Context, config Config, log *diagnostics.Log) (<-chan cont
 					openDevices(devices, config, nil)
 					scan = now.Add(2 * time.Second)
 				}
-				pressed := make(map[string]bool)
+				pressed := make(map[control.Action]bool)
 				for path, d := range devices {
 					for {
 						var e event
@@ -299,7 +299,7 @@ func Read(ctx context.Context, config Config, log *diagnostics.Log) (<-chan cont
 						}
 					}
 				}
-				held := make(map[string]bool)
+				held := make(map[control.Action]bool)
 				for _, d := range devices {
 					for _, key := range d.held {
 						held[key] = true

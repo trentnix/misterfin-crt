@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/release"
 )
 
@@ -64,16 +65,16 @@ func (r updateResult) apply(s *browserSession) bool {
 
 // handleAboutKey isolates page controls from navigation and playback. Returning
 // to the preceding screen preserves its selection, notices, and pending work.
-func (s *browserSession) handleAboutKey(key string) bool {
+func (s *browserSession) handleAboutKey(key control.Action) bool {
 	switch key {
-	case "about", "back":
+	case control.About, control.Back:
 		s.about.Visible = false
 		s.about.UpdateNoticeUntil = time.Time{}
-	case "open":
+	case control.Open:
 		if s.about.Release.Available && !s.about.Checking {
 			s.about.UpdateNoticeUntil = time.Now().Add(2 * time.Second)
 		}
-	case "select", "retry":
+	case control.Select, control.Retry:
 		s.checkUpdate()
 	}
 	return true

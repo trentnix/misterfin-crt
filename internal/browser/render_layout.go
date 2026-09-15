@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/musicviz"
 	"misterfin-crt/internal/ui"
 )
@@ -113,7 +114,7 @@ func (p *screenPainter) footer(controls [][]controlHint) {
 		c.Text(24+(messageWidth-textWidth(message, 1))/2, messageY, message, 0xff6060, w-24)
 	}
 	if s.ExitConfirm {
-		rows := controlRows(w, []controlHint{hint(s.Controls, "open", "Exit"), hint(s.Controls, "back", "Cancel")})
+		rows := controlRows(w, []controlHint{hint(s.Controls, control.Open, "Exit"), hint(s.Controls, control.Back, "Cancel")})
 		height := 28 + max(1, len(rows))*controlRowHeight
 		top := (h - height) / 2
 		c.Rect(12, top, w-24, height, 0x101010)

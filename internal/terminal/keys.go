@@ -1,18 +1,26 @@
 package terminal
 
-import "time"
+import (
+	"time"
 
+	"misterfin-crt/internal/input/control"
+)
+
+// Decoder translates terminal byte sequences into semantic input actions.
+// One input reader owns its pending escape sequence and timing state.
 type Decoder struct {
 	pending []byte
 	last    time.Time
 }
 
-func (d *Decoder) Feed(b []byte, now time.Time) []string {
+// Feed accepts another fragment and returns completed actions. Empty input
+// resolves a pending Escape after 50 milliseconds. Release events emit no action.
+func (d *Decoder) Feed(b []byte, now time.Time) []control.Action {
 	if len(b) > 0 {
 		d.pending = append(d.pending, b...)
 		d.last = now
 	}
-	var keys []string
+	var keys []control.Action
 	for len(d.pending) > 0 {
 		c := d.pending[0]
 		if c == 27 {
@@ -20,7 +28,7 @@ func (d *Decoder) Feed(b []byte, now time.Time) []string {
 				if now.Sub(d.last) < 50*time.Millisecond {
 					break
 				}
-				keys = append(keys, "back")
+				keys = append(keys, control.Back)
 				d.pending = d.pending[1:]
 				continue
 			}
@@ -44,7 +52,7 @@ func (d *Decoder) Feed(b []byte, now time.Time) []string {
 				d.pending = d.pending[end+1:]
 				continue
 			}
-			keys = append(keys, "back")
+			keys = append(keys, control.Back)
 			d.pending = d.pending[1:]
 			continue
 		}

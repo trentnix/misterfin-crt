@@ -1,8 +1,7 @@
 package browser
 
 import (
-	"strings"
-
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/sound"
 )
@@ -33,7 +32,7 @@ func (s *browserSession) navigationState() navigationState {
 
 // handleKey adds semantic audio feedback around input dispatch. Browsing actions
 // sound only when selection or screen state changes. Playback controls stay silent.
-func (s *browserSession) handleKey(key string) bool {
+func (s *browserSession) handleKey(key control.Action) bool {
 	if s.feedback == nil {
 		return s.dispatchKey(key)
 	}
@@ -43,11 +42,11 @@ func (s *browserSession) handleKey(key string) bool {
 	if before == after || before.media || after.media || s.model.Quit {
 		return redraw
 	}
-	action := strings.TrimSuffix(key, "-repeat")
+	action := key.Base()
 	switch action {
-	case "open", "back", "select", "about":
+	case control.Open, control.Back, control.Select, control.About:
 		s.feedback.Play(sound.Confirm)
-	case "up", "down", "previous", "next", "track-previous", "track-next":
+	case control.Up, control.Down, control.Previous, control.Next, control.TrackPrevious, control.TrackNext:
 		if before.depth == after.depth && before.location == after.location && before.selected != after.selected {
 			s.feedback.Play(sound.Navigate)
 		}

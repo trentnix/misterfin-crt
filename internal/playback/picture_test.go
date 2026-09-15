@@ -169,7 +169,7 @@ func TestNativePictureRequestStaysInCurrentSession(t *testing.T) {
 				t.Fatal("no position")
 			}
 			for n, mode := range []PictureMode{PictureZoom43, PictureOriginal, PictureZoom43} {
-				controls <- Control{Kind: "picture", Picture: mode, Request: n + 1}
+				controls <- Control{Kind: SetPicture, Picture: mode, Request: n + 1}
 				select {
 				case r := <-pictures:
 					if r.Request != n+1 || r.Mode != mode || r.Err != nil {
@@ -185,7 +185,7 @@ func TestNativePictureRequestStaysInCurrentSession(t *testing.T) {
 			if streams.Load() != 1 {
 				t.Fatal("picture change reopened media")
 			}
-			controls <- Control{Kind: "picture", Picture: PictureMode(99), Request: 99}
+			controls <- Control{Kind: SetPicture, Picture: PictureMode(99), Request: 99}
 			select {
 			case result := <-pictures:
 				if result.Err == nil {

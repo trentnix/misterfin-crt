@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/subtitles"
@@ -18,9 +19,9 @@ func trackFixture(t *testing.T) *controllerFixture {
 func TestTextSubtitleSelectionDoesNotRestartVideo(t *testing.T) {
 	f := trackFixture(t)
 	c := f.c
-	c.Key("select", f.now)
-	c.Key("down", f.now)
-	c.Key("open", f.now)
+	c.Key(control.Select, f.now)
+	c.Key(control.Down, f.now)
+	c.Key(control.Open, f.now)
 	command := <-f.calls[0].controls
 	if command.Kind != "subtitle" || command.Index != 12 || len(f.calls) != 1 {
 		t.Fatal("text subtitle restarted video or used row index")
@@ -44,11 +45,11 @@ func TestAudioSelectionPreservesPauseOffsetAndFutureSeeks(t *testing.T) {
 		f := trackFixture(t)
 		c := f.c
 		c.state.Paused = paused
-		c.Key("select", f.now)
-		c.Key("next", f.now)
-		c.Key("down", f.now)
-		c.Key("down", f.now)
-		c.Key("open", f.now)
+		c.Key(control.Select, f.now)
+		c.Key(control.Next, f.now)
+		c.Key(control.Down, f.now)
+		c.Key(control.Down, f.now)
+		c.Key(control.Open, f.now)
 		if c.Snapshot(f.now).WaitLabel != "Loading..." {
 			t.Fatal("track change was labeled as a seek")
 		}
@@ -70,7 +71,7 @@ func TestAudioSelectionPreservesPauseOffsetAndFutureSeeks(t *testing.T) {
 		if paused {
 			expectCommand(t, f.calls[1].controls, "pause")
 		}
-		c.Key("seek-forward", f.now)
+		c.Key(control.SeekForward, f.now)
 		c.Tick(f.now.Add(time.Second))
 		if f.calls[2].tracks.Selection.AudioIndex != 8 {
 			t.Fatal("seeking lost selected audio")
@@ -81,14 +82,14 @@ func TestImageSubtitleAndCompanionTextRestartStream(t *testing.T) {
 	for _, soft := range []bool{true, false} {
 		f := trackFixture(t)
 		f.c.tracks.ClientSubtitles = soft
-		f.c.Key("select", f.now)
-		f.c.Key("down", f.now)
+		f.c.Key(control.Select, f.now)
+		f.c.Key(control.Down, f.now)
 		want := 12
 		if soft {
-			f.c.Key("down", f.now)
+			f.c.Key(control.Down, f.now)
 			want = 20
 		}
-		f.c.Key("open", f.now)
+		f.c.Key(control.Open, f.now)
 		if len(f.calls) != 2 || f.calls[1].tracks.Selection.SubtitleIndex != want {
 			t.Fatal("subtitle burn-in did not request replacement")
 		}
@@ -96,38 +97,38 @@ func TestImageSubtitleAndCompanionTextRestartStream(t *testing.T) {
 }
 func TestPickerBackAndLiveTV(t *testing.T) {
 	f := trackFixture(t)
-	f.c.Key("select", f.now)
-	f.c.Key("back", f.now)
+	f.c.Key(control.Select, f.now)
+	f.c.Key(control.Back, f.now)
 	if !f.c.running || f.calls[0].canceled || f.c.picker.visible {
 		t.Fatal("closing picker stopped playback")
 	}
 	f.c.item.Type = "TvChannel"
-	f.c.Key("select", f.now)
+	f.c.Key(control.Select, f.now)
 	if !f.c.picker.visible || !f.c.Snapshot(f.now).TracksAvailable {
 		t.Fatal("Live TV did not expose its View menu")
 	}
 	for tab := 0; tab < 2; tab++ {
-		f.c.Key("down", f.now)
+		f.c.Key(control.Down, f.now)
 		p := f.c.Snapshot(f.now)
 		if p.Tracks == nil || len(p.Tracks.Rows) != 1-tab || p.Tracks.Message == "" {
 			t.Fatal("unavailable Live TV tracks lacked an explanation")
 		}
-		f.c.Key("open", f.now)
+		f.c.Key(control.Open, f.now)
 		if len(f.calls) != 1 || len(f.c.controls) != 0 {
 			t.Fatal("unavailable Live TV tracks changed playback")
 		}
 		if tab == 0 {
-			f.c.Key("select", f.now)
+			f.c.Key(control.Select, f.now)
 		} // Off dismissed the picker.
-		f.c.Key("next", f.now)
+		f.c.Key(control.Next, f.now)
 	}
 	// FFplay cannot change picture mode in place. Live TV must not fall back
 	// to a recorded-video seek or restart the tuner to change its geometry.
-	f.c.Key("down", f.now)
+	f.c.Key(control.Down, f.now)
 	if rows := f.c.trackRows(2); len(rows) != 1 || rows[0].Index != int(playback.PictureOriginal) {
 		t.Fatal("decoder without live picture commands advertised zoom")
 	}
-	f.c.Key("open", f.now)
+	f.c.Key(control.Open, f.now)
 	if len(f.calls) != 1 || f.calls[0].canceled {
 		t.Fatal("unsupported picture change retuned the channel")
 	}
@@ -136,10 +137,10 @@ func TestPickerBackAndLiveTV(t *testing.T) {
 func TestFailedAudioChangeKeepsOriginalSelection(t *testing.T) {
 	f := trackFixture(t)
 	c := f.c
-	c.Key("select", f.now)
-	c.Key("next", f.now)
-	c.Key("down", f.now)
-	c.Key("open", f.now)
+	c.Key(control.Select, f.now)
+	c.Key(control.Next, f.now)
+	c.Key(control.Down, f.now)
+	c.Key(control.Open, f.now)
 	expectCommand(t, f.calls[0].controls, "pause")
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2, Err: errors.New("cannot prepare")}, f.now)
 	expectCommand(t, f.calls[0].controls, "pause")
@@ -159,8 +160,8 @@ func TestSubtitleDelayAndPause(t *testing.T) {
 	if c.Snapshot(f.now.Add(time.Second)).Subtitle != "Hello" {
 		t.Fatal("paused subtitle advanced")
 	}
-	c.Key("select", f.now)
-	c.Key("seek-forward", f.now)
+	c.Key(control.Select, f.now)
+	c.Key(control.SeekForward, f.now)
 	if c.subtitleDelay != 100*time.Millisecond || c.state.SeekTarget != nil {
 		t.Fatal("subtitle timing control sought video")
 	}
@@ -173,21 +174,21 @@ func TestSessionDirectionsNavigateOnlyWhilePickerOpen(t *testing.T) {
 	s := testSession(t)
 	f := trackFixture(t)
 	s.controller = f.c
-	s.handleKey("select")
-	s.handleKey("down")
+	s.handleKey(control.Select)
+	s.handleKey(control.Down)
 	s.handleKey("down-repeat")
 	if !f.c.picker.visible || f.c.picker.selected[0] != 2 {
 		t.Fatal("picker directions toggled controls instead of moving")
 	}
-	s.handleKey("next")
+	s.handleKey(control.Next)
 	if f.c.picker.tab != 1 {
 		t.Fatal("Right did not select audio tab")
 	}
-	s.handleKey("back")
+	s.handleKey(control.Back)
 	if !f.c.running || f.c.picker.visible {
 		t.Fatal("Back stopped instead of closing picker")
 	}
-	s.handleKey("up")
+	s.handleKey(control.Up)
 	if !f.c.state.ControlsVisible(time.Now()) {
 		t.Fatal("normal directional menu toggle did not return")
 	}
@@ -196,12 +197,12 @@ func TestSessionDirectionsNavigateOnlyWhilePickerOpen(t *testing.T) {
 func TestOffCancelsPendingSubtitleAndRejectsQueuedReply(t *testing.T) {
 	f := trackFixture(t)
 	c := f.c
-	c.Key("select", f.now)
-	c.Key("down", f.now)
-	c.Key("open", f.now)
+	c.Key(control.Select, f.now)
+	c.Key(control.Down, f.now)
+	c.Key(control.Open, f.now)
 	first := <-c.controls
-	c.Key("up", f.now)
-	c.Key("open", f.now)
+	c.Key(control.Up, f.now)
+	c.Key(control.Open, f.now)
 	second := <-c.controls
 	if second.Index != -1 || second.Request <= first.Request {
 		t.Fatal("Off did not cancel pending text")
@@ -220,7 +221,7 @@ func TestOffCancelsPendingSubtitleAndRejectsQueuedReply(t *testing.T) {
 func TestViewNavigationAndBackDoNotRevealPlaybackControls(t *testing.T) {
 	for _, paused := range []bool{false, true} {
 		for _, visible := range []bool{false, true} {
-			for _, closeKey := range []string{"back", "select"} {
+			for _, closeKey := range []control.Action{"back", "select"} {
 				for tab := 0; tab < 3; tab++ {
 					f := trackFixture(t)
 					c := f.c
@@ -228,12 +229,12 @@ func TestViewNavigationAndBackDoNotRevealPlaybackControls(t *testing.T) {
 					if visible {
 						c.state.RevealControls(f.now)
 					}
-					c.Key("select", f.now)
+					c.Key(control.Select, f.now)
 					for n := 0; n < tab; n++ {
-						c.Key("next", f.now)
+						c.Key(control.Next, f.now)
 					}
-					c.Key("down", f.now)
-					c.Key("up", f.now)
+					c.Key(control.Down, f.now)
+					c.Key(control.Up, f.now)
 					if c.Snapshot(f.now).ControlsVisible {
 						t.Fatal("View navigation activated playback controls")
 					}
@@ -252,13 +253,13 @@ func TestSubtitleCompletionAfterBackLeavesControlsAlone(t *testing.T) {
 	for _, reopen := range []bool{false, true} {
 		f := trackFixture(t)
 		c := f.c
-		c.Key("select", f.now)
-		c.Key("down", f.now)
-		c.Key("open", f.now)
+		c.Key(control.Select, f.now)
+		c.Key(control.Down, f.now)
+		c.Key(control.Open, f.now)
 		request := <-c.controls
-		c.Key("back", f.now)
+		c.Key(control.Back, f.now)
 		if reopen {
-			c.Key("controls", f.now)
+			c.Key(control.ToggleControls, f.now)
 		}
 		c.Handle(PlaybackEvent{Kind: PlaybackSubtitle, ID: 1, Subtitle: playback.SubtitleResult{Request: request.Request, Index: 12}}, f.now)
 		if p := c.Snapshot(f.now); p.Tracks != nil || p.ControlsVisible != reopen {
@@ -272,10 +273,10 @@ func TestPictureMenuOffersZoomForEveryRecordedAspect(t *testing.T) {
 		t.Run(aspect, func(t *testing.T) {
 			f := trackFixture(t)
 			f.c.tracks.Streams = []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 480, AspectRatio: aspect}}
-			f.c.Key("select", f.now)
-			f.c.Key("next", f.now)
-			f.c.Key("next", f.now)
-			f.c.Key("down", f.now)
+			f.c.Key(control.Select, f.now)
+			f.c.Key(control.Next, f.now)
+			f.c.Key(control.Next, f.now)
+			f.c.Key(control.Down, f.now)
 			menu := f.c.Snapshot(f.now).Tracks
 			if menu == nil || menu.Tab != 2 || len(menu.Rows) != 2 || menu.Selected != 1 ||
 				!menu.Rows[0].Active || menu.Rows[1].Index != int(playback.PictureZoom43) {
@@ -290,10 +291,10 @@ func TestPictureMenuOffersZoomForEveryRecordedAspect(t *testing.T) {
 
 func TestPictureMenuKeepsZoomWhenSourceMetadataChanges(t *testing.T) {
 	f := trackFixture(t)
-	f.c.Key("select", f.now)
-	f.c.Key("next", f.now)
-	f.c.Key("next", f.now)
-	f.c.Key("down", f.now)
+	f.c.Key(control.Select, f.now)
+	f.c.Key(control.Next, f.now)
+	f.c.Key(control.Next, f.now)
+	f.c.Key(control.Down, f.now)
 	info := f.c.tracks
 	info.Streams = []jellyfin.MediaStream{{Type: "Video", AspectRatio: "4:3"}}
 	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: info}, f.now)

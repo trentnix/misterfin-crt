@@ -1,5 +1,7 @@
 package browser
 
+import "misterfin-crt/internal/input/control"
+
 // photo draws the full-screen image, optional navigation, and image errors.
 func (p *screenPainter) photo() {
 	c := p.canvas
@@ -14,7 +16,7 @@ func (p *screenPainter) photo() {
 	c.Image(art.Photo, 0, 0, w, h)
 	if s.PhotoControlsVisible {
 		c.Shade(0, 0, w, sy+12, 175)
-		rows := controlRows(w, []controlHint{hint(s.Controls, "previous", "Previous"), hint(s.Controls, "next", "Next"), hint(s.Controls, "back", "Back")})
+		rows := controlRows(w, []controlHint{hint(s.Controls, control.Previous, "Previous"), hint(s.Controls, control.Next, "Next"), hint(s.Controls, control.Back, "Back")})
 		top := controlsTop(bottom, rows) - 3
 		c.Shade(0, top, w, h-top, 175)
 		count := s.PhotoCount

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
 )
@@ -84,32 +85,32 @@ func (c *PlaybackController) openTracks() {
 }
 
 // trackKey consumes picker navigation without changing the normal playback map.
-func (c *PlaybackController) trackKey(key string, now time.Time) {
+func (c *PlaybackController) trackKey(key control.Action, now time.Time) {
 	switch key {
-	case "back", "select":
+	case control.Back, control.Select:
 		c.picker.visible = false
 		c.state.HideControls()
-	case "previous":
+	case control.Previous:
 		c.picker.tab = max(0, c.picker.tab-1)
-	case "next":
+	case control.Next:
 		c.picker.tab = min(len(c.picker.selected)-1, c.picker.tab+1)
-	case "up", "down":
+	case control.Up, control.Down:
 		delta := 1
-		if key == "up" {
+		if key == control.Up {
 			delta = -1
 		}
 		c.picker.selected[c.picker.tab] = max(0, min(len(c.trackRows(c.picker.tab))-1, c.picker.selected[c.picker.tab]+delta))
-	case "seek-backward", "seek-forward":
+	case control.SeekBackward, control.SeekForward:
 		// While choosing subtitles, triggers adjust text timing rather than seeking.
 		sub, ok := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
 		if c.picker.tab == 0 && ok && sub.TextSubtitle() && c.tracks.ClientSubtitles {
 			delta := 100 * time.Millisecond
-			if key == "seek-backward" {
+			if key == control.SeekBackward {
 				delta = -delta
 			}
 			c.subtitleDelay = max(-10*time.Second, min(10*time.Second, c.subtitleDelay+delta))
 		}
-	case "open":
+	case control.Open:
 		c.applyTrack(now)
 	}
 }
@@ -159,7 +160,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 		if c.tracks.ClientSubtitles && (!oldOK || old.TextSubtitle()) && (index < 0 || subOK && sub.TextSubtitle()) {
 			request := c.subtitleRequest + 1
 			select {
-			case c.controls <- playback.Control{Kind: "subtitle", Index: index, Request: request}:
+			case c.controls <- playback.Control{Kind: playback.SelectSubtitle, Index: index, Request: request}:
 				c.subtitleRequest = request
 				c.subtitleLoading = true
 				c.notice = "Loading subtitles..."
@@ -196,7 +197,7 @@ func (c *PlaybackController) applyPicture(mode playback.PictureMode) {
 	}
 	request := c.pictureRequest + 1
 	select {
-	case c.controls <- playback.Control{Kind: "picture", Picture: mode, Request: request}:
+	case c.controls <- playback.Control{Kind: playback.SetPicture, Picture: mode, Request: request}:
 		c.pictureRequest = request
 		c.picturePending = true
 		c.trackOptions.Picture = mode

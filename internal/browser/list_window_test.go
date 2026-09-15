@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/ui"
 )
@@ -46,7 +47,7 @@ func TestContinuousListAcrossPagesAndEnds(t *testing.T) {
 					t.Fatal("unbounded metadata retention")
 				}
 			}
-			move := func(key string, index int) {
+			move := func(key control.Action, index int) {
 				t.Helper()
 				if r := m.Key(key); r != nil {
 					t.Fatalf("prefetched boundary blocked at %d", index)
@@ -76,21 +77,21 @@ func TestSlowPrefetchPreservesRowsAndCanReverse(t *testing.T) {
 	m := windowModel(200, 6)
 	v := m.Current()
 	for i := 0; i < 40; i++ {
-		m.Key("down")
+		m.Key(control.Down)
 	}
 	r := m.Prefetch()
 	if r == nil || r.Start != 64 {
 		t.Fatal("missing early prefetch")
 	}
 	for i := 40; i < 64; i++ {
-		if next := m.Key("down"); next != nil {
+		if next := m.Key(control.Down); next != nil {
 			t.Fatal("duplicated pending request")
 		}
 	}
 	if !v.Loading || v.Item().ID != "63" || len(v.Page.Items) != 64 || v.Selected-v.Scroll != 3 {
 		t.Fatal("slow page cleared current rows")
 	}
-	m.Key("up")
+	m.Key(control.Up)
 	if v.Loading || v.Item().ID != "62" {
 		t.Fatal("cannot reverse while page is pending")
 	}
@@ -109,12 +110,12 @@ func TestPrefetchFailureAndCancellation(t *testing.T) {
 	if v.Error != "" || m.Prefetch() != nil {
 		t.Fatal("background failure interrupted browsing or retried in a loop")
 	}
-	r = m.Key("down")
+	r = m.Key(control.Down)
 	m.Apply(*r, jellyfin.Page{}, errors.New("offline"))
 	if !v.prefetchFailed || v.Error == "" || v.Item().ID != "63" {
 		t.Fatal("foreground failure lost rows or error")
 	}
-	r = m.Key("retry")
+	r = m.Key(control.Retry)
 	m.Apply(*r, windowPage(64, 200), nil)
 	if v.Item().ID != "64" {
 		t.Fatal("retry lost target")
@@ -124,7 +125,7 @@ func TestPrefetchFailureAndCancellation(t *testing.T) {
 	if r == nil {
 		t.Fatal("missing prefetch")
 	}
-	m.Key("open")
+	m.Key(control.Open)
 	if m.Apply(*r, windowPage(r.Start, 200), nil) {
 		t.Fatal("prefetch replaced another screen")
 	}
@@ -136,7 +137,7 @@ func TestUnknownTotalFindsEndWithoutDiscardingRows(t *testing.T) {
 	v.Page.TotalRecordCount = nil
 	v.Selected = 63
 	r := m.Prefetch()
-	m.Key("down")
+	m.Key(control.Down)
 	m.Apply(*r, jellyfin.Page{}, nil)
 	if v.More() || v.Loading || v.Error != "" || v.Item().ID != "63" {
 		t.Fatal("empty final page lost rows or kept requesting")

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/diagnostics"
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/musicviz"
 	"misterfin-crt/internal/settings"
-
-	"misterfin-crt/internal/diagnostics"
 )
 
 func TestMissingMusicAssetIsLoggedBeforeNotice(t *testing.T) {
@@ -91,7 +91,7 @@ func TestMusicFallbacksPreservePlayback(t *testing.T) {
 			if !s.controller.running {
 				t.Fatal("background failure stopped playback")
 			}
-			s.controller.Key("open", time.Now())
+			s.controller.Key(control.Open, time.Now())
 			expectCommand(t, s.controller.controls, "pause")
 			if err := log.Close(); err != nil {
 				t.Fatal(err)

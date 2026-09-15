@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -55,14 +56,14 @@ func TestSetupRetryDoesNotRestartAnActiveConnection(t *testing.T) {
 	s.controller.running = false
 	t.Cleanup(s.connection.close)
 	s.setup = SetupPresentation{Kind: SetupConnecting}
-	for _, key := range []string{"open", "retry", "open-repeat"} {
+	for _, key := range []control.Action{"open", "retry", "open-repeat"} {
 		s.dispatchKey(key)
 		if s.connection.generation != 0 {
 			t.Fatal("input restarted an active attempt")
 		}
 	}
 	s.setup = SetupPresentation{Kind: SetupCodeExpired}
-	s.dispatchKey("open")
+	s.dispatchKey(control.Open)
 	if s.connection.generation != 1 || s.setup.Kind != SetupConnecting || s.setup.Code != "" {
 		t.Fatal("new-code action did not replace expired code")
 	}
@@ -74,7 +75,7 @@ func TestSetupRetryDoesNotRestartAnActiveConnection(t *testing.T) {
 	if s.setup.Kind != SetupConnecting {
 		t.Fatal("old failure replaced current attempt")
 	}
-	s.dispatchKey("back")
+	s.dispatchKey(control.Back)
 	if !s.model.Quit {
 		t.Fatal("exit was not available while connecting")
 	}
@@ -158,7 +159,7 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 		if attempt == 1 {
 			s.authenticate()
 		} else {
-			s.dispatchKey("open")
+			s.dispatchKey(control.Open)
 		}
 		deadline := time.After(time.Second)
 		for s.setup.Kind != SetupQuickConnect {

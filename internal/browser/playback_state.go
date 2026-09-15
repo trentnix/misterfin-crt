@@ -3,6 +3,7 @@ package browser
 import (
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -52,7 +53,7 @@ func (m *playbackState) HideControls() {
 
 // seekVideo accumulates seek actions against the pending destination. It only
 // updates UI intent. The controller starts the request after the deadline.
-func (m *playbackState) seekVideo(item *jellyfin.Item, key string, now time.Time) {
+func (m *playbackState) seekVideo(item *jellyfin.Item, key control.Action, now time.Time) {
 	if !m.PlayingVideo || !m.ProgressSeen || item == nil || jellyfin.IsLive(*item) {
 		return
 	}
@@ -65,7 +66,7 @@ func (m *playbackState) seekVideo(item *jellyfin.Item, key string, now time.Time
 		target = *m.SeekTarget
 	}
 	step := int64(30 * 10000000)
-	if key == "seek-backward" {
+	if key == control.SeekBackward {
 		step = -step
 	}
 	target = max(int64(0), target+step)

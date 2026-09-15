@@ -2,6 +2,7 @@ package browser
 
 import (
 	"misterfin-crt/internal/branding"
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/ui"
 )
 
@@ -9,12 +10,12 @@ import (
 // Controls use the same binding labels and safe margins as browsing screens.
 func (p *screenPainter) about() {
 	a := p.scene.About
-	hints := []controlHint{hint(p.scene.Controls, "back", "Back")}
+	hints := []controlHint{hint(p.scene.Controls, control.Back, "Back")}
 	if a.Release.Available && !a.Checking {
-		hints = append(hints, hint(p.scene.Controls, "open", "Update"))
+		hints = append(hints, hint(p.scene.Controls, control.Open, "Update"))
 	}
 	if !a.Checking {
-		hints = append(hints, hint(p.scene.Controls, "select", "Check updates"))
+		hints = append(hints, hint(p.scene.Controls, control.Select, "Check updates"))
 	}
 	rows := controlRows(p.width, hints)
 	statusY := controlsTop(p.bottom, rows) - 18

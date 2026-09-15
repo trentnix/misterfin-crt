@@ -3,6 +3,8 @@ package browser
 import (
 	"image"
 	"strings"
+
+	"misterfin-crt/internal/input/control"
 )
 
 // music draws the current track, elapsed time, and optional controls.
@@ -17,11 +19,11 @@ func (p *screenPainter) music() {
 
 	actions := playbackHints(s.Controls, s.Playback.Paused)
 	if s.Music != nil {
-		actions = append(actions, hint(s.Controls, "select", "Background"))
+		actions = append(actions, hint(s.Controls, control.Select, "Background"))
 	}
 	rows := controlRows(w, []controlHint{
-		hint(s.Controls, "track-previous", "Previous"), hint(s.Controls, "track-next", "Next"),
-		hint(s.Controls, "seek-backward", "-10s"), hint(s.Controls, "seek-forward", "+10s"),
+		hint(s.Controls, control.TrackPrevious, "Previous"), hint(s.Controls, control.TrackNext, "Next"),
+		hint(s.Controls, control.SeekBackward, "-10s"), hint(s.Controls, control.SeekForward, "+10s"),
 	}, actions)
 	menuTop := bottom - max(0, len(rows)-1)*controlRowHeight - 6
 	progressY := menuTop - 12

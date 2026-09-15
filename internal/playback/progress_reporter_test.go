@@ -151,7 +151,7 @@ done
 	}()
 	awaitReportSignal(t, started)
 	for _, want := range []bool{true, false} {
-		controls <- Control{Kind: "pause"}
+		controls <- Control{Kind: TogglePause}
 		select {
 		case got := <-paused:
 			if got != want {

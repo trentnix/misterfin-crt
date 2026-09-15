@@ -5,20 +5,21 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/playback"
 )
 
 func selectPicture(c *PlaybackController, now time.Time, mode playback.PictureMode) {
-	c.Key("select", now)
+	c.Key(control.Select, now)
 	// Use navigation rather than mutating the picker so tab routing is covered.
-	c.Key("next", now)
-	c.Key("next", now)
+	c.Key(control.Next, now)
+	c.Key(control.Next, now)
 	if mode == playback.PictureZoom43 {
-		c.Key("down", now)
+		c.Key(control.Down, now)
 	} else {
-		c.Key("up", now)
+		c.Key(control.Up, now)
 	}
-	c.Key("open", now)
+	c.Key(control.Open, now)
 }
 
 func TestPictureChangePreservesPositionPauseTracksAndSeeks(t *testing.T) {
@@ -53,7 +54,7 @@ func TestPictureChangePreservesPositionPauseTracksAndSeeks(t *testing.T) {
 		if c.picker.visible || c.state.ControlsVisible(f.now) {
 			t.Fatal("picture handoff left a menu visible")
 		}
-		c.Key("seek-forward", f.now)
+		c.Key(control.SeekForward, f.now)
 		c.Tick(f.now.Add(time.Second))
 		if f.calls[2].tracks.Picture != playback.PictureZoom43 {
 			t.Fatal("seek lost picture mode")
@@ -104,8 +105,8 @@ func TestLivePictureChangesDismissMenuAndKeepFrameAndDecoder(t *testing.T) {
 				t.Fatal("picture change restarted or hid menu")
 			}
 			// Return to Original before the first acknowledgment arrives.
-			c.Key("up", f.now)
-			c.Key("open", f.now)
+			c.Key(control.Up, f.now)
+			c.Key(control.Open, f.now)
 			second := <-c.controls
 			if second.Picture != playback.PictureOriginal || second.Request <= first.Request {
 				t.Fatal("cannot retarget live picture change")
@@ -118,20 +119,20 @@ func TestLivePictureChangesDismissMenuAndKeepFrameAndDecoder(t *testing.T) {
 			if c.picturePending || c.picker.visible || c.state.ControlsVisible(f.now) || c.state.Paused != paused || c.state.PositionTicks != before || len(f.calls) != 1 {
 				t.Fatal("picture command changed playback or menu")
 			}
-			c.Key("select", f.now)
-			c.Key("down", f.now)
-			c.Key("open", f.now)
+			c.Key(control.Select, f.now)
+			c.Key(control.Down, f.now)
+			c.Key(control.Open, f.now)
 			third := <-c.controls
 			c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: third.Request, Mode: playback.PictureZoom43}}, f.now)
 			if !c.trackRows(2)[1].Active {
 				t.Fatal("successful zoom not active")
 			}
-			c.Key("select", f.now)
-			c.Key("open", f.now) // Applying the active choice also dismisses the picker.
+			c.Key(control.Select, f.now)
+			c.Key(control.Open, f.now) // Applying the active choice also dismisses the picker.
 			if c.picker.visible || len(c.controls) != 0 {
 				t.Fatal("reselecting live Zoom left the picker open or sent another command")
 			}
-			c.Key("seek-forward", f.now)
+			c.Key(control.SeekForward, f.now)
 			c.Tick(f.now.Add(time.Second))
 			if kind == "TvChannel" {
 				if len(f.calls) != 1 || c.state.SeekTarget != nil {

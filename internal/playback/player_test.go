@@ -389,22 +389,22 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 		if value {
 			paused = true
 			seekStage = 1
-			controls <- Control{Kind: "seek", Seconds: 10}
+			controls <- Control{Kind: SeekAudioStep, Seconds: 10}
 		} else {
 			resumed = true
 		}
 	}, Position: func(ticks int64) {
 		if first {
 			first = false
-			controls <- Control{Kind: "pause"}
+			controls <- Control{Kind: TogglePause}
 		}
 		if paused && !resumed {
 			if seekStage == 1 && ticks >= 10*10000000 {
 				seekStage = 2
-				controls <- Control{Kind: "seek", Seconds: -10}
+				controls <- Control{Kind: SeekAudioStep, Seconds: -10}
 			} else if seekStage == 2 && ticks < 2*10000000 {
 				seekStage = 3
-				controls <- Control{Kind: "pause"}
+				controls <- Control{Kind: TogglePause}
 			}
 		}
 		if resumed && ticks >= 10000000 {

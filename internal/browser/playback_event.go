@@ -155,7 +155,7 @@ func (c *PlaybackController) updatePosition(ticks int64, now time.Time) {
 	}
 	c.state.ProgressSeen = true
 	c.state.PositionTicks = ticks
-	if c.pauseOnFirstPosition && c.sendCommand("pause") {
+	if c.pauseOnFirstPosition && c.sendCommand(playback.TogglePause) {
 		c.pauseOnFirstPosition = false
 	}
 }

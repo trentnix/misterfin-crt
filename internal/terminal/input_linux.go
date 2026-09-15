@@ -9,11 +9,13 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"misterfin-crt/internal/input/control"
 )
 
 // Read temporarily disables line buffering and echo. Signal keys keep their
 // normal meaning. The goroutine restores the terminal before closing done.
-func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
+func Read(ctx context.Context) (<-chan control.Action, <-chan struct{}, error) {
 	fd, err := syscall.Open("/dev/tty", syscall.O_RDWR|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
 	if err == syscall.ENXIO {
 		// A Scripts launcher can supply a terminal on stdin without assigning
@@ -41,7 +43,7 @@ func Read(ctx context.Context) (<-chan string, <-chan struct{}, error) {
 	// Unsupported terminals keep their legacy encoding. Write to the owned tty,
 	// since the harness redirects stdout to its log.
 	_, _ = syscall.Write(fd, []byte("\x1b[>3u"))
-	out := make(chan string, 32)
+	out := make(chan control.Action, 32)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

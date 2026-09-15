@@ -23,6 +23,9 @@ func TestLoadConfigPathsAndValidation(t *testing.T) {
 	}{
 		{`{"profiles":[{"match":"*Controller*","buttons":{"307":"select","310":""},"axes":{"2":{"rest":"minimum","positive":"seek-backward"},"0":{"negative":"previous","positive":"next","press":40,"release":20}}}]}`, true},
 		{`{"profiles":[{"match":"*","buttons":{"1":"seek-forwards"}}]}`, false},
+		{`{"profiles":[{"match":"*","buttons":{"1":"controls"}}]}`, false},
+		{`{"profiles":[{"match":"*","axes":{"0":{"positive":"up-repeat"}}}]}`, false},
+		{`{"profiles":[{"match":"*","buttons":{"1":false}}]}`, false},
 		{`{"profiles":[{"match":"["}]}`, false},
 		{`{"profiles":[{"match":""}]}`, false},
 		{`{"profiles":[{"match":"*","butons":{}}]}`, false},

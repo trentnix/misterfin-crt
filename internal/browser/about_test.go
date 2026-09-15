@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/release"
 )
@@ -15,18 +16,18 @@ func TestAboutPreservesBrowseAndIsolatesInput(t *testing.T) {
 	s.controller.running = false
 	s.model.Current().Selected = 3
 	s.model.Notice = "Existing notice"
-	for _, key := range []string{"about", "about-repeat", "next", "open"} {
+	for _, key := range []control.Action{"about", "about-repeat", "next", "open"} {
 		s.handleKey(key)
 	}
 	if !s.about.Visible || s.model.Current().Selected != 3 || s.model.Notice != "Existing notice" {
 		t.Fatal("About leaked input to browser")
 	}
-	s.handleKey("about")
+	s.handleKey(control.About)
 	if s.about.Visible || s.model.Quit || s.model.Notice != "Existing notice" {
 		t.Fatal("toggle did not return intact")
 	}
-	s.handleKey("about")
-	s.handleKey("back")
+	s.handleKey(control.About)
+	s.handleKey(control.Back)
 	if s.about.Visible || s.model.Quit {
 		t.Fatal("Back must close About, not exit")
 	}
@@ -37,7 +38,7 @@ func TestAboutCannotInterruptPlayback(t *testing.T) {
 		s := testSession(t)
 		s.model.Current().Detail = &jellyfin.Item{Type: kind}
 		s.controller.running = kind != "Photo"
-		s.handleKey("about")
+		s.handleKey(control.About)
 		if s.about.Visible {
 			t.Fatalf("About opened over %s", kind)
 		}
@@ -45,7 +46,7 @@ func TestAboutCannotInterruptPlayback(t *testing.T) {
 	s := testSession(t)
 	s.controller.running = false
 	s.media.pending = true
-	s.handleKey("about")
+	s.handleKey(control.About)
 	if s.about.Visible {
 		t.Fatal("About opened during media handoff")
 	}
@@ -55,12 +56,12 @@ func TestAboutUpdateIsOnlyPlaceholder(t *testing.T) {
 	s := testSession(t)
 	s.controller.running = false
 	s.about.Visible = true
-	s.handleKey("open")
+	s.handleKey(control.Open)
 	if !s.about.UpdateNoticeUntil.IsZero() {
 		t.Fatal("update without release")
 	}
 	s.handleResult(updateResult{status: release.Status{Latest: "v1.0.0", Available: true}})
-	s.handleKey("open")
+	s.handleKey(control.Open)
 	if s.about.status(time.Now()) != "Not implemented yet." || !s.about.Visible || s.controller.running {
 		t.Fatal("missing placeholder or unexpected navigation")
 	}
@@ -91,14 +92,14 @@ func TestUpdateCheckIsAsyncAndSurvivesAboutClose(t *testing.T) {
 			return release.Status{}, ctx.Err()
 		}
 	}
-	s.handleKey("about")
+	s.handleKey(control.About)
 	select {
 	case <-entered:
 	case <-time.After(time.Second):
 		t.Fatal("check not started")
 	}
-	s.handleKey("select")
-	s.handleKey("back")
+	s.handleKey(control.Select)
+	s.handleKey(control.Back)
 	if s.about.Visible || !s.about.Checking {
 		t.Fatal("close canceled the release check")
 	}
@@ -125,7 +126,7 @@ func TestAboutUpdateNoticeSurvivesChecksForTwoSeconds(t *testing.T) {
 	s.about.Visible = true
 	s.about.Release = release.Status{Latest: "v1.0.0", Available: true}
 	before := time.Now()
-	s.handleKey("open")
+	s.handleKey(control.Open)
 	deadline := s.about.UpdateNoticeUntil
 	if deadline.Before(before.Add(2*time.Second)) || deadline.After(time.Now().Add(2*time.Second)) {
 		t.Fatal("update notice must last two seconds")
@@ -143,7 +144,7 @@ func TestAboutUpdateNoticeSurvivesChecksForTwoSeconds(t *testing.T) {
 	if got := s.about.status(deadline); got != "No public release available." {
 		t.Fatal(got)
 	}
-	s.handleKey("back")
+	s.handleKey(control.Back)
 	if s.about.Visible || !s.about.UpdateNoticeUntil.IsZero() {
 		t.Fatal("Back must dismiss the page and notice")
 	}

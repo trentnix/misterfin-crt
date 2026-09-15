@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -21,8 +22,8 @@ func TestHomeCardAndListNavigation(t *testing.T) {
 	if len(s.model.Current().Page.Items) != 2 || s.model.Current().Item().ID != "movies" {
 		t.Fatal("home arrival moved library selection")
 	}
-	s.model.Key("previous")
-	req := s.model.Key("open")
+	s.model.Key(control.Previous)
+	req := s.model.Key(control.Open)
 	if req == nil || req.Location.Kind != "continue" || s.model.Current().Title != "Continue Watching" {
 		t.Fatal(req, s.model.Current())
 	}
@@ -30,7 +31,7 @@ func TestHomeCardAndListNavigation(t *testing.T) {
 	if s.model.Current().Loading || *s.model.Current().Page.TotalRecordCount != 1 {
 		t.Fatal(s.model.Current())
 	}
-	if req = s.model.Key("open"); req != nil || s.model.Current().Detail.ID != "episode" {
+	if req = s.model.Key(control.Open); req != nil || s.model.Current().Detail.ID != "episode" {
 		t.Fatal("home episode did not open existing details")
 	}
 	s.model.ReturnToParent()
@@ -93,7 +94,7 @@ func TestHomeInitialCardDoesNotStealNavigation(t *testing.T) {
 			t.Fatal("first carousel frame did not select Continue")
 		}
 		if navigate {
-			s.model.Key("next")
+			s.model.Key(control.Next)
 		}
 		s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
 		want := continueID
@@ -120,7 +121,7 @@ func TestInitialContinueCanOpenWhileLoading(t *testing.T) {
 	s := testSession(t)
 	s.home.loading = true
 	s.model.Current().Page = s.homeLibraries(jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}})
-	req := s.model.Key("open")
+	req := s.model.Key(control.Open)
 	if req == nil || req.Location.Kind != "continue" {
 		t.Fatal("initial placeholder did not open Continue")
 	}
@@ -139,7 +140,7 @@ func TestEmptyInitialContinueRemovesPlaceholder(t *testing.T) {
 		s := testSession(t)
 		s.model.Current().Page = s.homeLibraries(jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}})
 		if navigate {
-			s.model.Key("next")
+			s.model.Key(control.Next)
 		}
 		s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{}}})
 		if len(s.model.Current().Page.Items) != 1 || s.model.Current().Item().ID != "movies" {

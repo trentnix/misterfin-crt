@@ -3,6 +3,7 @@ package browser
 import (
 	"testing"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -17,13 +18,13 @@ func TestLiveCaptionsToggleWithoutRestartAndKeepMenuState(t *testing.T) {
 	if got := c.Snapshot(f.now).Subtitle; got != "" {
 		t.Fatal("captions started enabled")
 	}
-	c.Key("select", f.now)
-	c.Key("down", f.now)
-	c.Key("open", f.now)
+	c.Key(control.Select, f.now)
+	c.Key(control.Down, f.now)
+	c.Key(control.Open, f.now)
 	if got := c.Snapshot(f.now); got.Subtitle != "First line" || got.Tracks != nil || got.ControlsVisible {
 		t.Fatal("enabling captions changed menu or lost current text")
 	}
-	c.Key("select", f.now)
+	c.Key(control.Select, f.now)
 	caption(1, "Second line")
 	if got := c.Snapshot(f.now); got.Subtitle != "Second line" || got.Tracks == nil {
 		t.Fatal("caption update dismissed picker")
@@ -36,8 +37,8 @@ func TestLiveCaptionsToggleWithoutRestartAndKeepMenuState(t *testing.T) {
 	if c.Snapshot(f.now).Subtitle != "" {
 		t.Fatal("caption clear ignored")
 	}
-	c.Key("up", f.now)
-	c.Key("open", f.now)
+	c.Key(control.Up, f.now)
+	c.Key(control.Open, f.now)
 	caption(1, "Hidden")
 	if c.Snapshot(f.now).Subtitle != "" {
 		t.Fatal("Off did not hide later captions")

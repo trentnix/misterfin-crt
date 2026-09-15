@@ -5,6 +5,8 @@ package evdev
 import (
 	"syscall"
 	"unsafe"
+
+	"misterfin-crt/internal/input/control"
 )
 
 // triggerAxis converts an analog trigger into a held action. Separate press
@@ -14,7 +16,7 @@ type triggerAxis struct {
 	pressed  bool
 }
 
-func (a *triggerAxis) action(value int32, key string) string {
+func (a *triggerAxis) action(value int32, key control.Action) control.Action {
 	level := int64(value) - int64(a.min)
 	rangeSize := int64(a.max) - int64(a.min)
 	threshold := int64(25)
@@ -28,12 +30,12 @@ func (a *triggerAxis) action(value int32, key string) string {
 	return ""
 }
 
-func triggerKey(code uint16) string {
+func triggerKey(code uint16) control.Action {
 	switch code {
 	case 2, 10: // ABS_Z, ABS_BRAKE
-		return "seek-backward"
+		return control.SeekBackward
 	case 5, 9: // ABS_RZ, ABS_GAS
-		return "seek-forward"
+		return control.SeekForward
 	}
 	return ""
 }

@@ -3,6 +3,7 @@ package browser
 import (
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
 )
@@ -98,39 +99,39 @@ func (c *PlaybackController) Snapshot(now time.Time) PlaybackPresentation {
 
 // Key receives normalized browser actions. During a seek, retargeting, menu toggling, and
 // stopping are accepted. Music track navigation is handled by the browser.
-func (c *PlaybackController) Key(key string, now time.Time) {
+func (c *PlaybackController) Key(key control.Action, now time.Time) {
 	if c.picker.visible {
 		c.trackKey(key, now)
 		return
 	}
-	if key == "select" && c.hasTracks() && c.seekPhase == seekInactive {
+	if key == control.Select && c.hasTracks() && c.seekPhase == seekInactive {
 		c.openTracks()
 		return
 	}
-	if c.seekPhase != seekInactive && key != "back" && key != "controls" {
-		if key == "seek-backward" || key == "seek-forward" {
+	if c.seekPhase != seekInactive && key != control.Back && key != control.ToggleControls {
+		if key == control.SeekBackward || key == control.SeekForward {
 			c.retargetSeek(key, now)
 		}
 		return
 	}
 	switch key {
-	case "seek-backward", "seek-forward":
+	case control.SeekBackward, control.SeekForward:
 		if c.item.Type == "Audio" {
 			c.seekAudio(key)
 		} else {
 			c.state.seekVideo(&c.item, key, now)
 		}
-	case "back":
+	case control.Back:
 		c.stopByUser()
-	case "open":
+	case control.Open:
 		c.state.HideControls()
 		if c.pauseOnFirstPosition {
 			// The user requested resume before the replacement's first position.
 			c.pauseOnFirstPosition = false
 		} else {
-			c.sendCommand("pause")
+			c.sendCommand(playback.TogglePause)
 		}
-	case "controls":
+	case control.ToggleControls:
 		c.state.ToggleControls(now)
 	}
 }
@@ -155,12 +156,12 @@ func (c *PlaybackController) StopForTrackChange() {
 
 // Refresh requests a redraw of paused video after its overlay changes.
 func (c *PlaybackController) Refresh() {
-	c.sendCommand("refresh")
+	c.sendCommand(playback.Refresh)
 }
 
 // sendCommand never blocks the UI loop. The caller can retry on a later event
 // when delivery is required, as with pause restoration on a position update.
-func (c *PlaybackController) sendCommand(kind string) bool {
+func (c *PlaybackController) sendCommand(kind playback.ControlKind) bool {
 	select {
 	case c.controls <- playback.Control{Kind: kind}:
 		return true
@@ -187,16 +188,16 @@ func (c *PlaybackController) Close() {
 
 // seekAudio uses the decoder's seekable audio source without replacing the
 // player or changing pause state. Progress feedback supplies the actual position.
-func (c *PlaybackController) seekAudio(key string) {
+func (c *PlaybackController) seekAudio(key control.Action) {
 	if !c.running || !c.state.ProgressSeen {
 		return
 	}
 	seconds := 10
-	if key == "seek-backward" {
+	if key == control.SeekBackward {
 		seconds = -seconds
 	}
 	select {
-	case c.controls <- playback.Control{Kind: "seek", Seconds: seconds}:
+	case c.controls <- playback.Control{Kind: playback.SeekAudioStep, Seconds: seconds}:
 	default:
 	}
 }

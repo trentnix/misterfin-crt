@@ -1,6 +1,11 @@
 package browser
 
-import "time"
+import (
+	"time"
+
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/playback"
+)
 
 // seekPhase describes a replacement stream's lifecycle. The initial half-second
 // destination preview uses seekInactive with state.SeekTarget set. Once the
@@ -30,7 +35,7 @@ func (c *PlaybackController) Tick(now time.Time) {
 		c.pausedBeforeSeek = c.state.Paused
 		c.pausedForSeek = !c.state.Paused
 		if c.pausedForSeek {
-			c.sendCommand("pause")
+			c.sendCommand(playback.TogglePause)
 		}
 	}
 	c.seekPhase = seekPreparing
@@ -40,7 +45,7 @@ func (c *PlaybackController) Tick(now time.Time) {
 
 // retargetSeek returns from Seeking to the destination preview. The original
 // pause preference survives cancellation and the renewed half-second delay.
-func (c *PlaybackController) retargetSeek(key string, now time.Time) {
+func (c *PlaybackController) retargetSeek(key control.Action, now time.Time) {
 	c.state.SwitchingTracks = false
 	c.state.seekVideo(&c.item, key, now)
 	if c.state.SeekTarget == nil {
@@ -106,7 +111,7 @@ func (c *PlaybackController) replacementFailed(err error, now time.Time) {
 	c.trackOptions = c.tracks.TrackOptions
 	originalEnded := c.active.id == 0
 	if c.pausedForSeek && c.running && !originalEnded {
-		c.sendCommand("pause")
+		c.sendCommand(playback.TogglePause)
 	}
 	c.pausedForSeek = false
 	c.pending = playbackProcess{}

@@ -2,6 +2,8 @@ package browser
 
 import (
 	"fmt"
+
+	"misterfin-crt/internal/input/control"
 )
 
 // carousel draws library names over cached artwork strips and returns its controls.
@@ -22,7 +24,7 @@ func (p *screenPainter) carousel() [][]controlHint {
 	}
 	p.header(p.scene.title(), sy+4)
 	if p.scene.About.Release.Available {
-		if name := p.scene.Controls.Name("about"); name != "" {
+		if name := p.scene.Controls.Name(control.About); name != "" {
 			c.Text(24, sy+24, truncate(name+": update available", w-48, 1), titleColor, w-24)
 		}
 	}
@@ -67,13 +69,13 @@ func (p *screenPainter) carousel() [][]controlHint {
 		}
 	}
 	labels := p.scene.Controls
-	hints := []controlHint{pairedHint(labels, "previous", "next", "Browse")}
+	hints := []controlHint{pairedHint(labels, control.Previous, control.Next, "Browse")}
 	if v.Item() != nil {
-		hints = append(hints, hint(labels, "open", "Select"))
+		hints = append(hints, hint(labels, control.Open, "Select"))
 	}
-	hints = append(hints, hint(labels, "select", "List"), hint(labels, "back", "Exit"), hint(labels, "about", "About"))
+	hints = append(hints, hint(labels, control.Select, "List"), hint(labels, control.Back, "Exit"), hint(labels, control.About, "About"))
 	if v.Error != "" || p.scene.SelectionError != "" {
-		hints = append(hints, hint(labels, "retry", "Retry"))
+		hints = append(hints, hint(labels, control.Retry, "Retry"))
 	}
 	return controlRows(w, hints)
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -13,7 +14,7 @@ func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {
 			m := New()
 			m.Current().Location.Kind = "items"
 			m.Current().Page.Items = []jellyfin.Item{{ID: "first", Type: kind}}
-			m.Key("open")
+			m.Key(control.Open)
 			now := time.Unix(100, 0)
 			m.StartMusicQueue()
 			m.TogglePhotoControls(now)
@@ -64,14 +65,14 @@ func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {
 
 func TestPhotoControlsAreIndependentOfPlayback(t *testing.T) {
 	f := newControllerFixture(t)
-	f.c.Key("controls", f.now)
-	f.c.Key("seek-forward", f.now)
-	f.c.Key("seek-forward", f.now)
+	f.c.Key(control.ToggleControls, f.now)
+	f.c.Key(control.SeekForward, f.now)
+	f.c.Key(control.SeekForward, f.now)
 	playback := f.c.Snapshot(f.now)
 	m := New()
 	m.Current().Location.Kind = "items"
 	m.Current().Page.Items = []jellyfin.Item{{ID: "photo", Type: "Photo"}}
-	m.Key("open")
+	m.Key(control.Open)
 	scene := func() Scene {
 		return sceneFromModel(m, f.c.Snapshot(f.now), SetupPresentation{}, selectionData{}, "", f.now)
 	}
@@ -87,8 +88,8 @@ func TestPhotoControlsAreIndependentOfPlayback(t *testing.T) {
 		t.Fatal("second Up did not hide the photo menu")
 	}
 	m.TogglePhotoControls(f.now)
-	m.Key("back")
-	m.Key("open")
+	m.Key(control.Back)
+	m.Key(control.Open)
 	if scene().PhotoControlsVisible {
 		t.Fatal("reopened photo retained its old menu")
 	}

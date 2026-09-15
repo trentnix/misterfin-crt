@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/videoout"
 )
@@ -40,13 +41,13 @@ func TestSessionRoutesUpWithoutRepeatingToggle(t *testing.T) {
 				return s.controller.Snapshot(time.Now()).ControlsVisible
 			}
 			s.controller.running = kind != "Photo"
-			if !s.handleKey("up") || !controlsVisible() {
+			if !s.handleKey(control.Up) || !controlsVisible() {
 				t.Fatal("Up did not show controls")
 			}
 			if s.handleKey("up-repeat") || !controlsVisible() {
 				t.Fatal("held Up toggled controls")
 			}
-			if !s.handleKey("up") || controlsVisible() {
+			if !s.handleKey(control.Up) || controlsVisible() {
 				t.Fatal("second Up did not hide controls")
 			}
 		})
@@ -61,7 +62,7 @@ func TestSessionCancelRejectsLateNeighbor(t *testing.T) {
 	canceled := false
 	s.media.cancel = func() { canceled = true }
 	late := neighborResult{generation: s.media.generation, item: &jellyfin.Item{ID: "late", Type: "Audio"}}
-	s.handleKey("back")
+	s.handleKey(control.Back)
 	if !canceled || s.media.pending || len(s.model.Stack) != 1 {
 		t.Fatal("Back did not cancel navigation")
 	}
@@ -104,7 +105,7 @@ func setupMusicSession(t *testing.T) *browserSession {
 	}
 	s.model.Current().Location.Kind = "items"
 	s.model.Current().Page.Items = tracks
-	s.model.Key("open")
+	s.model.Key(control.Open)
 	s.startPlayback(nil, false)
 	return s
 }
@@ -127,7 +128,7 @@ func receiveNeighbor(t *testing.T, s *browserSession) neighborResult {
 func TestMusicQueueSurvivesDecoderCompletion(t *testing.T) {
 	s := setupMusicSession(t)
 	now := time.Now()
-	s.controller.Key("controls", now)
+	s.controller.Key(control.ToggleControls, now)
 	if !s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id}) {
 		t.Fatal("track completion did not request a redraw")
 	}
@@ -159,7 +160,7 @@ func TestTrackSelectionWaitsForDecoderExit(t *testing.T) {
 	if s.media.pending {
 		t.Fatal("held shoulder changed tracks")
 	}
-	s.handleKey("track-next")
+	s.handleKey(control.TrackNext)
 	s.handleNeighbor(receiveNeighbor(t, s))
 	if s.media.queued == nil || s.model.Current().Detail.ID != "first" {
 		t.Fatal("neighbor selection did not wait for the active decoder")
@@ -178,8 +179,8 @@ func TestTrackSelectionWaitsForDecoderExit(t *testing.T) {
 
 func TestPlaybackDirectionsOnlyToggleMenu(t *testing.T) {
 	for _, kind := range []string{"Movie", "Episode", "TvChannel", "Audio"} {
-		for _, key := range []string{"up", "down", "previous", "next"} {
-			t.Run(kind+"/"+key, func(t *testing.T) {
+		for _, key := range []control.Action{"up", "down", "previous", "next"} {
+			t.Run(kind+"/"+string(key), func(t *testing.T) {
 				s := testSession(t)
 				s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{Type: kind}})
 				s.controller.item.Type = kind
@@ -216,7 +217,7 @@ func TestMusicSeekingDoesNotChangeTrackOrShowControls(t *testing.T) {
 	s.controller.running = true
 	s.controller.state.ProgressSeen = true
 	for _, tc := range []struct {
-		key     string
+		key     control.Action
 		seconds int
 	}{{"seek-backward", -10}, {"seek-forward", 10}, {"seek-forward-repeat", 10}} {
 		s.handleKey(tc.key)

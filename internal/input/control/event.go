@@ -4,18 +4,18 @@ package control
 // Event carries an action and the immutable binding labels of its input device.
 // A repeat retains its -repeat suffix. Labels must not change after publication.
 type Event struct {
-	Action string
+	Action Action
 	Labels Labels
 }
 
 // Labels maps semantic actions to short physical input names. An empty map
 // means no bindings. A nil map uses the default controller layout in previews.
 // Readers publish one map per device, reused by every event and rendered frame.
-type Labels map[string]string
+type Labels map[Action]string
 
 // Name returns the key or button bound to an action. An empty name means that
 // the action has no binding on this device and must not appear in its legend.
-func (l Labels) Name(action string) string {
+func (l Labels) Name(action Action) string {
 	if l == nil {
 		l = controllerLabels
 	}
@@ -23,15 +23,15 @@ func (l Labels) Name(action string) string {
 }
 
 var controllerLabels = Labels{
-	"up": "Up", "down": "Down", "previous": "Left", "next": "Right",
-	"about": "Menu", "open": "B", "back": "A", "select": "View", "retry": "R", "quit": "Q",
-	"track-previous": "LB", "track-next": "RB", "seek-backward": "LT", "seek-forward": "RT",
+	Up: "Up", Down: "Down", Previous: "Left", Next: "Right",
+	About: "Menu", Open: "B", Back: "A", Select: "View", Retry: "R", Quit: "Q",
+	TrackPrevious: "LB", TrackNext: "RB", SeekBackward: "LT", SeekForward: "RT",
 }
 
 var keyboardLabels = Labels{
-	"up": "Up", "down": "Down", "previous": "Left", "next": "Right",
-	"about": "F1", "open": "Enter", "back": "Esc", "select": "Tab", "retry": "R", "quit": "Q",
-	"track-previous": "[", "track-next": "]", "seek-backward": "J", "seek-forward": "L",
+	Up: "Up", Down: "Down", Previous: "Left", Next: "Right",
+	About: "F1", Open: "Enter", Back: "Esc", Select: "Tab", Retry: "R", Quit: "Q",
+	TrackPrevious: "[", TrackNext: "]", SeekBackward: "J", SeekForward: "L",
 }
 
 // KeyboardLabels returns the terminal's immutable primary bindings. Alternate

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"misterfin-crt/internal/input/control"
 )
 
 // Config overrides hardware bindings by device name. Its zero value keeps the
@@ -15,12 +17,12 @@ type Config struct {
 // Profile matches Linux input device names using a case-sensitive glob.
 // Replace removes inherited bindings. Empty actions disable individual inputs.
 type Profile struct {
-	Match        string                `json:"match"`
-	Replace      bool                  `json:"replace,omitempty"`
-	Buttons      map[uint16]string     `json:"buttons,omitempty"`
-	Axes         map[uint16]Axis       `json:"axes,omitempty"`
-	ButtonLabels map[uint16]string     `json:"button_labels,omitempty"`
-	AxisLabels   map[uint16]AxisLabels `json:"axis_labels,omitempty"`
+	Match        string                    `json:"match"`
+	Replace      bool                      `json:"replace,omitempty"`
+	Buttons      map[uint16]control.Action `json:"buttons,omitempty"`
+	Axes         map[uint16]Axis           `json:"axes,omitempty"`
+	ButtonLabels map[uint16]string         `json:"button_labels,omitempty"`
+	AxisLabels   map[uint16]AxisLabels     `json:"axis_labels,omitempty"`
 }
 
 // AxisLabels names the physical directions of an axis, independently of the
@@ -35,11 +37,11 @@ type AxisLabels struct {
 // Press and Release are percentages of travel from rest. Zero selects 25 and
 // 15 respectively. Separate thresholds prevent noisy inputs from chattering.
 type Axis struct {
-	Rest     string `json:"rest,omitempty"`
-	Negative string `json:"negative,omitempty"`
-	Positive string `json:"positive,omitempty"`
-	Press    int    `json:"press,omitempty"`
-	Release  int    `json:"release,omitempty"`
+	Rest     string         `json:"rest,omitempty"`
+	Negative control.Action `json:"negative,omitempty"`
+	Positive control.Action `json:"positive,omitempty"`
+	Press    int            `json:"press,omitempty"`
+	Release  int            `json:"release,omitempty"`
 }
 
 func (a Axis) thresholds() (int, int) {
@@ -71,13 +73,13 @@ func (c Config) Validate() error {
 			}
 		}
 		for code, action := range p.Buttons {
-			if code > 0x2ff || !validAction(action) {
+			if code > 0x2ff || !action.ValidBinding() {
 				return fmt.Errorf("profile %d: invalid button %d action %q", i+1, code, action)
 			}
 		}
 		for code, axis := range p.Axes {
 			press, release := axis.thresholds()
-			if code > 0x3f || !validAction(axis.Negative) || !validAction(axis.Positive) ||
+			if code > 0x3f || !axis.Negative.ValidBinding() || !axis.Positive.ValidBinding() ||
 				(axis.Rest != "" && axis.Rest != "center" && axis.Rest != "minimum" && axis.Rest != "maximum") ||
 				(axis.Rest == "minimum" && axis.Negative != "") || (axis.Rest == "maximum" && axis.Positive != "") ||
 				release <= 0 || press <= release || press > 100 {
@@ -92,24 +94,16 @@ func validLabel(label string) bool {
 	return len(label) <= 12 && strings.IndexFunc(label, func(r rune) bool { return r < 32 || r > 126 }) < 0
 }
 
-func validAction(action string) bool {
-	switch action {
-	case "", "about", "up", "down", "previous", "next", "open", "back", "select", "retry", "quit", "track-previous", "track-next", "seek-backward", "seek-forward":
-		return true
-	}
-	return false
-}
-
 // bindings merges only configuration data. Device discovery adds axis ranges
 // separately, keeping matching and validation independent of Linux syscalls.
 func (c Config) bindings(name string) Profile {
-	result := Profile{Buttons: make(map[uint16]string), Axes: make(map[uint16]Axis), ButtonLabels: make(map[uint16]string), AxisLabels: make(map[uint16]AxisLabels)}
+	result := Profile{Buttons: make(map[uint16]control.Action), Axes: make(map[uint16]Axis), ButtonLabels: make(map[uint16]string), AxisLabels: make(map[uint16]AxisLabels)}
 	for _, p := range c.Profiles {
 		if match, _ := filepath.Match(p.Match, name); !match {
 			continue
 		}
 		if p.Replace {
-			result = Profile{Replace: true, Buttons: make(map[uint16]string), Axes: make(map[uint16]Axis), ButtonLabels: make(map[uint16]string), AxisLabels: make(map[uint16]AxisLabels)}
+			result = Profile{Replace: true, Buttons: make(map[uint16]control.Action), Axes: make(map[uint16]Axis), ButtonLabels: make(map[uint16]string), AxisLabels: make(map[uint16]AxisLabels)}
 		}
 		for code, action := range p.Buttons {
 			result.Buttons[code] = action

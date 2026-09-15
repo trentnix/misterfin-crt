@@ -4,9 +4,11 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"misterfin-crt/internal/jellyfin"
 	"testing"
 	"time"
+
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestCRTLayoutAndExitOverlay(t *testing.T) {
@@ -24,7 +26,7 @@ func TestCRTLayoutAndExitOverlay(t *testing.T) {
 		if pixels[i] != 0x7c || pixels[i+1] != 0x37 || pixels[i+2] != 0x0d {
 			t.Fatal("selection placement or palette changed")
 		}
-		m.Key("back")
+		m.Key(control.Back)
 		dialog := render(640, h, m, SetupPresentation{}, Artwork{}, "", Animation{}, time.Time{})
 		different := false
 		for i := (h/2 - 20) * 640 * 4; i < (h/2+20)*640*4; i++ {
@@ -91,10 +93,10 @@ func TestPhotoFitsPhysicalCRTAspect(t *testing.T) {
 		if !red(320, height/2) || !red(190, height/2) || red(180, height/2) || red(460, height/2) {
 			t.Fatal("photo aspect ratio or letterboxing changed")
 		}
-		if m.Key("open") != nil || m.Notice != "" {
+		if m.Key(control.Open) != nil || m.Notice != "" {
 			t.Fatal("photo tried to start playback")
 		}
-		m.Key("back")
+		m.Key(control.Back)
 		if len(m.Stack) != 1 {
 			t.Fatal("photo did not return to parent")
 		}

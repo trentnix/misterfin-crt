@@ -60,17 +60,18 @@ func (d *device) labels(keys [96]byte) control.Labels {
 				if d.triggers[code] != nil {
 					binding = Axis{Positive: triggerKey(code)}
 				} else if code == 16 && d.hats[0] {
-					binding = Axis{Negative: "previous", Positive: "next"}
+					binding = Axis{Negative: control.Previous, Positive: control.Next}
 				} else if code == 17 && d.hats[1] {
-					binding = Axis{Negative: "up", Positive: "down"}
+					binding = Axis{Negative: control.Up, Positive: control.Down}
 				} else {
 					continue
 				}
 			}
 			names := d.bindings.AxisLabels[code]
 			for _, side := range []struct {
-				key, label string
-				positive   bool
+				key      control.Action
+				label    string
+				positive bool
 			}{{binding.Negative, names.Negative, false}, {binding.Positive, names.Positive, true}} {
 				if side.key == "" || labels[side.key] != "" {
 					continue

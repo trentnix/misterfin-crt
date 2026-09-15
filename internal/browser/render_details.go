@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/ui"
 )
@@ -21,14 +22,14 @@ func (p *screenPainter) details() [][]controlHint {
 	if resumableVideo(v.Detail) {
 		action = "Resume"
 	}
-	hints := []controlHint{hint(labels, "open", action)}
+	hints := []controlHint{hint(labels, control.Open, action)}
 	if resumableVideo(v.Detail) {
-		hints = append(hints, hint(labels, "select", "Restart"))
+		hints = append(hints, hint(labels, control.Select, "Restart"))
 	}
 	if v.Error != "" || p.scene.SelectionError != "" {
-		hints = append(hints, hint(labels, "retry", "Retry"))
+		hints = append(hints, hint(labels, control.Retry, "Retry"))
 	}
-	hints = append(hints, hint(labels, "back", "Back"))
+	hints = append(hints, hint(labels, control.Back, "Back"))
 	rows := controlRows(w, hints)
 	extra := max(0, len(rows)-1) * controlRowHeight
 

@@ -31,9 +31,9 @@ func (c *PlaybackController) SetPaused(paused bool) {
 		return
 	}
 	c.pauseOnFirstPosition = false
-	kind := "resume"
+	kind := playback.Resume
 	if paused {
-		kind = "set-pause"
+		kind = playback.SetPaused
 	}
 	if c.sendCommand(kind) {
 		c.state.Paused = paused
@@ -56,7 +56,7 @@ func (c *PlaybackController) SeekTo(target int64, now time.Time) {
 			return
 		}
 		select {
-		case c.controls <- playback.Control{Kind: "seek-to", Seconds: int(seconds)}:
+		case c.controls <- playback.Control{Kind: playback.SeekAudioRelative, Seconds: int(seconds)}:
 		default:
 		}
 		return

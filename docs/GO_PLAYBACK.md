@@ -227,3 +227,9 @@ On the maintainer’s MiSTer, a 720×404, 30 fps Live TV stream initially droppe
 ## Jellyfin remote control
 
 Remote playback commands use the same controller and decoder lifecycle as local controls. Queue, shuffle, and repeat behavior lives outside the individual playback request. See [remote control](GO_REMOTE.md) for supported commands, HTTPS, queue reporting, and the source interface.
+
+## Internal control commands
+
+[`playback.ControlKind`](../internal/playback/control.go) names requests sent to the active playback session. `TogglePause` changes pause state, while `SetPaused` and `Resume` express explicit intent. `SeekAudioStep` accepts a local ten-second step. `SeekAudioRelative` accepts a signed offset after the browser converts a remote absolute target. Its historical string value, `seek-to`, does not mean the decoder receives an absolute time. Video seeks still replace the stream, and Live TV does not seek.
+
+An unsupported kind reports through `Callbacks.ControlError` without changing playback state. Jellyfin protocol strings are translated by the existing remote source. MPlayer and Python command encoding remains in their decoder implementations. Input actions and decoder requests use separate types because a button's meaning depends on the active screen.

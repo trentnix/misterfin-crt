@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 )
 
@@ -118,28 +119,31 @@ func (v *View) Item() *jellyfin.Item {
 	}
 	return &v.Page.Items[v.Selected]
 }
-func (m *Model) Key(key string) *Request {
+
+// Key applies a normalized browsing action and returns any required page request.
+// The browser handles media controls and filters repeats before calling Key.
+func (m *Model) Key(key control.Action) *Request {
 	v := m.Current()
 	if m.Notice != "" {
-		if key == "back" || key == "open" {
+		if key == control.Back || key == control.Open {
 			m.Notice = ""
 		}
 		return nil
 	}
 	if m.ExitConfirm {
-		if key == "open" {
+		if key == control.Open {
 			m.Quit = true
 		}
-		if key == "back" {
+		if key == control.Back {
 			m.ExitConfirm = false
 		}
 		return nil
 	}
-	if key == "select" && len(m.Stack) == 1 {
+	if key == control.Select && len(m.Stack) == 1 {
 		m.ListMode = !m.ListMode
 		return nil
 	}
-	if key == "back" {
+	if key == control.Back {
 		if m.ReturnToParent() {
 			return nil
 		}
@@ -153,32 +157,32 @@ func (m *Model) Key(key string) *Request {
 		m.Current().Loading = false
 		return nil
 	}
-	if key == "retry" {
+	if key == control.Retry {
 		if v.Detail != nil {
 			return nil
 		}
 		return m.Load(v.PendingStart)
 	}
-	if v.Detail != nil && v.Detail.Type == "Photo" && key == "open" {
+	if v.Detail != nil && v.Detail.Type == "Photo" && key == control.Open {
 		m.photoControlsUntil = time.Time{}
 		return nil
 	}
-	if v.Detail != nil && key == "open" {
+	if v.Detail != nil && key == control.Open {
 		m.Notice = "Playback for this item type is not available yet.  A:back"
 	}
 	if (v.Loading && len(v.Page.Items) == 0) || v.Detail != nil {
 		return nil
 	}
-	if key == "up" || key == "down" || key == "next" || key == "previous" {
+	if key == control.Up || key == control.Down || key == control.Next || key == control.Previous {
 		step := 1
-		if key == "up" || key == "previous" {
+		if key == control.Up || key == control.Previous {
 			step = -1
 		}
 		if len(m.Stack) == 1 && !m.ListMode {
-			if key == "up" || key == "down" {
+			if key == control.Up || key == control.Down {
 				return nil
 			}
-		} else if key == "next" || key == "previous" {
+		} else if key == control.Next || key == control.Previous {
 			step *= max(1, m.Rows)
 		}
 		v.direction = step
@@ -205,7 +209,7 @@ func (m *Model) Key(key string) *Request {
 		return nil
 	}
 	switch key {
-	case "open":
+	case control.Open:
 		if v.Loading {
 			return nil
 		}

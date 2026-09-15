@@ -104,21 +104,21 @@ func (s *playbackSession) report(save bool) {
 // Seeking here applies only to audio. Video seeks replace the session.
 func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control Control, startup *time.Timer) {
 	switch control.Kind {
-	case "picture":
+	case SetPicture:
 		setter, ok := p.decoder.(playerapi.PictureSetter)
 		if !ok || s.item.Type == "Audio" || control.Picture > PictureZoom43 || setter.SetPicture(p.control, control.Picture, control.Request) != nil {
 			if callbacks.Picture != nil {
 				callbacks.Picture(PictureResult{Request: control.Request, Err: errors.New("cannot change picture mode")})
 			}
 		}
-	case "report":
+	case Report:
 		if s.started {
 			s.report(false)
 		}
-	case "pause", "set-pause", "resume":
+	case TogglePause, SetPaused, Resume:
 		paused := !s.state.IsPaused
-		if control.Kind != "pause" {
-			paused = control.Kind == "set-pause"
+		if control.Kind != TogglePause {
+			paused = control.Kind == SetPaused
 		}
 		if paused == s.state.IsPaused {
 			return
@@ -139,8 +139,8 @@ func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control
 			callbacks.Paused(paused)
 		}
 		s.report(false)
-	case "seek", "seek-to":
-		if s.item.Type != "Audio" || !s.started || (control.Kind == "seek" && control.Seconds != -10 && control.Seconds != 10) {
+	case SeekAudioStep, SeekAudioRelative:
+		if s.item.Type != "Audio" || !s.started || (control.Kind == SeekAudioStep && control.Seconds != -10 && control.Seconds != 10) {
 			return
 		}
 		seeker, ok := p.decoder.(playerapi.AudioSeeker)
@@ -155,9 +155,13 @@ func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control
 		if err != nil && callbacks.ControlError != nil {
 			callbacks.ControlError(err)
 		}
-	case "refresh":
+	case Refresh:
 		if s.state.IsPaused {
 			p.refresh()
+		}
+	default:
+		if callbacks.ControlError != nil {
+			callbacks.ControlError(errors.New("unsupported playback command"))
 		}
 	}
 }
@@ -242,7 +246,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 				controls = nil
 				continue
 			}
-			if control.Kind == "subtitle" {
+			if control.Kind == SelectSubtitle {
 				sub, ok := s.tracks.Stream("Subtitle", control.Index)
 				if s.tracks.ClientSubtitles && (control.Index == -1 || ok && sub.TextSubtitle()) {
 					loader.start(ctx, s.client, s.item.ID, s.tracks.SourceID, control.Index, control.Request)

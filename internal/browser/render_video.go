@@ -66,10 +66,10 @@ func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time, l
 	bottom := h - 8 - sy
 	hints := playbackHints(labels, p.Paused)
 	if p.Seekable {
-		hints = append([]controlHint{hint(labels, "seek-backward", "-30s"), hint(labels, "seek-forward", "+30s")}, hints...)
+		hints = append([]controlHint{hint(labels, control.SeekBackward, "-30s"), hint(labels, control.SeekForward, "+30s")}, hints...)
 	}
 	if p.TracksAvailable {
-		hints = append(hints, hint(labels, "select", "Options"))
+		hints = append(hints, hint(labels, control.Select, "Options"))
 	}
 	rows := controlRows(w, hints)
 	extra := max(0, len(rows)-1) * controlRowHeight

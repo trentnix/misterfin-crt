@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/remote"
 )
 
@@ -67,6 +68,6 @@ func (s *browserSession) publishRemoteQueue() {
 	state := s.remotePlayback.queue.Snapshot()
 	s.remote.source.Publish(state)
 	if s.controller.running {
-		s.controller.sendCommand("report")
+		s.controller.sendCommand(playback.Report)
 	}
 }

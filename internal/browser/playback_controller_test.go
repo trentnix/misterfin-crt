@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
 )
@@ -35,7 +36,7 @@ func newControllerFixture(t *testing.T) *controllerFixture {
 	f.c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 1, Ticks: 20000000}, f.now)
 	return f
 }
-func expectCommand(t *testing.T, q chan playback.Control, kind string) {
+func expectCommand(t *testing.T, q chan playback.Control, kind playback.ControlKind) {
 	t.Helper()
 	select {
 	case got := <-q:
@@ -49,8 +50,8 @@ func expectCommand(t *testing.T, q chan playback.Control, kind string) {
 
 func TestStopDetachesReportsButWaitsForDecoder(t *testing.T) {
 	f := newControllerFixture(t)
-	f.c.Key("back", f.now)
-	f.c.Key("back", f.now) // Repeated Stop must not close the cleanup signal twice.
+	f.c.Key(control.Back, f.now)
+	f.c.Key(control.Back, f.now) // Repeated Stop must not close the cleanup signal twice.
 	if !f.calls[0].canceled {
 		t.Fatal("Stop did not cancel decoding")
 	}
@@ -70,7 +71,7 @@ func TestStopDetachesReportsButWaitsForDecoder(t *testing.T) {
 func TestImmediateReopenUsesPositionPendingSave(t *testing.T) {
 	for _, saved := range []bool{false, true} {
 		f := newControllerFixture(t)
-		f.c.Key("back", f.now)
+		f.c.Key(control.Back, f.now)
 		f.c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
 		if saved {
 			f.c.Handle(PlaybackEvent{Kind: PlaybackCleanupDone, ID: 1}, f.now)
@@ -94,7 +95,7 @@ func TestFirstVideoFrameClearsLoadingBeforePosition(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
 	c.Start(jellyfin.Item{ID: "movie", Type: "Movie"}, nil, false, f.now)
-	c.Key("controls", f.now)
+	c.Key(control.ToggleControls, f.now)
 	c.Handle(PlaybackEvent{Kind: PlaybackVideoStarted, ID: 1}, f.now)
 	if c.Snapshot(f.now).WaitLabel != "Loading..." {
 		t.Fatal("stale decoder cleared loading")
@@ -111,7 +112,7 @@ func TestFirstVideoFrameClearsLoadingBeforePosition(t *testing.T) {
 		t.Fatal("first frame disabled subsequent stall detection")
 	}
 	c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 2, Ticks: 10000000}, later)
-	c.Key("seek-forward", later)
+	c.Key(control.SeekForward, later)
 	c.Tick(later.Add(time.Second))
 	c.Handle(PlaybackEvent{Kind: PlaybackPrepared, ID: 3}, later)
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2}, later)
@@ -130,8 +131,8 @@ func TestFirstVideoFrameClearsLoadingBeforePosition(t *testing.T) {
 func TestControllerSeekRetargetDuringHandoff(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("seek-forward", f.now)
-	c.Key("seek-forward", f.now)
+	c.Key(control.SeekForward, f.now)
+	c.Key(control.SeekForward, f.now)
 	preview := c.Snapshot(f.now)
 	if !preview.ShowDestination || preview.DestinationTicks != 620000000 {
 		t.Fatal(preview)
@@ -150,7 +151,7 @@ func TestControllerSeekRetargetDuringHandoff(t *testing.T) {
 	if !f.calls[0].canceled {
 		t.Fatal("old decoder not stopped after preparation")
 	}
-	c.Key("seek-forward", f.now.Add(time.Second))
+	c.Key(control.SeekForward, f.now.Add(time.Second))
 	if !f.calls[1].canceled || c.Snapshot(f.now).DestinationTicks != 920000000 || !c.Snapshot(f.now).ShowDestination {
 		t.Fatal("retarget did not restore destination")
 	}
@@ -186,10 +187,10 @@ func TestControllerSeekRetargetDuringHandoff(t *testing.T) {
 func TestControllerPreservesPauseAndRejectsStaleEvents(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("open", f.now)
+	c.Key(control.Open, f.now)
 	expectCommand(t, f.calls[0].controls, "pause")
 	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: 1, Value: true}, f.now)
-	c.Key("seek-forward", f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
 	if len(f.calls[0].controls) != 0 {
 		t.Fatal("seek toggled existing pause")
@@ -205,11 +206,11 @@ func TestControllerPreservesPauseAndRejectsStaleEvents(t *testing.T) {
 	if !p.Paused || p.PositionTicks != 340000000 {
 		t.Fatal(p)
 	}
-	c.Key("controls", f.now)
+	c.Key(control.ToggleControls, f.now)
 	if !c.Snapshot(f.now).ControlsVisible || c.Snapshot(f.now.Add(3*time.Second)).ControlsVisible {
 		t.Fatal("control reveal duration changed")
 	}
-	c.Key("open", f.now)
+	c.Key(control.Open, f.now)
 	if c.Snapshot(f.now).ControlsVisible {
 		t.Fatal("pause toggle left controls visible")
 	}
@@ -217,7 +218,7 @@ func TestControllerPreservesPauseAndRejectsStaleEvents(t *testing.T) {
 func TestControllerSeekFailureAndStop(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("seek-forward", f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
 	expectCommand(t, f.calls[0].controls, "pause")
 	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: 1, Value: true}, f.now)
@@ -229,9 +230,9 @@ func TestControllerSeekFailureAndStop(t *testing.T) {
 	if p.Notice == "" || p.HasDestination || !c.running {
 		t.Fatal(p)
 	}
-	c.Key("seek-forward", f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
-	c.Key("back", f.now)
+	c.Key(control.Back, f.now)
 	if !f.calls[0].canceled || !f.calls[2].canceled {
 		t.Fatal("stop did not cancel both processes")
 	}
@@ -245,12 +246,12 @@ func TestControllerSeekFailureAndStop(t *testing.T) {
 func TestControllerStopWhileRetargetWaitsWithoutDecoder(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("seek-forward", f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
 	c.Handle(PlaybackEvent{Kind: PlaybackPrepared, ID: 2}, f.now)
-	c.Key("seek-forward", f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
-	c.Key("back", f.now)
+	c.Key(control.Back, f.now)
 	c.Tick(f.now.Add(time.Second))
 	if c.running || len(f.calls) != 2 {
 		t.Fatal("stop launched another seek")
@@ -259,8 +260,8 @@ func TestControllerStopWhileRetargetWaitsWithoutDecoder(t *testing.T) {
 func TestControllerLiveTVDoesNotSeek(t *testing.T) {
 	f := newControllerFixture(t)
 	f.c.item.Type = "TvChannel"
-	f.c.Key("seek-forward", f.now)
-	f.c.Key("seek-backward", f.now)
+	f.c.Key(control.SeekForward, f.now)
+	f.c.Key(control.SeekBackward, f.now)
 	f.c.Tick(f.now.Add(time.Second))
 	p := f.c.Snapshot(f.now)
 	if p.Seekable || p.HasDestination || len(f.calls) != 1 {
@@ -271,10 +272,10 @@ func TestControllerLiveTVDoesNotSeek(t *testing.T) {
 func TestControllerSeekFailureAfterOriginalEnded(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("seek-forward", f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
 	c.Handle(PlaybackEvent{Kind: PlaybackPrepared, ID: 2}, f.now)
-	c.Key("seek-forward", f.now.Add(time.Second))
+	c.Key(control.SeekForward, f.now.Add(time.Second))
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
 	c.Tick(f.now.Add(1500 * time.Millisecond))
 
@@ -295,15 +296,15 @@ func TestControllerSeekFailureAfterOriginalEnded(t *testing.T) {
 func TestMenuSeekStaysVisibleThroughRetargetAndStartup(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("controls", f.now)
-	c.Key("seek-forward", f.now)
-	c.Key("seek-forward", f.now.Add(100*time.Millisecond))
+	c.Key(control.ToggleControls, f.now)
+	c.Key(control.SeekForward, f.now)
+	c.Key(control.SeekForward, f.now.Add(100*time.Millisecond))
 	c.Tick(f.now.Add(time.Second))
 	later := f.now.Add(10 * time.Second)
 	if !c.Snapshot(later).ControlsVisible {
 		t.Fatal("menu expired during seek preparation")
 	}
-	c.Key("seek-backward", later)
+	c.Key(control.SeekBackward, later)
 	if p := c.Snapshot(later); !p.ControlsVisible || !p.ShowDestination {
 		t.Fatalf("retarget lost menu preview: %+v", p)
 	}
@@ -318,11 +319,11 @@ func TestMenuSeekStaysVisibleThroughRetargetAndStartup(t *testing.T) {
 	if !c.Snapshot(ready.Add(2*time.Second)).ControlsVisible || c.Snapshot(ready.Add(3*time.Second)).ControlsVisible {
 		t.Fatal("menu timeout did not restart after seek playback began")
 	}
-	c.Key("seek-forward", ready.Add(2*time.Second))
+	c.Key(control.SeekForward, ready.Add(2*time.Second))
 	if !c.Snapshot(ready.Add(8 * time.Second)).ControlsVisible {
 		t.Fatal("subsequent seek did not retain the open menu")
 	}
-	c.Key("back", ready.Add(9*time.Second))
+	c.Key(control.Back, ready.Add(9*time.Second))
 	if c.Snapshot(ready.Add(9 * time.Second)).ControlsVisible {
 		t.Fatal("stopping retained seek menu")
 	}
@@ -331,8 +332,8 @@ func TestMenuSeekStaysVisibleThroughRetargetAndStartup(t *testing.T) {
 func TestFailedSeekReleasesMenuTimeout(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("controls", f.now)
-	c.Key("seek-forward", f.now)
+	c.Key(control.ToggleControls, f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
 	failed := f.now.Add(10 * time.Second)
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2, Err: errors.New("failed")}, failed)
@@ -344,22 +345,22 @@ func TestFailedSeekReleasesMenuTimeout(t *testing.T) {
 func TestUpTogglesControlsDuringPlaybackAndSeek(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Key("controls", f.now)
+	c.Key(control.ToggleControls, f.now)
 	if !c.state.ControlsVisible(f.now) {
 		t.Fatal("Up did not reveal controls")
 	}
-	c.Key("controls", f.now)
+	c.Key(control.ToggleControls, f.now)
 	if c.state.ControlsVisible(f.now) {
 		t.Fatal("second Up did not hide controls")
 	}
-	c.Key("controls", f.now)
-	c.Key("seek-forward", f.now)
+	c.Key(control.ToggleControls, f.now)
+	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
-	c.Key("controls", f.now.Add(time.Second))
+	c.Key(control.ToggleControls, f.now.Add(time.Second))
 	if c.state.ControlsVisible(f.now.Add(time.Second)) {
 		t.Fatal("Up did not hide pinned seek controls")
 	}
-	c.Key("controls", f.now.Add(time.Second))
+	c.Key(control.ToggleControls, f.now.Add(time.Second))
 	if !c.state.ControlsVisible(f.now.Add(10 * time.Second)) {
 		t.Fatal("Up did not reveal and pin seeking controls")
 	}
@@ -368,11 +369,11 @@ func TestUpTogglesControlsDuringPlaybackAndSeek(t *testing.T) {
 func TestUpTogglesMusicControls(t *testing.T) {
 	f := newControllerFixture(t)
 	f.c.Start(jellyfin.Item{Type: "Audio"}, nil, false, f.now)
-	f.c.Key("controls", f.now)
+	f.c.Key(control.ToggleControls, f.now)
 	if !f.c.Snapshot(f.now).ControlsVisible {
 		t.Fatal("controls not revealed")
 	}
-	f.c.Key("controls", f.now)
+	f.c.Key(control.ToggleControls, f.now)
 	if f.c.Snapshot(f.now).ControlsVisible {
 		t.Fatal("controls not dismissed")
 	}

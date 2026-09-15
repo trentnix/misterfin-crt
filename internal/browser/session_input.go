@@ -1,39 +1,39 @@
 package browser
 
 import (
-	"strings"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
 )
 
 // dispatchKey routes each action to the active screen. The return value requests
 // an immediate redraw. Quit remains owned by the event loop.
-func (s *browserSession) dispatchKey(key string) bool {
-	if key == "quit" {
+func (s *browserSession) dispatchKey(key control.Action) bool {
+	if key == control.Quit {
 		s.model.Quit = true
 		return false
 	}
 	photo := s.model.Current().Detail != nil && s.model.Current().Detail.Type == "Photo"
 	playing := s.controller.running || s.model.MusicQueueActive()
-	repeated := strings.HasSuffix(key, "-repeat")
-	key = strings.TrimSuffix(key, "-repeat")
+	repeated := key.IsRepeat()
+	key = key.Base()
 	if repeated {
-		if key == "about" || s.about.Visible {
+		if key == control.About || s.about.Visible {
 			return false
 		}
-		if playing && !s.controller.picker.visible && (menuDirection(key) || key == "track-previous" || key == "track-next") {
+		if playing && !s.controller.picker.visible && (menuDirection(key) || key == control.TrackPrevious || key == control.TrackNext) {
 			return false
 		}
-		if key == "open" || key == "back" || key == "select" || (photo && key == "up") {
+		if key == control.Open || key == control.Back || key == control.Select || (photo && key == control.Up) {
 			return false
 		}
 	}
 	if s.about.Visible {
 		return s.handleAboutKey(key)
 	}
-	if key == "about" {
+	if key == control.About {
 		if playing || photo || s.media.pending {
 			return false
 		}
@@ -44,19 +44,19 @@ func (s *browserSession) dispatchKey(key string) bool {
 		return true
 	}
 	if playing && !s.controller.picker.visible && menuDirection(key) {
-		key = "controls"
+		key = control.ToggleControls
 	}
 	if !playing {
 		// Shoulder keys retain their existing page navigation outside playback.
 		switch key {
-		case "track-previous":
-			key = "previous"
-		case "track-next":
-			key = "next"
+		case control.TrackPrevious:
+			key = control.Previous
+		case control.TrackNext:
+			key = control.Next
 		}
 	}
 	if playing {
-		if key == "back" && s.remotePlayback.active && !s.controller.picker.visible {
+		if key == control.Back && s.remotePlayback.active && !s.controller.picker.visible {
 			s.remoteRequests.cancelAll()
 			s.remotePlayback.switching = false
 			s.controller.stopByUser()
@@ -79,29 +79,29 @@ func (s *browserSession) dispatchKey(key string) bool {
 	}
 	if s.setup.Kind != SetupHidden {
 		switch key {
-		case "back":
+		case control.Back:
 			s.model.Quit = true
 			return false
-		case "retry", "open":
+		case control.Retry, control.Open:
 			if s.setup.retryLabel() != "" {
 				s.authenticate()
 			}
 		}
 		return true
 	}
-	if key == "back" && s.remoteRequests.resolving {
+	if key == control.Back && s.remoteRequests.resolving {
 		s.remoteRequests.cancelAll()
 	}
 	return s.handleBrowseKey(key)
 }
 
-func (s *browserSession) handleMusicKey(key string) bool {
+func (s *browserSession) handleMusicKey(key control.Action) bool {
 	now := time.Now()
 	switch key {
-	case "select":
+	case control.Select:
 		s.cycleMusicBackground()
-	case "back":
-		s.controller.Key("back", now)
+	case control.Back:
+		s.controller.Key(control.Back, now)
 		s.media.cancel()
 		s.media.generation++
 		s.media.pending = false
@@ -112,11 +112,11 @@ func (s *browserSession) handleMusicKey(key string) bool {
 			s.model.ReturnToParent()
 			s.loadSelection()
 		}
-	case "open", "controls", "seek-backward", "seek-forward":
+	case control.Open, control.ToggleControls, control.SeekBackward, control.SeekForward:
 		s.controller.Key(key, now)
-	case "track-previous", "track-next":
+	case control.TrackPrevious, control.TrackNext:
 		s.media.nextTrack = -1
-		if key == "track-next" {
+		if key == control.TrackNext {
 			s.media.nextTrack = 1
 		}
 		s.navigateMedia(s.media.nextTrack)
@@ -124,8 +124,8 @@ func (s *browserSession) handleMusicKey(key string) bool {
 	return true
 }
 
-func (s *browserSession) handlePendingMediaKey(key string) bool {
-	if key == "back" {
+func (s *browserSession) handlePendingMediaKey(key control.Action) bool {
+	if key == control.Back {
 		s.media.cancel()
 		s.media.generation++
 		s.media.pending = false
@@ -139,42 +139,42 @@ func (s *browserSession) handlePendingMediaKey(key string) bool {
 	return false
 }
 
-func (s *browserSession) handlePhotoKey(key string) {
-	if key == "back" {
+func (s *browserSession) handlePhotoKey(key control.Action) {
+	if key == control.Back {
 		s.model.Notice = ""
 	}
 	switch key {
-	case "up":
+	case control.Up:
 		s.model.TogglePhotoControls(time.Now())
-	case "previous", "next", "down":
+	case control.Previous, control.Next, control.Down:
 		direction := 1
-		if key == "previous" {
+		if key == control.Previous {
 			direction = -1
 		}
 		s.navigateMedia(direction)
 	}
 }
 
-func (s *browserSession) handleBrowseKey(key string) bool {
-	if key == "select" && canShuffle(*s.model.Current()) {
+func (s *browserSession) handleBrowseKey(key control.Action) bool {
+	if key == control.Select && canShuffle(*s.model.Current()) {
 		s.startShuffle()
 		return true
 	}
-	if key == "retry" && s.model.Current().Detail == nil && (s.model.Current().Location.Kind == "continue" || (s.model.Current().Item() != nil && s.model.Current().Item().ID == continueID)) {
+	if key == control.Retry && s.model.Current().Detail == nil && (s.model.Current().Location.Kind == "continue" || (s.model.Current().Item() != nil && s.model.Current().Item().ID == continueID)) {
 		s.refreshHome()
 		return true
 	}
 	depth := len(s.model.Stack)
-	if key == "select" && s.model.Notice == "" && resumableVideo(s.model.Current().Detail) {
+	if key == control.Select && s.model.Notice == "" && resumableVideo(s.model.Current().Detail) {
 		start := int64(0)
 		s.startPlayback(&start, false)
 		return false
 	}
-	if key == "open" && s.model.Notice == "" && s.model.Current().Detail != nil && playback.Supported(*s.model.Current().Detail) {
+	if key == control.Open && s.model.Notice == "" && s.model.Current().Detail != nil && playback.Supported(*s.model.Current().Detail) {
 		s.startPlayback(nil, false)
 		return false
 	}
-	if key == "retry" {
+	if key == control.Retry {
 		if item := s.model.Current().Item(); item != nil {
 			s.selection.loader.forget(*item)
 		}
@@ -183,7 +183,7 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 	before := s.model.Generation
 	wasDetail := s.model.Current().Detail != nil
 	req := s.model.Key(key)
-	if key == "back" && len(s.model.Stack) < depth && (len(s.model.Stack) == 1 || s.model.Current().Location.Kind == "continue") {
+	if key == control.Back && len(s.model.Stack) < depth && (len(s.model.Stack) == 1 || s.model.Current().Location.Kind == "continue") {
 		s.refreshHome()
 	}
 	if s.model.Quit {
@@ -193,13 +193,13 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 		s.requests.cancel()
 	}
 	s.load(req)
-	if key == "open" && !wasDetail && s.model.Current().Detail != nil && jellyfin.IsLive(*s.model.Current().Detail) {
+	if key == control.Open && !wasDetail && s.model.Current().Detail != nil && jellyfin.IsLive(*s.model.Current().Detail) {
 		s.startPlayback(nil, false)
 		return false
 	}
 	s.loadSelection()
 	s.load(s.model.Prefetch())
-	if key == "open" && !wasDetail && s.model.Current().Detail != nil && s.model.Current().Detail.Type == "Audio" {
+	if key == control.Open && !wasDetail && s.model.Current().Detail != nil && s.model.Current().Detail.Type == "Audio" {
 		s.startPlayback(nil, false)
 	}
 
@@ -207,6 +207,6 @@ func (s *browserSession) handleBrowseKey(key string) bool {
 }
 
 // menuDirection interprets directional navigation only while media is playing.
-func menuDirection(key string) bool {
-	return key == "up" || key == "down" || key == "previous" || key == "next"
+func menuDirection(key control.Action) bool {
+	return key == control.Up || key == control.Down || key == control.Previous || key == control.Next
 }

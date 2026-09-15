@@ -2,8 +2,10 @@ package browser
 
 import (
 	"errors"
-	"misterfin-crt/internal/jellyfin"
 	"testing"
+
+	"misterfin-crt/internal/input/control"
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestShuffleCancellationPreservesArtists(t *testing.T) {
@@ -19,7 +21,7 @@ func TestShuffleCancellationPreservesArtists(t *testing.T) {
 			s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{ID: "track", Type: "Audio"}})
 			s.model.StartMusicQueue()
 		}
-		s.handleKey("back")
+		s.handleKey(control.Back)
 		if len(s.model.Stack) != 2 || s.model.Current().Item().ID != "artist" || s.model.MusicQueueActive() || s.shuffle.library != "" {
 			t.Fatalf("cancel playing=%v lost artists: %+v", playing, s.model)
 		}

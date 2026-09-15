@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"misterfin-crt/internal/branding"
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/ui"
 )
 
@@ -13,9 +14,9 @@ func (p *screenPainter) setup() {
 	s, c := p.scene.Setup, p.canvas
 	hints := []controlHint{}
 	if action := s.retryLabel(); action != "" {
-		hints = append(hints, hint(p.scene.Controls, "open", action))
+		hints = append(hints, hint(p.scene.Controls, control.Open, action))
 	}
-	hints = append(hints, hint(p.scene.Controls, "back", "Exit"))
+	hints = append(hints, hint(p.scene.Controls, control.Back, "Exit"))
 	rows := controlRows(p.width, hints)
 	bottom := controlsTop(p.bottom, rows) - 12
 	top := p.safeY + 4

@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/remote"
 )
 
@@ -134,7 +136,7 @@ func TestLocalBackClosesPickerBeforeRemoteQueue(t *testing.T) {
 	s := testSession(t)
 	s.remotePlayback.active = true
 	s.controller.picker.visible = true
-	s.handleKey("back")
+	s.handleKey(control.Back)
 	if s.controller.stoppedByUser || s.controller.picker.visible {
 		t.Fatal("Back stopped playback instead of closing View")
 	}
@@ -209,5 +211,29 @@ func TestCatalogCancellationPreservesPlaybackAndRejectsLocalResult(t *testing.T)
 	result.apply(s)
 	if s.remotePlayback.active || !s.controller.running || s.controller.stoppedByUser {
 		t.Fatal("stale local result changed playback or installed a queue")
+	}
+}
+
+func TestRemoteAudioTargetBecomesRelativeDecoderOffset(t *testing.T) {
+	f := newControllerFixture(t)
+	f.c.item.Type = "Audio"
+	f.c.state.PositionTicks = 60 * 10000000
+	f.c.state.Paused = true
+	for _, tc := range []struct {
+		target int64
+		offset int
+	}{{90 * 10000000, 30}, {23 * 10000000, -37}} {
+		f.c.SeekTo(tc.target, f.now)
+		select {
+		case command := <-f.c.controls:
+			if command.Kind != playback.SeekAudioRelative || command.Seconds != tc.offset {
+				t.Fatal(command)
+			}
+		default:
+			t.Fatal("remote audio seek was not sent")
+		}
+		if !f.c.state.Paused || len(f.calls) != 1 {
+			t.Fatal("remote audio seek changed pause or reloaded media")
+		}
 	}
 }

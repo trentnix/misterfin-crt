@@ -9,12 +9,12 @@ import (
 // The renderer receives resolved names and never reads controller configuration.
 type controlHint struct{ key, description string }
 
-func hint(labels control.Labels, action, description string) controlHint {
+func hint(labels control.Labels, action control.Action, description string) controlHint {
 	return controlHint{labels.Name(action), description}
 }
 
 // pairedHint shares one badge between related directions and omits unbound keys.
-func pairedHint(labels control.Labels, first, second, description string) controlHint {
+func pairedHint(labels control.Labels, first, second control.Action, description string) controlHint {
 	a, b := labels.Name(first), labels.Name(second)
 	if a == "" {
 		a = b
@@ -29,7 +29,7 @@ func playbackHints(labels control.Labels, paused bool) []controlHint {
 	if paused {
 		action = "Play"
 	}
-	return []controlHint{hint(labels, "open", action), hint(labels, "back", "Stop")}
+	return []controlHint{hint(labels, control.Open, action), hint(labels, control.Back, "Stop")}
 }
 
 const (
