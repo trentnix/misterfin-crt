@@ -12,6 +12,16 @@ import (
 // Decoder holds immutable launch settings. The caller owns the process and its
 // transports. The caller must serialize control methods on the playback loop.
 type Decoder interface {
+	// Name is a stable diagnostic label. It must not include paths or media data.
+	Name() string
+	// WithPicture returns immutable launch settings for one request. It must not
+	// mutate the receiver, which may be shared by concurrent playback sessions.
+	WithPicture(PictureMode) Decoder
+	// Feedback creates a writer for one process's stdout and stderr. It must accept
+	// concurrent writes, bound retained output, and discard unknown diagnostics.
+	// emit receives normalized values. It must not block and must be serialized
+	// by the writer. The caller retains ownership of process and pipe lifetimes.
+	Feedback(emit func(Feedback)) io.Writer
 	// Validate checks settings for the requested item without opening resources.
 	Validate(jellyfin.Item) error
 	// ClientSubtitles reports whether shared overlay text reaches the video.

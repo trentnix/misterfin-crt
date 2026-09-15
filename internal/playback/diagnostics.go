@@ -32,18 +32,9 @@ func newPlaybackTrace(log *diagnostics.Log, config Config, request Request) *pla
 		return nil
 	}
 	t := &playbackTrace{log: log, id: diagnosticSequence.Add(1), start: time.Now()}
-	decoder := config.VideoDecoder.Kind
-	if request.Item.Type == "Audio" {
-		decoder = config.AudioDecoder.Kind
-	}
 	name := "unknown"
-	switch decoder {
-	case DecoderMPlayer:
-		name = "mplayer"
-	case DecoderFFplay:
-		name = "ffplay"
-	case DecoderPython:
-		name = "python"
+	if decoder := config.decoder(request.Item); decoder != nil {
+		name = decoder.Name()
 	}
 	t.record("playback.start", slog.String("decoder", name), slog.Bool("audio", request.Item.Type == "Audio"))
 	return t

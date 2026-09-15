@@ -9,27 +9,30 @@ import (
 	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/input/evdev"
 	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/player"
+	desktopplayer "misterfin-crt/internal/player/ffplay"
+	nativeplayer "misterfin-crt/internal/player/mplayer"
+	inlineplayer "misterfin-crt/internal/player/pythonhelper"
 	"misterfin-crt/internal/settings"
 )
 
 func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
 	t.Setenv("MISTERFIN_FB", "")
 	t.Setenv("MISTERFIN_FRAME_OUT", "")
-	mplayer := playback.DecoderConfig{Kind: playback.DecoderMPlayer}
-	ffplay := playback.DecoderConfig{Kind: playback.DecoderFFplay}
-	video := playback.DecoderConfig{Kind: playback.DecoderPython, Helper: "video.py"}
-	audio := playback.DecoderConfig{Kind: playback.DecoderPython, Helper: "audio.py"}
+	mplayer := nativeplayer.Decoder{Width: 640, Height: 480, Device: "/dev/test-fb"}
+	ffplay := desktopplayer.Decoder{}
+	video := inlineplayer.Decoder{Script: "video.py", Output: "frame.raw.video", Width: 640, Height: 480}
+	audio := inlineplayer.Decoder{Script: "audio.py"}
 	for _, tc := range []struct {
 		name         string
 		args         []string
-		video, audio playback.DecoderConfig
+		video, audio player.Decoder
 		frames       string
 	}{
 		{"MiSTer", nil, mplayer, mplayer, ""},
-		{"MiSTer override", []string{"-player=custom-mplayer"}, playback.DecoderConfig{Player: "custom-mplayer"}, playback.DecoderConfig{Player: "custom-mplayer"}, ""},
+		{"MiSTer override", []string{"-player=custom-mplayer"}, nativeplayer.Decoder{Player: "custom-mplayer", Device: "/dev/test-fb", Width: 640, Height: 480}, nativeplayer.Decoder{Player: "custom-mplayer", Device: "/dev/test-fb", Width: 640, Height: 480}, ""},
 		{"desktop", []string{"-headless=640x240"}, ffplay, ffplay, ""},
-		{"desktop override", []string{"-headless=640x240", "-player=custom-ffplay"}, playback.DecoderConfig{Kind: playback.DecoderFFplay, Player: "custom-ffplay"}, playback.DecoderConfig{Kind: playback.DecoderFFplay, Player: "custom-ffplay"}, ""},
+		{"desktop override", []string{"-headless=640x240", "-player=custom-ffplay"}, desktopplayer.Decoder{Player: "custom-ffplay"}, desktopplayer.Decoder{Player: "custom-ffplay"}, ""},
 		{"inline video and audio", []string{"-headless=640x240", "-output=frame.raw", "-terminal-player=video.py"}, video, video, "frame.raw.video"},
 		{"separate audio helper", []string{"-headless=640x240", "-output=frame.raw", "-terminal-player=video.py", "-audio-player=audio.py"}, video, audio, "frame.raw.video"},
 		{"audio helper only", []string{"-headless=640x240", "-audio-player=audio.py"}, ffplay, audio, ""},
@@ -55,10 +58,13 @@ func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
 			if fmt.Sprintf("%T", target.output) != wantOutput || target.readInput == nil {
 				t.Fatal("incorrect target assembly")
 			}
-			if got.VideoDecoder != tc.video || got.AudioDecoder != tc.audio || got.FrameOutput != tc.frames {
-				t.Fatalf("video=%+v audio=%+v frames=%q", got.VideoDecoder, got.AudioDecoder, got.FrameOutput)
+			if got.VideoDecoder != tc.video || got.AudioDecoder != tc.audio {
+				t.Fatalf("video=%+v audio=%+v frames=%q", got.VideoDecoder, got.AudioDecoder, tc.frames)
 			}
-			if got.Width != 640 || got.Height != 480 || got.Device != "/dev/test-fb" {
+			if tc.frames != "" && inlineFramePath(o) != tc.frames {
+				t.Fatal("decoder/output frame paths differ")
+			}
+			if got.Height != 480 {
 				t.Fatal("lost physical output configuration")
 			}
 		})

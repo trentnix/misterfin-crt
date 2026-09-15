@@ -22,16 +22,16 @@ func TestDecoderSelectionAndInput(t *testing.T) {
 		executable, script string
 		input              playerapi.Input
 	}{
-		{name: "native video", kind: "Movie", options: Config{Width: 640, Height: 240}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.Pipe},
-		{name: "native audio", kind: "Audio", options: Config{Width: 640, Height: 288}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.URL},
-		{name: "native override", kind: "Episode", options: Config{Width: 640, Height: 480, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: "custom-mplayer"}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: "custom-mplayer"}}, executable: "custom-mplayer", input: playerapi.Pipe},
-		{name: "desktop video", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}, executable: "ffplay", input: playerapi.Pipe},
-		{name: "desktop audio", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}, executable: "ffplay", input: playerapi.Pipe},
-		{name: "desktop executable override", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: "custom-ffplay"}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: "custom-ffplay"}}, executable: "custom-ffplay", input: playerapi.Pipe},
-		{name: "inline video", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, executable: "python3", script: "video.py", input: playerapi.Pipe},
-		{name: "inline audio", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 288, FrameOutput: "frame"}, executable: "python3", script: "video.py", input: playerapi.URL},
-		{name: "independent audio helper", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}, Width: 640, Height: 240, FrameOutput: "frame"}, executable: "python3", script: "audio.py", input: playerapi.URL},
-		{name: "audio helper without video geometry", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderMPlayer}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "audio.py"}}, executable: "python3", script: "audio.py", input: playerapi.URL},
+		{name: "native video", kind: "Movie", options: Config{Height: 240, VideoDecoder: mplayer.Decoder{Width: 640, Height: 240}, AudioDecoder: mplayer.Decoder{Width: 640, Height: 240}}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.Pipe},
+		{name: "native audio", kind: "Audio", options: Config{Height: 288, VideoDecoder: mplayer.Decoder{Width: 640, Height: 288}, AudioDecoder: mplayer.Decoder{Width: 640, Height: 288}}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.URL},
+		{name: "native override", kind: "Episode", options: Config{Height: 480, VideoDecoder: mplayer.Decoder{Player: "custom-mplayer", Width: 640, Height: 480}, AudioDecoder: mplayer.Decoder{Player: "custom-mplayer", Width: 640, Height: 480}}, executable: "custom-mplayer", input: playerapi.Pipe},
+		{name: "desktop video", kind: "Movie", options: Config{VideoDecoder: ffplay.Decoder{}, AudioDecoder: ffplay.Decoder{}}, executable: "ffplay", input: playerapi.Pipe},
+		{name: "desktop audio", kind: "Audio", options: Config{VideoDecoder: ffplay.Decoder{}, AudioDecoder: ffplay.Decoder{}}, executable: "ffplay", input: playerapi.Pipe},
+		{name: "desktop executable override", kind: "Audio", options: Config{VideoDecoder: ffplay.Decoder{Player: "custom-ffplay"}, AudioDecoder: ffplay.Decoder{Player: "custom-ffplay"}}, executable: "custom-ffplay", input: playerapi.Pipe},
+		{name: "inline video", kind: "Movie", options: Config{VideoDecoder: pythonhelper.Decoder{Script: "video.py", Output: "frame", Width: 640, Height: 240}, AudioDecoder: pythonhelper.Decoder{Script: "audio.py", Output: "frame", Width: 640, Height: 240}, Height: 240}, executable: "python3", script: "video.py", input: playerapi.Pipe},
+		{name: "inline audio", kind: "Audio", options: Config{VideoDecoder: pythonhelper.Decoder{Script: "video.py", Output: "frame", Width: 640, Height: 288}, AudioDecoder: pythonhelper.Decoder{Script: "video.py", Output: "frame", Width: 640, Height: 288}, Height: 288}, executable: "python3", script: "video.py", input: playerapi.URL},
+		{name: "independent audio helper", kind: "Audio", options: Config{VideoDecoder: pythonhelper.Decoder{Script: "video.py", Output: "frame", Width: 640, Height: 240}, AudioDecoder: pythonhelper.Decoder{Script: "audio.py", Output: "frame", Width: 640, Height: 240}, Height: 240}, executable: "python3", script: "audio.py", input: playerapi.URL},
+		{name: "audio helper without video geometry", kind: "Audio", options: Config{VideoDecoder: mplayer.Decoder{}, AudioDecoder: pythonhelper.Decoder{Script: "audio.py"}}, executable: "python3", script: "audio.py", input: playerapi.URL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			item := jellyfin.Item{Type: tc.kind}
@@ -66,14 +66,14 @@ func TestDecoderRejectsInvalidModes(t *testing.T) {
 		name, kind string
 		options    Config
 	}{
-		{name: "unknown protocol", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderKind(99)}}},
-		{name: "missing Python helper", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython}}},
-		{name: "unsupported item", kind: "Photo", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}},
-		{name: "native width", kind: "Movie", options: Config{Width: 320, Height: 240}},
-		{name: "native height", kind: "Movie", options: Config{Width: 640, Height: 360}},
-		{name: "inline missing output", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 240}},
-		{name: "inline interlaced", kind: "Movie", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py"}, Width: 640, Height: 480, FrameOutput: "frame"}},
-		{name: "conflicting players", kind: "Audio", options: Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py", Player: "other"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "video.py", Player: "other"}, Width: 640, Height: 240, FrameOutput: "frame"}},
+		{name: "missing decoder", kind: "Movie", options: Config{VideoDecoder: nil, AudioDecoder: mplayer.Decoder{}}},
+		{name: "missing Python helper", kind: "Movie", options: Config{VideoDecoder: pythonhelper.Decoder{}, AudioDecoder: mplayer.Decoder{}}},
+		{name: "unsupported item", kind: "Photo", options: Config{VideoDecoder: ffplay.Decoder{}, AudioDecoder: ffplay.Decoder{}}},
+		{name: "native width", kind: "Movie", options: Config{Height: 240, VideoDecoder: mplayer.Decoder{Width: 320, Height: 240}, AudioDecoder: mplayer.Decoder{Width: 320, Height: 240}}},
+		{name: "native height", kind: "Movie", options: Config{Height: 360, VideoDecoder: mplayer.Decoder{Width: 640, Height: 360}, AudioDecoder: mplayer.Decoder{Width: 640, Height: 360}}},
+		{name: "inline missing output", kind: "Movie", options: Config{VideoDecoder: pythonhelper.Decoder{Script: "video.py", Width: 640, Height: 240}, AudioDecoder: pythonhelper.Decoder{Script: "video.py", Width: 640, Height: 240}, Height: 240}},
+		{name: "inline interlaced", kind: "Movie", options: Config{VideoDecoder: pythonhelper.Decoder{Script: "video.py", Output: "frame", Width: 640, Height: 480}, AudioDecoder: pythonhelper.Decoder{Script: "video.py", Output: "frame", Width: 640, Height: 480}, Height: 480}},
+		{name: "missing audio helper", kind: "Audio", options: Config{VideoDecoder: pythonhelper.Decoder{}, AudioDecoder: pythonhelper.Decoder{}, Height: 240}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, err := selectDecoder(tc.options, jellyfin.Item{Type: tc.kind}, PictureOriginal); err == nil {
@@ -86,7 +86,7 @@ func TestDecoderRejectsInvalidModes(t *testing.T) {
 // Only the decoder for the requested media type needs to be usable.
 func TestDecoderChoicesAreIndependent(t *testing.T) {
 	for _, kind := range []string{"Movie", "Audio"} {
-		o := Config{VideoDecoder: DecoderConfig{Kind: DecoderKind(99)}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay}}
+		o := Config{VideoDecoder: nil, AudioDecoder: ffplay.Decoder{}}
 		if kind == "Movie" {
 			o.VideoDecoder, o.AudioDecoder = o.AudioDecoder, o.VideoDecoder
 		}

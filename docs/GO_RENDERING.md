@@ -24,7 +24,7 @@ flowchart TD
     MiSTer --> Overlay["Overlay publication to patched MPlayer"]
 ```
 
-`cmd/misterfin-crt/target_mister.go` and `target_desktop.go` assemble input, player settings, and output for their respective environments. `browser.go` owns their lifetime, opens input, and cancels and joins the reader after the browser returns. `paths.go` resolves configuration, session, and cache paths into `browser.Config`. The browser receives those paths and semantic input events without selecting hardware. Playback receives explicit `DecoderConfig` values without using the display mode to choose a protocol. Existing command-line flags still select the same defaults.
+`cmd/misterfin-crt/target_mister.go` and `target_desktop.go` assemble input, player settings, and output for their respective environments. `browser.go` owns their lifetime, opens input, and cancels and joins the reader after the browser returns. `paths.go` resolves configuration, session, and cache paths into `browser.Config`. The browser receives those paths and semantic input events without selecting hardware. Playback receives immutable `player.Decoder` implementations without selecting a protocol itself. Existing command-line flags still select the same defaults.
 
 `browserTarget.activate` optionally acquires environment resources before the browser opens input. `runBrowser` defers the returned cleanup until playback, input, preferences, and output have closed. The MiSTer target uses this hook for [`bgm.Suspend`](../internal/mister/bgm/bgm.go), which stops enabled menu music and restores it on exit. Desktop targets leave the hook unset. Target construction itself performs no environment changes.
 
@@ -78,7 +78,7 @@ For browsing, photos, and music, each backend presents `UI` through its internal
 
 The lock file remains in place across decoder lifetimes so both processes always use the same inode. The Go client and its patched MPlayer must both implement this handoff.
 
-The native driver emits `ANS_VIDEO_STARTED=true` once after writing its first frame. `positionWriter` passes that signal through `Callbacks.VideoStarted` to the browser's `PlaybackVideoStarted` event. The controller clears loading immediately without waiting for MPlayer's one-second position poll or inventing a position. Decoders without this signal retain the existing position-based fallback. First-frame state resets for every replacement decoder, and stale decoder events cannot clear loading for its replacement.
+The native driver emits `ANS_VIDEO_STARTED=true` once after writing its first frame. The decoder feedback writer normalizes that signal, and playback forwards it through `Callbacks.VideoStarted` to the browser's `PlaybackVideoStarted` event. The controller clears loading immediately without waiting for MPlayer's one-second position poll or inventing a position. Decoders without this signal retain the existing position-based fallback. First-frame state resets for every replacement decoder, and stale decoder events cannot clear loading for its replacement.
 
 `Clear` discards stale playback output before a new item and after playback ends. The application creates the backend once and closes it before closing the underlying display. Backends accept `platform.Presenter`, which exposes only geometry and presentation. `platform.Display` adds `Close` for the application that owns the device. A new presenter can therefore implement pixel delivery without pretending to own display resources. The browser does not select a display path per frame.
 
@@ -209,7 +209,7 @@ The query fields, endpoints, redirect policy, and authentication fallback order 
 
 [`playback.Run`](../internal/playback/player.go) shows the complete decoder lifecycle. It selects a decoder from [reusable configuration](../internal/playback/config.go), locates the executable, [prepares playback](../internal/playback/prepare.go), opens the source, waits for the controller’s start gate, and starts monitoring the process.
 
-Startup creates one [`playback.Config`](../internal/playback/config.go) containing decoder settings, output geometry and paths, and the shared preferences store. [`playbackDriver`](../internal/browser/playback_driver.go) creates a fresh [`playback.Request`](../internal/playback/request.go) for each item or replacement decoder. The request carries the item, track choices, start position, control channels, and [`Callbacks`](../internal/playback/callbacks.go). `Run` reads both values without modifying them. A nil track selection restores that item's saved preferences. A replacement supplies the controller's current choices explicitly.
+Startup creates one [`playback.Config`](../internal/playback/config.go) containing injected audio/video decoders, the physical height for Jellyfin stream selection, and the shared preferences store. Each decoder owns its executable, geometry, device, and frame-output settings. [`playbackDriver`](../internal/browser/playback_driver.go) creates a fresh [`playback.Request`](../internal/playback/request.go) for each item or replacement decoder. The request carries the item, track choices, start position, control channels, and [`Callbacks`](../internal/playback/callbacks.go). `Run` reads both values without modifying them. A nil track selection restores that item's saved preferences. A replacement supplies the controller's current choices explicitly.
 
 [`trackPreparation`](../internal/playback/track_preparation.go) holds saved choices and decoder capabilities while metadata is being resolved. Preparation state stays private to one invocation rather than accumulating in the reusable configuration.
 
@@ -217,9 +217,9 @@ Startup creates one [`playback.Config`](../internal/playback/config.go) containi
 - [`playerProcess`](../internal/playback/process.go) owns process lifetime, pipes, stream copying, and decoder feedback channels. It delegates pause, polling, and refresh to the selected decoder.
 - [`playbackSession`](../internal/playback/session.go) owns decoder monitoring, startup timeout, pause state, and the latest playback position.
 - [`progressReporter`](../internal/playback/progress_reporter.go) owns ordered Jellyfin reporting on a separate worker.
-- [`positionWriter`](../internal/playback/position_writer.go) parses numeric progress, first-frame feedback, and buffering feedback without forwarding decoder diagnostics.
+- [`publishFeedback`](../internal/playback/feedback.go) queues normalized observations without blocking decoder output. Positions, levels, and buffering measurements can be dropped when full. Picture acknowledgments and caption snapshots retain the newest queued state, including caption clears.
 
-The `player.Decoder` interface separates executable protocols from process and session ownership. Each implementation validates its settings and supplies its executable, arguments, input transport, and pause, poll, and refresh behavior. Implementations hold immutable launch configuration. `player.Control` lends them stdin and process-group signaling without transferring ownership of the child process. Player packages do not import playback, browser, or output implementations.
+The `player.Decoder` interface separates executable protocols from process and session ownership. Each implementation validates its settings and supplies its executable, arguments, input transport, feedback writer, and pause, poll, and refresh behavior. `WithPicture` creates request-specific settings without mutating the reusable decoder. `Name` provides a stable diagnostic label. Implementations hold immutable launch configuration. `player.Control` lends them stdin and process-group signaling without transferring ownership of the child process. Player packages do not import playback, browser, or output implementations.
 
 - [`player.go`](../internal/player/player.go): decoder contract, source transports, and optional picture, audio-seek, and meter interfaces.
 - [`picture.go`](../internal/player/picture.go): shared picture choices and display-aspect metadata interpretation.
@@ -227,11 +227,19 @@ The `player.Decoder` interface separates executable protocols from process and s
 - [`mplayer/audio_meter.go`](../internal/player/mplayer/audio_meter.go): export-file allocation, sampling, and cleanup.
 - [`ffplay/decoder.go`](../internal/player/ffplay/decoder.go): FFplay arguments, crop geometry, and process-group pause/resume signals.
 - [`pythonhelper/decoder.go`](../internal/player/pythonhelper/decoder.go): helper validation, line protocol, and clean-frame destination.
-- [`playback/decoder.go`](../internal/playback/decoder.go): configuration-to-implementation selection and executable lookup.
+- [`playback/decoder.go`](../internal/playback/decoder.go): selects the injected audio or video decoder, validates its request-specific settings, and locates the executable.
+- [`feedback.go`](../internal/player/feedback.go): normalized feedback values and picture acknowledgments.
+- [`feedback/writer.go`](../internal/player/feedback/writer.go): reusable, bounded CR/LF framing for concurrent stdout/stderr writes.
+- [`feedback/ans.go`](../internal/player/feedback/ans.go): the shared patched-MPlayer/Python parser.
+- [`ffplay/feedback.go`](../internal/player/ffplay/feedback.go): FFplay clock-status parsing.
 
 The external player sources retain their existing build and launch locations: [`docker/vf_misterfin.c`](../docker/vf_misterfin.c) for native scaling and [`tools/ghostty/video_player.py`](../tools/ghostty/video_player.py) for libmpv rendering. Those files implement decoded-video fitting. The Go player adapters send commands. Output packages compose or publish the shared UI overlay afterward. Reusing a player does not require reusing a target's input or display backend.
 
-`Config.VideoDecoder` and `Config.AudioDecoder` hold independently selected `DecoderConfig` values. Startup resolves executable overrides and helper precedence. Playback validates the selected protocol and converts it into one implementation before session preparation. The playback package has no `Headless` setting.
+`Config.VideoDecoder` and `Config.AudioDecoder` hold independently injected `player.Decoder` values. Target assembly resolves executable overrides and helper precedence. Playback validates only the decoder for the requested media type before session preparation. A nil decoder fails explicitly. Application assembly supplies the existing MPlayer, FFplay, and Python defaults. The playback package imports no concrete decoder implementation.
+
+Each decoder creates a feedback writer for one process. Shared line framing retains at most 8192 bytes between delimiters and serializes stdout/stderr parsing. MPlayer and Python intentionally share the `ANS_*` parser. FFplay parses only its own clock status. Playback receives normalized positions, levels, buffering, first-frame notifications, captions, and picture acknowledgments. Unknown diagnostics remain private and are discarded. A different protocol can supply a different writer without changing shared playback.
+
+Process launch, stream feeding, the controller start gate, cancellation, output acquisition/release, and Jellyfin reporting remain in shared playback. Parser tests cover protocol isolation, fragmented and concurrent output, bounded diagnostics, and independent process state. Queue tests verify nonblocking delivery and retained picture/caption state. An injected test decoder with an unrelated status format exercises the full process-output boundary.
 
 Audio feedback is optional. Decoders implement `player.LevelConfigurer` to enable their transport for one request. MPlayer creates an export file implementing [`player.Meter`](../internal/player/player.go). `Run` removes the file after decoder cleanup, including when preparation fails. The Python helper reports levels through its status pipe and allocates no export file.
 

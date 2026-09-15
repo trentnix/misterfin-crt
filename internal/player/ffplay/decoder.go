@@ -85,3 +85,9 @@ func (d Decoder) ClientSubtitles() bool { return false }
 func (d Decoder) Validate(item jellyfin.Item) error {
 	return nil
 }
+
+// Name identifies the protocol in diagnostics without exposing paths or arguments.
+func (d Decoder) Name() string { return "ffplay" }
+
+// WithPicture returns launch settings for one request without changing the receiver.
+func (d Decoder) WithPicture(mode player.PictureMode) player.Decoder { d.Picture = mode; return d }

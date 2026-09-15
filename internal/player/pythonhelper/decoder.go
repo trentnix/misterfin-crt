@@ -116,3 +116,9 @@ var (
 	_ player.PictureSetter   = Decoder{}
 	_ player.LevelConfigurer = Decoder{}
 )
+
+// Name identifies the protocol in diagnostics without exposing paths or arguments.
+func (d Decoder) Name() string { return "python" }
+
+// WithPicture returns launch settings for one request without changing the receiver.
+func (d Decoder) WithPicture(mode player.PictureMode) player.Decoder { d.Picture = mode; return d }

@@ -12,6 +12,12 @@ In my current workflow, the players serve these roles:
 
 The harness still selects FFplay for video when `--inline-video` is omitted. FFplay remains available for interactive use, but it is not required for my usual Ghostty or MiSTer playback. See [Video inside Ghostty](#video-inside-ghostty) for the usual local playback command and [Desktop use](#desktop-use) for the FFplay alternative.
 
+## Decoder architecture
+
+Application target assembly injects separate audio and video implementations of [`player.Decoder`](../internal/player/player.go). Each implementation owns executable arguments, controls, picture settings, and feedback parsing. Shared playback owns the process, stream, start gate, cancellation, and Jellyfin reporting. Adding a decoder requires an implementation and application wiring, without adding protocol cases to playback.
+
+MPlayer and Python share the `ANS_*` status format. FFplay has a separate clock-status parser. Decoders emit normalized feedback through bounded, nonblocking playback queues. Complete caption screens and picture acknowledgments retain the newest state when queues fill. Raw decoder diagnostics never become UI text. See [external player ownership](GO_RENDERING.md#external-player-ownership) for the interfaces and source files.
+
 ## Playback controls
 
 These are the default bindings. [Input configuration](GO_INPUT.md) supports per-device controller layouts, button overrides, analog axis mappings, and custom button names. Playback overlays show key badges for the active input device, omit unbound actions, and wrap long labels. Music keeps its track and seek controls on a separate row from pause and stop.

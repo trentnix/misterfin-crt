@@ -9,6 +9,7 @@ import (
 	"misterfin-crt/internal/mister/bgm"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/player/mplayer"
 	"misterfin-crt/internal/sound/alsa"
 	"misterfin-crt/internal/videoout/native"
 )
@@ -29,5 +30,6 @@ func misterTarget(d platform.Presenter, o launchOptions, bindings evdev.Config) 
 // misterPlayback selects the patched MPlayer for audio and video using the
 // physical framebuffer dimensions supplied by the presenter.
 func misterPlayback(o launchOptions, g platform.Geometry) playback.Config {
-	return basePlayback(o, g, playback.DecoderMPlayer)
+	decoder := mplayer.Decoder{Player: o.player, Device: o.device, Width: g.OutputWidth, Height: g.OutputHeight}
+	return playback.Config{VideoDecoder: decoder, AudioDecoder: decoder, Height: g.OutputHeight}
 }

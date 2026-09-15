@@ -1,4 +1,4 @@
-package playback
+package feedback
 
 import (
 	"encoding/hex"
@@ -38,22 +38,4 @@ func parseCaption(line string) (string, bool) {
 		return r
 	}, text)
 	return strings.TrimSpace(text), true
-}
-
-// publishCaption keeps the newest complete screen, including clear events.
-// Decoder output must not wait for the UI to consume preceding updates.
-func publishCaption(ch chan string, text string) {
-	select {
-	case ch <- text:
-		return
-	default:
-	}
-	select {
-	case <-ch:
-	default:
-	}
-	select {
-	case ch <- text:
-	default:
-	}
 }

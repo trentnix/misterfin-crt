@@ -8,6 +8,8 @@ import (
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/player/ffplay"
+	"misterfin-crt/internal/player/pythonhelper"
 	"misterfin-crt/internal/sound/alsa"
 	"misterfin-crt/internal/videoout"
 	"misterfin-crt/internal/videoout/companion"
@@ -20,7 +22,7 @@ func desktopTarget(d platform.Presenter, o launchOptions) browserTarget {
 	config := desktopPlayback(o, d.Geometry())
 	var output videoout.Output
 	if o.terminalPlayer != "" {
-		output = framefile.New(d, config.FrameOutput)
+		output = framefile.New(d, inlineFramePath(o))
 	} else {
 		output = companion.New(d)
 	}
@@ -33,14 +35,17 @@ func desktopTarget(d platform.Presenter, o launchOptions) browserTarget {
 // video is requested. An audio helper overrides audio only when no explicit
 // player executable was supplied.
 func desktopPlayback(o launchOptions, g platform.Geometry) playback.Config {
-	config := basePlayback(o, g, playback.DecoderFFplay)
+	decoder := ffplay.Decoder{Player: o.player}
+	config := playback.Config{VideoDecoder: decoder, AudioDecoder: decoder, Height: g.OutputHeight}
 	if o.terminalPlayer != "" {
-		config.VideoDecoder = playback.DecoderConfig{Kind: playback.DecoderPython, Helper: o.terminalPlayer}
+		config.VideoDecoder = pythonhelper.Decoder{Script: o.terminalPlayer, Output: inlineFramePath(o), Width: g.OutputWidth, Height: g.OutputHeight}
 		config.AudioDecoder = config.VideoDecoder
-		config.FrameOutput = o.output + ".video"
 	}
 	if o.audioPlayer != "" && o.player == "" {
-		config.AudioDecoder = playback.DecoderConfig{Kind: playback.DecoderPython, Helper: o.audioPlayer}
+		config.AudioDecoder = pythonhelper.Decoder{Script: o.audioPlayer}
 	}
 	return config
 }
+
+// inlineFramePath joins the Python decoder and frame-file output at one destination.
+func inlineFramePath(o launchOptions) string { return o.output + ".video" }

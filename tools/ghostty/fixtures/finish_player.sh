@@ -1,3 +1,4 @@
 #!/bin/sh
+# The desktop -player option selects the FFplay protocol.
 cat /dev/fd/3 >/dev/null
-printf 'ANS_TIME_POSITION=3\n'
+printf '3 M-V: 0\n'

@@ -54,7 +54,7 @@ func startProcess(ctx context.Context, executable string, args []string, source 
 	p.levels = make(chan AudioLevels, 1)
 	p.pictures = make(chan PictureResult, 16)
 	p.captions = make(chan string, 1)
-	output := &positionWriter{levels: p.levels, positions: p.positions, buffering: p.buffering, videoStarted: p.videoStarted, pictures: p.pictures, captions: p.captions}
+	output := decoder.Feedback(p.publishFeedback)
 	cmd.Stdout, cmd.Stderr = output, output
 	p.commands, err = cmd.StdinPipe()
 	if err != nil {

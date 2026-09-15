@@ -16,12 +16,17 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	playerapi "misterfin-crt/internal/player"
+	desktopplayer "misterfin-crt/internal/player/ffplay"
+	nativeplayer "misterfin-crt/internal/player/mplayer"
+	inlineplayer "misterfin-crt/internal/player/pythonhelper"
 )
 
 func TestProgressParser(t *testing.T) {
-	p := &positionWriter{positions: make(chan float64, 10)}
-	p.Write([]byte("secret URL never returned\nANS_TIME_POS"))
-	p.Write([]byte("ITION=1.25\n  2.50 M-V: 0.001\rnan A-V: 0\r -1 A-V: 0\r"))
+	p := &playerProcess{positions: make(chan float64, 10)}
+	w := nativeplayer.Decoder{}.Feedback(p.publishFeedback)
+	w.Write([]byte("secret URL never returned\nANS_TIME_POS"))
+	w.Write([]byte("ITION=1.25\nANS_TIME_POSITION=2.50\rnan A-V: 0\r -1 A-V: 0\r"))
 	for _, want := range []float64{1.25, 2.5} {
 		select {
 		case got := <-p.positions:
@@ -133,12 +138,12 @@ func runLifecycle(t *testing.T, player string, headless bool, mode string, clip 
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{Token: "private-token", UserID: "user", DeviceID: "device"})
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	decoderKind := DecoderMPlayer
+	var decoder playerapi.Decoder = nativeplayer.Decoder{Player: player, Device: "/dev/fb0", Width: 640, Height: 240}
 	if headless {
-		decoderKind = DecoderFFplay
+		decoder = desktopplayer.Decoder{Player: player}
 	}
 	sawPosition := false
-	err := Run(ctx, client, Config{VideoDecoder: DecoderConfig{Kind: decoderKind, Player: player}, AudioDecoder: DecoderConfig{Kind: decoderKind, Player: player}, Device: "/dev/fb0", Width: 640, Height: 240}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {
+	err := Run(ctx, client, Config{VideoDecoder: decoder, AudioDecoder: decoder, Height: 240}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {
 		sawPosition = true
 		if mode == "cancel" {
 			cancel()
@@ -213,7 +218,7 @@ func TestCancelBeforeStreamHeadersStillStopsSession(t *testing.T) {
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
-		result <- Run(ctx, client, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: path}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {}}})
+		result <- Run(ctx, client, Config{VideoDecoder: desktopplayer.Decoder{Player: path}, AudioDecoder: desktopplayer.Decoder{Player: path}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {}}})
 	}()
 	select {
 	case <-requested:
@@ -240,9 +245,9 @@ func TestLivePlayerLifecycle(t *testing.T) {
 	for _, mode := range []string{"eof", "cancel", "player-failure", "stream-failure"} {
 		t.Run(mode, func(t *testing.T) {
 			player := filepath.Join(t.TempDir(), "player")
-			script := "#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf 'ANS_TIME_POSITION=3\\n'\n"
+			script := "#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf '3 M-V: 0\\n'\n"
 			if mode == "cancel" {
-				script = "#!/bin/sh\nprintf 'ANS_TIME_POSITION=3\\n'\nsleep 30\n"
+				script = "#!/bin/sh\nprintf '3 M-V: 0\\n'\nsleep 30\n"
 			}
 			if mode == "player-failure" {
 				script = "#!/bin/sh\nexit 1\n"
@@ -289,7 +294,7 @@ func TestLivePlayerLifecycle(t *testing.T) {
 			c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{Token: "private"})
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			err := Run(ctx, c, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "channel", Type: "TvChannel"}, Callbacks: Callbacks{Position: func(ticks int64) {
+			err := Run(ctx, c, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: jellyfin.Item{ID: "channel", Type: "TvChannel"}, Callbacks: Callbacks{Position: func(ticks int64) {
 				if ticks != 30000000 {
 					t.Errorf("channel position clamped or resumed: %d", ticks)
 				}
@@ -385,7 +390,7 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 	controls := make(chan Control, 4)
 	first, paused, resumed, advanced := true, false, false, false
 	seekStage := 0
-	err = Run(ctx, c, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: wrapper}}, Request{Item: jellyfin.Item{ID: "track", Type: "Audio"}, Controls: controls, Callbacks: Callbacks{Paused: func(value bool) {
+	err = Run(ctx, c, Config{VideoDecoder: desktopplayer.Decoder{}, AudioDecoder: inlineplayer.Decoder{Script: wrapper}}, Request{Item: jellyfin.Item{ID: "track", Type: "Audio"}, Controls: controls, Callbacks: Callbacks{Paused: func(value bool) {
 		if value {
 			paused = true
 			seekStage = 1
@@ -430,9 +435,10 @@ func TestControllableAudioReportsPauseAndResume(t *testing.T) {
 }
 
 func TestBufferingProtocol(t *testing.T) {
-	p := &positionWriter{positions: make(chan float64, 10), buffering: make(chan bool, 10)}
-	p.Write([]byte("ANS_BUFFER"))
-	p.Write([]byte("ING=true\nANS_BUFFERING=invalid\nANS_TIME_POSITION=2\nANS_BUFFERING=false\n"))
+	p := &playerProcess{positions: make(chan float64, 10), buffering: make(chan bool, 10)}
+	w := nativeplayer.Decoder{}.Feedback(p.publishFeedback)
+	w.Write([]byte("ANS_BUFFER"))
+	w.Write([]byte("ING=true\nANS_BUFFERING=invalid\nANS_TIME_POSITION=2\nANS_BUFFERING=false\n"))
 	if len(p.buffering) != 2 || !<-p.buffering || <-p.buffering {
 		t.Fatal("invalid buffering transitions")
 	}
@@ -442,9 +448,10 @@ func TestBufferingProtocol(t *testing.T) {
 }
 
 func TestVideoStartedProtocol(t *testing.T) {
-	p := &positionWriter{positions: make(chan float64, 1), videoStarted: make(chan struct{}, 1)}
-	p.Write([]byte("ANS_VIDEO_STARTED=false\nANS_VIDEO_STA"))
-	p.Write([]byte("RTED=true\nANS_VIDEO_STARTED=true\n"))
+	p := &playerProcess{positions: make(chan float64, 1), videoStarted: make(chan struct{}, 1)}
+	w := nativeplayer.Decoder{}.Feedback(p.publishFeedback)
+	w.Write([]byte("ANS_VIDEO_STARTED=false\nANS_VIDEO_STA"))
+	w.Write([]byte("RTED=true\nANS_VIDEO_STARTED=true\n"))
 	if len(p.videoStarted) != 1 || len(p.positions) != 0 {
 		t.Fatal("first-frame feedback was lost or invented a playback position")
 	}
@@ -470,7 +477,7 @@ func TestVideoStartedDoesNotWaitForPosition(t *testing.T) {
 	done := make(chan error, 1)
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
 	go func() {
-		done <- Run(ctx, client, Config{VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{VideoStarted: func() { started <- struct{}{} }, Position: func(ticks int64) { positions <- ticks }}})
+		done <- Run(ctx, client, Config{VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, Height: 240}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{VideoStarted: func() { started <- struct{}{} }, Position: func(ticks int64) { positions <- ticks }}})
 	}()
 	select {
 	case <-started:
@@ -493,7 +500,7 @@ func TestVideoStartedDoesNotWaitForPosition(t *testing.T) {
 
 func TestExplicitVideoStartOverridesServerResume(t *testing.T) {
 	player := filepath.Join(t.TempDir(), "player")
-	if err := os.WriteFile(player, []byte("#!/bin/sh\nprintf 'ANS_TIME_POSITION=0\n'\nsleep 30\n"), 0700); err != nil {
+	if err := os.WriteFile(player, []byte("#!/bin/sh\nprintf '0 M-V: 0\n'\nsleep 30\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ target, want int64 }{{-1, 0}, {0, 0}, {600000000, 600000000}, {2000000000, 990000000}} {
@@ -515,7 +522,7 @@ func TestExplicitVideoStartOverridesServerResume(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			var got int64
-			err := Run(ctx, c, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, StartTicks: &tc.target, Callbacks: Callbacks{Position: func(ticks int64) { got = ticks; cancel() }}})
+			err := Run(ctx, c, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, StartTicks: &tc.target, Callbacks: Callbacks{Position: func(ticks int64) { got = ticks; cancel() }}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -537,7 +544,7 @@ func TestExplicitVideoStartOverridesServerResume(t *testing.T) {
 func TestPreparedPlaybackWaitsAtStartGate(t *testing.T) {
 	player := filepath.Join(t.TempDir(), "player")
 	started := filepath.Join(t.TempDir(), "started")
-	if err := os.WriteFile(player, []byte("#!/bin/sh\ntouch \"$PLAYER_STARTED\"\nprintf 'ANS_TIME_POSITION=0\\n'\n"), 0700); err != nil {
+	if err := os.WriteFile(player, []byte("#!/bin/sh\ntouch \"$PLAYER_STARTED\"\nprintf '0 M-V: 0\\n'\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PLAYER_STARTED", started)
@@ -557,7 +564,7 @@ func TestPreparedPlaybackWaitsAtStartGate(t *testing.T) {
 	ready := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(context.Background(), client, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Start: gate, Callbacks: Callbacks{Ready: func() { close(ready) }, Position: func(int64) {}}})
+		done <- Run(context.Background(), client, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Start: gate, Callbacks: Callbacks{Ready: func() { close(ready) }, Position: func(int64) {}}})
 	}()
 	select {
 	case <-ready:
@@ -583,7 +590,7 @@ func TestPreparedPlaybackWaitsAtStartGate(t *testing.T) {
 
 func TestAsyncCleanupDoesNotDelayPlaybackReturn(t *testing.T) {
 	player := filepath.Join(t.TempDir(), "player")
-	if err := os.WriteFile(player, []byte("#!/bin/sh\nprintf 'ANS_TIME_POSITION=0\\n'\n"), 0700); err != nil {
+	if err := os.WriteFile(player, []byte("#!/bin/sh\nprintf '0 M-V: 0\\n'\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	cleanupStarted := make(chan struct{})
@@ -607,7 +614,7 @@ func TestAsyncCleanupDoesNotDelayPlaybackReturn(t *testing.T) {
 	close(fast)
 	returned := make(chan error, 1)
 	go func() {
-		returned <- Run(context.Background(), client, Config{VideoDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderFFplay, Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, AsyncCleanup: fast, Callbacks: Callbacks{Position: func(int64) {}}})
+		returned <- Run(context.Background(), client, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, AsyncCleanup: fast, Callbacks: Callbacks{Position: func(int64) {}}})
 	}()
 	select {
 	case err := <-returned:

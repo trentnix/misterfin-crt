@@ -34,9 +34,3 @@ func selectBrowserTarget(d platform.Presenter, o launchOptions, bindings evdev.C
 	}
 	return desktopTarget(d, o)
 }
-
-// basePlayback copies physical output geometry for stream and decoder setup.
-func basePlayback(o launchOptions, g platform.Geometry, kind playback.DecoderKind) playback.Config {
-	decoder := playback.DecoderConfig{Kind: kind, Player: o.player}
-	return playback.Config{VideoDecoder: decoder, AudioDecoder: decoder, Device: o.device, Width: g.OutputWidth, Height: g.OutputHeight}
-}

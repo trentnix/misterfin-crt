@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"misterfin-crt/internal/jellyfin"
+	nativeplayer "misterfin-crt/internal/player/mplayer"
 )
 
 func preferenceTracks() VideoTracks {
@@ -176,7 +177,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	}
 	run := func(p *Preferences, explicit *TrackOptions, start *int64) {
 		t.Helper()
-		err := Run(context.Background(), c, Config{Preferences: p, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, Request{Item: item, Tracks: explicit, StartTicks: start, Callbacks: Callbacks{Position: func(int64) {}}})
+		err := Run(context.Background(), c, Config{Preferences: p, VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, Height: 240}, Request{Item: item, Tracks: explicit, StartTicks: start, Callbacks: Callbacks{Position: func(int64) {}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -193,7 +194,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	// its explicit defaults over the choices used by the preceding decoder.
 	ctx, cancel := context.WithCancel(context.Background())
 	defaults := TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
-	if err := Run(ctx, c, Config{Preferences: p, VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: path}, Width: 640, Height: 240}, Request{Item: item, Tracks: &defaults, Start: make(chan struct{}), Callbacks: Callbacks{Ready: cancel, Position: func(int64) {}}}); err != nil {
+	if err := Run(ctx, c, Config{Preferences: p, VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, Height: 240}, Request{Item: item, Tracks: &defaults, Start: make(chan struct{}), Callbacks: Callbacks{Ready: cancel, Position: func(int64) {}}}); err != nil {
 		t.Fatal(err)
 	}
 	cancel()

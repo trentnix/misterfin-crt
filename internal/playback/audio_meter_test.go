@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	nativeplayer "misterfin-crt/internal/player/mplayer"
 )
 
 func TestAudioMeterLifetime(t *testing.T) {
@@ -62,7 +63,7 @@ exit 3
 			}))
 			defer server.Close()
 			client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{UserID: "user"})
-			config := Config{AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: player}, Width: 640, Height: 240}
+			config := Config{AudioDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 240}, Height: 240, VideoDecoder: nativeplayer.Decoder{Width: 640, Height: 240}}
 			lastMeter := ""
 			for range 2 {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

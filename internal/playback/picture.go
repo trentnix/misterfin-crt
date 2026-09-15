@@ -13,8 +13,4 @@ const (
 )
 
 // PictureResult acknowledges one live request. Err leaves the preceding mode active.
-type PictureResult struct {
-	Request int
-	Mode    PictureMode
-	Err     error
-}
+type PictureResult = player.PictureResult

@@ -14,6 +14,7 @@ import (
 
 	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/jellyfin"
+	nativeplayer "misterfin-crt/internal/player/mplayer"
 )
 
 func TestPlaybackDiagnosticsRecordMilestonesWithoutMediaSecrets(t *testing.T) {
@@ -50,7 +51,7 @@ func TestPlaybackDiagnosticsRecordMilestonesWithoutMediaSecrets(t *testing.T) {
 	finished := make(chan struct{})
 	go func() {
 		defer close(finished)
-		done <- Run(ctx, client, Config{VideoDecoder: DecoderConfig{Player: player}, Width: 640, Height: 480}, Request{
+		done <- Run(ctx, client, Config{VideoDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 480}, Height: 480, AudioDecoder: nativeplayer.Decoder{Width: 640, Height: 480}}, Request{
 			Item: jellyfin.Item{ID: "item", Type: "Movie"},
 			Callbacks: Callbacks{VideoStarted: func() { first <- struct{}{} }, Position: func(int64) {
 				select {
@@ -108,7 +109,7 @@ func TestTranscodeDiagnosticsAcceptNegotiatedParameterCase(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer log.Close()
-	trace := newPlaybackTrace(log, Config{}, Request{})
+	trace := newPlaybackTrace(log, Config{VideoDecoder: nativeplayer.Decoder{}, AudioDecoder: nativeplayer.Decoder{}}, Request{})
 	trace.prepared(&playbackSession{liveTV: true, streamURL: "http://private-host/stream?MaxWidth=640&MaxHeight=480&VideoBitrate=8000000&MaxFramerate=29.97&ApiKey=private-token"})
 	if err := log.Close(); err != nil {
 		t.Fatal(err)

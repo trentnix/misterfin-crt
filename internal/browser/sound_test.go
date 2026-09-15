@@ -9,6 +9,7 @@ import (
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/player/ffplay"
 	"misterfin-crt/internal/sound"
 )
 
@@ -55,7 +56,7 @@ func TestPlaybackControlsRemainSilent(t *testing.T) {
 func TestFailedDecoderLaunchReleasesSoundSuspension(t *testing.T) {
 	recorder := &testFeedback{}
 	driver := playbackDriver{ctx: context.Background(), feedback: recorder, output: sessionTestOutput{},
-		config: playback.Config{VideoDecoder: playback.DecoderConfig{Kind: playback.DecoderFFplay, Player: "/missing/misterfin-test-player"}},
+		config: playback.Config{VideoDecoder: ffplay.Decoder{Player: "/missing/misterfin-test-player"}},
 		events: make(chan PlaybackEvent, 16)}
 	process := driver.launch(&jellyfin.Client{}, jellyfin.Item{Type: "Movie"}, nil, nil, false, nil, playback.TrackOptions{})
 	select {

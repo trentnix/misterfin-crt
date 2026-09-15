@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	nativeplayer "misterfin-crt/internal/player/mplayer"
+	inlineplayer "misterfin-crt/internal/player/pythonhelper"
 )
 
 func TestStopReleasesOutputBeforeSlowServerCleanup(t *testing.T) {
@@ -67,7 +69,7 @@ func TestStopReleasesOutputBeforeSlowServerCleanup(t *testing.T) {
 			released, cleaned := make(chan struct{}), make(chan struct{})
 			returned := make(chan error, 1)
 			go func() {
-				returned <- Run(ctx, client, Config{VideoDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: player}, AudioDecoder: DecoderConfig{Kind: DecoderMPlayer, Player: player}, Width: 640, Height: 240}, Request{Item: jellyfin.Item{ID: "item", Type: kind}, AsyncCleanup: fast, Callbacks: Callbacks{AcquireVideo: func() {}, ReleaseVideo: func() { close(released) }, CleanupDone: func() { close(cleaned) }, Position: func(ticks int64) { position <- ticks }}})
+				returned <- Run(ctx, client, Config{VideoDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 240}, Height: 240}, Request{Item: jellyfin.Item{ID: "item", Type: kind}, AsyncCleanup: fast, Callbacks: Callbacks{AcquireVideo: func() {}, ReleaseVideo: func() { close(released) }, CleanupDone: func() { close(cleaned) }, Position: func(ticks int64) { position <- ticks }}})
 			}()
 			select {
 			case <-position:
@@ -131,7 +133,7 @@ func TestStopCanDetachReportingAlreadyInProgress(t *testing.T) {
 
 func TestCleanupDoneRunsWhenPreparationCannotStart(t *testing.T) {
 	calls := 0
-	err := Run(context.Background(), nil, Config{VideoDecoder: DecoderConfig{Kind: DecoderPython, Helper: "inline", Player: "native"}, AudioDecoder: DecoderConfig{Kind: DecoderPython, Helper: "inline", Player: "native"}}, Request{Item: jellyfin.Item{Type: "Movie"}, Callbacks: Callbacks{CleanupDone: func() { calls++ }, Position: func(int64) {}}})
+	err := Run(context.Background(), nil, Config{VideoDecoder: inlineplayer.Decoder{}, AudioDecoder: inlineplayer.Decoder{}}, Request{Item: jellyfin.Item{Type: "Movie"}, Callbacks: Callbacks{CleanupDone: func() { calls++ }, Position: func(int64) {}}})
 	if err == nil || calls != 1 {
 		t.Fatalf("early failure did not complete cleanup exactly once: err=%v calls=%d", err, calls)
 	}
