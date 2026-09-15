@@ -144,9 +144,9 @@ Update the Go client and Go-specific MPlayer together. The native output backend
 
 MPlayer signals its first presented frame immediately so the loading label clears without waiting for the next position poll. Position reports still determine seeking and Jellyfin resume data.
 
-Build the player against Bullseye’s glibc 2.31 toolchain, as specified by the Dockerfile. The tested MiSTer has glibc 2.31. An older saved artifact required glibc 2.35 and could not start. Rebuild the image from this Dockerfile before producing a replacement artifact.
+The existing [Dockerfile](../docker/Dockerfile.misterfin-crt) builds the patched ARM MPlayer on the development machine. Docker is not required on MiSTer and does not build the Go client. Build the player against Bullseye’s glibc 2.31 toolchain, as specified by the Dockerfile. The tested MiSTer has glibc 2.31. An older saved artifact required glibc 2.35 and could not start. Rebuild the image from this Dockerfile before producing a replacement artifact.
 
-Recorded-video subtitle and audio-track selection, Live TV closed captions, Original picture mode, and Zoom are implemented as described in [GO_TRACKS.md](GO_TRACKS.md). Complete DDR/interlaced integration and additional hardware layouts remain pending. Existing browsing, seeking, overlays, and music have been confirmed on the maintainer’s CRT. The maintainer also confirmed the new subtitle and audio-track selection works in testing. See GO_TRACKS.md for validation details.
+Recorded-video subtitle and audio-track selection, Live TV closed captions, Original picture mode, and Zoom are implemented as described in [GO_TRACKS.md](GO_TRACKS.md). Optional true interlaced CRT output is described in [GO_DISPLAY.md](GO_DISPLAY.md). Zaparoo DDR integration is deferred. Additional hardware layouts remain unverified. Existing browsing, seeking, overlays, and music have been confirmed on the maintainer’s CRT. The maintainer also confirmed the new subtitle and audio-track selection works in testing. See GO_TRACKS.md for validation details.
 
 ## Rendering architecture
 
@@ -183,3 +183,11 @@ On MiSTer, the framebuffer adapter keeps the console in graphics mode for the ap
 ## Music backgrounds and shuffle
 
 Music supports whole-library shuffle from the artist list, stereo level meters, and configurable backgrounds. SELECT/Tab starts shuffle while browsing artists and cycles backgrounds during music playback. See [music playback and configuration](GO_MUSIC.md).
+
+## ARM color conversion
+
+The private MPlayer build patches its bundled FFmpeg ARM YUV-to-RGB wrapper to return the number of converted rows. The original wrapper returns zero even after writing the complete image. This affects videos whose decoded dimensions already match the output, such as 640×480 content in 480i mode. The picture filter correctly rejects an incomplete frame, so the incorrect return value previously left audio playing without video. The patch preserves the accelerated conversion and its pixels. A regression test checks the wrapper contract, and hardware probes verify all four supported frame heights.
+
+For resized 480/576-line output, the picture filter scales in planar YUV before converting to RGB through the ARM NEON path. This avoids the slower scalar color conversion used by a combined resize-to-RGB operation. The intermediate buffer and conversion contexts are reused across frames. Progressive output and sources that already fit retain their existing conversion path.
+
+On the maintainer’s MiSTer, a 720×404, 30 fps Live TV stream initially dropped seven frames in about 20 seconds. After separating resize and color conversion, scaling averaged about 10 ms per frame instead of 15 ms, with zero decoder drops over a 68-second sample. This sample does not establish frame pacing for every channel or source.

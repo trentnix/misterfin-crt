@@ -3,6 +3,7 @@ package jellyfin
 import (
 	"context"
 	"errors"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -20,18 +21,15 @@ func IsLive(item Item) bool {
 	return item.Type == "TvChannel" || item.Type == "LiveTvChannel"
 }
 
-// liveProfile follows jf_build_live_tv_playback_info_body in src/jellyfin.c.
-func (c *Client) liveProfile(ntsc bool) any {
-	fps := 25
-	if ntsc {
-		fps = 30
-	}
+// liveProfile retains the C client's codec and size limits. The caller
+// supplies the frame-rate cap to match its output cadence.
+func (c *Client) liveProfile(maxFrameRate float64) any {
 	conditions := []any{}
 	for _, limit := range []struct {
 		name  string
-		value int
-	}{{"Width", 720}, {"Height", 576}, {"VideoFramerate", fps}} {
-		conditions = append(conditions, map[string]any{"Condition": "LessThanEqual", "Property": limit.name, "Value": strconv.Itoa(limit.value), "IsRequired": true})
+		value float64
+	}{{"Width", 720}, {"Height", 576}, {"VideoFramerate", maxFrameRate}} {
+		conditions = append(conditions, map[string]any{"Condition": "LessThanEqual", "Property": limit.name, "Value": strconv.FormatFloat(limit.value, 'f', -1, 64), "IsRequired": true})
 	}
 	return map[string]any{
 		"UserId": c.Session.UserID, "StartTimeTicks": 0, "IsPlayback": true, "AutoOpenLiveStream": true,
@@ -72,9 +70,15 @@ func (c *Client) liveURL(raw string) (string, error) {
 	return c.Config.Server + u.String(), nil
 }
 
-func (c *Client) OpenLive(ctx context.Context, channel string, ntsc bool) (LivePlayback, error) {
+// OpenLive negotiates a transcoded channel and returns its stream identity.
+// maxFrameRate must be finite and positive. It caps conversion without forcing
+// slower sources to a higher rate. Failed or canceled negotiation releases the tuner.
+func (c *Client) OpenLive(ctx context.Context, channel string, maxFrameRate float64) (LivePlayback, error) {
 	if err := ctx.Err(); err != nil {
 		return LivePlayback{}, err
+	}
+	if maxFrameRate <= 0 || math.IsNaN(maxFrameRate) || math.IsInf(maxFrameRate, 0) {
+		return LivePlayback{}, errors.New("Live TV frame-rate limit must be finite and positive")
 	}
 	// Let negotiation finish after a user cancellation so we can learn and close
 	// the tuner ID. The HTTP client and this context both bound the wait.
@@ -89,7 +93,7 @@ func (c *Client) OpenLive(ctx context.Context, channel string, ntsc bool) (LiveP
 			MediaStreams   []MediaStream
 		}
 	}
-	err := c.json(negotiation, "POST", "/Items/"+url.PathEscape(channel)+"/PlaybackInfo", nil, c.liveProfile(ntsc), &response)
+	err := c.json(negotiation, "POST", "/Items/"+url.PathEscape(channel)+"/PlaybackInfo", nil, c.liveProfile(maxFrameRate), &response)
 	var live LivePlayback
 	if len(response.MediaSources) > 0 {
 		source := response.MediaSources[0]

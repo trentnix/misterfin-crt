@@ -16,7 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/* One-pass CRT scaling with a live Original/Zoom choice. Retain the source
+/* CRT scaling with a live Original/Zoom choice. Retain the source
  * frame so changing geometry while paused never decodes or seeks another frame.
  * Only the negotiated MPEG-2 transcode's planar 4:2:0 formats are accepted. */
 #include <stdio.h>
@@ -34,8 +34,8 @@
 struct vf_priv_s {
     int width, height, mode, have_frame;
     double dar, pts, endpts;
-    mp_image_t *source;
-    struct SwsContext *scaler[2];
+    mp_image_t *source, *scaled;
+    struct SwsContext *scaler[2], *converter[2];
 };
 
 /* Source offsets and output dimensions stay even for 4:2:0 chroma. */
@@ -70,9 +70,14 @@ static int render(vf_instance_t *vf)
     }
     if (w < 2) w = 2;
     if (h < 2) h = 2;
+    /* Full-height resizing directly to RGB uses the scalar color converter.
+     * Resize in YUV first so the second pass can use ARM's unscaled NEON
+     * conversion. Keep the existing path for progressive output and sources
+     * that already fit. NEON requires a width divisible by 16. */
+    int split = p->height >= 480 && (cw != w || ch != h) && !(w & 15);
     struct SwsContext *ctx = sws_getCachedContext(p->scaler[zoom],
         cw, ch, imgfmt2pixfmt(src->imgfmt), w, h,
-        imgfmt2pixfmt(IMGFMT_BGR32), SWS_FAST_BILINEAR, NULL, NULL, NULL);
+        imgfmt2pixfmt(split ? IMGFMT_YV12 : IMGFMT_BGR32), SWS_FAST_BILINEAR, NULL, NULL, NULL);
     p->scaler[zoom] = ctx;
     if (!ctx) return 0;
     mp_image_t *out = vf_get_image(vf->next, IMGFMT_BGR32, MP_IMGTYPE_TEMP,
@@ -92,8 +97,21 @@ static int render(vf_instance_t *vf)
     };
     uint8_t *dest[4] = {out->planes[0] + (p->height - h) / 2 * out->stride[0]
         + (p->width - w) / 2 * 4, NULL, NULL, NULL};
-    if (sws_scale(ctx, planes, src->stride, 0, ch, dest, out->stride) != h)
+    if (split) {
+        struct SwsContext *rgb = sws_getCachedContext(p->converter[zoom],
+            w, h, imgfmt2pixfmt(IMGFMT_YV12), w, h,
+            imgfmt2pixfmt(IMGFMT_BGR32), SWS_FAST_BILINEAR, NULL, NULL, NULL);
+        p->converter[zoom] = rgb;
+        if (!rgb || sws_scale(ctx, planes, src->stride, 0, ch,
+                            p->scaled->planes, p->scaled->stride) != h)
+            return 0;
+        const uint8_t *scaled[] = {p->scaled->planes[0], p->scaled->planes[1],
+                                  p->scaled->planes[2], NULL};
+        if (sws_scale(rgb, scaled, p->scaled->stride, 0, h, dest, out->stride) != h)
+            return 0;
+    } else if (sws_scale(ctx, planes, src->stride, 0, ch, dest, out->stride) != h) {
         return 0;
+    }
     return vf_next_put_image(vf, out, p->pts, p->endpts);
 }
 
@@ -103,6 +121,10 @@ static int config(vf_instance_t *vf, int w, int h, int dw, int dh,
     struct vf_priv_s *p = vf->priv;
     if (w < 2 || h < 2 || w > 4096 || h > 4096 || (w & 1) || (h & 1)) return 0;
     free_mp_image(p->source);
+    p->source = NULL;
+    free_mp_image(p->scaled);
+    p->scaled = p->height >= 480 ? alloc_mpi(p->width, p->height, IMGFMT_YV12) : NULL;
+    if (p->height >= 480 && (!p->scaled || !p->scaled->planes[0])) return 0;
     /* Keep every luma/chroma row aligned for ARM's scaler and copy paths. */
     p->source = alloc_mpi((w + 63) & ~63, h, fmt);
     if (p->source) p->source->w = w;
@@ -156,6 +178,9 @@ static void uninit(vf_instance_t *vf)
 {
     struct vf_priv_s *p = vf->priv;
     free_mp_image(p->source);
+    free_mp_image(p->scaled);
+    sws_freeContext(p->converter[0]);
+    sws_freeContext(p->converter[1]);
     sws_freeContext(p->scaler[0]);
     sws_freeContext(p->scaler[1]);
     free(p);

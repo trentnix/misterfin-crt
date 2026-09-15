@@ -14,7 +14,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include "interlaced.h"
+
 struct mf_display {
+    struct interlaced_scanout scanout;
     int fd, w, h, ow, oh, stride, bx, by, bw, bh;
     int tty_fd, tty_mode;
     size_t size;
@@ -95,7 +98,11 @@ int mf_open(mf_display **out, const char *device, int width, int height)
         if (d->mem == MAP_FAILED) { d->mem = NULL; error = errno; goto fail; }
         /* Own graphics mode until the app closes. Scripts may have no
          * controlling terminal, so use the active virtual console then. */
-        const char *consoles[] = {"/dev/tty", "/dev/tty0"};
+        const char *interlaced = getenv("MISTERFIN_CRT_INTERLACED");
+        int interlaced_active = interlaced && !strcmp(interlaced, "1");
+        /* The interlaced supervisor selects VT1. A Scripts launcher retains
+         * tty2 as its controlling terminal, so use the active console. */
+        const char *consoles[] = {interlaced_active ? "/dev/tty0" : "/dev/tty", "/dev/tty0"};
         for (size_t i = 0; i < sizeof(consoles) / sizeof(consoles[0]); ++i) {
             int fd = open(consoles[i], O_RDWR | O_CLOEXEC);
             if (fd < 0) continue;
@@ -112,6 +119,11 @@ int mf_open(mf_display **out, const char *device, int width, int height)
         error = clear_console(d->tty_fd);
         if (error) goto fail;
         memset(d->mem, 0, d->size);
+        if (interlaced_active) {
+            if (width != 640 || (height != 480 && height != 576)) { error = ENOTSUP; goto fail; }
+            error = scanout_open(&d->scanout, d->fd);
+            if (error) goto fail;
+        }
 
     }
     *out = d;
@@ -132,6 +144,10 @@ int mf_present(mf_display *d, const uint8_t *pixels, size_t size)
     if (d->fd >= 0) {
         uint32_t dummy = 0;
         if (ioctl(d->fd, FBIO_WAITFORVSYNC, &dummy) < 0) return errno;
+    }
+    if (d->scanout.map) {
+        int error = scanout_select(&d->scanout);
+        if (error) return error;
     }
     /* Clear only the bars and padding. Avoid a full black pass before the copy. */
     memset(d->mem, 0, (size_t)d->by * d->stride);
@@ -165,6 +181,10 @@ int mf_close(mf_display *d)
 {
     if (!d) return 0;
     int error = 0;
+    if (d->scanout.map) {
+        error = scanout_select(&d->scanout);
+        munmap(d->scanout.map, 0x1000000);
+    }
     if (d->mem) {
         if (d->fd < 0) free(d->mem);
         else {

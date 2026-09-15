@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,29 +14,34 @@ import (
 )
 
 func TestLiveProfileAndNegotiatedURL(t *testing.T) {
-	for _, ntsc := range []bool{false, true} {
-		t.Run(fmt.Sprint(ntsc), func(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		rate  float64
+		value string
+	}{
+		{"PAL", 25, "25"},
+		{"NTSC progressive", 30, "30"},
+		{"NTSC interlaced", 30000.0 / 1001, "29.97002997002997"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != "POST" || r.URL.Path != "/Items/channel/PlaybackInfo" {
 					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 				}
 				var got map[string]any
 				json.NewDecoder(r.Body).Decode(&got)
-				fps := "25"
-				if ntsc {
-					fps = "30"
-				}
+				fps := tc.value
 				wantJSON := fmt.Sprintf(`{"UserId":"user","StartTimeTicks":0,"IsPlayback":true,"AutoOpenLiveStream":true,"EnableDirectPlay":false,"EnableDirectStream":false,"EnableTranscoding":true,"AllowVideoStreamCopy":false,"AllowAudioStreamCopy":false,"MaxStreamingBitrate":12000000,"DeviceProfile":{"Name":"MiSTerFin","MaxStreamingBitrate":12000000,"MaxStaticBitrate":12000000,"DirectPlayProfiles":[],"TranscodingProfiles":[{"Container":"ts","Type":"Video","Protocol":"http","AudioCodec":"mp3","VideoCodec":"mpeg2video","Context":"Streaming","MaxAudioChannels":"2"}],"CodecProfiles":[{"Type":"Video","Codec":"mpeg2video","Conditions":[{"Condition":"LessThanEqual","Property":"Width","Value":"720","IsRequired":true},{"Condition":"LessThanEqual","Property":"Height","Value":"576","IsRequired":true},{"Condition":"LessThanEqual","Property":"VideoFramerate","Value":"%s","IsRequired":true}]}],"SubtitleProfiles":[]}}`, fps)
 				var want map[string]any
 				json.Unmarshal([]byte(wantJSON), &want)
 				if !reflect.DeepEqual(got, want) {
-					t.Errorf("profile does not match C: %+v", got)
+					t.Errorf("unexpected codec or frame-rate limit: %+v", got)
 				}
 				fmt.Fprint(w, `{"PlaySessionId":"session","MediaSources":[{"Id":"source","LiveStreamId":"tuner","MediaStreams":[{"Type":"Video","Width":720,"Height":576,"AspectRatio":"16:9"}],"TranscodingUrl":"/Videos/channel/stream.ts?Level=8&mpeg2video-level=2&keep=value&LiveStreamId=tuner"}]}`)
 			}))
 			defer server.Close()
 			c := NewClient(Config{Server: server.URL}, Session{UserID: "user", Token: "private-token"})
-			live, err := c.OpenLive(context.Background(), "channel", ntsc)
+			live, err := c.OpenLive(context.Background(), "channel", tc.rate)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -90,7 +96,7 @@ func TestLiveNegotiationReleasesTunerOnFailureOrCancel(t *testing.T) {
 			}))
 			defer server.Close()
 			c := NewClient(Config{Server: server.URL}, Session{})
-			if _, err := c.OpenLive(ctx, "channel", true); err == nil {
+			if _, err := c.OpenLive(ctx, "channel", 30); err == nil {
 				t.Fatal("missing failure")
 			}
 			select {
@@ -102,5 +108,18 @@ func TestLiveNegotiationReleasesTunerOnFailureOrCancel(t *testing.T) {
 				t.Fatal("tuner leaked")
 			}
 		})
+	}
+}
+
+func TestLiveRejectsInvalidFrameRateBeforeRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("invalid frame-rate limit reached server")
+	}))
+	defer server.Close()
+	c := NewClient(Config{Server: server.URL}, Session{})
+	for _, rate := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if _, err := c.OpenLive(context.Background(), "channel", rate); err == nil {
+			t.Errorf("accepted invalid frame-rate limit %v", rate)
+		}
 	}
 }

@@ -1,0 +1,228 @@
+--- a/docker/vo_fbdev.c
++++ b/docker/vo_fbdev.c
+@@ -33,6 +33,7 @@
+ #include <sys/ioctl.h>
+ #include <sys/stat.h>
+ #include <sys/file.h>
++#include "libavutil/time.h"
+ #ifdef __ANDROID__
+ #include <linux/kd.h>
+ #else
+@@ -701,6 +702,50 @@
+ #define PF_MODE_PARAM    "/sys/module/MiSTer_fb/parameters/mode"
+ #define PF_FMT_WORD      0x8016u   /* FB_EN | FB_FMT_RxB | FB_FMT_8888 — what Main sets for the Linux fb */
+ 
++/* A submitted page must reach VSync before its predecessor is reused. */
++static int pf_pending, pf_prepared;
++static int pf_field_fd = -1;
++static uint32_t pf_submitted_field;
++
++/* The kernel increments this counter at each output field. Read it without
++ * FBIO_WAITFORVSYNC: that ioctl holds the framebuffer lock while sleeping. */
++static uint32_t pf_field(void)
++{
++    char value[24];
++    ssize_t n;
++    do {
++        n = pread(pf_field_fd, value, sizeof(value) - 1, 0);
++    } while (n < 0 && errno == EINTR);
++    if (n <= 0) {
++        mp_msg(MSGT_VO, MSGL_ERR, "Cannot read interlaced field counter\n");
++        exit(1);
++    }
++    value[n] = 0;
++    char *end;
++    unsigned long field = strtoul(value, &end, 10);
++    if (end == value || (*end && *end != '\n')) {
++        mp_msg(MSGT_VO, MSGL_ERR, "Invalid interlaced field counter\n");
++        exit(1);
++    }
++    return (uint32_t)field;
++}
++
++/* Release the old front page only after the submitted flip reaches a field.
++ * Usually that has already happened during decoding. The short bounded wait
++ * also covers fast frames and paused redraws without adding a whole field. */
++static void pf_release_page(void)
++{
++    if (!pf_pending) return;
++    int64_t deadline = av_gettime_relative() + 60000;
++    while (pf_field() == pf_submitted_field) {
++        if (av_gettime_relative() >= deadline) {
++            mp_msg(MSGT_VO, MSGL_ERR, "Interlaced page release timed out\n");
++            exit(1);
++        }
++        av_usleep(500);
++    }
++    pf_pending = 0;
++}
+ static int      pf_active;      /* page-flip mode engaged for this playback */
+ static int      pf_back;        /* page being rendered into (not displayed) */
+ static uint8_t *pf_page[2];     /* both pages, mapped through the fb driver */
+@@ -710,14 +755,30 @@
+ static volatile uint32_t *pf_gpo, *pf_gpi;
+ static void    *pf_reg_map;
+ 
++/* Bound hardware acknowledgment waits so a removed/reset core cannot leave
++ * a decoder spinning forever while the display supervisor waits to restore. */
++static int pf_wait_ack(int high)
++{
++    int64_t deadline = av_gettime_relative() + 60000;
++    for (unsigned count = 0; ; count++) {
++        if (!!(*pf_gpi & PF_SSPI_STROBE) == high) return 1;
++        if (!(count & 1023) && av_gettime_relative() >= deadline) return 0;
++    }
++}
++
+ static void pf_spi_word(uint32_t base_gpo, uint16_t w)
+ {
+     uint32_t g = (base_gpo & ~(0xFFFFu | PF_SSPI_STROBE)) | w;
+     *pf_gpo = g;
+     *pf_gpo = g | PF_SSPI_STROBE;
+-    while (!(*pf_gpi & PF_SSPI_STROBE));
++    int ok = pf_wait_ack(1);
+     *pf_gpo = g;
+-    while (*pf_gpi & PF_SSPI_STROBE);
++    if (ok) ok = pf_wait_ack(0);
++    if (!ok) {
++        *pf_gpo = g & ~PF_SSPI_IO_EN;
++        mp_msg(MSGT_VO, MSGL_ERR, "Interlaced scanout acknowledgment timed out\n");
++        exit(1);
++    }
+ }
+ 
+ /* Repoint the scaler at page n: command + format word + base low/high, then
+@@ -1127,12 +1188,8 @@
+          * over the displayed one. Page 0 is the same physical memory this
+          * fb0 mmap points at, so the centering offset carries over 1:1. */
+         pf_active = 0;
+-        if (access(PF_FLAG, F_OK) == 0 && pf_init()) {
+-            pf_active     = 1;
+-            pf_center_off = (size_t)(center - frame_buffer);
+-            center        = pf_page[pf_back] + pf_center_off;
+-            mp_msg(MSGT_VO, MSGL_INFO, "fbdev: MiSTer page-flip mode engaged\n");
+-        }
++        /* Initialize interlaced pages only when the first frame claims output.
++         * Changing the driver mapping during buffering would blank Go's UI. */
+ 
+         mp_msg(MSGT_VO, MSGL_DBG2, "frame_buffer @ %p\n", frame_buffer);
+         mp_msg(MSGT_VO, MSGL_DBG2, "center @ %p\n", center);
+@@ -1285,6 +1342,21 @@
+         return 0;
+     }
+     go_output_fd = fd;
++    const char *interlaced = getenv("MISTERFIN_CRT_INTERLACED");
++    if (interlaced && !strcmp(interlaced, "1")) {
++        if ((fb_yres != 480 && fb_yres != 576) || !pf_init()) {
++            mp_msg(MSGT_VO, MSGL_ERR, "Cannot initialize interlaced page flipping\n");
++            exit(1);
++        }
++        pf_field_fd = open("/sys/module/MiSTer_fb/parameters/frame_count", O_RDONLY);
++        if (pf_field_fd < 0) {
++            mp_msg(MSGT_VO, MSGL_ERR, "Cannot open interlaced field counter\n");
++            exit(1);
++        }
++        pf_active = 1;
++        pf_center_off = (size_t)(center - frame_buffer);
++        center = pf_page[pf_back] + pf_center_off;
++    }
+     return 1;
+ }
+ 
+@@ -1411,11 +1483,6 @@
+         }
+         memcpy(center + (size_t)y * fb_line_len, row,
+                (size_t)in_width * fb_pixel_size);
+-    }
+-    if (!go_video_announced) {
+-        go_video_announced = 1;
+-        printf("ANS_VIDEO_STARTED=true\n");
+-        fflush(stdout);
+     }
+ }
+ 
+@@ -1601,7 +1668,7 @@
+ 
+     /* Match the C player's pacing before MPlayer schedules presentation.
+      * Waiting in flip_page adds another delay after that deadline. */
+-    if (y == 0 && !pf_active && access("/tmp/misterdvd_vsync", F_OK) == 0) {
++    if (y == 0 && !pf_active && !getenv("MISTERFIN_CRT_INTERLACED") && access("/tmp/misterdvd_vsync", F_OK) == 0) {
+         __u32 dummy = 0;
+         ioctl(fb_dev_fd, FBIO_WAITFORVSYNC, &dummy);
+     }
+@@ -1625,14 +1692,13 @@
+ {
+ }
+ 
+-static void flip_page(void)
+-{
+-    int next_page = !fb_page;
+-    int page_delta = next_page - fb_page;
+-#ifdef CONFIG_VIDIX
+-    if (vidix_name)
+-        return;
+-#endif
++/* Finish framebuffer writes before MPlayer sleeps to the presentation
++ * deadline. The old front page becomes writable only after the preceding
++ * flip has reached VSync. This fence belongs to preparation, not display. */
++static void prepare_frame(void)
++{
++    if (!go_video || !overlay_claim_output()) return;
++    if (pf_active) pf_release_page();
+     /* Session-message banner over the finished frame — `center` points at
+      * the frame this call is about to show in every mode (pf_back page
+      * under page flipping, the live/back buffer otherwise). */
+@@ -1643,11 +1709,32 @@
+         center = output;
+     }
+     overlay_frame();
++    pf_prepared = pf_active;
++}
++
++static void flip_page(void)
++{
++    int next_page = !fb_page;
++    int page_delta = next_page - fb_page;
++#ifdef CONFIG_VIDIX
++    if (vidix_name)
++        return;
++#endif
++    if (!pf_prepared) prepare_frame();
++    if (!go_video || go_output_fd < 0) return;
++    if (!go_video_announced) {
++        go_video_announced = 1;
++        printf("ANS_VIDEO_STARTED=true\n");
++        fflush(stdout);
++    }
+     /* MiSTer page flipping: the frame just rendered lives in pf_back —
+      * repoint the scaler at it (latched in hardware at the next vsync)
+      * and retarget rendering at the page that just left the screen. */
+     if (pf_active) {
+         pf_flip_to(pf_back);
++        pf_submitted_field = pf_field();
++        pf_pending = 1;
++        pf_prepared = 0;
+         pf_back ^= 1;
+         center = pf_page[pf_back] + pf_center_off;
+         return;
+@@ -1669,6 +1756,10 @@
+     center = go_video;
+     vo_draw_text(in_width, in_height, draw_alpha);
+     center = output;
++    /* MPlayer calls draw_osd after filters and before its audio-clock wait.
++     * vf_extra_flip also calls it for paused redraws and picture changes. */
++    const char *interlaced = getenv("MISTERFIN_CRT_INTERLACED");
++    if (interlaced && !strcmp(interlaced, "1")) prepare_frame();
+ }
+ 
+ static void uninit(void)
+@@ -1677,6 +1768,9 @@
+     free(go_video);
+     free(go_row);
+     go_video = go_row = NULL;
++    pf_prepared = pf_pending = 0;
++    if (pf_field_fd >= 0) close(pf_field_fd);
++    pf_field_fd = -1;
+     /* Best-effort restore of the normal display page (the app enforces the
+      * same after killing the player, since a SIGKILL never reaches here).
+      * Main_MiSTer is still SIGSTOPped at this point, so the SPI is safe. */

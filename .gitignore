@@ -20,3 +20,5 @@ local-preview.png
 # is worth doing), and they are trivially easy to sweep up with `git add -A`.
 *.o
 /build/
+
+/display.json

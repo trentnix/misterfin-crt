@@ -40,6 +40,7 @@ Optional configuration files live beside `jellyfin.conf`. On MiSTer, that direct
 
 | File | Settings | Example and guide |
 | --- | --- | --- |
+| `display.json` | Optional true interlaced CRT output, applied on launch. Requires the standalone core and matching player. | [Example](display.example.json) · [Guide](docs/GO_DISPLAY.md) |
 | `sounds.json` | Navigation and selection sounds. Enabled by default at volume 10 out of 100. | [Example](sounds.example.json) · [Guide](docs/GO_SOUNDS.md) |
 | `input.json` | Controller bindings and button labels. | [Example](input.json.example) · [Guide](docs/GO_INPUT.md) |
 | `music.json` | Music backgrounds, custom images and animations, and stereo level meters. | [Example](music.example.json) · [Guide](docs/GO_MUSIC.md) |

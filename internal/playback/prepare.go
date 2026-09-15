@@ -61,7 +61,17 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, req
 	}
 	var live jellyfin.LivePlayback
 	if liveTV {
-		live, err = c.OpenLive(ctx, item.ID, config.Height == 240 || config.Height == 480)
+		// Progressive NTSC keeps its 30 fps cap. Interlaced NTSC uses the
+		// broadcast rate so 30 fps conversion does not periodically shorten
+		// a frame against the core's approximately 59.94 Hz field clock.
+		maxFrameRate := 25.0
+		switch config.Height {
+		case 240:
+			maxFrameRate = 30
+		case 480:
+			maxFrameRate = 30000.0 / 1001
+		}
+		live, err = c.OpenLive(ctx, item.ID, maxFrameRate)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, nil

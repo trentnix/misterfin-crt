@@ -1,0 +1,11 @@
+--- a/ffmpeg/libswscale/arm/swscale_unscaled.c
++++ b/ffmpeg/libswscale/arm/swscale_unscaled.c
+@@ -92,7 +92,7 @@
+                                  c->yuv2rgb_y_offset >> 6,                                  \
+                                  c->yuv2rgb_y_coeff);                                       \
+                                                                                             \
+-    return 0;                                                                               \
++    return srcSliceH;                                                                               \
+ }                                                                                           \
+ 
+ #define DECLARE_FF_YUVX_TO_ALL_RGBX_FUNCS(yuvx)                                             \

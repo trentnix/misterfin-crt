@@ -54,19 +54,20 @@ typedef struct vf_info {
  int (*open)(vf_instance_t *,char *);
  void *options;
 } vf_info_t;
-struct SwsContext { int sw,sh,dw,dh; };
+struct SwsContext { int sw,sh,dw,dh,df; };
 static int configured, flips, allocations;
 static double last_pts;
 static mp_image_t output;
 static struct SwsContext *sws_getCachedContext(struct SwsContext *c,int sw,int sh,int sf,int dw,int dh,int df,int flags,void *a,void *b,void *d) {
  if (!c) { c=calloc(1,sizeof(*c)); allocations++; }
- c->sw=sw;c->sh=sh;c->dw=dw;c->dh=dh;return c;
+ c->sw=sw;c->sh=sh;c->dw=dw;c->dh=dh;c->df=df;return c;
 }
 static void sws_freeContext(struct SwsContext *c) { free(c); }
 static int sws_scale(struct SwsContext *c,const uint8_t *const src[],const int stride[],int y,int h,uint8_t *const dst[],const int ds[]) {
  for(int yy=0;yy<c->dh;yy++) for(int x=0;x<c->dw;x++) {
   uint8_t value=src[0][yy*c->sh/c->dh*stride[0]+x*c->sw/c->dw];
-  memset(dst[0]+yy*ds[0]+x*4,value,4);
+  int pixel_size=c->df==IMGFMT_BGR32 ? 4 : 1;
+  memset(dst[0]+yy*ds[0]+x*pixel_size,value,pixel_size);
  }
  return c->dh;
 }
@@ -116,7 +117,7 @@ int main(void) {
    assert(memcmp(original,output.planes[0],bytes)==0);
    assert(last_pts==12.5 && configured==1);
   }
-  assert(allocations==2 && flips==200);
+  assert(allocations==(height>=480?4:2) && flips==200);
   int invalid=2;
   assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&invalid)==CONTROL_FALSE);
   assert(memcmp(original,output.planes[0],bytes)==0);
@@ -140,6 +141,49 @@ int main(void) {
   free_mp_image(input);
   vf.uninit(&vf);
  }
+ // Interlaced output uses the entire raster, with no device-specific top
+ // padding. Both modes retain distinct rows at full output resolution.
+ setenv("MISTERFIN_CRT_INTERLACED","1",1);
+ for(int height=480;height<=576;height+=96) {
+  vf_instance_t vf={0};char args[80];
+  snprintf(args,sizeof(args),"640:%d:1.333333333:0",height);
+  assert(vf_open(&vf,args));
+  assert(vf.config(&vf,640,height,640,height,0,IMGFMT_YV12));
+  mp_image_t *input=alloc_mpi(640,height,IMGFMT_YV12);
+  for(int y=0;y<height;y++)memset(input->planes[0]+y*input->stride[0],1+y%254,640);
+  assert(vf.put_image(&vf,input,30,30.04));
+  assert(vf.priv->scaler[0]->dh==height);
+  for(int y=0;y<height;y++)assert(output.planes[0][(y*640+320)*4]==1+y%254);
+  int mode=1;
+  assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&mode)==CONTROL_TRUE);
+  assert(vf.priv->scaler[1]->dh==height);
+  assert(output.planes[0][0]!=0);
+  assert(last_pts==30);
+  free_mp_image(input);vf.uninit(&vf);
+ }
+ // Movies and Live TV share the fit. Check symmetry for common broadcast,
+ // film, and portrait ratios, including both full-height raster sizes.
+ for(int height=480;height<=576;height+=96) {
+  const double ratios[]={4.0/3,16.0/9,2.35,1.0};
+  for(int r=0;r<4;r++) for(int zoom=0;zoom<2;zoom++) {
+   vf_instance_t vf={0};char args[80];
+   snprintf(args,sizeof(args),"640:%d:%.9f:%d",height,ratios[r],zoom);
+   assert(vf_open(&vf,args));
+   assert(vf.config(&vf,720,480,720,480,0,IMGFMT_YV12));
+   mp_image_t *input=alloc_mpi(720,480,IMGFMT_YV12);
+   memset(input->planes[0],200,720*480);
+   assert(vf.put_image(&vf,input,40,40.04));
+   int first=-1,last=-1;
+   for(int y=0;y<height;y++) if(output.planes[0][(y*640+320)*4]) {
+    if(first<0)first=y;
+    last=y;
+   }
+   assert(first>=0 && first==height-1-last);
+   if(zoom || r==0)assert(first==0 && last==height-1);
+   free_mp_image(input);vf.uninit(&vf);
+  }
+ }
+ unsetenv("MISTERFIN_CRT_INTERLACED");
  free(output.planes[0]);
  return 0;
 }
@@ -149,8 +193,60 @@ int main(void) {
             c = work / "picture.c"
             binary = work / "picture"
             c.write_text(prefix + source + suffix)
-            subprocess.run(["cc", "-std=c99", "-O2", "-Wall", "-Wextra", "-Wno-unused-parameter", str(c), "-o", str(binary)], check=True, capture_output=True)
+            subprocess.run(["cc", "-D_GNU_SOURCE", "-std=c99", "-O2", "-Wall", "-Wextra", "-Wno-unused-parameter", str(c), "-o", str(binary)], check=True, capture_output=True)
             subprocess.run([str(binary)], check=True, capture_output=True)
+
+    def test_unscaled_yuv_conversion_reports_written_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = pathlib.Path(directory)
+            source = work / "swscale_unscaled.c"
+            shutil.copy(ROOT / "tools/testdata/swscale-arm-unscaled.c", source)
+            subprocess.run(["patch", str(source), str(ROOT / "docker/swscale_arm_return.patch")], check=True, capture_output=True)
+            native = source.read_text()
+            wrapper = native[native.index("#define YUV_TO_RGB_TABLE"):native.index("#define DECLARE_FF_YUVX_TO_ALL_RGBX_FUNCS")]
+            prefix = r'''
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+typedef struct {
+ int srcW, yuv2rgb_v2r_coeff, yuv2rgb_u2g_coeff, yuv2rgb_v2g_coeff;
+ int yuv2rgb_u2b_coeff, yuv2rgb_y_offset, yuv2rgb_y_coeff;
+} SwsContext;
+static int converted_rows;
+'''
+            suffix = r'''
+DECLARE_FF_YUVX_TO_RGBX_FUNCS(yuv420p, bgra)
+int ff_yuv420p_to_bgra_neon(int w, int h, uint8_t *dst, int linesize,
+ const uint8_t *y, int ys, const uint8_t *u, int us, const uint8_t *v, int vs,
+ const int16_t *table, int offset, int coeff) {
+ converted_rows = h;
+ for(int row=0;row<h;row++)memset(dst+row*linesize,200,w*4);
+ return 0; // Assembly return value is not the swscale row count.
+}
+int main(void) {
+ uint8_t pixels[640*576*4], plane[640*576];
+ const uint8_t *src[]={plane,plane,plane,0};
+ uint8_t *dst[]={pixels,0,0,0};
+ int ss[]={640,320,320,0}, ds[]={2560,0,0,0};
+ SwsContext ctx={.srcW=640};
+ const int heights[]={240,288,480,576};
+ for(int i=0;i<4;i++) {
+  memset(pixels,0,sizeof(pixels));
+  int rows=yuv420p_to_bgra_neon_wrapper(&ctx,src,ss,0,heights[i],dst,ds);
+  assert(rows==heights[i] && converted_rows==heights[i]);
+  assert(pixels[0]==200 && pixels[(heights[i]*640-1)*4]==200);
+ }
+ memset(pixels,0,sizeof(pixels));
+ assert(yuv420p_to_bgra_neon_wrapper(&ctx,src,ss,4,8,dst,ds)==8);
+ assert(pixels[3*2560]==0 && pixels[4*2560]==200 && pixels[11*2560]==200 && pixels[12*2560]==0);
+ return 0;
+}
+'''
+            program = work / "test.c"
+            binary = work / "test"
+            program.write_text(prefix + wrapper + suffix)
+            subprocess.run(["cc", "-std=c99", "-fsanitize=undefined", str(program), "-o", str(binary)], check=True)
+            subprocess.run([str(binary)], check=True)
 
 
 if __name__ == "__main__":

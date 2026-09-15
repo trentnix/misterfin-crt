@@ -628,3 +628,54 @@ func TestAsyncCleanupDoesNotDelayPlaybackReturn(t *testing.T) {
 }
 
 // Hardware video must retain the C player's audio synchronization policy.
+
+// The negotiated cap must follow physical output geometry without changing
+// progressive NTSC or PAL. Exercise preparation through the actual HTTP request.
+func TestLiveFrameRateMatchesOutput(t *testing.T) {
+	for _, tc := range []struct {
+		height int
+		want   string
+	}{{240, "30"}, {288, "25"}, {480, "29.97002997002997"}, {576, "25"}} {
+		t.Run(fmt.Sprint(tc.height), func(t *testing.T) {
+			rates := make(chan string, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/Items/channel":
+					fmt.Fprint(w, `{"Id":"channel","Type":"LiveTvChannel"}`)
+				case "/Items/channel/PlaybackInfo":
+					rate := ""
+					var request struct {
+						DeviceProfile struct {
+							CodecProfiles []struct {
+								Conditions []struct{ Property, Value string }
+							}
+						}
+					}
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						t.Error(err)
+					}
+					for _, profile := range request.DeviceProfile.CodecProfiles {
+						for _, condition := range profile.Conditions {
+							if condition.Property == "VideoFramerate" {
+								rate = condition.Value
+							}
+						}
+					}
+					rates <- rate
+					fmt.Fprint(w, `{"PlaySessionId":"play","MediaSources":[{"Id":"source","LiveStreamId":"tuner","TranscodingUrl":"/stream"}]}`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{UserID: "user"})
+			session, err := preparePlayback(context.Background(), c, Config{Height: tc.height}, Request{Item: jellyfin.Item{ID: "channel", Type: "TvChannel"}}, trackPreparation{})
+			if err != nil || session == nil {
+				t.Fatalf("prepare: %v", err)
+			}
+			if rate := <-rates; rate != tc.want {
+				t.Fatalf("frame-rate cap %q, want %q", rate, tc.want)
+			}
+		})
+	}
+}
