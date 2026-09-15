@@ -40,7 +40,7 @@ The client checks for the latest public release at startup. An available update 
 
 Updates replace the application, matching MPlayer, and standard launcher together. Your settings, sign-in, playback preferences, cached artwork, and optional interlaced core are preserved. Back cancels during download or validation. During installation, wait for completion. Failed replacements restore the previous files. Interrupted replacements recover at the next startup.
 
-Automatic updates require the standard installation paths above. Desktop and custom installations use manual installation. The v0.1.0 application has no updater and needs one manual upgrade using the latest release ZIP. See [manual installation and recovery](docs/GO_BUILD.md#application-updates) for details.
+Automatic updates require the standard installation paths above. Desktop and custom installations use manual installation. See [manual installation and recovery](docs/GO_BUILD.md#application-updates) for details.
 
 ## Progressive and interlaced output
 
