@@ -199,6 +199,11 @@ class BrowseIntegrationTests(unittest.TestCase):
             if controlling_terminal:
                 fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
+        if self._testMethodName == "test_diagnostics_lifecycle":
+            (self.directory / "diagnostics.json").write_text(json.dumps({
+                "enabled": True, "path": "logs/diagnostics.log", "max_bytes": 65536,
+            }))
+
         self.process = subprocess.Popen(
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
              "-config", str(config), "-state-dir", str(self.directory / "state")] + player_args,
@@ -253,6 +258,21 @@ class BrowseIntegrationTests(unittest.TestCase):
 
     def key(self, key):
         os.write(self.master, key)
+
+    def test_diagnostics_lifecycle(self):
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.stop()
+        path = self.directory / "logs" / "diagnostics.log"
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual(events[0]["msg"], "application.start")
+        self.assertEqual(events[0]["output_height"], 240)
+        self.assertEqual(events[-1]["msg"], "application.exit")
+        self.assertFalse(events[-1]["failed"])
+        self.assertTrue(any(e["msg"] == "http.request" and e["path"] == "/UserViews" for e in events))
+        for event in events:
+            self.assertNotIn("?", event.get("path", ""))
+        self.assertLessEqual(path.stat().st_size, 65536)
 
     def test_about_preserves_selection_and_blocks_browse_input(self):
         self.key(b"b")

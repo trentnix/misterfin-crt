@@ -42,6 +42,15 @@ func audioProxy(ctx context.Context, c *jellyfin.Client, upstream string) (strin
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		status := 0
+		var received int64
+		failed := true
+		if c.Diagnostics != nil {
+			started := time.Now()
+			defer func() {
+				c.Diagnostics.Request(r.Method, "/audio-stream", status, time.Since(started), received, failed)
+			}()
+		}
 		request, err := http.NewRequestWithContext(r.Context(), r.Method, upstream, nil)
 		if err != nil {
 			w.WriteHeader(502)
@@ -60,6 +69,8 @@ func audioProxy(ctx context.Context, c *jellyfin.Client, upstream string) (strin
 			return
 		}
 		defer response.Body.Close()
+		status = response.StatusCode
+		failed = status < 200 || status >= 300
 		for _, name := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Last-Modified"} {
 			if value := response.Header.Get(name); value != "" {
 				w.Header().Set(name, value)
@@ -67,7 +78,9 @@ func audioProxy(ctx context.Context, c *jellyfin.Client, upstream string) (strin
 		}
 		w.WriteHeader(response.StatusCode)
 		if r.Method == "GET" {
-			_, _ = io.Copy(w, response.Body)
+			var copyErr error
+			received, copyErr = io.Copy(w, response.Body)
+			failed = failed || copyErr != nil
 		}
 	})
 	done := make(chan struct{})

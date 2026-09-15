@@ -18,6 +18,12 @@ import (
 // With Request.AsyncCleanup enabled, reporting and tuner release may outlive Run.
 // Returned errors exclude stream URLs and raw decoder diagnostics.
 func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request) (resultErr error) {
+	var trace *playbackTrace
+	if c != nil {
+		trace = newPlaybackTrace(c.Diagnostics, config, request)
+	}
+	defer func() { trace.finish(ctx, resultErr) }()
+	trace.phase("decoder-configuration")
 	cleanupOwned := false
 	defer func() {
 		if !cleanupOwned && request.Callbacks.CleanupDone != nil {
@@ -35,10 +41,13 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 	}
 	choices.clientSubtitles = decoder.ClientSubtitles()
 	_, choices.livePicture = decoder.(playerapi.PictureSetter)
+	trace.phase("metadata")
 	session, err := preparePlayback(ctx, c, config, request, choices)
 	if err != nil || session == nil {
 		return err
 	}
+	session.trace = trace
+	trace.prepared(session)
 	mediaCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	session.meter = meter
@@ -53,6 +62,7 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 	if request.Callbacks.TrackInfo != nil && session.item.Type != "Audio" {
 		request.Callbacks.TrackInfo(session.tracks)
 	}
+	trace.phase("stream-open")
 	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.Input(session.item))
 	if err != nil {
 		if ctx.Err() != nil {
@@ -64,6 +74,7 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 	if request.Callbacks.Ready != nil {
 		request.Callbacks.Ready()
 	}
+	trace.phase("start-gate")
 	if request.Start != nil {
 		select {
 		case <-request.Start:
@@ -71,6 +82,7 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 			return nil
 		}
 	}
+	trace.phase("decoder-start")
 	process, err := startProcess(mediaCtx, executable, decoder.Args(session.item, source.url), source, decoder)
 	if err != nil {
 		return err
@@ -81,6 +93,7 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 			defer request.Callbacks.ReleaseVideo()
 		}
 	}
+	trace.phase("playing")
 	process.feed()
 	defer func() { cancel(); process.close() }()
 	return session.monitor(ctx, cancel, process, request)

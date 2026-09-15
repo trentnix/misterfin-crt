@@ -18,6 +18,7 @@ import (
 type Config struct {
 	Server, APIKey, Username, TVMode string
 	InsecureTLS                      bool
+	DebugLog                         bool // Enables optional diagnostics unless diagnostics.json overrides it.
 }
 
 var profileLine = regexp.MustCompile(`^\d+x\d+(@\d+)?$`)
@@ -41,7 +42,8 @@ func LoadConfig(path string) (Config, error) {
 			c.TVMode = strings.ToUpper(line)
 		case "INSECURE_TLS":
 			c.InsecureTLS = true
-		case "DEBUGLOG": // Accepted for compatibility. No credential-bearing HTTP logs.
+		case "DEBUGLOG":
+			c.DebugLog = true
 		default:
 			values = append(values, line)
 		}

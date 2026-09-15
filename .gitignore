@@ -22,3 +22,6 @@ local-preview.png
 /build/
 
 /display.json
+
+/diagnostics.json
+debug.log.1

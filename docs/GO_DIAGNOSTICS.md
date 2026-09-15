@@ -1,0 +1,52 @@
+# Diagnostics
+
+Diagnostics records request results, startup details, and playback milestones for troubleshooting. It is disabled by default and uses the same implementation on MiSTer and the desktop harness.
+
+## Enable logging
+
+Copy [diagnostics.example.json](../diagnostics.example.json) beside the `jellyfin.conf` used by the launcher, naming the copy `diagnostics.json`:
+
+```json
+{
+  "enabled": true,
+  "path": "debug.log",
+  "max_bytes": 1048576
+}
+```
+
+Restart the application, reproduce the issue, then exit normally to flush accepted events. Collect `debug.log` and `debug.log.1` if the latter exists. A fresh launch clears both logs, so copy them before launching again.
+
+On the ordinary MiSTer installation, the default log is `/media/fat/misterfin-crt/debug.log`. The 480i installation currently uses `/media/fat/misterfin-crt/interlaced-test/debug.log` because its `jellyfin.conf` is in that directory. The Ghostty harness writes beside the configuration supplied to the client. Relative log paths resolve beside `diagnostics.json`. An absolute path can place the log elsewhere, including `/tmp` to avoid SD-card writes.
+
+Adding `DEBUGLOG` on its own line in `jellyfin.conf` also enables logging with these defaults. An explicit `enabled` value in `diagnostics.json` overrides that switch. To disable logging, set `enabled` to `false`, or remove both the JSON file and the `DEBUGLOG` line.
+
+`max_bytes` limits each file and must be between 4,096 and 67,108,864 bytes. The default retains at most two 1 MiB files. Choose a dedicated log path because the logger truncates that file on launch and owns its `.1` companion. Only one application instance can use a given log path at a time.
+
+## What the log contains
+
+Each line is a JSON object with a timestamp and an event name in `msg`.
+
+| Events | Recorded information |
+| --- | --- |
+| `application.start`, `application.exit` | Build revision, headless/native selection, logical and physical display dimensions, and whether shutdown returned an error. |
+| `http.request` | Method, endpoint path, HTTP status, elapsed milliseconds, received bytes, and failure status. Status zero means no HTTP response was received. Query strings and origins are excluded. |
+| `playback.start`, `playback.phase`, `playback.prepared` | Decoder protocol, metadata/stream/gate/decoder milestones, resume offset, Live TV status, and numeric transcode limits when present. |
+| `playback.first-position`, `playback.first-frame` | Elapsed time until position feedback and the decoder's first-frame notification. They are different milestones. |
+| `playback.pause`, `playback.buffering` | Pause changes and distinct buffering-state notifications. |
+| `playback.progress` | Position and pause state every ten seconds while the decoder is monitored. |
+| `playback.decoder-exit`, `playback.end` | Numeric exit code and signal, failure/cancellation flags, elapsed time, and the last preparation/playback stage. |
+| `diagnostics.dropped` | Number of discarded entries when the writer fell behind. |
+
+The `playback` field is a process-local counter that distinguishes overlapping seek replacements. It is not a Jellyfin session identifier. Playback elapsed times start when that decoder request begins. The first-frame event reflects player feedback, not a measurement of light emitted by the CRT. Not every decoder supplies first-frame or buffering notifications.
+
+Metadata and artwork requests include buffered-body read time. `/media-stream` represents opening video or native audio through response headers, with zero body bytes because the body continues streaming afterward. `/audio-stream` represents one desktop audio-proxy request through completion, including bytes copied. Those durations have different meanings. Non-success response bodies are not read just to count bytes. The GitHub release check is outside this Jellyfin request log.
+
+For a slow launch, compare metadata requests, `stream-open`, `decoder-start`, and `playback.first-frame`. For a failed seek, follow the new `playback` counter and its final stage. Cancellation can mean a user stop, a superseded seek, or application exit. It does not necessarily indicate an error. Process termination can produce a nonzero decoder exit even when cancellation was expected.
+
+## Performance and privacy
+
+The logger uses a 128-entry queue and one worker for JSON encoding and disk writes. Producers never wait for disk. A full queue drops diagnostic entries instead of delaying media or the UI. The application drains accepted entries on normal exit. Abrupt termination can lose queued entries. A file-write failure disables logging. Failure to open or write the log does not stop playback, and a short message reports the problem on stderr. Invalid JSON settings remain configuration errors.
+
+Request logging excludes origins, query strings, authorization headers, bodies, and raw network errors. Stream URLs, media titles, captions, Quick Connect codes, and raw player output are never logged. Endpoint paths can still contain item or user identifiers, and logs expose playback timing and local build details. Files request owner-only permissions where the filesystem supports them.
+
+The diagnostic log does not yet measure dropped frames, decoder load, rendered FPS, or audio/video drift. Position summaries and buffering events help locate a problem but cannot prove smooth frame presentation. Those measurements require separate player instrumentation. Input-device inventories and failures before browser initialization are also outside this first pass.

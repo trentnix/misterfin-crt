@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"misterfin-crt/internal/diagnostics"
 
 	"misterfin-crt/internal/release"
 )
@@ -10,6 +11,8 @@ import (
 // chooses platform defaults. Run does not resolve paths from the display or
 // decoder configuration.
 type Config struct {
+	// Diagnostics is borrowed until Run and its tracked cleanup finish. Nil disables logging.
+	Diagnostics *diagnostics.Log
 	// Build identifies the installed executable on the About page.
 	Build release.Build
 	// CheckUpdate optionally checks release availability. It must honor context

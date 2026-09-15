@@ -1,5 +1,7 @@
 # MiSTerFin CRT
 
+![MiSTerFin CRT logo](internal/branding/misterfin_crt.png)
+
 MiSTerFin CRT is a Jellyfin client for MiSTer FPGA, designed for CRT televisions. It supports movies, TV, live TV, music, and photos.
 
 I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set.
@@ -40,6 +42,7 @@ Optional configuration files live beside `jellyfin.conf`. On MiSTer, that direct
 
 | File | Settings | Example and guide |
 | --- | --- | --- |
+| `diagnostics.json` | Optional request and playback diagnostics, log path, and size limit. Disabled by default. | [Example](diagnostics.example.json) · [Guide](docs/GO_DIAGNOSTICS.md) |
 | `display.json` | Optional true interlaced CRT output, applied on launch. Requires the standalone core and matching player. | [Example](display.example.json) · [Guide](docs/GO_DISPLAY.md) |
 | `sounds.json` | Navigation and selection sounds. Enabled by default at volume 10 out of 100. | [Example](sounds.example.json) · [Guide](docs/GO_SOUNDS.md) |
 | `input.json` | Controller bindings and button labels. | [Example](input.json.example) · [Guide](docs/GO_INPUT.md) |

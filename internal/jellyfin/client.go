@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"misterfin-crt/internal/diagnostics"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -22,9 +23,11 @@ import (
 // Callers must serialize Authenticate and any mutation of Config, Session, or HTTP
 // against other operations. Returned images and item data belong to the caller.
 type Client struct {
-	Config  Config
-	Session Session
-	HTTP    *http.Client
+	// Diagnostics is optional and borrowed. Set it before starting requests.
+	Diagnostics *diagnostics.Log
+	Config      Config
+	Session     Session
+	HTTP        *http.Client
 }
 
 // NewClient copies configuration and session values and creates an HTTP client
@@ -59,7 +62,13 @@ func Rejected(err error) bool {
 // request sends authenticated JSON or artwork requests and limits buffered
 // responses to 8 MiB. It closes each response body and omits request URLs from
 // transport errors. Streaming media uses OpenStream instead.
-func (c *Client) request(ctx context.Context, method, path string, query url.Values, body any) ([]byte, error) {
+func (c *Client) request(ctx context.Context, method, path string, query url.Values, body any) (data []byte, resultErr error) {
+	status := 0
+	var received int64
+	if c.Diagnostics != nil {
+		started := time.Now()
+		defer func() { c.Diagnostics.Request(method, path, status, time.Since(started), received, resultErr != nil) }()
+	}
 	var encoded []byte
 	var err error
 	if body != nil {
@@ -93,11 +102,13 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 		return nil, errors.New("cannot reach Jellyfin (check address, TLS certificate, and connection)")
 	}
 	defer resp.Body.Close()
+	status = resp.StatusCode
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &HTTPError{resp.StatusCode}
 	}
 	const limit = 8 << 20
-	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	data, err = io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	received = int64(len(data))
 	if err != nil {
 		return nil, errors.New("cannot read Jellyfin response")
 	}

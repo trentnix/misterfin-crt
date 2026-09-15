@@ -44,7 +44,14 @@ func (c *Client) OpenVideo(ctx context.Context, itemID, sessionID string, start 
 }
 
 // OpenStream accepts a private URL produced by VideoStreamURL or OpenLive.
-func (c *Client) OpenStream(ctx context.Context, streamURL string) (io.ReadCloser, error) {
+func (c *Client) OpenStream(ctx context.Context, streamURL string) (body io.ReadCloser, resultErr error) {
+	status := 0
+	if c.Diagnostics != nil {
+		started := time.Now()
+		defer func() {
+			c.Diagnostics.Request("GET", "/media-stream", status, time.Since(started), 0, resultErr != nil)
+		}()
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", streamURL, nil)
 	if err != nil {
 		return nil, errors.New("cannot create media request")
@@ -67,6 +74,7 @@ func (c *Client) OpenStream(ctx context.Context, streamURL string) (io.ReadClose
 		}
 		return nil, errors.New("cannot open Jellyfin media stream")
 	}
+	status = response.StatusCode
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		response.Body.Close()
 		return nil, &HTTPError{Status: response.StatusCode}

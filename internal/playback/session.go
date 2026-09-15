@@ -3,6 +3,7 @@ package playback
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
@@ -12,6 +13,7 @@ import (
 // playbackSession owns one Jellyfin play session. Its loop updates decoder
 // state and queues snapshots to progressReporter without waiting for HTTP.
 type playbackSession struct {
+	trace           *playbackTrace
 	meter           playerapi.Meter // Borrowed from Run, which closes it after decoder cleanup.
 	tracks          VideoTracks
 	client          *jellyfin.Client
@@ -82,6 +84,7 @@ func (s *playbackSession) update(seconds float64, position func(int64), startup 
 	}
 	if !s.started {
 		s.started = true
+		s.trace.record("playback.first-position", slog.Int64("position_ticks", s.state.PositionTicks))
 		startup.Stop()
 		s.reporter.start(s.state)
 		s.rememberChoices()
@@ -114,6 +117,7 @@ func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control
 			return
 		}
 		s.state.IsPaused = paused
+		s.trace.record("playback.pause", slog.Bool("paused", paused))
 		if !s.started {
 			if paused {
 				startup.Stop()
@@ -219,6 +223,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 			}
 		case <-videoStarted:
 			videoStarted = nil
+			s.trace.record("playback.first-frame")
 			if request.Callbacks.VideoStarted != nil {
 				request.Callbacks.VideoStarted()
 			}
@@ -236,6 +241,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 				s.control(p, request.Callbacks, control, startup)
 			}
 		case waiting := <-p.buffering:
+			s.trace.buffering(waiting)
 			if request.Callbacks.Buffering != nil {
 				request.Callbacks.Buffering(waiting)
 			}
@@ -244,16 +250,19 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 		case <-poll.C:
 			p.poll()
 		case <-report.C:
+			s.trace.record("playback.progress", slog.Int64("position_ticks", s.state.PositionTicks), slog.Bool("paused", s.state.IsPaused))
 			s.report(true)
 		case <-startup.C:
+			s.trace.record("playback.startup-timeout")
 			cancel()
-			<-p.done
+			s.trace.decoderExit(<-p.done)
 			return errors.New("player did not start playback within 30 seconds")
 		case <-ctx.Done():
 			cancel()
-			<-p.done
+			s.trace.decoderExit(<-p.done)
 			return nil
 		case err := <-p.done:
+			s.trace.decoderExit(err)
 			// Reap first, then apply all progress already parsed from the final output.
 			s.drain(p, request.Callbacks.Position, startup)
 			if ctx.Err() != nil {

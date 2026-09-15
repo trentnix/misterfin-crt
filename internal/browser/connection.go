@@ -44,6 +44,7 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 			session, err = jellyfin.LoadSession(config.StateDir, server.Server)
 			if err == nil {
 				client := jellyfin.NewClient(server, session)
+				client.Diagnostics = config.Diagnostics
 				err = client.Authenticate(work, config.StateDir, func(code string) {
 					send(work, authCodeResult{generation: generation, code: code})
 				})
