@@ -7,6 +7,7 @@ import (
 
 	"misterfin-crt/internal/artwork"
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/rendering"
 )
 
 // selectionLoader coordinates metadata and images for one authenticated session.
@@ -109,7 +110,7 @@ func selectionDelay(ctx context.Context) bool {
 // slice. Images and count values remain immutable after publication.
 func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData {
 	if !root {
-		return selectionData{artwork: Artwork{
+		return selectionData{artwork: rendering.Artwork{
 			Primary:  l.artwork.Cached(item, "Primary"),
 			Backdrop: l.artwork.Cached(item, "Backdrop"),
 			Logo:     l.artwork.Cached(item, "Logo"),

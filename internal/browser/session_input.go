@@ -6,6 +6,7 @@ import (
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/rendering"
 )
 
 // dispatchKey routes each action to the active screen. The return value requests
@@ -77,13 +78,13 @@ func (s *browserSession) dispatchKey(key control.Action) bool {
 	if photo {
 		s.handlePhotoKey(key)
 	}
-	if s.setup.Kind != SetupHidden {
+	if s.setup.Kind != rendering.SetupHidden {
 		switch key {
 		case control.Back:
 			s.model.Quit = true
 			return false
 		case control.Retry, control.Open:
-			if s.setup.retryLabel() != "" {
+			if s.setup.RetryLabel() != "" {
 				s.authenticate()
 			}
 		}

@@ -62,7 +62,7 @@ func TestAboutUpdateIsOnlyPlaceholder(t *testing.T) {
 	}
 	s.handleResult(updateResult{status: release.Status{Latest: "v1.0.0", Available: true}})
 	s.handleKey(control.Open)
-	if s.about.status(time.Now()) != "Not implemented yet." || !s.about.Visible || s.controller.running {
+	if s.about.Status(time.Now()) != "Not implemented yet." || !s.about.Visible || s.controller.running {
 		t.Fatal("missing placeholder or unexpected navigation")
 	}
 	s.handleResult(updateResult{err: errors.New("network failure")})
@@ -134,14 +134,14 @@ func TestAboutUpdateNoticeSurvivesChecksForTwoSeconds(t *testing.T) {
 	// A retry and its result must not erase the notice. Use explicit frame times
 	// to verify both sides of the deadline without sleeping in the test.
 	s.about.Checking = true
-	if got := s.about.status(deadline.Add(-time.Second)); got != "Not implemented yet." {
+	if got := s.about.Status(deadline.Add(-time.Second)); got != "Not implemented yet." {
 		t.Fatal(got)
 	}
 	s.handleResult(updateResult{err: release.ErrUnavailable})
-	if got := s.about.status(deadline.Add(-time.Millisecond)); got != "Not implemented yet." {
+	if got := s.about.Status(deadline.Add(-time.Millisecond)); got != "Not implemented yet." {
 		t.Fatal(got)
 	}
-	if got := s.about.status(deadline); got != "No public release available." {
+	if got := s.about.Status(deadline); got != "No public release available." {
 		t.Fatal(got)
 	}
 	s.handleKey(control.Back)

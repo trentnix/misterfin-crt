@@ -6,6 +6,7 @@ import (
 
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/rendering"
 )
 
 // remoteSession owns the control source for one authenticated account. Commands
@@ -55,7 +56,7 @@ type remoteCommandResult struct {
 }
 
 func (r remoteCommandResult) apply(s *browserSession) bool {
-	if r.generation != s.remote.generation || s.setup.Kind != SetupHidden {
+	if r.generation != s.remote.generation || s.setup.Kind != rendering.SetupHidden {
 		return false
 	}
 	return s.handleRemote(r.command)

@@ -1,5 +1,9 @@
 package browser
 
+import (
+	"misterfin-crt/internal/rendering"
+)
+
 // captionState owns the latest decoder screen and the viewer's local selection.
 // Decoding continues while Off so enabling captions can show the current text.
 // A new channel starts Off. Caption updates never dismiss or open controls.
@@ -9,10 +13,10 @@ type captionState struct {
 }
 
 // rows exposes only the primary EIA-608 service supported by our decoders.
-func (c captionState) rows() []TrackRow {
-	rows := []TrackRow{{Index: -1, Label: "Off", Active: !c.enabled}}
+func (c captionState) rows() []rendering.TrackRow {
+	rows := []rendering.TrackRow{{Index: -1, Label: "Off", Active: !c.enabled}}
 	if c.available {
-		rows = append(rows, TrackRow{Index: 0, Label: "Closed captions", Active: c.enabled})
+		rows = append(rows, rendering.TrackRow{Index: 0, Label: "Closed captions", Active: c.enabled})
 	}
 	return rows
 }

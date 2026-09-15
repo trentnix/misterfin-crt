@@ -14,6 +14,7 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/rendering"
 )
 
 func TestSetupFailuresHaveSpecificRecoveryWithoutRawErrors(t *testing.T) {
@@ -21,31 +22,30 @@ func TestSetupFailuresHaveSpecificRecoveryWithoutRawErrors(t *testing.T) {
 	for _, tc := range []struct {
 		stage connectionStage
 		err   error
-		kind  SetupKind
+		kind  rendering.SetupKind
 	}{
-		{connectionConfig, fmt.Errorf("private URL: %w", os.ErrNotExist), SetupConfigMissing},
-		{connectionConfig, &os.PathError{Op: "open", Path: "private-path", Err: os.ErrPermission}, SetupConfigUnreadable},
-		{connectionConfig, errors.New("private configuration content"), SetupConfigInvalid},
-		{connectionSession, errors.New("private token"), SetupSessionUnavailable},
-		{connectionAuthentication, jellyfin.ErrSessionSave, SetupSessionUnavailable},
-		{connectionAuthentication, jellyfin.ErrUsernameNotFound, SetupUsernameMissing},
-		{connectionAuthentication, jellyfin.ErrQuickConnectDisabled, SetupQuickConnectDisabled},
-		{connectionAuthentication, fmt.Errorf("private secret: %w", jellyfin.ErrQuickConnectExpired), SetupCodeExpired},
-		{connectionAuthentication, &jellyfin.HTTPError{Status: 401}, SetupSignInRequired},
-		{connectionAuthentication, &jellyfin.HTTPError{Status: 500}, SetupConnectionFailed},
+		{connectionConfig, fmt.Errorf("private URL: %w", os.ErrNotExist), rendering.SetupConfigMissing},
+		{connectionConfig, &os.PathError{Op: "open", Path: "private-path", Err: os.ErrPermission}, rendering.SetupConfigUnreadable},
+		{connectionConfig, errors.New("private configuration content"), rendering.SetupConfigInvalid},
+		{connectionSession, errors.New("private token"), rendering.SetupSessionUnavailable},
+		{connectionAuthentication, jellyfin.ErrSessionSave, rendering.SetupSessionUnavailable},
+		{connectionAuthentication, jellyfin.ErrUsernameNotFound, rendering.SetupUsernameMissing},
+		{connectionAuthentication, jellyfin.ErrQuickConnectDisabled, rendering.SetupQuickConnectDisabled},
+		{connectionAuthentication, fmt.Errorf("private secret: %w", jellyfin.ErrQuickConnectExpired), rendering.SetupCodeExpired},
+		{connectionAuthentication, &jellyfin.HTTPError{Status: 401}, rendering.SetupSignInRequired},
+		{connectionAuthentication, &jellyfin.HTTPError{Status: 500}, rendering.SetupConnectionFailed},
 	} {
 		s := setupFailure(tc.stage, tc.err, config)
 		if s.Kind != tc.kind {
 			t.Fatalf("got %v, want %v", s.Kind, tc.kind)
 		}
-		title, message := s.content()
-		if strings.Contains(title+message+s.Path+s.Code, "private") {
+		if strings.Contains(s.Path+s.Code, "private") {
 			t.Fatal("raw failure leaked to presentation")
 		}
-		if s.Kind != SetupCodeExpired && !filepath.IsAbs(s.Path) {
+		if s.Kind != rendering.SetupCodeExpired && !filepath.IsAbs(s.Path) {
 			t.Fatal("selected path was not resolved")
 		}
-		if s.retryLabel() == "" {
+		if s.RetryLabel() == "" {
 			t.Fatal("failure has no recovery action")
 		}
 	}
@@ -55,24 +55,24 @@ func TestSetupRetryDoesNotRestartAnActiveConnection(t *testing.T) {
 	s := testSession(t)
 	s.controller.running = false
 	t.Cleanup(s.connection.close)
-	s.setup = SetupPresentation{Kind: SetupConnecting}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupConnecting}
 	for _, key := range []control.Action{"open", "retry", "open-repeat"} {
 		s.dispatchKey(key)
 		if s.connection.generation != 0 {
 			t.Fatal("input restarted an active attempt")
 		}
 	}
-	s.setup = SetupPresentation{Kind: SetupCodeExpired}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupCodeExpired}
 	s.dispatchKey(control.Open)
-	if s.connection.generation != 1 || s.setup.Kind != SetupConnecting || s.setup.Code != "" {
+	if s.connection.generation != 1 || s.setup.Kind != rendering.SetupConnecting || s.setup.Code != "" {
 		t.Fatal("new-code action did not replace expired code")
 	}
 	s.handleAuthCode(authCodeResult{generation: 0, code: "stale"})
-	if s.setup.Kind != SetupConnecting {
+	if s.setup.Kind != rendering.SetupConnecting {
 		t.Fatal("old approval code replaced current attempt")
 	}
 	s.handleAuth(authResult{generation: 0, err: jellyfin.ErrQuickConnectExpired})
-	if s.setup.Kind != SetupConnecting {
+	if s.setup.Kind != rendering.SetupConnecting {
 		t.Fatal("old failure replaced current attempt")
 	}
 	s.dispatchKey(control.Back)
@@ -120,7 +120,7 @@ func TestConnectionReloadsConfigurationAndReportsItsFailureStage(t *testing.T) {
 	}
 	m.connect(ctx, send)
 	failed := receive()
-	if failed.stage != connectionConfig || setupFailure(failed.stage, failed.err, config).Kind != SetupConfigMissing {
+	if failed.stage != connectionConfig || setupFailure(failed.stage, failed.err, config).Kind != rendering.SetupConfigMissing {
 		t.Fatal("missing configuration misclassified")
 	}
 	if err := os.WriteFile(config.ConfigPath, []byte(server.URL+"\napi-key\nviewer\n"), 0600); err != nil {
@@ -162,7 +162,7 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 			s.dispatchKey(control.Open)
 		}
 		deadline := time.After(time.Second)
-		for s.setup.Kind != SetupQuickConnect {
+		for s.setup.Kind != rendering.SetupQuickConnect {
 			select {
 			case result := <-s.events:
 				s.handleResult(result)

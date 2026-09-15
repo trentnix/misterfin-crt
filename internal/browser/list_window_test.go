@@ -1,15 +1,12 @@
 package browser
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/ui"
 )
 
 func windowPage(start, total int) jellyfin.Page {
@@ -141,53 +138,5 @@ func TestUnknownTotalFindsEndWithoutDiscardingRows(t *testing.T) {
 	m.Apply(*r, jellyfin.Page{}, nil)
 	if v.More() || v.Loading || v.Error != "" || v.Item().ID != "63" {
 		t.Fatal("empty final page lost rows or kept requesting")
-	}
-}
-
-func TestListAnimationPreservesPositionWhenWindowMoves(t *testing.T) {
-	m := windowModel(400, 6)
-	v := m.Current()
-	v.Start, v.Selected, v.Scroll = 0, 127, 124
-	s := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{}, "", time.Unix(0, 0))
-	var a animationState
-	a.advance(s, 6)
-	// Dropping an old page changes relative indices, not the visible position.
-	s.View.Start, s.View.Selected, s.View.Scroll = 64, 63, 60
-	s.Now = s.Now.Add(time.Millisecond * 16)
-	if got := a.advance(s, 6); got.ScrollOffset != 0 {
-		t.Fatal("page rebase animated an artificial jump")
-	}
-	s.View.Scroll++
-	s.Now = s.Now.Add(time.Millisecond * 16)
-	if got := a.advance(s, 6); got.ScrollOffset >= 0 || got.ScrollOffset <= -1 {
-		t.Fatal("rows did not ease between positions")
-	}
-}
-
-// Page retention must not change a frame, including during fractional scrolling.
-func TestListWindowRebasePreservesPixelsAndClipsRows(t *testing.T) {
-	for _, height := range []int{240, 288} {
-		m := windowModel(400, visibleRows(640, height))
-		v := m.Current()
-		v.retainPage(64, windowPage(64, 400), 63, m.Rows)
-		v.retainPage(128, windowPage(128, 400), 100, m.Rows)
-		s := sceneFromModel(m, PlaybackPresentation{}, SetupPresentation{}, selectionData{}, "", time.Unix(0, 0))
-		anim := Animation{Row: float64(m.Rows / 2), ScrollOffset: -0.4}
-		want := renderScene(ui.New(640, height), nil, s, anim)
-		s.View.Page.Items = s.View.Page.Items[64:]
-		s.View.Start += 64
-		s.View.Selected -= 64
-		s.View.Scroll -= 64
-		got := renderScene(ui.New(640, height), nil, s, anim)
-		if !bytes.Equal(got, want) {
-			t.Fatal("discarding an old page changed visible pixels")
-		}
-		anim.ScrollOffset = 0
-		still := renderScene(ui.New(640, height), nil, s, anim)
-		top := (safeY(640, height) + 21) * 640 * 4
-		bottom := top + m.Rows*30*640*4
-		if !bytes.Equal(got[:top], still[:top]) || !bytes.Equal(got[bottom:], still[bottom:]) {
-			t.Fatal("moving rows overwrote header or footer")
-		}
 	}
 }

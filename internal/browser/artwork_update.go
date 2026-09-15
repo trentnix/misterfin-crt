@@ -2,6 +2,8 @@ package browser
 
 import (
 	"image"
+
+	"misterfin-crt/internal/rendering"
 )
 
 // artUpdate delivers one independently completed image request.
@@ -16,7 +18,7 @@ type artUpdate struct {
 
 // applyArtwork updates a screen from a successful result. The browser loop is
 // its only caller. Errors are handled separately by that loop.
-func applyArtwork(art *Artwork, update artUpdate) {
+func applyArtwork(art *rendering.Artwork, update artUpdate) {
 	switch update.kind {
 	case "covers":
 		art.Covers = update.covers

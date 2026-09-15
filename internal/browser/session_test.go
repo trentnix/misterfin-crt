@@ -7,6 +7,7 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/videoout"
 )
 
@@ -75,7 +76,7 @@ func TestSessionRejectsStaleAuthAndSelection(t *testing.T) {
 	s := testSession(t)
 	s.connection.generation = 2
 	s.selection.generation = 3
-	s.setup = SetupPresentation{Kind: SetupQuickConnect, Code: "current"}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupQuickConnect, Code: "current"}
 	for _, r := range []workerResult{
 		authCodeResult{generation: 1, code: "stale"},
 		selectionResult{generation: 2, update: selectionUpdate{kind: selectionDetails, detail: &jellyfin.Item{ID: "stale"}}},
@@ -133,7 +134,7 @@ func TestMusicQueueSurvivesDecoderCompletion(t *testing.T) {
 		t.Fatal("track completion did not request a redraw")
 	}
 	snapshot := s.controller.Snapshot(now)
-	scene := sceneFromModel(s.model, snapshot, SetupPresentation{}, selectionData{}, "", now)
+	scene := sceneFromModel(s.model, snapshot, rendering.SetupPresentation{}, selectionData{}, "", now)
 	if snapshot.Active || !scene.Audio || scene.Video || !scene.Playback.ControlsVisible || !s.media.pending {
 		t.Fatalf("between-track screen changed: %+v", scene)
 	}

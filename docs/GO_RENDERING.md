@@ -8,11 +8,11 @@ The browser submits every screen through `videoout.Output.Present(Frame)`. It ha
 
 ```mermaid
 flowchart TD
-    Run["browserSession.draw"] -->|"Copies scene values"| Scene["Scene"]
+    Run["browserSession.draw"] -->|"Copies scene values"| Scene["rendering.Scene + rendering.Content"]
     Model["Model: navigation, music queue, photo controls"] --> Scene
     Selection["selectionState.current: images and library count"] --> Scene
     Controller["PlaybackController.Snapshot"] --> Scene
-    Scene --> Raster["RasterRenderer.Render (implements Renderer)"]
+    Scene --> Raster["rendering.RasterRenderer.Render (implements rendering.Renderer)"]
     Animation["animationState"] -.->|"Motion and timing"| Raster
     Cache["sceneCache"] -.->|"Prepared artwork"| Raster
     Raster --> Frame["videoout.Frame"]
@@ -28,7 +28,7 @@ flowchart TD
 
 `browserTarget.activate` optionally acquires environment resources before the browser opens input. `runBrowser` defers the returned cleanup until playback, input, preferences, and output have closed. The MiSTer target uses this hook for [`bgm.Suspend`](../internal/mister/bgm/bgm.go), which stops enabled menu music and restores it on exit. Desktop targets leave the hook unset. Target construction itself performs no environment changes.
 
-`browserSession` depends on `Renderer` and `videoout.Output`. Its `draw` method constructs a `Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
+`browserSession` depends on `rendering.Renderer` and `videoout.Output`. Its `draw` method constructs a `rendering.Scene`, asks the renderer for pixels, and presents them. It owns frame pacing and the request to refresh paused video when an overlay changes. It does not implement animation or call concrete drawing functions.
 
 ## UI sound ownership
 
@@ -56,7 +56,9 @@ Handlers return whether an event requires an immediate redraw. `Run` performs th
 
 `Renderer.Render(width, height, Scene)` accepts positive logical dimensions and returns `videoout.Frame`. A renderer owns its animation, caches, and frame storage. It must not perform network/device I/O or change navigation. Calls are serial. Returned pixels are borrowed until the next render call, so the caller must present or copy them first.
 
-`Scene` copies the current view and scalar UI values without exposing `Model` or `playbackState`. It carries artwork, a separate library count, status text, time, a `PlaybackPresentation` for music and video, and photo menu visibility. Position, pause state, and playback control visibility remain in the playback snapshot. The current view borrows Jellyfin item slices and detail pointers for the synchronous render call. Renderers must not mutate or retain those navigation references. Artwork is immutable after publication and may be retained for caching.
+`internal/rendering` owns `Scene`, `Content`, presentation values, `Renderer`, `RasterRenderer`, animation, and visual caches. It does not import `browser`, load files, or start workers. Browser code constructs a scene through `sceneFromModel` and `contentFromView`. `Content` copies the visible title, page window, selection, loading state, and available actions. It omits request targets, prefetch policy, and navigation history. Its opaque identity preserves scroll animation resets without allocating a combined key.
+
+`Scene` borrows Jellyfin item slices, detail pointers, and optional counts for the synchronous render call. Renderers must not mutate or retain those references. Artwork and control labels remain immutable. The renderer can retain artwork for caching. `PlaybackPresentation` carries decoder activity, timing, pause state, and controls. Photo menu visibility remains a separate navigation value. `rendering.VisibleRows` supplies the same CRT list capacity to navigation and drawing.
 
 `RasterRenderer` implements the shared pixel renderer. For each frame, `renderScene` creates a temporary `screenPainter` that borrows the canvas, scene, animation values, and cache. It selects one screen method. Browsing screens then share footer and notice drawing. The painter owns no persistent state or resources. `animationState` owns selection easing and marquee timing. `sceneCache` owns prepared artwork. Reusable UI and overlay canvases are invalidated together when geometry changes. A replacement raster renderer can implement `Renderer` and be injected at application assembly without changing browser navigation or output backends.
 
@@ -106,19 +108,20 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 - [`session_input.go`](../internal/browser/session_input.go): action routing and screen-specific controls.
 - [`session_result.go`](../internal/browser/session_result.go): concrete worker result types and event-loop dispatch.
 - [`session_render.go`](../internal/browser/session_render.go): scene assembly, frame pacing, and presentation.
-- [`scene.go`](../internal/browser/scene.go): read-only rendering input assembled from navigation, artwork, and one playback snapshot.
-- [`renderer.go`](../internal/browser/renderer.go): replaceable renderer interface.
-- [`raster_renderer.go`](../internal/browser/raster_renderer.go): concrete renderer and frame-buffer ownership.
-- [`animation.go`](../internal/browser/animation.go): per-renderer motion and title timing.
-- [`render.go`](../internal/browser/render.go): screen dispatch and uncached rendering entry points.
-- [`render_layout.go`](../internal/browser/render_layout.go): frame-local `screenPainter`, CRT safe areas, title marquee, clock, and browsing footer.
-- [`render_status.go`](../internal/browser/render_status.go): connection and Quick Connect screens.
-- [`render_photo.go`](../internal/browser/render_photo.go) and [`render_music.go`](../internal/browser/render_music.go): photo viewing and music playback screens.
-- [`render_details.go`](../internal/browser/render_details.go): artwork and metadata on item details.
-- [`render_carousel.go`](../internal/browser/render_carousel.go) and [`render_list.go`](../internal/browser/render_list.go): library carousel and paginated lists.
-- [`render_video.go`](../internal/browser/render_video.go): video companion backdrop and playback overlays.
-- [`render_metadata.go`](../internal/browser/render_metadata.go): item titles, subtitles, and count labels.
-- [`scene_cache.go`](../internal/browser/scene_cache.go): prepared artwork cache.
+- [`scene.go`](../internal/browser/scene.go): projects browser state into a borrowed scene.
+- [`scene.go`](../internal/rendering/scene.go) and [`content.go`](../internal/rendering/content.go): read-only rendering input and visible content.
+- [`renderer.go`](../internal/rendering/renderer.go): replaceable renderer interface.
+- [`raster_renderer.go`](../internal/rendering/raster_renderer.go): concrete renderer and frame-buffer ownership.
+- [`animation.go`](../internal/rendering/animation.go): per-renderer motion and title timing.
+- [`render.go`](../internal/rendering/render.go): shared screen dispatch.
+- [`render_layout.go`](../internal/rendering/render_layout.go): frame-local `screenPainter`, CRT safe areas, title marquee, clock, and browsing footer.
+- [`render_status.go`](../internal/rendering/render_status.go): connection and Quick Connect screens.
+- [`render_photo.go`](../internal/rendering/render_photo.go) and [`render_music.go`](../internal/rendering/render_music.go): photo viewing and music playback screens.
+- [`render_details.go`](../internal/rendering/render_details.go): artwork and metadata on item details.
+- [`render_carousel.go`](../internal/rendering/render_carousel.go) and [`render_list.go`](../internal/rendering/render_list.go): library carousel and paginated lists.
+- [`render_video.go`](../internal/rendering/render_video.go): video companion backdrop and playback overlays.
+- [`render_metadata.go`](../internal/rendering/render_metadata.go): item titles, subtitles, and count labels.
+- [`scene_cache.go`](../internal/rendering/scene_cache.go): prepared artwork cache.
 - [`output.go`](../internal/videoout/output.go): `Frame` and the shared `Output` interface.
 - [`frame_file.go`](../internal/videoout/framefile/frame_file.go): Ghostty frame-file backend and video composition.
 - [`native.go`](../internal/videoout/native/native.go): MiSTer backend, framebuffer ownership, and overlay publication.
@@ -133,7 +136,8 @@ Each backend lives in its own subpackage and exports `New` and a concrete `Backe
 - [`playback_driver.go`](../internal/browser/playback_driver.go): external-player launch, callbacks, and the dedicated decoder event channel.
 - [`playback_process.go`](../internal/browser/playback_process.go): decoder resources, cancellation, start gate, and completion wait.
 - [`playback_state.go`](../internal/browser/playback_state.go): controller-owned UI state, menu visibility, destination accumulation, and loading or buffering labels.
-- [`playback_presentation.go`](../internal/browser/playback_presentation.go): pointer-free rendering snapshot and its construction.
+- [`playback_presentation.go`](../internal/browser/playback_presentation.go): constructs the playback snapshot from controller state.
+- [`playback.go`](../internal/rendering/playback.go) and [`tracks.go`](../internal/rendering/tracks.go): playback presentation values and immutable menu choices.
 
 The controller methods span lifecycle, seeking, and event files because those responsibilities have distinct transitions. The smaller state, process, and presentation types each live with their methods.
 
@@ -180,7 +184,7 @@ The browser retains image batching and result ordering in `selection_images.go`.
 - [`mosaic_disk_cache.go`](../internal/artwork/mosaic_disk_cache.go): cache locations, server/user isolation, atomic file replacement, and disk limits.
 - [`mosaic_cache_format.go`](../internal/artwork/mosaic_cache_format.go): versioned manifests, bounded RGBA records, and checksum validation.
 - [`library_cache.go`](../internal/browser/library_cache.go): bounded library metadata retention and separate expiry deadlines.
-- [`artwork.go`](../internal/browser/artwork.go): immutable image inputs for rendering.
+- [`artwork.go`](../internal/rendering/artwork.go): immutable image inputs for rendering.
 - [`cache_files.go`](../internal/artwork/cache_files.go): shared file mechanics and disk-budget inventory.
 - [`artwork_disk_cache.go`](../internal/artwork/artwork_disk_cache.go): ordinary artwork persistence and retry publication guards.
 - [`artwork_loader.go`](../internal/artwork/artwork_loader.go): image loader resources, dimensions, and request limit.
@@ -265,7 +269,7 @@ Playback notices retain their existing behavior. Notices are available in the sn
 
 ## Validation
 
-`TestRenderScreenPixels` compares 40 PAL/NTSC screen cases against hashes captured before extracting the screen drawing methods. The cases cover connection screens, browsing modes, details, photos, music, and video overlays. Existing tests also compare cached and uncached output and verify overlay clearing. The 40 pixel baselines, overlay-clearing test, and video-backdrop cache test passed on both the host and MiSTer’s ARM CPU after the extraction.
+`rendering.TestRenderScreenPixels` compares 48 PAL/NTSC screen cases against established pixel hashes. The cases cover connection screens, browsing modes, details, photos, music, and video overlays. Existing tests also compare cached and uncached output and verify overlay clearing. Earlier screen and cache tests ran on both the host and MiSTer’s ARM CPU. The package extraction preserves all 48 existing hashes. Renderer tests also switch between 240-, 288-, 480-, and 576-row logical canvases. Output tests cover the separate progressive and interlaced physical presentation paths.
 
 Navigation tests cover adjacent selection, restoring the parent page and scroll position, stale listing rejection, and independent photo menu timers. Session tests cover the music screen between decoder runs, committing a queued track only after decoder exit, queue completion, stop, and canceled neighbor results.
 
@@ -289,13 +293,13 @@ The September 12 comparison used `src/main.c` and `src/draw.c` from the preserve
 
 Runtime labels use hours once duration reaches one hour. Artist, album, and series rows omit missing counts and use singular labels for one item. Album rows omit missing years. Detail ratings follow the year when present and start at the left margin otherwise. Both channel type names use the same channel-number formatting. Regression tests cover PAL/NTSC backdrop bounds, metadata, duration formatting, and marquee clipping.
 
-Remaining visual gaps include music visualizers and VU meters, animated setup screens, Continue Watching and Next Up cards, About/update screens, and advanced playback menus. Some require data or playback features as well as drawing. The maintainer's requested photo/music navigation, clean pause behavior, and shared loading/seeking overlay remain intentional Go UX requirements.
+Music visualizers, meters, animated setup screens, the combined Continue Watching feed, About, and playback options now use this shared renderer. Photo/music navigation, clean pause behavior, and the shared loading/seeking overlay remain intentional UX requirements.
 
 ## Prepared artwork and frame pacing
 
 `RasterRenderer` owns reusable browser and overlay frames, animation state, and `sceneCache` on the event loop. List backdrops and cover panels are composed once per image/geometry change. Detail backdrops and gradients are also cached. Carousel artwork is resized and shaded into row strips once, then scrolling copies a different window from each strip. Text, selection, clocks, and controls remain dynamic.
 
-The cache retains one prepared background and one carousel set. It compares immutable RGBA image identities, screen geometry, and tile aspect. It rebuilds when those inputs change. Unknown image implementations bypass reuse. Returned frame pixels are borrowed until the next draw, matching the synchronous output contract. Standalone `render` calls keep the uncached path for independent captures and pixel comparisons.
+The cache retains one prepared background and one carousel set. It compares immutable RGBA image identities, screen geometry, and tile aspect. It rebuilds when those inputs change. Unknown image implementations bypass reuse. Returned frame pixels are borrowed until the next draw, matching the synchronous output contract. Renderer tests retain an uncached drawing helper for independent pixel comparisons.
 
 Complete-frame `BenchmarkBrowserFrame` measurements on the MiSTer ARM CPU were approximately 19.2 ms for a list and 36.9 ms for a carousel before caching. After caching, both measured approximately 3.0 ms. Per-frame allocations dropped from approximately 659–666 KB to 43 KB. These benchmarks exercise drawing with prepared local artwork, including animated positions. They exclude network loading, framebuffer vsync/copy, and physical input latency. First draws after cache invalidation still prepare artwork.
 

@@ -5,13 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/ui"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
+
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/rendering"
+	"misterfin-crt/internal/ui"
 )
 
 func TestResumableVideo(t *testing.T) {
@@ -42,7 +44,7 @@ func TestCleanMusicPauseAndControlTimeout(t *testing.T) {
 	m.StartMusicQueue()
 	now := time.Unix(100, 0)
 	frame := func() []byte {
-		return renderScene(ui.New(640, 240), nil, sceneFromModel(m, state.presentation(m.Current().Detail, now), SetupPresentation{}, selectionData{}, "", now), Animation{})
+		return rendering.NewRenderer().Render(640, 240, sceneFromModel(m, state.presentation(m.Current().Detail, now), rendering.SetupPresentation{}, selectionData{}, "", now)).UI
 	}
 	playing := frame()
 	state.Paused = true
@@ -249,11 +251,11 @@ func TestSeekOverlayShowsUpdatingDestination(t *testing.T) {
 		}
 		state.seekVideo(m.Current().Detail, "seek-forward", now)
 		second := draw()
-		if bytes.Equal(source, second) || runtime(*state.SeekTarget) != "3:00" {
+		if bytes.Equal(source, second) || *state.SeekTarget != 1800000000 {
 			t.Fatal("second press did not show destination")
 		}
 		state.seekVideo(m.Current().Detail, "seek-forward", now)
-		if bytes.Equal(second, draw()) || runtime(*state.SeekTarget) != "3:30" {
+		if bytes.Equal(second, draw()) || *state.SeekTarget != 2100000000 {
 			t.Fatal("Right did not update destination")
 		}
 		state.seekVideo(m.Current().Detail, "seek-backward", now)
@@ -290,7 +292,7 @@ func TestSeekInFlightReplacesDestinationOverlay(t *testing.T) {
 	state.SeekInFlight = false
 	retargeted := make([]byte, len(before))
 	renderVideoControls(retargeted, 640, 240, state.presentation(m.Current().Detail, now), now)
-	if bytes.Equal(after, retargeted) || runtime(*state.SeekTarget) != "1:30" {
+	if bytes.Equal(after, retargeted) || *state.SeekTarget != 900000000 {
 		t.Fatal("retarget did not restore the updated destination")
 	}
 	state.SeekInFlight = true
@@ -302,6 +304,6 @@ func TestSeekInFlightReplacesDestinationOverlay(t *testing.T) {
 }
 
 // Compose a value snapshot over a fresh decoder frame for pixel comparisons.
-func renderVideoControls(frame []byte, w, h int, p PlaybackPresentation, now time.Time) {
-	ui.Composite(frame, renderVideoOverlay(w, h, p, now))
+func renderVideoControls(frame []byte, w, h int, p rendering.PlaybackPresentation, now time.Time) {
+	ui.Composite(frame, rendering.NewRenderer().Render(w, h, rendering.Scene{Video: true, Playback: p, Now: now}).Overlay)
 }

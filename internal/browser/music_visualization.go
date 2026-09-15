@@ -8,7 +8,7 @@ import (
 )
 
 // musicPresentation owns effect selection and the latest disposable audio
-// measurement. Effect animation itself belongs to RasterRenderer.
+// measurement. Effect animation itself belongs to rendering.RasterRenderer.
 type musicPresentation struct {
 	library    *musicviz.Library
 	index      int

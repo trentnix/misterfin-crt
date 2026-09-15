@@ -6,6 +6,7 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/rendering"
 )
 
 func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {
@@ -73,8 +74,8 @@ func TestPhotoControlsAreIndependentOfPlayback(t *testing.T) {
 	m.Current().Location.Kind = "items"
 	m.Current().Page.Items = []jellyfin.Item{{ID: "photo", Type: "Photo"}}
 	m.Key(control.Open)
-	scene := func() Scene {
-		return sceneFromModel(m, f.c.Snapshot(f.now), SetupPresentation{}, selectionData{}, "", f.now)
+	scene := func() rendering.Scene {
+		return sceneFromModel(m, f.c.Snapshot(f.now), rendering.SetupPresentation{}, selectionData{}, "", f.now)
 	}
 	if scene().PhotoControlsVisible {
 		t.Fatal("photo inherited the playback menu")

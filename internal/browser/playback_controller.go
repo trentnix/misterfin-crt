@@ -6,6 +6,7 @@ import (
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/rendering"
 )
 
 // PlaybackController coordinates one item's playback on the browser event loop.
@@ -88,7 +89,7 @@ func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused boo
 }
 
 // Snapshot copies the visible playback state. Later events cannot change it.
-func (c *PlaybackController) Snapshot(now time.Time) PlaybackPresentation {
+func (c *PlaybackController) Snapshot(now time.Time) rendering.PlaybackPresentation {
 	presentation := c.state.presentation(&c.item, now)
 	presentation.Active = c.running
 	presentation.Audio = c.item.Type == "Audio"

@@ -7,6 +7,7 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
 )
@@ -27,7 +28,7 @@ import (
 // Cancellation and user exit stop pending work and wait for tracked decoders
 // and detached server cleanup. The caller must cancel and join its input reader,
 // then close output after Run returns.
-func Run(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer, feedback sound.Feedback, keys <-chan control.Event) error {
+func Run(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer rendering.Renderer, feedback sound.Feedback, keys <-chan control.Event) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	s := newBrowserSession(ctx, config, player, output, renderer, feedback)

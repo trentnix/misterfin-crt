@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/rendering"
 )
 
 // requestState owns the current listing request.
@@ -35,7 +36,7 @@ func (s *browserSession) authenticate() {
 	s.selection.current = selectionData{}
 	s.selection.err = ""
 	s.selection.key = ""
-	s.setup = SetupPresentation{Kind: SetupConnecting}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupConnecting}
 	s.connection.connect(s.ctx, s.send)
 }
 
@@ -70,7 +71,7 @@ func (s *browserSession) handleAuthCode(r authCodeResult) bool {
 	if !s.connection.current(r.generation) {
 		return false
 	}
-	s.setup = SetupPresentation{Kind: SetupQuickConnect, Code: r.code}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupQuickConnect, Code: r.code}
 	return true
 }
 
@@ -83,10 +84,10 @@ func (s *browserSession) handleAuth(r authResult) bool {
 	} else {
 		s.client = r.connection.client
 		s.model = New()
-		s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
+		s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)
 		s.selection.key = ""
 		s.selection.loader = r.connection.selection
-		s.setup = SetupPresentation{}
+		s.setup = rendering.SetupPresentation{}
 		s.startRemote()
 		s.load(s.model.Load(0))
 		s.refreshHome()

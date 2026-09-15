@@ -1,11 +1,14 @@
 package browser
 
-import "misterfin-crt/internal/jellyfin"
+import (
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/rendering"
+)
 
 // selectionData is the selected item's presentation data. Library counts remain
 // separate from images. The browser loop applies progressive results here.
 type selectionData struct {
-	artwork Artwork
+	artwork rendering.Artwork
 	count   *int
 }
 

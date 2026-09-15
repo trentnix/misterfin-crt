@@ -1,11 +1,10 @@
-// Package browser coordinates Jellyfin browsing, media controls, and shared UI
-// rendering. Run owns the event loop. Model tracks navigation, PlaybackController
-// tracks decoder transitions, and Renderer produces frames for videoout.Output.
-// Output implementations select physical presentation without changing UI rules.
+// Package browser coordinates Jellyfin navigation and media controls. Run owns
+// the event loop, Model tracks navigation, and PlaybackController tracks decoder
+// transitions. The browser supplies read-only scenes to rendering.Renderer and
+// presents its frames through videoout.Output.
 package browser
 
 import (
-	"fmt"
 	"time"
 
 	"misterfin-crt/internal/input/control"
@@ -256,14 +255,4 @@ func (m *Model) Key(key control.Action) *Request {
 		}
 	}
 	return nil
-}
-func (v *View) Count() string {
-	if len(v.Page.Items) == 0 {
-		return "0 items"
-	}
-	total := "?"
-	if v.Page.TotalRecordCount != nil {
-		total = fmt.Sprint(*v.Page.TotalRecordCount)
-	}
-	return fmt.Sprintf("%d/%s", v.Start+v.Selected+1, total)
 }

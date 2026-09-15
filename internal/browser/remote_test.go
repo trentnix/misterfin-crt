@@ -10,6 +10,7 @@ import (
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/rendering"
 )
 
 func TestRemoteCommandsIgnoreMenusAndPreserveLabels(t *testing.T) {
@@ -109,8 +110,8 @@ func TestRemoteSeekAndPauseDuringHandoff(t *testing.T) {
 
 func TestRemoteMessageUsesSharedOverlay(t *testing.T) {
 	now := time.Now()
-	scene := Scene{Now: now, Video: true, Playback: PlaybackPresentation{Active: true}, Message: MessagePresentation{Text: "Remote message", Until: now.Add(time.Second)}}
-	renderer := NewRenderer()
+	scene := rendering.Scene{Now: now, Video: true, Playback: rendering.PlaybackPresentation{Active: true}, Message: rendering.MessagePresentation{Text: "Remote message", Until: now.Add(time.Second)}}
+	renderer := rendering.NewRenderer()
 	frame := renderer.Render(640, 240, scene)
 	visible := append([]byte(nil), frame.Overlay...)
 	scene.Now = now.Add(2 * time.Second)

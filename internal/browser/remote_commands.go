@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/rendering"
 )
 
 // handleRemote operates on media state directly. It never synthesizes a select
@@ -12,7 +13,7 @@ func (s *browserSession) handleRemote(cmd remote.Command) bool {
 	now := time.Now()
 	switch cmd.Kind {
 	case remote.Message:
-		s.message = MessagePresentation{Header: cmd.Header, Text: cmd.Text, Until: now.Add(8 * time.Second)}
+		s.message = rendering.MessagePresentation{Header: cmd.Header, Text: cmd.Text, Until: now.Add(8 * time.Second)}
 	case remote.Play:
 		s.requestRemotePlay(cmd)
 	case remote.Stop:

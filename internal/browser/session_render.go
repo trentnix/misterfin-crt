@@ -2,21 +2,23 @@ package browser
 
 import (
 	"bytes"
-	"misterfin-crt/internal/musicviz"
 	"time"
+
+	"misterfin-crt/internal/musicviz"
+	"misterfin-crt/internal/rendering"
 )
 
 // draw owns frame pacing and the paused-overlay refresh check.
 func (s *browserSession) draw() error {
 	now := time.Now()
 	scene := sceneFromModel(s.model, s.controller.Snapshot(now), s.setup, s.selection.current, s.selection.err, now)
-	if item := scene.View.Item(); scene.Root && item != nil && item.ID == continueID {
+	if item := scene.Content.Item(); scene.Root && item != nil && item.ID == continueID {
 		scene.LibraryLoading = !s.home.loaded
 	}
 	// Start the notice timer when browsing can actually display it, including
 	// after a long Quick Connect sign-in. Consume it so navigation cannot repeat it.
-	if len(s.startupNotices) > 0 && !now.Before(s.message.Until) && scene.Setup.Kind == SetupHidden && !s.about.Visible && scene.View.Detail == nil && !scene.View.Loading && scene.View.Error == "" {
-		s.message = MessagePresentation{Header: "Settings", Text: s.startupNotices[0], Until: now.Add(4 * time.Second)}
+	if len(s.startupNotices) > 0 && !now.Before(s.message.Until) && scene.Setup.Kind == rendering.SetupHidden && !s.about.Visible && scene.Content.Detail == nil && !scene.Content.Loading && scene.Content.Error == "" {
+		s.message = rendering.MessagePresentation{Header: "Settings", Text: s.startupNotices[0], Until: now.Add(4 * time.Second)}
 		s.startupNotices = s.startupNotices[1:]
 	}
 	scene.Title = s.config.Title

@@ -7,6 +7,7 @@ import (
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/rendering"
 )
 
 // trackPicker owns navigation within the video Options menu.
@@ -17,21 +18,6 @@ type trackPicker struct {
 	selected [3]int
 }
 
-// TrackRow is one display choice. Index is a server stream index or picture mode.
-type TrackRow struct {
-	Index  int
-	Label  string
-	Active bool
-}
-
-// TrackMenu is an immutable render snapshot, independent of the input device.
-type TrackMenu struct {
-	Tab, Selected int
-	Rows          []TrackRow
-	Delay         string
-	Message       string
-}
-
 func (c *PlaybackController) hasTracks() bool {
 	if !c.running || c.item.Type == "Audio" {
 		return false
@@ -39,7 +25,7 @@ func (c *PlaybackController) hasTracks() bool {
 	return true
 }
 
-func (c *PlaybackController) trackRows(tab int) []TrackRow {
+func (c *PlaybackController) trackRows(tab int) []rendering.TrackRow {
 	if jellyfin.IsLive(c.item) {
 		if tab == 0 {
 			return c.captions.rows()
@@ -50,21 +36,21 @@ func (c *PlaybackController) trackRows(tab int) []TrackRow {
 	}
 	if tab == 2 {
 		if jellyfin.IsLive(c.item) && !c.tracks.LivePicture {
-			return []TrackRow{{int(playback.PictureOriginal), "Original", true}}
+			return []rendering.TrackRow{{Index: int(playback.PictureOriginal), Label: "Original", Active: true}}
 		}
-		return []TrackRow{
-			{int(playback.PictureOriginal), "Original", c.tracks.Picture == playback.PictureOriginal},
-			{int(playback.PictureZoom43), "Zoom", c.tracks.Picture == playback.PictureZoom43},
+		return []rendering.TrackRow{
+			{Index: int(playback.PictureOriginal), Label: "Original", Active: c.tracks.Picture == playback.PictureOriginal},
+			{Index: int(playback.PictureZoom43), Label: "Zoom", Active: c.tracks.Picture == playback.PictureZoom43},
 		}
 	}
 	kind, index, label := "Subtitle", c.tracks.Selection.SubtitleIndex, "Off"
 	if tab == 1 {
 		kind, index, label = "Audio", c.tracks.Selection.AudioIndex, "Server default"
 	}
-	rows := []TrackRow{{Index: -1, Label: label, Active: index < 0}}
+	rows := []rendering.TrackRow{{Index: -1, Label: label, Active: index < 0}}
 	for _, stream := range c.tracks.Streams {
 		if stream.Type == kind {
-			rows = append(rows, TrackRow{stream.Index, stream.Label(), stream.Index == index})
+			rows = append(rows, rendering.TrackRow{Index: stream.Index, Label: stream.Label(), Active: stream.Index == index})
 		}
 	}
 	return rows
@@ -207,12 +193,12 @@ func (c *PlaybackController) applyPicture(mode playback.PictureMode) {
 	}
 }
 
-func (c *PlaybackController) trackPresentation(p *PlaybackPresentation, now time.Time) {
+func (c *PlaybackController) trackPresentation(p *rendering.PlaybackPresentation, now time.Time) {
 	p.TracksAvailable = c.hasTracks()
 	if c.picker.visible {
 		rows := c.trackRows(c.picker.tab)
 		selected := max(0, min(c.picker.selected[c.picker.tab], len(rows)-1))
-		p.Tracks = &TrackMenu{Tab: c.picker.tab, Selected: selected, Rows: rows, Message: c.notice}
+		p.Tracks = &rendering.TrackMenu{Tab: c.picker.tab, Selected: selected, Rows: rows, Message: c.notice}
 		if p.Tracks.Message == "" {
 			p.Tracks.Message = c.trackMessage(c.picker.tab, selected)
 		}

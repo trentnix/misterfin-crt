@@ -8,6 +8,7 @@ import (
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/rendering"
 )
 
 const (
@@ -43,7 +44,7 @@ func (r remoteItemsResult) apply(s *browserSession) bool {
 	q.resolving = false
 	q.cancel = nil
 	if r.err != nil {
-		s.message = MessagePresentation{Header: "Remote playback", Text: "Could not load the requested queue.", Until: time.Now().Add(8 * time.Second)}
+		s.message = rendering.MessagePresentation{Header: "Remote playback", Text: "Could not load the requested queue.", Until: time.Now().Add(8 * time.Second)}
 	} else {
 		s.applyRemoteItems(r.command, r.items)
 	}

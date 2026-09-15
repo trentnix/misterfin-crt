@@ -7,6 +7,7 @@ import (
 
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/rendering"
 )
 
 // remotePlayback owns queue entries, their metadata, and decoder handoff state.
@@ -50,7 +51,7 @@ func (s *browserSession) applyRemoteItems(cmd remote.Command, items []jellyfin.I
 		s.adoptLocalQueue()
 	}
 	if q.active && appendQueue && q.queue.Len()+len(items) > 10000 {
-		s.message = MessagePresentation{Header: "Remote playback", Text: "The queue limit is 10000 items.", Until: time.Now().Add(8 * time.Second)}
+		s.message = rendering.MessagePresentation{Header: "Remote playback", Text: "The queue limit is 10000 items.", Until: time.Now().Add(8 * time.Second)}
 		return
 	}
 	if cmd.PlayMode == remote.PlayShuffle {
@@ -199,7 +200,7 @@ func (s *browserSession) remoteEnded(event PlaybackEvent) bool {
 	}
 	s.endRemoteQueue()
 	if event.Err != nil {
-		s.message = MessagePresentation{Header: "Playback", Text: "Playback ended with an error.", Until: time.Now().Add(8 * time.Second)}
+		s.message = rendering.MessagePresentation{Header: "Playback", Text: "Playback ended with an error.", Until: time.Now().Add(8 * time.Second)}
 	}
 	return true
 }

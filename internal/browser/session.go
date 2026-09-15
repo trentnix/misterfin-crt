@@ -8,6 +8,7 @@ import (
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
 )
@@ -18,15 +19,15 @@ type browserSession struct {
 	remote         remoteSession
 	remoteRequests remoteRequests
 	remotePlayback remotePlayback
-	message        MessagePresentation
+	message        rendering.MessagePresentation
 	startupNotices []string // Pending until browsing can show each notice.
 
 	ctx              context.Context
 	config           Config
 	model            *Model
 	client           *jellyfin.Client
-	setup            SetupPresentation
-	about            AboutPresentation
+	setup            rendering.SetupPresentation
+	about            rendering.AboutPresentation
 	connection       connectionManager
 	requests         requestState
 	home             homeState
@@ -38,7 +39,7 @@ type browserSession struct {
 	controller       *PlaybackController
 	driver           playbackDriver
 	output           videoout.Output
-	renderer         Renderer
+	renderer         rendering.Renderer
 	geometry         platform.Geometry
 	ticker           *time.Ticker
 	frameInterval    time.Duration
@@ -50,7 +51,7 @@ type browserSession struct {
 // newBrowserSession wires state, decoding, and frame pacing without starting
 // network requests. The caller must cancel ctx before calling close. The caller
 // retains ownership of output and renderer, which must not be used concurrently.
-func newBrowserSession(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer Renderer, feedback sound.Feedback) *browserSession {
+func newBrowserSession(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer rendering.Renderer, feedback sound.Feedback) *browserSession {
 	geometry := output.Geometry()
 	s := &browserSession{
 		ctx: ctx, config: config, feedback: feedback, startupNotices: append([]string(nil), config.StartupNotices...),
@@ -65,7 +66,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
 		return s.driver.launch(s.client, item, offset, gate, prepared, controls, tracks)
 	})
-	s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
+	s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)
 	s.about.Build = config.Build
 	s.music.library = config.MusicVisuals
 	if s.music.library != nil {

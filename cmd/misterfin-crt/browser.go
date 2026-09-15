@@ -13,6 +13,7 @@ import (
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/release"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/settings"
 	"misterfin-crt/internal/sound"
 )
@@ -80,5 +81,5 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	}
 	defer func() { cancel(); <-done }()
 	trace.phase("browser")
-	return browser.Run(ctx, config, player, video, browser.NewRenderer(), feedback, keys)
+	return browser.Run(ctx, config, player, video, rendering.NewRenderer(), feedback, keys)
 }
