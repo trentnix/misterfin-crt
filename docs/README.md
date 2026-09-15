@@ -4,7 +4,7 @@ Start with the [project README](../README.md) for installation and everyday use.
 
 | Guide | Contents |
 | --- | --- |
-| [Build and install](GO_BUILD.md) | Go and MPlayer builds, installation, local tests, and CI. |
+| [Build and install](GO_BUILD.md) | Go and MPlayer builds, release bundles, installation, local tests, and CI. |
 | [Configuration](GO_CONFIGURATION.md) | Server connection, settings, title, background, navigation sounds, defaults, and migration. |
 | [Display](GO_DISPLAY.md) | Progressive and interlaced output, supported core, recovery, and tested hardware. |
 | [Browsing](GO_BROWSING.md) | Quick Connect, Continue Watching, lists, photos, About, and artwork caches. |

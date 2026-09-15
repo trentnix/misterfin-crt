@@ -1,0 +1,22 @@
+MiSTerFin CRT
+
+Install on MiSTer
+
+1. Exit MiSTerFin CRT. Keep a copy of the installed binaries before upgrading.
+2. Extract the ZIP on your computer. Copy Scripts/MiSTerFin-CRT.sh to /media/fat/Scripts/ and the contents of misterfin-crt/ to /media/fat/misterfin-crt/ on the SD card.
+3. For a new installation, copy jellyfin.conf.example to jellyfin.conf in /media/fat/misterfin-crt/. Replace the example URL with your Jellyfin URL. If you already have jellyfin.conf, keep it.
+4. Settings are optional. For a new installation, you can copy settings.example.json to settings.json and edit it. Keep existing settings.
+5. Make the launcher and both binaries executable if the filesystem requires it.
+6. Launch MiSTerFin-CRT from MiSTer's Scripts menu. Approve Quick Connect in another signed-in Jellyfin client if prompted.
+
+The archive contains no active settings, credentials, saved state, or caches. Copying its files preserves those files in an existing installation. Stop the application before replacing either binary, and always replace the pair. Installation is manual. The About page's Update action is still a placeholder.
+
+The default is progressive output, normally 240p on NTSC. The same binaries support optional 480i. The interlaced Menu core is a separate download. Follow docs/GO_DISPLAY.md in the source bundle, or the online display guide: https://github.com/trentnix/misterfin-crt/blob/main/docs/GO_DISPLAY.md
+
+Checksums and source
+
+The release's SHA256SUMS checks the ZIP and source archive. On Linux, run sha256sum -c SHA256SUMS in the directory containing those downloads. The ZIP also contains checksums for its extracted files.
+
+VERSION identifies the release. BUILD.txt records its revision, compiler metadata, and executable checksums. The source archive includes the project, MPlayer's upstream source, patches, and build recipes. To rebuild MPlayer, extract the source bundle and run make native-player from its project directory. Docker still needs its pinned base image and compiler packages.
+
+Application and component terms are in LICENSE, THIRD_PARTY.md, and licenses/. The source bundle contains the documentation referenced by those notices.

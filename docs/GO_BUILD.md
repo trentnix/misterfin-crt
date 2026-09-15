@@ -29,15 +29,31 @@ make native-player
 
 The outputs are `build/misterfin-crt-mplayer-arm` and its source/compiler record, `build/misterfin-crt-mplayer-build.txt`. The base image is pinned by digest, and the build verifies the MPlayer source archive with SHA-256. The Bullseye toolchain targets MiSTer's glibc 2.31. The patches provide shared overlays, picture changes, captions, interlaced presentation, and playback timing fixes. The original C client's player cannot substitute for this build. Update both binaries together when their protocol changes. See [third-party notices](THIRD_PARTY.md) for corresponding source and licenses.
 
-For a release, build both executables from the same checkout and record the pair:
+The native build also exports `build/misterfin-crt-mplayer-source.tar.xz`, the verified upstream source used by that build. The source archive includes MPlayer's bundled FFmpeg. The Go vulnerability scan does not audit these native dependencies.
+
+## Release bundles
+
+From a clean Git checkout, build a release with:
 
 ```sh
-make arm VERSION=v1.0.0
-make native-player
-make release-manifest
+make release VERSION=v0.1.0
 ```
 
-`build/release-manifest.txt` records Go build metadata, MPlayer source and compiler details, and both executable checksums. Keep it with the release artifacts. The Go vulnerability scan does not audit the separately compiled native dependencies.
+This command rebuilds both ARM executables, records their metadata and checksums, and packages them under `build/releases/v0.1.0/`. It requires the same Go, Zig, Python, and Docker tools as the individual builds. Stable `vMAJOR.MINOR.PATCH` versions are required. Dirty checkouts, untracked source files, invalid binaries, source checksum mismatches, and existing output directories stop the build. Failed builds do not publish a partial bundle.
+
+| Artifact | Contents |
+| --- | --- |
+| `misterfin-crt-v0.1.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
+| `misterfin-crt-v0.1.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
+| `SHA256SUMS` | Checksums for both downloadable archives. |
+
+The ZIP contains only example configuration files. It contains no active `jellyfin.conf`, `settings.json`, sign-in, preferences, or caches. Read its `INSTALL.txt` before copying files. The optional interlaced core remains a separate download. To rebuild MPlayer from the source bundle, run `make native-player` in its extracted project directory. Docker uses the included upstream archive and still verifies its checksum. The base image and compiler packages need network access or a local Docker cache.
+
+`make release-manifest` remains available after separate `make arm` and `make native-player` builds. It writes `build/release-manifest.txt`, which records Go metadata, MPlayer source/compiler details, and both executable checksums. Packaging includes that record as `misterfin-crt/BUILD.txt`, with the release version and source revision. Packaging the same inputs produces identical archives. This does not promise identical compiler output across toolchain or environment changes.
+
+The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release. Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing and repository visibility remain manual decisions. Draft or private releases are unavailable to the application's unauthenticated checker.
+
+Use `v0.1.0` while packaging and updating are being completed. The planned public launch is `v1.0.0`. This packaging work does not implement the About page's Update action.
 
 ## Install on MiSTer
 
@@ -97,6 +113,6 @@ make test-browse
 | [ARM compilation](../.github/workflows/ci.yml) | `make arm` with checksum-verified Zig 0.14.1, on the same triggers. | 10 minutes |
 | [Native player](../.github/workflows/native-player.yml) | Complete patched MPlayer build and ARM verification when build inputs change, on `v*` tags, or on manual request. | 30 minutes |
 
-Both workflows use Ubuntu 24.04, read-only repository permissions, and Node.js 24 action runtimes. Node.js is not an application dependency. These workflows validate builds but do not publish or deploy them.
+The validation workflows use Ubuntu 24.04, read-only repository permissions, and Node.js 24 action runtimes. Node.js is not an application dependency. The separate release workflow has a 40-minute limit and repository write permission to create draft releases. No workflow deploys to MiSTer or makes the repository public.
 
 CI does not establish physical CRT timing. Hardware checks must cover startup/exit, video and music, repeated overlay toggling, seeking, paused picture changes, and A/V synchronization in each supported output mode. See [tested scope](GO_DISPLAY.md#tested-scope).

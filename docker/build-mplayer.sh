@@ -17,7 +17,11 @@ MPLAYER_SHA256=650cd55bb3cb44c9b39ce36dac488428559799c5f18d16d98edb2b7256cbbf85
 # Video uses a Jellyfin transcode through a pipe. Music uses the original
 # stream through the local Go proxy. Neither needs physical disc support.
 echo "=== Building MPlayer $MPLAYER_VER ==="
-wget -q https://mplayerhq.hu/MPlayer/releases/MPlayer-$MPLAYER_VER.tar.xz
+if [ -f /build/MPlayer-source.tar.xz ]; then
+    cp /build/MPlayer-source.tar.xz MPlayer-$MPLAYER_VER.tar.xz
+else
+    wget -q https://mplayerhq.hu/MPlayer/releases/MPlayer-$MPLAYER_VER.tar.xz
+fi
 echo "$MPLAYER_SHA256  MPlayer-$MPLAYER_VER.tar.xz" | sha256sum -c -
 tar xf MPlayer-$MPLAYER_VER.tar.xz
 # Apply vsync patch: wait for blanking interval before each frame write to
@@ -78,6 +82,7 @@ arm-linux-gnueabihf-strip mplayer
 cp mplayer /build/mplayer-arm
 if [ -n "${OUTPUT_DIR:-}" ]; then
     cp mplayer "$OUTPUT_DIR/misterfin-crt-mplayer-arm"
+    cp ../MPlayer-$MPLAYER_VER.tar.xz "$OUTPUT_DIR/misterfin-crt-mplayer-source.tar.xz"
     {
         echo "MPlayer source: $MPLAYER_VER"
         echo "MPlayer source SHA256: $MPLAYER_SHA256"

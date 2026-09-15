@@ -1,0 +1,59 @@
+name: Draft release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Do not interrupt a release build or replace assets from another run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - name: Require a stable version tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          test "$REF_TYPE" = tag
+          [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Install verified Zig toolchain
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl --fail --show-error --location --retry 3 https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz -o zig.tar.xz
+          echo '24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c  zig.tar.xz' | sha256sum -c -
+          tar -xf zig.tar.xz
+          echo "$PWD/zig-x86_64-linux-0.14.1" >> "$GITHUB_PATH"
+      - name: Test release packaging
+        run: python3 -m unittest -v tools/test_package_release.py
+      - name: Build matching binaries and release archives
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: make release VERSION="$VERSION"
+      - name: Create draft release for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh release create "$VERSION" --verify-tag --draft --title "MiSTerFin CRT $VERSION" --generate-notes \
+            "build/releases/$VERSION/misterfin-crt-$VERSION-mister.zip" \
+            "build/releases/$VERSION/misterfin-crt-$VERSION-source.tar.gz" \
+            "build/releases/$VERSION/SHA256SUMS"

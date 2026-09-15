@@ -12,7 +12,7 @@ I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I t
 
 ## Run on MiSTer
 
-Installation is manual. Builds require Go 1.26.8 or later. Follow the [build guide](docs/GO_BUILD.md) for the client and its matching MPlayer.
+Installation is manual. A [release bundle](docs/GO_BUILD.md#release-bundles) contains the client, matching MPlayer, launcher, and configuration examples. Follow its `INSTALL.txt` when a release is available. To build from source, use Go 1.26.8 or later and follow the [build guide](docs/GO_BUILD.md).
 
 Copy these files to the SD card and make them executable:
 

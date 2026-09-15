@@ -30,3 +30,6 @@ debug.log.1
 /ui.json
 
 /settings.json
+
+# Verified upstream source supplied by a release source bundle.
+/docker/MPlayer-source.tar.xz

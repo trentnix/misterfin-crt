@@ -4,11 +4,11 @@ STATICCHECK_VERSION := v0.8.1
 GOVULNCHECK_VERSION := v1.8.0
 VERSION ?= dev
 GO_LDFLAGS = -X misterfin-crt/internal/release.Version=$(VERSION)
-GO_ARM_CC ?= $(CURDIR)/tools/zig-cc-go.sh
+GO_ARM_CC ?= sh $(CURDIR)/tools/zig-cc-go.sh
 
 .DEFAULT_GOAL := host
 
-.PHONY: host arm lint vulnerability-check native-player release-manifest test test-browse headless clean
+.PHONY: host arm lint vulnerability-check native-player release-manifest release test test-browse headless clean
 host:
 	CGO_ENABLED=1 $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/misterfin-crt ./cmd/misterfin-crt
 
@@ -31,14 +31,19 @@ native-player:
 
 # Run after arm and native-player so the manifest describes the matching pair.
 release-manifest:
+	install -m 644 "$$($(GO) env GOROOT)/LICENSE" build/go-LICENSE
 	$(GO) version -m build/misterfin-crt-arm > build/release-manifest.txt
 	cat build/misterfin-crt-mplayer-build.txt >> build/release-manifest.txt
 	cd build && sha256sum misterfin-crt-arm misterfin-crt-mplayer-arm >> release-manifest.txt
 
+# Build both executables before packaging. Refuse dirty source or an existing bundle.
+release:
+	python3 tools/package_release.py --version "$(VERSION)" --go "$(GO)"
+
 test:
 	CGO_ENABLED=1 $(GO) test ./...
 	CGO_ENABLED=0 $(GO) test ./...
-	python3 -m unittest -v tools/ghostty/test_ghostty_harness.py tools/ghostty/test_video_player.py tools/test_native_overlay.py tools/test_interlaced_console.py tools/test_native_picture.py tools/test_mplayer_timing.py tools/test_native_captions.py
+	python3 -m unittest -v tools/ghostty/test_ghostty_harness.py tools/ghostty/test_video_player.py tools/test_native_overlay.py tools/test_interlaced_console.py tools/test_native_picture.py tools/test_mplayer_timing.py tools/test_native_captions.py tools/test_package_release.py
 
 test-browse: host
 	python3 -m unittest -v tools/ghostty/test_go_browse.py

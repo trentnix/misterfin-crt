@@ -31,7 +31,9 @@ ENV PREFIX=/build/sysroot
 
 WORKDIR /build
 
-COPY build-mplayer.sh /build/build-mplayer.sh
+# The source bundle supplies MPlayer-source.tar.xz for rebuilding without an
+# upstream download. The build script is always copied, even without an archive.
+COPY build-mplayer.sh MPlayer-source.tar.x[z] /build/
 COPY vo_fbdev.c /build/vo_fbdev.c
 COPY vo_fbdev_go.patch /build/vo_fbdev_go.patch
 COPY vo_fbdev_interlaced.patch /build/vo_fbdev_interlaced.patch
