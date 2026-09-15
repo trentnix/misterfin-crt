@@ -10,8 +10,19 @@ clear_console() {
     printf '\033[0m\033[40m\033[2J\033[3J\033[H' > /dev/tty0
 }
 finish() {
-    clear_console
+    local status=$?
+    if [ "$status" -eq 0 ]; then
+        clear_console
+    fi
     printf '\033[?25h' > /dev/tty0
+
+    # MiSTer's Scripts wrapper waits for a key after the launcher returns.
+    # Reload the menu on success. Leave errors visible for troubleshooting.
+    if [ "$status" -eq 0 ] && [ -p /dev/MiSTer_cmd ] && [ -f /media/fat/menu.rbf ]; then
+        if ! timeout 2 sh -c 'printf "%s\n" "load_core /media/fat/menu.rbf" > /dev/MiSTer_cmd'; then
+            echo "Could not return to the MiSTer menu. Press any key to continue." >&2
+        fi
+    fi
 }
 trap finish EXIT
 clear_console
