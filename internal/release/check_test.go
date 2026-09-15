@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -129,5 +130,29 @@ func TestReleaseIncludesBoundedNotesAndMatchingAssets(t *testing.T) {
 	status, err := check(context.Background(), server.Client(), server.URL, "v0.1.0")
 	if err != nil || !status.HasBundle || !status.Available || len(status.Notes) > 8300 || !strings.HasSuffix(status.Notes, "[Release notes truncated]") {
 		t.Fatalf("status: %+v, %v", status, err)
+	}
+}
+
+func TestReleaseSummarySelection(t *testing.T) {
+	for _, tc := range []struct{ name, body, want string }{
+		{"legacy", "Changes without a summary section.", "Changes without a summary section."},
+		{"summary only", "## Release summary\n\nAutomatic updates.\n", "Automatic updates."},
+		{"exclude instructions", "GitHub introduction.\n\n## Release summary\n\n### Automatic updates\n\nKeep your settings.\n\n## Installation\n\nManual instructions.", "### Automatic updates\n\nKeep your settings."},
+		{"top-level boundary", "## Release summary\nUse the updater.\n# Downloads\nGitHub downloads.", "Use the updater."},
+		{"windows newlines", "## Release summary\r\n\r\nReopen MiSTerFin CRT.\r\n\r\n## Installation\r\nOther instructions.", "Reopen MiSTerFin CRT."},
+		{"empty summary", "## Release summary\n\n## Installation\nManual instructions.", "## Release summary\n\n## Installation\nManual instructions."},
+		{"selection before limit", strings.Repeat("x", 9000) + "\n## Release summary\nUseful summary.", "Useful summary."},
+		{"bounded Unicode", "## Release summary\n" + strings.Repeat("é", 9000) + "\n## Installation\nDo not show.", strings.Repeat("é", 8192) + "\n[Release notes truncated]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode(map[string]any{"tag_name": "v0.2.0", "body": tc.body})
+			}))
+			defer server.Close()
+			status, err := check(context.Background(), server.Client(), server.URL, "v0.1.0")
+			if err != nil || !status.Available || status.Notes != tc.want {
+				t.Fatalf("notes: %q, available %v, error %v", status.Notes, status.Available, err)
+			}
+		})
 	}
 }

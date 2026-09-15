@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -21,7 +22,7 @@ var ErrUnavailable = errors.New("no public release available")
 type Status struct {
 	Latest    string
 	Available bool
-	// Notes is bounded release text for the confirmation screen.
+	// Notes is the bounded release summary, or full notes for older releases.
 	Notes string
 	// HasBundle reports that both the MiSTer ZIP and its checksum asset exist.
 	// Installation still verifies the archive and its update protocol.
@@ -86,9 +87,34 @@ func check(ctx context.Context, client *http.Client, endpoint, installed string)
 		archive = archive || asset.Name == "misterfin-crt-"+result.Tag+"-mister.zip"
 		sums = sums || asset.Name == "SHA256SUMS"
 	}
-	notes := []rune(result.Body)
+	return Status{Latest: result.Tag, Available: newer(result.Tag, installed), Notes: screenNotes(result.Body), HasBundle: archive && sums}, nil
+}
+
+// screenNotes selects the "Release summary" Markdown section before
+// bounding its length. Unmarked or empty summaries retain legacy full notes.
+// Selection belongs to release metadata, independent of display formatting.
+func screenNotes(body string) string {
+	lines := strings.Split(body, "\n")
+	for start, line := range lines {
+		if strings.TrimSpace(line) != "## Release summary" {
+			continue
+		}
+		end := start + 1
+		for end < len(lines) {
+			heading := strings.TrimSpace(lines[end])
+			if strings.HasPrefix(heading, "# ") || strings.HasPrefix(heading, "## ") {
+				break
+			}
+			end++
+		}
+		if summary := strings.TrimSpace(strings.Join(lines[start+1:end], "\n")); summary != "" {
+			body = summary
+		}
+		break
+	}
+	notes := []rune(body)
 	if len(notes) > 8192 {
 		notes = append(notes[:8192], []rune("\n[Release notes truncated]")...)
 	}
-	return Status{Latest: result.Tag, Available: newer(result.Tag, installed), Notes: string(notes), HasBundle: archive && sums}, nil
+	return string(notes)
 }

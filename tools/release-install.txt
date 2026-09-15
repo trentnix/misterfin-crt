@@ -11,7 +11,7 @@ Install on MiSTer
 
 The archive contains no active settings, credentials, saved state, or caches. Copying its files preserves those files in an existing installation. Stop the application before replacing either binary, and always replace the pair.
 
-First installation is manual. Subsequent compatible releases can be installed from About in a standard MiSTer installation. Review the release notes, select Install, then reopen the app after it exits. The published v0.1.0 application predates the updater and needs one manual upgrade. Interrupted replacements recover at startup. Keep .update-pending if recovery is needed.
+First installation is manual. Subsequent compatible releases can be installed from About in a standard MiSTer installation. Review the release notes, select Install, then reopen the app after it exits. The v0.1.0 application predates the updater and needs one manual upgrade using this ZIP. Interrupted replacements recover at startup. Keep .update-pending if recovery is needed.
 
 The default is progressive output, normally 240p on NTSC. The same binaries support optional 480i. The interlaced Menu core is a separate download. Follow docs/GO_DISPLAY.md in the source bundle, or the online display guide: https://github.com/trentnix/misterfin-crt/blob/main/docs/GO_DISPLAY.md
 

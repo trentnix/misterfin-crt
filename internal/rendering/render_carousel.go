@@ -24,9 +24,7 @@ func (p *screenPainter) carousel() [][]controlHint {
 	}
 	p.header(p.scene.title(), sy+4)
 	if p.scene.About.Release.Available {
-		if name := p.scene.Controls.Name(control.About); name != "" {
-			c.Text(24, sy+24, truncate(name+": update available", w-48, 1), titleColor, w-24)
-		}
+		c.Text(24, sy+24, "Update available", titleColor, w-24)
 	}
 	centers := make([]float64, len(v.Page.Items))
 	names := make([]string, len(centers))

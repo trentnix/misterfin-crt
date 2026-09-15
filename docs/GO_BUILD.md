@@ -36,15 +36,15 @@ The native build also exports `build/misterfin-crt-mplayer-source.tar.xz`, the v
 From a clean Git checkout, build a release with:
 
 ```sh
-make release VERSION=v0.1.0
+make release VERSION=v1.0.0
 ```
 
-This command rebuilds both ARM executables, records their metadata and checksums, and packages them under `build/releases/v0.1.0/`. It requires the same Go, Zig, Python, and Docker tools as the individual builds. Stable `vMAJOR.MINOR.PATCH` versions are required. Dirty checkouts, untracked source files, invalid binaries, source checksum mismatches, and existing output directories stop the build. Failed builds do not publish a partial bundle.
+This command rebuilds both ARM executables, records their metadata and checksums, and packages them under `build/releases/v1.0.0/`. It requires the same Go, Zig, Python, and Docker tools as the individual builds. Stable `vMAJOR.MINOR.PATCH` versions are required. Dirty checkouts, untracked source files, invalid binaries, source checksum mismatches, and existing output directories stop the build. Failed builds do not publish a partial bundle.
 
 | Artifact | Contents |
 | --- | --- |
-| `misterfin-crt-v0.1.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
-| `misterfin-crt-v0.1.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
+| `misterfin-crt-v1.0.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
+| `misterfin-crt-v1.0.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
 | `SHA256SUMS` | Checksums for both downloadable archives. |
 
 The ZIP contains only example configuration files. It contains no active `jellyfin.conf`, `settings.json`, sign-in, preferences, or caches. Read its `INSTALL.txt` before copying files. The optional interlaced core remains a separate download. To rebuild MPlayer from the source bundle, run `make native-player` in its extracted project directory. Docker uses the included upstream archive and still verifies its checksum. The base image and compiler packages need network access or a local Docker cache.
@@ -53,7 +53,7 @@ The ZIP contains only example configuration files. It contains no active `jellyf
 
 The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release. Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing and repository visibility remain manual decisions. Draft or private releases are unavailable to the application's unauthenticated checker.
 
-The repository and [v0.1.0 release](https://github.com/trentnix/misterfin-crt/releases/tag/v0.1.0) are public. The v1.0.0 milestone follows packaging and updater validation. Bundles built from the current source include `misterfin-crt/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
+The [latest release](https://github.com/trentnix/misterfin-crt/releases/latest) provides both archives and their checksums. Bundles include `misterfin-crt/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
 
 ## Install on MiSTer
 
@@ -77,13 +77,13 @@ If migrating from `misterfin-go`, copy its state, caches, server configuration, 
 
 In About, select **View release**, review the notes, then select **Install**. Automatic installation requires the client at `/media/fat/misterfin-crt/misterfin-crt` and the configured player at `/media/fat/misterfin-crt/mplayer-arm`. The standard Scripts launcher is updated with the pair. Custom installations and desktop development retain manual installation.
 
-The published v0.1.0 application has no installer. Upgrade it manually to the first release that includes the updater. Keep the existing settings and state files. Do not copy example configuration over active configuration.
+The published v0.1.0 application has no installer. Upgrade it manually with the latest release ZIP. Keep the existing settings and state files. Do not copy example configuration over active configuration.
 
 Downloads use verified HTTPS from this repository's GitHub release assets without credentials. The installer verifies the outer SHA-256 checksum, every bundled file, the release version, transaction format, and ARM executable headers. File counts and sizes are bounded. Checksums detect damaged downloads. They are not signatures independent of GitHub.
 
 The SD card must have room for the download, staged files, rollback copies, and a temporary replacement file. The installer downloads, validates, and backs up everything before changing installed files. Storage or validation failures leave the installation intact. Settings, credentials, preferences, artwork caches, and the separately installed 480i core are excluded from replacement.
 
-A successful update exits the app. Reopen it from Scripts. Cancellation or a replacement failure restores the old files.
+A successful update exits the app. Reopen MiSTerFin CRT. Cancellation or a replacement failure restores the old files.
 
 If interrupted, startup uses `.update-pending` to finish rollback, then re-executes the restored client before opening the display. A committed transaction only needs backup cleanup. Do not delete pending recovery files. If recovery cannot finish, the app stops before playback. Correct the storage problem and relaunch, or manually reinstall the matching pair while preserving settings and state.
 

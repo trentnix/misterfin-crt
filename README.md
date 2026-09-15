@@ -12,23 +12,35 @@ I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I t
 
 ## Run on MiSTer
 
-Installation is manual. A [release bundle](docs/GO_BUILD.md#release-bundles) contains the client, matching MPlayer, launcher, and configuration examples. Follow its `INSTALL.txt` when a release is available. To build from source, use Go 1.26.8 or later and follow the [build guide](docs/GO_BUILD.md).
-
-Copy these files to the SD card and make them executable:
+For a new installation, download `misterfin-crt-vX.Y.Z-mister.zip` from the [latest release](https://github.com/trentnix/misterfin-crt/releases/latest). Extract the ZIP and copy these files to the SD card. Make the launcher and both binaries executable if your filesystem requires it. If upgrading an existing installation manually, exit the application first and keep your configuration and state files.
 
 | File | Destination |
 | --- | --- |
-| `build/misterfin-crt-arm` | `/media/fat/misterfin-crt/misterfin-crt` |
-| `build/misterfin-crt-mplayer-arm` | `/media/fat/misterfin-crt/mplayer-arm` |
-| [`tools/misterfin-crt.sh`](tools/misterfin-crt.sh) | `/media/fat/Scripts/MiSTerFin-CRT.sh` |
+| `misterfin-crt/misterfin-crt` | `/media/fat/misterfin-crt/misterfin-crt` |
+| `misterfin-crt/mplayer-arm` | `/media/fat/misterfin-crt/mplayer-arm` |
+| `Scripts/MiSTerFin-CRT.sh` | `/media/fat/Scripts/MiSTerFin-CRT.sh` |
 
-Create `/media/fat/misterfin-crt/jellyfin.conf` containing your server URL:
+Copy the remaining files from the ZIP’s `misterfin-crt` directory into `/media/fat/misterfin-crt/`. The archive includes examples, notices, and version information but no active configuration or saved state. Its `INSTALL.txt` has detailed instructions. To build from source, follow the [build guide](docs/GO_BUILD.md).
+
+For a new installation, create `/media/fat/misterfin-crt/jellyfin.conf` containing your server URL:
 
 ```text
 http://your-jellyfin-server:8096
 ```
 
 Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Connect code in Jellyfin. The launcher filename must contain no spaces. Login, playback choices, and artwork caches persist on the SD card.
+
+## Updates
+
+The client checks for the latest public release at startup. An available update appears beneath the carousel title. Use **Check updates** in About to check again.
+
+1. While browsing, press START/Menu on a controller or F1 on a keyboard to open **About**.
+2. Select **View release** and review the changes.
+3. Select **Install** and wait for completion. The app exits after a successful update. Reopen MiSTerFin CRT.
+
+Updates replace the application, matching MPlayer, and standard launcher together. Your settings, sign-in, playback preferences, cached artwork, and optional interlaced core are preserved. Back cancels during download or validation. During installation, wait for completion. Failed replacements restore the previous files. Interrupted replacements recover at the next startup.
+
+Automatic updates require the standard installation paths above. Desktop and custom installations use manual installation. The v0.1.0 application has no updater and needs one manual upgrade using the latest release ZIP. See [manual installation and recovery](docs/GO_BUILD.md#application-updates) for details.
 
 ## Progressive and interlaced output
 
@@ -58,7 +70,7 @@ Omitting the `display` section also restores the default on the next launch. Pre
 
 Use the D-pad to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
 
-The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_BROWSING.md#about-and-updates). About shows the installed version, checks for public releases, and lets you review release notes before installing an update on a standard MiSTer installation. Settings and sign-in are preserved. The published v0.1.0 release predates the updater and requires a [manual upgrade](docs/GO_BUILD.md#application-updates) to a release that includes it.
+The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. [About](docs/GO_BROWSING.md#about-and-updates) shows the installed version and provides [updates](#updates).
 
 To control playback from another Jellyfin client, select **MiSTerFin CRT** as the playback device. Remote play, queues, pause/resume, seeking, shuffle, and repeat are supported. See [remote control](docs/GO_REMOTE.md).
 
