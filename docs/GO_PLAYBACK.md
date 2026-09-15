@@ -223,3 +223,7 @@ The private MPlayer build patches its bundled FFmpeg ARM YUV-to-RGB wrapper to r
 For resized 480/576-line output, the picture filter scales in planar YUV before converting to RGB through the ARM NEON path. This avoids the slower scalar color conversion used by a combined resize-to-RGB operation. The intermediate buffer and conversion contexts are reused across frames. Progressive output and sources that already fit retain their existing conversion path.
 
 On the maintainer’s MiSTer, a 720×404, 30 fps Live TV stream initially dropped seven frames in about 20 seconds. After separating resize and color conversion, scaling averaged about 10 ms per frame instead of 15 ms, with zero decoder drops over a 68-second sample. This sample does not establish frame pacing for every channel or source.
+
+## Jellyfin remote control
+
+Remote playback commands use the same controller and decoder lifecycle as local controls. Queue, shuffle, and repeat behavior lives outside the individual playback request. See [remote control](GO_REMOTE.md) for supported commands, HTTPS, queue reporting, and the source interface.

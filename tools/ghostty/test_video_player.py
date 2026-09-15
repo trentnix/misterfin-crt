@@ -265,10 +265,38 @@ class VideoTests(unittest.TestCase):
             line = process.stdout.readline()
             self.assertTrue(line.startswith(b"ANS_TIME_POSITION="), line)
             return float(line.split(b"=")[1])
+        def settled_position():
+            deadline = time.monotonic() + 3
+            previous = position()
+            while True:
+                current = position()
+                if abs(current - previous) <= 0.01:
+                    return current
+                self.assertLess(time.monotonic(), deadline, "paused seek did not settle")
+                previous = current
+
         position()
         process.stdin.write(b"pause true\n")
         position()  # Allow an already queued report to drain.
         paused = position()
+        self.assertAlmostEqual(position(), paused, delta=0.05)
+        process.stdin.write(b"seek 3\n")
+        deadline = time.monotonic() + 3
+        while True:
+            after_seek = position()
+            if after_seek >= paused + 2.8:
+                break
+            self.assertLess(time.monotonic(), deadline, "audio did not seek forward")
+        after_seek = settled_position()
+        self.assertAlmostEqual(position(), after_seek, delta=0.05)
+        process.stdin.write(b"seek -2\n")
+        deadline = time.monotonic() + 3
+        while True:
+            paused = position()
+            if paused <= after_seek - 1.8:
+                break
+            self.assertLess(time.monotonic(), deadline, "audio did not seek backward")
+        paused = settled_position()
         self.assertAlmostEqual(position(), paused, delta=0.05)
         process.stdin.write(b"pause false\n")
         deadline = time.monotonic() + 3

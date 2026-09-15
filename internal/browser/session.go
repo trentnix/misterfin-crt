@@ -15,6 +15,11 @@ import (
 // browserSession owns one browser run. Only the event loop mutates its state.
 // Workers capture their inputs and return results through channels.
 type browserSession struct {
+	remote         remoteSession
+	remoteRequests remoteRequests
+	remotePlayback remotePlayback
+	message        MessagePresentation
+
 	ctx              context.Context
 	config           Config
 	model            *Model
@@ -71,6 +76,8 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 func (s *browserSession) close() {
 	s.ticker.Stop()
 	s.connection.close()
+	s.stopRemote()
+	s.remote.workers.Wait()
 	s.requests.cancel()
 	if s.home.cancel != nil {
 		s.home.cancel()

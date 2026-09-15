@@ -3,6 +3,8 @@ package browser
 import (
 	"context"
 	"misterfin-crt/internal/diagnostics"
+	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/remote"
 
 	"misterfin-crt/internal/release"
 )
@@ -11,6 +13,10 @@ import (
 // chooses platform defaults. Run does not resolve paths from the display or
 // decoder configuration.
 type Config struct {
+	// Remote constructs a control source after sign-in. Nil disables remote control.
+	// The browser owns its cancellation and waits for Run before closing.
+	Remote func(*jellyfin.Client) remote.Source
+
 	// Diagnostics is borrowed until Run and its tracked cleanup finish. Nil disables logging.
 	Diagnostics *diagnostics.Log
 	// Build identifies the installed executable on the About page.

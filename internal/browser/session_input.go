@@ -56,6 +56,12 @@ func (s *browserSession) dispatchKey(key string) bool {
 		}
 	}
 	if playing {
+		if key == "back" && s.remotePlayback.active && !s.controller.picker.visible {
+			s.remoteRequests.cancelAll()
+			s.remotePlayback.switching = false
+			s.controller.stopByUser()
+			return true
+		}
 		if s.model.MusicQueueActive() {
 			return s.handleMusicKey(key)
 		}
@@ -82,6 +88,9 @@ func (s *browserSession) dispatchKey(key string) bool {
 			}
 		}
 		return true
+	}
+	if key == "back" && s.remoteRequests.resolving {
+		s.remoteRequests.cancelAll()
 	}
 	return s.handleBrowseKey(key)
 }

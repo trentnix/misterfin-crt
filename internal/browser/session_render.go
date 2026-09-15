@@ -13,10 +13,11 @@ func (s *browserSession) draw() error {
 	if item := scene.View.Item(); scene.Root && item != nil && item.ID == continueID {
 		scene.LibraryLoading = !s.home.loaded
 	}
+	scene.Message = s.message
 	scene.About = s.about
 	scene.Controls = s.controls
 	scene.Music, scene.MusicIndex = s.music.library, s.music.index
-	scene.Shuffle = s.shuffle.library != ""
+	scene.Shuffle = s.shuffle.library != "" || (s.remotePlayback.active && s.remotePlayback.queue.Shuffled())
 	scene.MusicMessage = s.music.error
 	if s.music.library != nil && !s.music.library.Ready(s.music.index) && s.music.loading {
 		scene.MusicMessage = "Loading background..."

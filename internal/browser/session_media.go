@@ -28,6 +28,10 @@ type mediaSelection struct {
 // Only one neighbor request runs at a time. The displayed item remains selected
 // until a matching result arrives and any current decoder has stopped.
 func (s *browserSession) navigateMedia(direction int) {
+	if s.remotePlayback.active {
+		s.moveRemoteQueue(direction, false)
+		return
+	}
 	if s.shuffle.library != "" {
 		s.navigateShuffle(direction)
 		return
@@ -52,6 +56,9 @@ func (s *browserSession) navigateMedia(direction int) {
 }
 
 func (s *browserSession) startPlayback(startTicks *int64, paused bool) {
+	if !s.remotePlayback.active {
+		s.remoteRequests.cancelAll()
+	}
 	s.music.levels = playback.AudioLevels{}
 	selected := *s.model.Current().Detail
 	if selected.Type != "Audio" {
@@ -63,6 +70,7 @@ func (s *browserSession) startPlayback(startTicks *int64, paused bool) {
 		s.model.StartMusicQueue()
 	}
 	s.controller.Start(selected, startTicks, paused, time.Now())
+	s.publishLocalQueue()
 	s.media.nextTrack = 0
 	s.model.Notice = ""
 }
@@ -103,6 +111,9 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 	s.model.Notice = ""
 	if s.controller.item.Type != "Audio" && !jellyfin.IsLive(s.controller.item) {
 		s.refreshHome()
+	}
+	if s.remoteEnded(event) {
+		return true
 	}
 	if s.model.MusicQueueActive() && !s.controller.stoppedByUser && event.Err == nil && s.media.queued != nil {
 		queued := s.media.queued

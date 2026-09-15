@@ -1,5 +1,9 @@
 """Integration checks for the built Go browser against the inherited mock server."""
 
+import base64
+import hashlib
+import queue
+import struct
 import fcntl
 import importlib.util
 import json
@@ -45,6 +49,9 @@ class BrowseIntegrationTests(unittest.TestCase):
             mock.ITEMS["mixed-folder"] = mock.base_item("mixed-folder", "More titles", "Folder")
             mock.CHILDREN["mixed-folder"] = ["movie-tricky-1"]
         self.movie_ids = mock.CHILDREN["view-movies"]
+        self.remote_commands = queue.Queue()
+        self.remote_done = threading.Event()
+        self.addCleanup(self.remote_done.set)
         self.requests = []
         self.reports = []
         self.delay_items = False
@@ -71,6 +78,32 @@ class BrowseIntegrationTests(unittest.TestCase):
                 test.requests.append(self.path)
                 path = urlparse(self.path).path
                 query = parse_qs(urlparse(self.path).query)
+                if path == "/socket" and test._testMethodName == "test_remote_playback_queue":
+                    # This fixture sends server frames only. Production framing,
+                    # TLS, reconnects, and heartbeat handling have Go tests.
+                    key = self.headers["Sec-WebSocket-Key"]
+                    accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
+                    self.send_response(101)
+                    self.send_header("Upgrade", "websocket")
+                    self.send_header("Connection", "Upgrade")
+                    self.send_header("Sec-WebSocket-Accept", accept)
+                    self.end_headers()
+                    self.close_connection = True
+                    while not test.remote_done.is_set():
+                        try:
+                            command = test.remote_commands.get(timeout=.1)
+                        except queue.Empty:
+                            continue
+                        data = json.dumps(command).encode()
+                        header = bytes([0x81, len(data)]) if len(data) < 126 else bytes([0x81, 126]) + struct.pack("!H", len(data))
+                        try:
+                            self.wfile.write(header + data)
+                            self.wfile.flush()
+                        except (BrokenPipeError, ConnectionResetError):
+                            break
+                    return
+                if path == "/Items" and "Ids" in query:
+                    return self._send(self._query_result(query["Ids"][0].split(","), query))
                 if (test._testMethodName == "test_mixed_library_movie_series_and_folder_navigation"
                         and path == "/Items" and query.get("ParentId") == ["view-mixed"]
                         and "MusicArtist" in query.get("IncludeItemTypes", [""])[0].split(",")):
@@ -110,6 +143,15 @@ class BrowseIntegrationTests(unittest.TestCase):
                     except (BrokenPipeError, ConnectionResetError):
                         pass
                     return
+                if (test._testMethodName in (
+                        "test_about_preserves_selection_and_blocks_browse_input",
+                        "test_movie_paging_and_music_hierarchy",
+                        "test_select_restarts_resumable_video",
+                        "test_slow_continue_watching_does_not_block_libraries")
+                        and (path == "/UserViews" or
+                             (path == "/Items" and query.get("StartIndex") == ["0"]
+                              and query.get("Limit") == ["64"]))):
+                    time.sleep(.3)  # Deliberately exceed the former 150 ms guess.
                 if test.delay_items and urlparse(self.path).path == "/Items":
                     time.sleep(0.4)
                 try:
@@ -202,10 +244,12 @@ class BrowseIntegrationTests(unittest.TestCase):
             if controlling_terminal:
                 fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
-        if self._testMethodName == "test_diagnostics_lifecycle":
-            (self.directory / "diagnostics.json").write_text(json.dumps({
-                "enabled": True, "path": "logs/diagnostics.log", "max_bytes": 65536,
-            }))
+        # Browser milestones synchronize input with applied results, rather
+        # than assuming a loopback response is rendered within a fixed delay.
+        self.diagnostics = self.directory / "logs" / "diagnostics.log"
+        (self.directory / "diagnostics.json").write_text(json.dumps({
+            "enabled": True, "path": "logs/diagnostics.log", "max_bytes": 65536,
+        }))
 
         self.process = subprocess.Popen(
             [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
@@ -218,6 +262,8 @@ class BrowseIntegrationTests(unittest.TestCase):
         os.close(slave)
         self.addCleanup(self.stop)
         self.wait_request("/UserViews")
+        if self.home_gate.is_set():
+            self.wait_event("browser.home", failed=False)
 
     def stop(self):
         if self.process.poll() is None:
@@ -229,14 +275,26 @@ class BrowseIntegrationTests(unittest.TestCase):
                 self.process.wait()
 
     def wait_request(self, path, **query):
+        if path == "/Items" and "ParentId" in query and query.get("SortBy") != "Random":
+            # Library counts and carousel artwork also request /Items. They
+            # must not satisfy a wait for the navigable list page.
+            query.setdefault("Limit", 64)
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             for request in self.requests:
                 parsed = urlparse(request)
                 params = parse_qs(parsed.query)
                 if parsed.path == path and all(params.get(k) == [str(v)] for k, v in query.items()):
-                    # Allow the loopback response to reach the UI event loop.
-                    time.sleep(0.15)
+                    if path == "/UserViews":
+                        self.wait_event("browser.page", kind="views", failed=False)
+                    elif (path == "/Items" and "ParentId" in params
+                          and params.get("Limit") == ["64"]):
+                        self.wait_event("browser.page", parent=params["ParentId"][0],
+                                        start=int(params.get("StartIndex", ["0"])[0]), failed=False)
+                    else:
+                        # Playback assertions also inspect decoder reports or
+                        # rendered frames after observing the request.
+                        time.sleep(0.15)
                     self.assertIsNone(self.process.poll())
                     return params
             if self.process.poll() is not None:
@@ -244,6 +302,23 @@ class BrowseIntegrationTests(unittest.TestCase):
                 self.fail(self.log.read().decode())
             time.sleep(0.01)
         self.fail(f"request not observed: {path} {query}; got {self.requests}")
+
+    def wait_event(self, name, **attributes):
+        """Wait for an applied browser result in the optional diagnostic log."""
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if self.diagnostics.exists():
+                # The writer can be appending a line. Only parse complete lines.
+                lines = self.diagnostics.read_bytes().split(b"\n")[:-1]
+                for line in lines:
+                    event = json.loads(line)
+                    if event.get("msg") == name and all(event.get(k) == v for k, v in attributes.items()):
+                        return event
+            if self.process.poll() is not None:
+                self.log.seek(0)
+                self.fail(self.log.read().decode())
+            time.sleep(.01)
+        self.fail(f"browser event not observed: {name} {attributes}")
 
     def read_frame(self):
         # The raw framebuffer writer truncates before writing. Like the
@@ -899,6 +974,45 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"\x1b[Bb")
         self.wait_request("/Items", ParentId="photo-album")
         self.assertFalse(any(path.startswith("/Sessions/") for path, _ in self.reports))
+
+    def test_remote_playback_queue(self):
+        def wait_for(predicate, message):
+            deadline = time.monotonic() + 5
+            while not predicate():
+                self.assertLess(time.monotonic(), deadline, message)
+                time.sleep(.02)
+
+        def send(kind, data):
+            self.remote_commands.put({"MessageType": kind, "Data": data})
+
+        def latest_progress():
+            return next((body for path, body in reversed(self.reports)
+                         if path == "/Sessions/Playing/Progress"), {})
+
+        wait_for(lambda: any(path == "/Sessions/Capabilities/Full" for path, _ in self.reports), "remote capability registration missing")
+        tracks = ["artist-000-album0-t01", "artist-000-album0-t02"]
+        send("Play", {"PlayCommand": "PlayNow", "ItemIds": tracks, "StartIndex": 1})
+        wait_for(lambda: latest_progress().get("ItemId") == tracks[1], "remote playback did not start")
+        self.assertEqual([item["Id"] for item in latest_progress()["NowPlayingQueue"]], tracks)
+        self.assertTrue(latest_progress()["PlaylistItemId"])
+        send("Playstate", {"Command": "PreviousTrack"})
+        wait_for(lambda: latest_progress().get("ItemId") == tracks[0], "previous required multiple commands")
+        send("Playstate", {"Command": "Pause"})
+        send("Playstate", {"Command": "Pause"})
+        wait_for(lambda: latest_progress().get("IsPaused"), "remote pause failed")
+        send("Playstate", {"Command": "Unpause"})
+        wait_for(lambda: latest_progress().get("IsPaused") is False, "remote resume failed")
+        send("Play", {"PlayCommand": "PlayNext", "ItemIds": [tracks[0]]})
+        wait_for(lambda: len(latest_progress().get("NowPlayingQueue", [])) == 3, "queue next failed")
+        send("GeneralCommand", {"Name": "SetRepeatMode", "Arguments": {"RepeatMode": "RepeatAll"}})
+        wait_for(lambda: latest_progress().get("RepeatMode") == "RepeatAll", "repeat state not reported")
+        send("GeneralCommand", {"Name": "SetShuffleQueue", "Arguments": {"ShuffleMode": "Shuffle"}})
+        wait_for(lambda: latest_progress().get("PlaybackOrder") == "Shuffle", "shuffle state not reported")
+        send("Playstate", {"Command": "Stop"})
+        wait_for(lambda: any(path == "/Sessions/Playing/Stopped" and body.get("ItemId") == tracks[0]
+                             for path, body in self.reports), "remote stop failed")
+        self.assertIsNone(self.process.poll(), "remote Stop exited the browser")
+        self.remote_done.set()
 
     def test_music_plays_with_browser_frame_and_stops(self):
         self.key(b"\x1b[C\x1b[Cb")

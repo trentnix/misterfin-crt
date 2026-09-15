@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
@@ -57,6 +58,7 @@ func (s *browserSession) handleHome(r homeResult) bool {
 		s.setup = setupFailure(connectionAuthentication, r.err, s.config)
 	}
 	s.syncHomeViews()
+	s.config.Diagnostics.Record("browser.home", slog.Int("items", len(s.home.items)), slog.Bool("failed", r.err != nil))
 	s.seedHomeArtwork()
 	if item := s.model.Current().Item(); item != nil && item.ID == continueID {
 		s.selection.key = ""

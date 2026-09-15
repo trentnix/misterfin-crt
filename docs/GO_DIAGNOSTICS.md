@@ -37,6 +37,8 @@ Each line is a JSON object with a timestamp and an event name in `msg`.
 | `mister.display`, `mister.framebuffer` | Whether the interlaced child is active and the kernel framebuffer's numeric format, swap, width, height, and stride before the application opens it. Missing or unreadable mode data is reported without raw error text. |
 | `mister.setting`, `mister.settings` | Allowlisted numeric display settings with their INI section, entry/rejection counts, and read/limit status. |
 | `http.request` | Method, endpoint path, HTTP status, elapsed milliseconds, received bytes, and failure status. Status zero means no HTTP response was received. Query strings and origins are excluded. |
+| `remote.socket` | HTTP status and failure flag for each remote-control WebSocket connection attempt. Status 101 means the upgrade succeeded. Status zero means no HTTP response was received. Socket URLs and authorization values are excluded. |
+| `browser.page`, `browser.home` | Accepted library/list pages and Continue Watching results after the browser applies them. Records page kind, escaped and bounded parent ID, page offset, item count for Continue Watching, and failure status. Stale results are excluded. These events indicate navigation state, not physical frame presentation. |
 | `playback.start`, `playback.phase`, `playback.prepared` | Decoder protocol, metadata/stream/gate/decoder milestones, resume offset, Live TV status, and numeric transcode limits when present. |
 | `playback.first-position`, `playback.first-frame` | Elapsed time until position feedback and the decoder's first-frame notification. They are different milestones. |
 | `playback.pause`, `playback.buffering` | Pause changes and distinct buffering-state notifications. |

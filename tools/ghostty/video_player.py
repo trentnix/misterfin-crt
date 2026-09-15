@@ -262,8 +262,13 @@ def play(output, width, height, audio="auto", audio_only=False, source="fd://3",
                     parts = line.decode("ascii", errors="ignore").split()
                     if len(parts) == 2 and parts[0] == "pause" and parts[1] in ("true", "false"):
                         mpv.send(handle, "set", "pause", "yes" if parts[1] == "true" else "no")
-                    elif audio_only and len(parts) == 2 and parts[0] == "seek" and parts[1] in ("-10", "10"):
-                        mpv.send(handle, "seek", parts[1], "relative+exact")
+                    elif audio_only and len(parts) == 2 and parts[0] == "seek":
+                        try:
+                            seconds = int(parts[1])
+                        except ValueError:
+                            continue
+                        if -(2**31) <= seconds < 2**31:
+                            mpv.send(handle, "seek", str(seconds), "relative+exact")
                     elif not audio_only and len(parts) == 3 and parts[0] == "picture" and parts[1] in ("0", "1") and parts[2].isdecimal():
                         request = int(parts[2])
                         if 0 < request < 2**31:

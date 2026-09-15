@@ -46,6 +46,9 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 	if err != nil || session == nil {
 		return err
 	}
+	_, audioSeekable := decoder.(playerapi.AudioSeeker)
+	canSeek := !session.liveTV && (session.item.Type != "Audio" || audioSeekable)
+	session.state.CanSeek = &canSeek
 	session.trace = trace
 	trace.prepared(session)
 	mediaCtx, cancel := context.WithCancel(ctx)

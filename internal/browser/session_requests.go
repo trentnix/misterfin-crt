@@ -2,6 +2,8 @@ package browser
 
 import (
 	"context"
+	"log/slog"
+	"net/url"
 
 	"misterfin-crt/internal/jellyfin"
 )
@@ -22,6 +24,7 @@ func (s *browserSession) send(work context.Context, r workerResult) {
 // authenticate resets browser state and delegates connection work. The
 // connection manager rejects results from superseded attempts.
 func (s *browserSession) authenticate() {
+	s.stopRemote()
 	if s.home.cancel != nil {
 		s.home.cancel()
 	}
@@ -84,6 +87,7 @@ func (s *browserSession) handleAuth(r authResult) bool {
 		s.selection.key = ""
 		s.selection.loader = r.connection.selection
 		s.setup = SetupPresentation{}
+		s.startRemote()
 		s.load(s.model.Load(0))
 		s.refreshHome()
 	}
@@ -98,6 +102,14 @@ func (s *browserSession) handlePage(r pageResult) bool {
 	if !s.model.Apply(r.request, r.page, r.err) {
 		return false
 	}
+	// Record accepted pages after applying them, so request completion can be
+	// distinguished from a screen that is ready for navigation. Escape and
+	// bound the opaque parent ID. Never log library names or response bodies.
+	parent := url.PathEscape(r.request.Location.ParentID)
+	s.config.Diagnostics.Record("browser.page",
+		slog.String("kind", r.request.Location.Kind),
+		slog.String("parent", parent[:min(256, len(parent))]),
+		slog.Int("start", r.request.Start), slog.Bool("failed", r.err != nil))
 	if jellyfin.Rejected(r.err) {
 		s.selection.cancel()
 		s.selection.generation++

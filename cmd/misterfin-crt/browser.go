@@ -8,9 +8,12 @@ import (
 
 	"misterfin-crt/internal/browser"
 	"misterfin-crt/internal/input"
+	"misterfin-crt/internal/jellyfin"
+	jellyfinremote "misterfin-crt/internal/jellyfin/remote"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/release"
+	"misterfin-crt/internal/remote"
 	"misterfin-crt/internal/sound"
 )
 
@@ -27,6 +30,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	if err != nil {
 		return err
 	}
+	config.Remote = func(client *jellyfin.Client) remote.Source { return jellyfinremote.New(client) }
 	config.Diagnostics = trace.log
 	config.Build = release.CurrentBuild()
 	config.CheckUpdate = func(ctx context.Context) (release.Status, error) {

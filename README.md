@@ -58,6 +58,8 @@ Use the D-pad to navigate and follow the on-screen button hints to select or go 
 
 The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. Press START/Menu on a controller or F1 on a keyboard while browsing to open [About](docs/GO_ABOUT.md). About shows the installed version and checks for public releases. The Update action currently displays "Not implemented yet."
 
+To control playback from another Jellyfin client, select **MiSTerFin CRT** as the playback device. Remote play, queues, pause/resume, seeking, shuffle, and repeat are supported. See [remote control](docs/GO_REMOTE.md).
+
 ## Screenshots
 
 Browsing and playback captures are from MiSTer. Setup previews use the same renderer with example connection details.

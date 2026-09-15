@@ -4,6 +4,8 @@ MiSTerFin-derived application code remains under [CC BY-NC 4.0](../LICENSE). The
 
 ## Bundled code
 
+- **[coder/websocket](https://github.com/coder/websocket) v1.8.15** — Coder, ISC license. The Go executable uses this library for Jellyfin remote control over WebSocket, including HTTPS. Its [copyright and permission notice](licenses/coder-websocket.txt) applies to this component.
+
 - **[font8x8](https://github.com/dhepper/font8x8)** — Daniel Hepper, public domain, based on the IBM VGA font via Marcel Sondaar. The retained header is `docker/font8x8.h`. The Go bitmap tables in `internal/ui/font.go` were translated from the C baseline's identical header. The ASCII table retains its public-domain terms. The MiSTerFin Latin-1 extensions retain CC BY-NC 4.0 and Pudding Studio's copyright notice. `tools/gen_font.py` and `tools/gen_subfont.py` generate the MPlayer font atlases in `assets/` from the retained header.
 - **[MPlayer](https://mplayerhq.hu) 1.5** — the MPlayer team, GPL-2.0-or-later. MiSTer playback uses an external MPlayer process built by `docker/Dockerfile.misterfin-crt` and `docker/build-mplayer.sh`. Its corresponding source consists of the upstream 1.5 release, `docker/vo_fbdev.c`, `docker/vo_fbdev_go.patch`, `docker/mplayer_go.patch`, `docker/mplayer_overlay_refresh.patch`, `docker/mplayer_picture.patch`, and `docker/vf_misterfin.c`. The framebuffer driver retains the original MPlayer copyright notices. The driver, patches to MPlayer, and resulting executable remain under the GPL. `tools/testdata/mplayer-video-timing.c` and `tools/testdata/mplayer-overlay-command.c` contain upstream excerpts used to test playback timing and paused redraws. Both retain their GPL notices.
 

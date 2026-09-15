@@ -111,8 +111,18 @@ func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control
 				callbacks.Picture(PictureResult{Request: control.Request, Err: errors.New("cannot change picture mode")})
 			}
 		}
-	case "pause":
+	case "report":
+		if s.started {
+			s.report(false)
+		}
+	case "pause", "set-pause", "resume":
 		paused := !s.state.IsPaused
+		if control.Kind != "pause" {
+			paused = control.Kind == "set-pause"
+		}
+		if paused == s.state.IsPaused {
+			return
+		}
 		if p.pause(paused) != nil {
 			return
 		}
@@ -129,8 +139,8 @@ func (s *playbackSession) control(p *playerProcess, callbacks Callbacks, control
 			callbacks.Paused(paused)
 		}
 		s.report(false)
-	case "seek":
-		if s.item.Type != "Audio" || !s.started || (control.Seconds != -10 && control.Seconds != 10) {
+	case "seek", "seek-to":
+		if s.item.Type != "Audio" || !s.started || (control.Kind == "seek" && control.Seconds != -10 && control.Seconds != 10) {
 			return
 		}
 		seeker, ok := p.decoder.(playerapi.AudioSeeker)

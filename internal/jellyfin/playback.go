@@ -83,21 +83,35 @@ func (c *Client) OpenStream(ctx context.Context, streamURL string) (body io.Read
 	return response.Body, nil
 }
 
+// PlayState is a playback report in Jellyfin ticks. Queue metadata is supplied
+// by ReportPlaying from the most recently published control-source snapshot.
 type PlayState struct {
-	AudioStreamIndex    *int   `json:",omitempty"`
-	SubtitleStreamIndex *int   `json:",omitempty"`
-	ItemID              string `json:"ItemId"`
-	PlaySessionID       string `json:"PlaySessionId"`
-	MediaSourceID       string `json:"MediaSourceId,omitempty"`
-	LiveStreamID        string `json:"LiveStreamId,omitempty"`
-	CanSeek             *bool  `json:",omitempty"`
-	Failed              *bool  `json:",omitempty"`
+	NowPlayingQueue     []QueueItem `json:",omitempty"`
+	PlaylistItemID      string      `json:"PlaylistItemId,omitempty"`
+	RepeatMode          string      `json:",omitempty"`
+	PlaybackOrder       string      `json:",omitempty"`
+	AudioStreamIndex    *int        `json:",omitempty"`
+	SubtitleStreamIndex *int        `json:",omitempty"`
+	ItemID              string      `json:"ItemId"`
+	PlaySessionID       string      `json:"PlaySessionId"`
+	MediaSourceID       string      `json:"MediaSourceId,omitempty"`
+	LiveStreamID        string      `json:"LiveStreamId,omitempty"`
+	CanSeek             *bool       `json:",omitempty"`
+	Failed              *bool       `json:",omitempty"`
 	PositionTicks       int64
 	IsPaused            bool
 	PlayMethod          string
 }
 
+// ReportPlaying sends start, progress, or stop state through the shared transport.
+// It attaches queue metadata only when the reported media ID matches its owner.
 func (c *Client) ReportPlaying(ctx context.Context, event string, state PlayState) error {
+	if q := c.queue.Load(); q != nil && q.ItemID == state.ItemID {
+		state.NowPlayingQueue = q.Items
+		state.PlaylistItemID = q.Current
+		state.RepeatMode = q.RepeatMode
+		state.PlaybackOrder = q.PlaybackOrder
+	}
 	path := "/Sessions/Playing"
 	switch event {
 	case "start":

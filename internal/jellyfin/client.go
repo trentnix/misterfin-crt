@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,6 +29,7 @@ type Client struct {
 	Config      Config
 	Session     Session
 	HTTP        *http.Client
+	queue       atomic.Pointer[PlaybackQueue]
 }
 
 // NewClient copies configuration and session values and creates an HTTP client
@@ -43,6 +45,18 @@ func NewClient(c Config, s Session) *Client {
 		return nil
 	}}
 	return &Client{Config: c, Session: s, HTTP: h}
+}
+
+// Authorization returns the authenticated client identity for requests to the
+// configured Jellyfin server, including WebSocket upgrades. The value contains
+// credentials and must not be logged or forwarded to another origin.
+func (c *Client) Authorization() string {
+	// Quote saved values so they cannot inject authorization fields.
+	auth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="0.1", DeviceId=` + strconv.Quote(c.Session.DeviceID)
+	if c.Session.Token != "" {
+		auth += ", Token=" + strconv.Quote(c.Session.Token)
+	}
+	return auth
 }
 
 // HTTPError reports a non-success HTTP status without retaining response bodies
@@ -85,12 +99,7 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 	if err != nil {
 		return nil, errors.New("invalid request URL")
 	}
-	// Quote all header values so saved credentials cannot inject header fields.
-	auth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="0.1", DeviceId=` + strconv.Quote(c.Session.DeviceID)
-	if c.Session.Token != "" {
-		auth += ", Token=" + strconv.Quote(c.Session.Token)
-	}
-	req.Header.Set("Authorization", auth)
+	req.Header.Set("Authorization", c.Authorization())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

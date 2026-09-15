@@ -27,7 +27,9 @@ func (r *RasterRenderer) Render(w, h int, s Scene) videoout.Frame {
 	if s.Video {
 		clear(r.overlay.Pixels)
 		f.Overlay = renderVideoOverlayOn(r.overlay, s.Playback, s.Now, s.Controls)
+		drawMessage(r.overlay, s.Message, s.Now)
 	}
+	drawMessage(r.canvas, s.Message, s.Now)
 	return f
 }
 
