@@ -3,21 +3,21 @@ package browser
 import (
 	"context"
 	"image"
+
 	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/settings"
-
+	"misterfin-crt/internal/musicviz"
 	"misterfin-crt/internal/release"
+	"misterfin-crt/internal/remote"
 )
 
 // Config supplies browsing settings, storage, and release information to [Run]. The caller
 // chooses platform defaults. Run does not resolve paths from the display or
 // decoder configuration.
 type Config struct {
-	// MusicConfig is the immutable music_visuals section snapshot. The session validates
-	// it on a worker before loading selected assets. Its zero value uses defaults.
-	MusicConfig settings.Section
+	// MusicVisuals contains validated immutable presets. Nil disables visuals.
+	// Startup assembly supplies defaults. Selected images load on a worker.
+	MusicVisuals *musicviz.Library
 
 	// Title replaces the heading on the carousel and root library list.
 	// Nil uses MiSTerFin CRT. An empty value hides the heading. The renderer

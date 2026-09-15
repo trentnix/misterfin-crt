@@ -6,6 +6,7 @@ import (
 
 	"misterfin-crt/internal/browser"
 	"misterfin-crt/internal/diagnostics"
+	"misterfin-crt/internal/musicviz"
 	"misterfin-crt/internal/settings"
 	"misterfin-crt/internal/sound"
 )
@@ -15,16 +16,22 @@ import (
 // cache files in their own directory.
 func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File) (browser.Config, error) {
 	config := browser.Config{ConfigPath: o.config, StateDir: o.stateDir, Diagnostics: log}
-	config.MusicConfig = source.Section("music_visuals")
+	musicSource := source.Section("music_visuals")
 	if override := os.Getenv("MISTERFIN_MUSIC_CONFIG"); override != "" {
-		config.MusicConfig = settings.Read(override, 64<<10, true)
+		musicSource = settings.Read(override, 64<<10, true)
 	}
-	title, err := browser.ParseTitle(source.Section("ui"))
+	var err error
+	config.MusicVisuals, err = musicviz.ParsePresets(musicSource)
 	if err != nil {
-		log.ConfigurationFallback("ui", "default-title", err)
+		log.ConfigurationFallback("music_visuals", "music-backgrounds-off", err)
+		config.StartupNotices = append(config.StartupNotices, "Check music configuration and assets. Music backgrounds are off.")
+	}
+	ui := source.UI()
+	if ui.TitleError != nil {
+		log.ConfigurationFallback("ui", "default-title", ui.TitleError)
 		config.StartupNotices = append(config.StartupNotices, "Could not load title settings. Using MiSTerFin CRT.")
 	} else {
-		config.Title = title
+		config.Title = ui.Title
 	}
 	background, err := browser.ParseBackground(source.Section("background"))
 	if err != nil {

@@ -46,16 +46,14 @@ func TestMissingMusicAssetIsLoggedBeforeNotice(t *testing.T) {
 	}
 }
 
-// TestMusicFallbacksPreservePlayback runs real configuration and asset failures
+// TestMusicFallbacksPreservePlayback runs real asset failures
 // through the session, then exercises pause and preset selection after recovery.
 func TestMusicFallbacksPreservePlayback(t *testing.T) {
 	for _, tc := range []struct {
 		name, data, kind, fallback string
-		asset                      bool
 	}{
-		{"invalid configuration", `{"backgrounds":[]}`, "invalid", "music-backgrounds-off", false},
-		{"missing asset", "missing.png", "not-found", "selected-background-unavailable", true},
-		{"non-image asset", "private.txt", "invalid", "selected-background-unavailable", true},
+		{"missing asset", "missing.png", "not-found", "selected-background-unavailable"},
+		{"non-image asset", "private.txt", "invalid", "selected-background-unavailable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := testSession(t)
@@ -71,37 +69,24 @@ func TestMusicFallbacksPreservePlayback(t *testing.T) {
 			t.Cleanup(func() { log.Close() })
 			s.config.Diagnostics = log
 			s.controller.item.Type = "Audio"
-			data := tc.data
-			if tc.asset {
-				data = `{"default":"Custom","backgrounds":[{"name":"Custom","type":"image","files":["` + tc.data + `"]},{"name":"Off","type":"none"}]}`
-			}
+			data := `{"default":"Custom","backgrounds":[{"name":"Custom","type":"image","files":["` + tc.data + `"]},{"name":"Off","type":"none"}]}`
 			library, err := musicviz.ParsePresets(settings.Section{Path: filepath.Join(dir, "settings.json"), Data: []byte(data)})
-			if tc.asset {
-				if err != nil {
-					t.Fatal(err)
-				}
-				s.music.library = library
-				s.music.loading = true
-				loaded, assetErr := library.LoadAssets(0)
-				if assetErr == nil {
-					t.Fatal("expected unavailable asset")
-				}
-				s.handleMusicAssets(musicAssetsResult{music: loaded, index: 0, err: assetErr})
-				if s.music.loading || s.music.error == "" || s.music.library != library {
-					t.Fatal("asset recovery lost presets or left loading active")
-				}
-				s.cycleMusicBackground()
-				if s.music.index != 1 || s.music.error != "" || s.music.loading {
-					t.Fatal("cannot select a working preset after asset failure")
-				}
-			} else {
-				if err == nil {
-					t.Fatal("expected invalid music configuration")
-				}
-				s.handleMusicConfig(musicConfigResult{music: library, err: err})
-				if s.music.library != nil || len(s.startupNotices) != 1 {
-					t.Fatal("invalid music configuration did not disable backgrounds with a notice")
-				}
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.music.library = library
+			s.music.loading = true
+			loaded, assetErr := library.LoadAssets(0)
+			if assetErr == nil {
+				t.Fatal("expected unavailable asset")
+			}
+			s.handleMusicAssets(musicAssetsResult{music: loaded, index: 0, err: assetErr})
+			if s.music.loading || s.music.error == "" || s.music.library != library {
+				t.Fatal("asset recovery lost presets or left loading active")
+			}
+			s.cycleMusicBackground()
+			if s.music.index != 1 || s.music.error != "" || s.music.loading {
+				t.Fatal("cannot select a working preset after asset failure")
 			}
 			if !s.controller.running {
 				t.Fatal("background failure stopped playback")

@@ -1,382 +1,29 @@
-"""Integration checks for the built Go browser against the inherited mock server."""
+"""Browser integration scenarios against an isolated Jellyfin fixture."""
 
-import base64
-import hashlib
-import queue
-import struct
 import fcntl
-import importlib.util
 import json
 import os
-from pathlib import Path
 import pty
 import subprocess
-import tempfile
 import termios
 import threading
 import time
 import unittest
-from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-ROOT = Path(__file__).resolve().parents[2]
-BINARY = Path(os.environ.get("MISTERFIN_CRT_TEST_BINARY", str(ROOT / "build/misterfin-crt")))
+if __package__:
+    from .fixtures.browser import BINARY, BrowserFixture, Scenario
+else:
+    from fixtures.browser import BINARY, BrowserFixture, Scenario
 
 
 @unittest.skipUnless(BINARY.is_file(), "build the Go host binary first")
-class BrowseIntegrationTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.directory = Path(self.temp.name)
-        # Integration fixtures must never open the workstation audio device for UI cues.
-        (self.directory / "sounds.json").write_text('{"enabled": false}\n')
-        spec = importlib.util.spec_from_file_location("mock_jellyfin", ROOT / "tools/mock-jellyfin.py")
-        mock = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mock)
-        mock.ITEMS.update({channel["Id"]: channel for channel in mock.LIVE_CHANNELS})
-        if self._testMethodName == "test_custom_browsing_background":
-            (self.directory / "background.png").write_bytes(mock._png(200, 40, 20, 8, 6))
-            (self.directory / "background.json").write_text('{"image":"background.png"}\n')
-        if self._testMethodName == "test_missing_background_falls_back":
-            (self.directory / "background.json").write_text('{"image":"missing.png"}\n')
-        if self._testMethodName == "test_non_image_background_falls_back":
-            (self.directory / "background.json").write_text('{"image":"not-an-image.txt"}\n')
-            (self.directory / "not-an-image.txt").write_text("private non-image contents")
-        if self._testMethodName == "test_select_restarts_resumable_video":
-            mock.ITEMS["movie-tricky-0"]["UserData"]["PlaybackPositionTicks"] = 600000000
-        if self._testMethodName == "test_music_advances_and_preserves_last_track":
-            mock.CHILDREN["artist-000-album0"] = mock.CHILDREN["artist-000-album0"][:2]
-        if self._testMethodName in ("test_combined_continue_watching", "test_continue_card_is_selected_before_feed_arrives"):
-            for item_id in ("movie-tricky-0", "series-000-s1e01"):
-                mock.ITEMS[item_id]["UserData"]["PlaybackPositionTicks"] = 600000000
-                mock.ITEMS[item_id]["UserData"]["LastPlayedDate"] = "2026-09-12T12:00:00Z"
-        if self._testMethodName == "test_mixed_library_movie_series_and_folder_navigation":
-            mock.VIEWS = [{"Id": "view-mixed", "Name": "Nostalgia"}]
-            mock.CHILDREN["view-mixed"] = ["movie-tricky-0", "series-000", "mixed-folder"]
-            mock.ITEMS["mixed-folder"] = mock.base_item("mixed-folder", "More titles", "Folder")
-            mock.CHILDREN["mixed-folder"] = ["movie-tricky-1"]
-        self.movie_ids = mock.CHILDREN["view-movies"]
-        self.remote_commands = queue.Queue()
-        self.remote_done = threading.Event()
-        self.addCleanup(self.remote_done.set)
-        self.requests = []
-        self.reports = []
-        self.delay_items = False
-        self.home_gate = threading.Event()
-        if self._testMethodName not in ("test_slow_continue_watching_does_not_block_libraries", "test_continue_card_is_selected_before_feed_arrives"):
-            self.home_gate.set()
-        self.addCleanup(self.home_gate.set)
-        self.video_response_gate = None
-        self.stop_report_gate = threading.Event()
-        self.stop_report_gate.set()
-        test = self
-
-        class Handler(mock.Handler):
-            def log_message(self, *_args):
-                pass
-
-            def _send(self, payload, content_type="application/json", status=200):
-                try:
-                    return super()._send(payload, content_type, status)
-                except (BrokenPipeError, ConnectionResetError):
-                    pass  # App restart can cancel in-flight home and artwork requests.
-
-            def do_GET(self):
-                test.requests.append(self.path)
-                path = urlparse(self.path).path
-                query = parse_qs(urlparse(self.path).query)
-                if path == "/socket" and test._testMethodName == "test_remote_playback_queue":
-                    # This fixture sends server frames only. Production framing,
-                    # TLS, reconnects, and heartbeat handling have Go tests.
-                    key = self.headers["Sec-WebSocket-Key"]
-                    accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
-                    self.send_response(101)
-                    self.send_header("Upgrade", "websocket")
-                    self.send_header("Connection", "Upgrade")
-                    self.send_header("Sec-WebSocket-Accept", accept)
-                    self.end_headers()
-                    self.close_connection = True
-                    while not test.remote_done.is_set():
-                        try:
-                            command = test.remote_commands.get(timeout=.1)
-                        except queue.Empty:
-                            continue
-                        data = json.dumps(command).encode()
-                        header = bytes([0x81, len(data)]) if len(data) < 126 else bytes([0x81, 126]) + struct.pack("!H", len(data))
-                        try:
-                            self.wfile.write(header + data)
-                            self.wfile.flush()
-                        except (BrokenPipeError, ConnectionResetError):
-                            break
-                    return
-                if path == "/Items" and "Ids" in query:
-                    return self._send(self._query_result(query["Ids"][0].split(","), query))
-                if (test._testMethodName == "test_mixed_library_movie_series_and_folder_navigation"
-                        and path == "/Items" and query.get("ParentId") == ["view-mixed"]
-                        and "MusicArtist" in query.get("IncludeItemTypes", [""])[0].split(",")):
-                    # Reproduce the unrelated artist rows returned by the real server.
-                    return self._send(self._query_result(["artist-001"], query))
-                if path == "/Items" and query.get("SortBy") == ["Random"]:
-                    ids = ["artist-000-album0-t01", "artist-001-album0-t01"]
-                    return self._send(self._query_result(ids, query))
-                if path in ("/UserItems/Resume", "/Shows/NextUp"):
-                    test.home_gate.wait(timeout=5)
-                    if test._testMethodName not in ("test_combined_continue_watching", "test_continue_card_is_selected_before_feed_arrives"):
-                        return self._send({"Items": [], "TotalRecordCount": 0})
-                    if path == "/UserItems/Resume":
-                        ids = ["movie-tricky-0", "series-000-s1e01"]
-                    else:
-                        ids = ["series-000-s1e02", "series-001-s1e01"]
-                    return self._send(self._query_result(ids, parse_qs(urlparse(self.path).query)))
-                if "/Subtitles/" in path:
-                    payload = b"1\n00:00:00,000 --> 00:01:00,000\nShared subtitle text"
-                    self.send_response(200)
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
-                    return
-                if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
-                    if (test._testMethodName == "test_select_restarts_resumable_video" and
-                            parse_qs(urlparse(self.path).query).get("startTimeTicks") == ["920000000"]):
-                        time.sleep(16)  # Exceed the former media response-header timeout.
-                    gate = test.video_response_gate
-                    if gate is not None:
-                        gate.wait(timeout=3)
-                    try:
-                        self.send_response(200)
-                        self.send_header("Content-Length", "10")
-                        self.end_headers()
-                        self.wfile.write(b"test video")
-                    except (BrokenPipeError, ConnectionResetError):
-                        pass
-                    return
-                if (test._testMethodName in (
-                        "test_about_preserves_selection_and_blocks_browse_input",
-                        "test_movie_paging_and_music_hierarchy",
-                        "test_select_restarts_resumable_video",
-                        "test_slow_continue_watching_does_not_block_libraries")
-                        and (path == "/UserViews" or
-                             (path == "/Items" and query.get("StartIndex") == ["0"]
-                              and query.get("Limit") == ["64"]))):
-                    time.sleep(.3)  # Deliberately exceed the former 150 ms guess.
-                if test.delay_items and urlparse(self.path).path == "/Items":
-                    time.sleep(0.4)
-                try:
-                    super().do_GET()
-                except (BrokenPipeError, ConnectionResetError):
-                    pass  # Expected when the browser cancels a delayed request.
-
-            def do_POST(self):
-                length = int(self.headers.get("Content-Length", "0"))
-                body = json.loads(self.rfile.read(length)) if length else {}
-                test.reports.append((urlparse(self.path).path, body))
-                if urlparse(self.path).path == "/Sessions/Playing/Stopped":
-                    test.stop_report_gate.wait(timeout=5)
-                if urlparse(self.path).path.endswith("/PlaybackInfo"):
-                    payload = json.dumps({"PlaySessionId": "live-session", "MediaSources": [{
-                        "Id": "live-source", "LiveStreamId": "live-tuner",
-                        "TranscodingUrl": f"/Videos/{urlparse(self.path).path.split('/')[2]}/stream.ts?LiveStreamId=live-tuner"}]}).encode()
-                    self.send_response(200)
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
-                    return
-                self.send_response(204)
-                self.end_headers()
-
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        worker = threading.Thread(target=self.server.serve_forever, daemon=True)
-        worker.start()
-        self.addCleanup(self.server.server_close)
-        self.addCleanup(worker.join)
-        self.addCleanup(self.server.shutdown)
-        (self.directory / "music.json").write_text(json.dumps({"default":"Off", "meters":False, "backgrounds":[{"name":"Off","type":"none"}]}))
-        if self._testMethodName == "test_invalid_optional_settings_keep_browsing":
-            (self.directory / "ui.json").write_text('{"title":42}\n')
-            (self.directory / "sounds.json").write_text('{"volume":999}\n')
-            (self.directory / "music.json").write_text('{"backgrounds":[]}\n')
-        if self._testMethodName == "test_missing_music_asset_keeps_playback":
-            (self.directory / "music.json").write_text(json.dumps({
-                "default": "Custom", "meters": False,
-                "backgrounds": [{"name": "Custom", "type": "image", "files": ["missing.png"]},
-                                {"name": "Off", "type": "none"}],
-            }))
-        config = self.directory / "jellyfin.conf"
-        config.write_text(f"http://127.0.0.1:{self.server.server_port}\nmock-api-key\nmockuser\n")
-        if self._testMethodName == "test_transcode_profile_from_configuration":
-            with config.open("a") as config_file:
-                config_file.write("640x480@8000000\n")
-        self.frame = self.directory / "frame.raw"
-        player = self.directory / "test-player"
-        player.write_text("#!/bin/sh\nprintf 'ANS_TIME_POSITION=2\\n'\nsleep 30\n")
-        if self._testMethodName == "test_music_advances_and_preserves_last_track":
-            player.write_text("#!/bin/sh\ncat /dev/fd/3 >/dev/null\nprintf 'ANS_TIME_POSITION=3\\n'\n")
-        player.chmod(0o700)
-        player_args = ["-player", str(player)]
-        if self._testMethodName in ("test_inline_playback_owns_frame_until_stop", "test_video_track_selection", "test_video_picture_selection", "test_video_choices_survive_stop_and_app_restart", "test_view_back_returns_to_clean_video", "test_live_captions_toggle_without_retuning"):
-            player.write_text("import argparse, pathlib, select, sys, time\n"
-                              "p=argparse.ArgumentParser()\n"
-                              "p.add_argument('--controls',action='store_true')\n"
-                              "p.add_argument('--status',action='store_true')\n"
-                              "p.add_argument('--zoom-4-3',action='store_true')\n"
-                              "p.add_argument('--captions',action='store_true')\n"
-                              "for name in ('output','width','height'): p.add_argument('--'+name)\n"
-                              "a=p.parse_args()\n"
-                              "with (pathlib.Path(a.output).parent/'picture-modes').open('a') as log: log.write(str(a.zoom_4_3)+'\\n')\n"
-                              "pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
-                              "print('ANS_TIME_POSITION=2',flush=True)\n"
-                              "if a.captions: print('ANS_CAPTION_TEXT='+b'Live caption text'.hex(),flush=True)\n"
-                              "deadline=time.monotonic()+30\n"
-                              "while time.monotonic()<deadline:\n"
-                              " if not select.select([sys.stdin],[],[],.05)[0]: continue\n"
-                              " parts=sys.stdin.readline().split()\n"
-                              " if len(parts)==3 and parts[0]=='picture':\n"
-                              "  with (pathlib.Path(a.output).parent/'picture-modes').open('a') as log: log.write(str(parts[1]=='1')+'\\n')\n"
-                              "  print('ANS_PICTURE_MODE='+parts[2]+','+parts[1],flush=True)\n")
-            player_args = ["-terminal-player", str(player)]
-        if self._testMethodName == "test_video_loading_and_buffering_animation":
-            player.write_text("import argparse, pathlib, time\n"
-                              "p=argparse.ArgumentParser()\n"
-                              "for name in ('controls','status'): p.add_argument('--'+name,action='store_true')\n"
-                              "for name in ('output','width','height'): p.add_argument('--'+name)\n"
-                              "a=p.parse_args()\n"
-                              "stage=pathlib.Path(a.output).parent/'stage'\n"
-                              "for n in range(1,4):\n"
-                              " while not stage.exists() or stage.read_text()!=str(n): time.sleep(.02)\n"
-                              " pathlib.Path(a.output).write_bytes(bytes([23])*640*240*4)\n"
-                              " print('ANS_BUFFERING='+('true' if n==2 else 'false'),flush=True)\n"
-                              " print('ANS_TIME_POSITION='+str(n+1),flush=True)\n"
-                              "time.sleep(30)\n")
-            player_args = ["-terminal-player", str(player)]
-        master, slave = pty.openpty()
-        self.master = master
-        self.addCleanup(os.close, master)
-        self.log = (self.directory / "browser.log").open("w+b")
-        self.addCleanup(self.log.close)
-
-        controlling_terminal = self._testMethodName != "test_terminal_stdin_without_controlling_terminal"
-
-        def terminal_session():
-            os.setsid()
-            if controlling_terminal:
-                fcntl.ioctl(0, termios.TIOCSCTTY, 0)
-
-        # Browser milestones synchronize input with applied results, rather
-        # than assuming a loopback response is rendered within a fixed delay.
-        self.diagnostics = self.directory / "logs" / "diagnostics.log"
-        (self.directory / "diagnostics.json").write_text(json.dumps({
-            "enabled": True, "path": "logs/diagnostics.log", "max_bytes": 65536,
-        }))
-
-        # Run the main suite through sectioned settings. Keep one legacy launch
-        # to cover installations that have not migrated yet.
-        if self._testMethodName != "test_legacy_settings_still_load":
-            settings = {}
-            for name in ("ui", "background", "sounds", "music", "diagnostics"):
-                legacy = self.directory / f"{name}.json"
-                if legacy.exists():
-                    value = json.loads(legacy.read_text())
-                    if name == "music":
-                        if "default" in value:
-                            value["default_background"] = value.pop("default")
-                        if "meters" in value:
-                            value["show_audio_meters"] = value.pop("meters")
-                        settings["music_visuals"] = value
-                    elif name == "sounds":
-                        settings.setdefault("ui", {})["navigation_sounds"] = value
-                    else:
-                        settings[name] = value
-                    legacy.unlink()
-            (self.directory / "settings.json").write_text(json.dumps(settings))
-
-        self.process = subprocess.Popen(
-            [str(BINARY), "-browse", "-headless", "640x240", "-output", str(self.frame),
-             "-config", str(config), "-state-dir", str(self.directory / "state")] + player_args,
-            stdin=slave, stdout=self.log, stderr=self.log, preexec_fn=terminal_session,
-            # Keep release checks offline. Jellyfin fixtures use loopback HTTP.
-            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"), "MISTERFIN_SETTINGS": "",
-                 "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"},
-        )
-        os.close(slave)
-        self.addCleanup(self.stop)
-        self.wait_request("/UserViews")
-        if self.home_gate.is_set():
-            self.wait_event("browser.home", failed=False)
-
-    def stop(self):
-        if self.process.poll() is None:
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait()
-
-    def wait_request(self, path, **query):
-        if path == "/Items" and "ParentId" in query and query.get("SortBy") != "Random":
-            # Library counts and carousel artwork also request /Items. They
-            # must not satisfy a wait for the navigable list page.
-            query.setdefault("Limit", 64)
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            for request in self.requests:
-                parsed = urlparse(request)
-                params = parse_qs(parsed.query)
-                if parsed.path == path and all(params.get(k) == [str(v)] for k, v in query.items()):
-                    if path == "/UserViews":
-                        self.wait_event("browser.page", kind="views", failed=False)
-                    elif (path == "/Items" and "ParentId" in params
-                          and params.get("Limit") == ["64"]):
-                        self.wait_event("browser.page", parent=params["ParentId"][0],
-                                        start=int(params.get("StartIndex", ["0"])[0]), failed=False)
-                    else:
-                        # Playback assertions also inspect decoder reports or
-                        # rendered frames after observing the request.
-                        time.sleep(0.15)
-                    self.assertIsNone(self.process.poll())
-                    return params
-            if self.process.poll() is not None:
-                self.log.seek(0)
-                self.fail(self.log.read().decode())
-            time.sleep(0.01)
-        self.fail(f"request not observed: {path} {query}; got {self.requests}")
-
-    def wait_event(self, name, **attributes):
-        """Wait for an applied browser result in the optional diagnostic log."""
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            if self.diagnostics.exists():
-                # The writer can be appending a line. Only parse complete lines.
-                lines = self.diagnostics.read_bytes().split(b"\n")[:-1]
-                for line in lines:
-                    event = json.loads(line)
-                    if event.get("msg") == name and all(event.get(k) == v for k, v in attributes.items()):
-                        return event
-            if self.process.poll() is not None:
-                self.log.seek(0)
-                self.fail(self.log.read().decode())
-            time.sleep(.01)
-        self.fail(f"browser event not observed: {name} {attributes}")
-
-    def read_frame(self):
-        # The raw framebuffer writer truncates before writing. Like the
-        # presenter, wait for a complete frame that stayed stable during read.
-        deadline = time.monotonic() + 2
-        while time.monotonic() < deadline:
-            before = self.frame.stat()
-            data = self.frame.read_bytes()
-            after = self.frame.stat()
-            if (len(data) == 640 * 240 * 4 and before.st_size == after.st_size == len(data)
-                    and before.st_mtime_ns == after.st_mtime_ns):
-                return data
-            time.sleep(0.005)
-        self.fail("no complete framebuffer frame published")
-
-    def key(self, key):
-        os.write(self.master, key)
-
+class BrowseIntegrationTests(BrowserFixture):
     def test_custom_browsing_background(self):
+        self.start_browser(Scenario(
+            background_image=True,
+            settings={"background": {"image": "background.png"}},
+        ))
         self.wait_request("/Items", ParentId="view-movies", Limit=0)
         self.assertEqual(self.read_frame()[-4:-1], bytes((8, 17, 86)))
         self.assertFalse(any("/Images/" in request for request in self.requests))
@@ -394,11 +41,16 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items/movie-tricky-0/Images/Backdrop/0")
 
     def test_missing_background_falls_back(self):
+        self.start_browser(Scenario(settings={"background": {"image": "missing.png"}}))
         self.wait_event("configuration.fallback", configuration="background",
                         error_kind="not-found", fallback="normal-artwork")
         self.assert_normal_artwork_and_navigation()
 
     def test_non_image_background_falls_back(self):
+        self.start_browser(Scenario(
+            settings={"background": {"image": "not-an-image.txt"}},
+            files={"not-an-image.txt": b"private non-image contents"},
+        ))
         self.wait_event("configuration.fallback", configuration="background",
                         error_kind="invalid", fallback="normal-artwork")
         self.assert_normal_artwork_and_navigation()
@@ -414,6 +66,10 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertIsNone(self.process.poll())
 
     def test_invalid_optional_settings_keep_browsing(self):
+        self.start_browser(Scenario(settings={
+            "ui": {"title": 42, "navigation_sounds": {"volume": 999}},
+            "music_visuals": {"backgrounds": []},
+        }))
         for configuration, fallback in (("ui", "default-title"),
                                         ("ui.navigation_sounds", "sounds-off"),
                                         ("music_visuals", "music-backgrounds-off")):
@@ -425,20 +81,30 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items/movie-tricky-0")
         self.assertIsNone(self.process.poll())
         self.key(b"aa")  # Return from details and the list to the carousel.
-        self.exercise_music_playback()
+        self.exercise_music_playback(clean_footer=False)
 
     def test_missing_music_asset_keeps_playback(self):
+        self.start_browser(Scenario(settings={"music_visuals": {
+            "default_background": "Custom",
+            "show_audio_meters": False,
+            "backgrounds": [
+                {"name": "Custom", "type": "image", "files": ["missing.png"]},
+                {"name": "Off", "type": "none"},
+            ],
+        }}))
         self.wait_event("configuration.fallback", configuration="music_visuals",
                         error_kind="not-found", fallback="selected-background-unavailable")
-        self.exercise_music_playback()
+        self.exercise_music_playback(clean_footer=False)
 
     def test_legacy_settings_still_load(self):
+        self.start_browser(Scenario(legacy_settings=True))
         self.assertFalse((self.directory / "settings.json").exists())
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.assertTrue(self.diagnostics.exists())
 
     def test_diagnostics_lifecycle(self):
+        self.start_browser()
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.stop()
@@ -457,6 +123,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertLessEqual(path.stat().st_size, 65536)
 
     def test_about_preserves_selection_and_blocks_browse_input(self):
+        self.start_browser(Scenario(page_delay=.3))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"\x1b[B")
@@ -478,6 +145,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items/movie-tricky-1")
 
     def test_slow_continue_watching_does_not_block_libraries(self):
+        self.start_browser(Scenario(hold_home=True, page_delay=.3))
         self.assertFalse(self.home_gate.is_set())
         self.key(b"\x1b[Cb")  # Browse Movies while the first Continue card loads.
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
@@ -486,6 +154,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items/movie-tricky-0")
 
     def test_continue_card_is_selected_before_feed_arrives(self):
+        self.start_browser(Scenario(hold_home=True, continue_items=True))
         self.assertFalse(self.home_gate.is_set())
         self.key(b"b")  # The initial selection must already be Continue.
         time.sleep(.5)
@@ -500,6 +169,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertFalse(any("misterfin-crt%3Acontinue" in request for request in self.requests))
 
     def test_combined_continue_watching(self):
+        self.start_browser(Scenario(continue_items=True))
         self.wait_request("/UserItems/Resume", MediaTypes="Video")
         self.wait_request("/Shows/NextUp", enableResumable="false")
         # Continue is the initial selection, independent of response order.
@@ -524,6 +194,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertFalse(any(urlparse(request).path == "/Items/series-000-s1e02" for request in self.requests))
 
     def test_terminal_stdin_without_controlling_terminal(self):
+        self.start_browser(Scenario(controlling_terminal=False))
         # Scripts launch can pass terminal stdin without a controlling terminal.
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
@@ -532,6 +203,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(self.process.wait(timeout=3), 0)
 
     def test_movie_paging_and_music_hierarchy(self):
+        self.start_browser(Scenario(page_delay=.3))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         jumps = 0
@@ -555,6 +227,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(self.process.wait(timeout=3), 0)
 
     def test_list_prefetches_before_boundary_and_reuses_previous_page(self):
+        self.start_browser()
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         # Seven six-row jumps reach item 42, before the first page boundary.
@@ -580,6 +253,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(pages, [["0"], ["64"]])
 
     def test_transcode_profile_from_configuration(self):
+        self.start_browser(Scenario(transcode_profile="640x480@8000000"))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -590,6 +264,10 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(len(self.read_frame()), 640 * 240 * 4)
 
     def test_playback_stop_returns_to_details(self):
+        self.start_browser()
+        self.exercise_playback_stop()
+
+    def exercise_playback_stop(self):
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -600,7 +278,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         while not any(path == "/Sessions/Playing" for path, _ in self.reports):
             self.assertLess(time.monotonic(), deadline, "no playback start")
             time.sleep(0.02)
-        if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
+        if self.scenario.player == "inline":
             time.sleep(0.3)
             self.assertEqual(self.read_frame(), bytes([23]) * 640 * 240 * 4)
             self.key(b"\x1b[A")
@@ -621,7 +299,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             time.sleep(0.02)
         time.sleep(0.3)
         self.assertIsNone(self.process.poll())
-        if self._testMethodName == "test_inline_playback_owns_frame_until_stop":
+        if self.scenario.player == "inline":
             self.assertNotEqual(self.read_frame(), bytes([23]) * 640 * 240 * 4)
         starts = [body for path, body in self.reports if path == "/Sessions/Playing"]
         stops = [body for path, body in self.reports if path == "/Sessions/Playing/Stopped"]
@@ -634,6 +312,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items", ParentId="view-tv", StartIndex=0)
 
     def test_stop_keeps_browser_responsive_during_slow_save(self):
+        self.start_browser()
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -668,6 +347,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertEqual(saves[-1]["PlaybackPositionTicks"], 20000000)
 
     def test_select_restarts_resumable_video(self):
+        self.start_browser(Scenario(resume_movie=True, slow_seek=True, page_delay=.3))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -697,6 +377,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"a")
 
     def test_video_seek_accumulates_and_preserves_pause(self):
+        self.start_browser()
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -737,6 +418,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertIsNone(self.process.poll())
 
     def test_video_seek_retargets_while_replacement_is_loading(self):
+        self.start_browser()
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -779,6 +461,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertIsNone(self.process.poll())
 
     def test_view_back_returns_to_clean_video(self):
+        self.start_browser(Scenario(player="inline"))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -802,6 +485,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertIsNone(self.process.poll())
 
     def test_video_picture_selection(self):
+        self.start_browser(Scenario(player="inline"))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -835,6 +519,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"a")
 
     def test_video_track_selection(self):
+        self.start_browser(Scenario(player="inline"))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -870,6 +555,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"a")
 
     def test_video_choices_survive_stop_and_app_restart(self):
+        self.start_browser(Scenario(player="inline"))
         def wait_for(predicate, message):
             deadline = time.monotonic() + 5
             while not predicate():
@@ -935,8 +621,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             self.process.args, stdin=slave, stdout=self.log, stderr=self.log,
             preexec_fn=terminal_session,
             # Keep release checks offline. Jellyfin fixtures use loopback HTTP.
-            env={**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"), "MISTERFIN_SETTINGS": "",
-                 "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"},
+            env=self.environment,
         )
         os.close(slave)
         self.wait_request("/UserViews")
@@ -945,6 +630,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         stop_video()
 
     def test_video_loading_and_buffering_animation(self):
+        self.start_browser(Scenario(player="buffering"))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
@@ -969,9 +655,11 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"a")
 
     def test_inline_playback_owns_frame_until_stop(self):
-        self.test_playback_stop_returns_to_details()
+        self.start_browser(Scenario(player="inline"))
+        self.exercise_playback_stop()
 
     def test_mixed_library_movie_series_and_folder_navigation(self):
+        self.start_browser(Scenario(mixed_library=True))
         self.key(b"b")
         query = self.wait_request("/Items", ParentId="view-mixed", StartIndex=0, Limit=64)
         self.assertNotIn("IncludeItemTypes", query)
@@ -991,6 +679,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertFalse(any(urlparse(r).path == "/Items/artist-001" for r in self.requests))
 
     def test_live_tv_uses_channels_endpoint(self):
+        self.start_browser()
         self.key(b"\x1b[C\x1b[C\x1b[Cb")
         params = self.wait_request("/LiveTv/Channels", StartIndex=0, Limit=64)
         self.assertEqual(params["AddCurrentProgram"], ["true"])
@@ -999,6 +688,7 @@ class BrowseIntegrationTests(unittest.TestCase):
                              for r in self.requests))
 
     def test_live_captions_toggle_without_retuning(self):
+        self.start_browser(Scenario(player="inline"))
         self.key(b"\x1b[C\x1b[C\x1b[Cb")
         self.wait_request("/LiveTv/Channels", StartIndex=0)
         self.key(b"b")
@@ -1026,6 +716,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.key(b"a")
 
     def test_live_tv_playback_releases_tuner(self):
+        self.start_browser()
         self.key(b"\x1b[C\x1b[C\x1b[Cb")
         self.wait_request("/LiveTv/Channels", StartIndex=0)
         self.key(b"b")
@@ -1059,6 +750,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.wait_request("/Items", ParentId="view-music")
 
     def test_photo_opens_full_screen_and_returns_to_folder(self):
+        self.start_browser()
         self.key(b"\x1b[C\x1b[C\x1b[C\x1b[Cb")
         self.wait_request("/Items", ParentId="view-homevideos")
         self.key(b"\x1b[Bb")
@@ -1077,6 +769,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertFalse(any(path.startswith("/Sessions/") for path, _ in self.reports))
 
     def test_remote_playback_queue(self):
+        self.start_browser(Scenario(remote_control=True))
         def wait_for(predicate, message):
             deadline = time.monotonic() + 5
             while not predicate():
@@ -1116,9 +809,10 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.remote_done.set()
 
     def test_music_plays_with_browser_frame_and_stops(self):
+        self.start_browser()
         self.exercise_music_playback()
 
-    def exercise_music_playback(self):
+    def exercise_music_playback(self, clean_footer=True):
         """Play, pause, change tracks, and stop using the application's real input loop."""
         self.key(b"\x1b[C\x1b[Cb")
         self.wait_request("/Items", ParentId="view-music")
@@ -1139,7 +833,7 @@ class BrowseIntegrationTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, "pause was not reported")
             time.sleep(0.02)
         time.sleep(0.1)
-        if self._testMethodName == "test_music_plays_with_browser_frame_and_stops":
+        if clean_footer:
             self.assertEqual(self.read_frame()[220 * 640 * 4:], bytes(20 * 640 * 4))
         self.key(b"b")
         time.sleep(0.1)
@@ -1162,6 +856,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertIsNone(self.process.poll())
 
     def test_whole_library_shuffle_and_return(self):
+        self.start_browser()
         self.key(b"\x1b[C\x1b[Cb")
         self.wait_request("/Items", ParentId="view-music")
         self.key(b"\x1b[B")  # Preserve the second artist while shuffling.
@@ -1182,6 +877,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertIsNone(self.process.poll())
 
     def test_music_advances_and_preserves_last_track(self):
+        self.start_browser(Scenario(short_album=True, player="finish"))
         self.key(b"\x1b[C\x1b[Cb")
         self.wait_request("/Items", ParentId="view-music")
         self.key(b"b")
@@ -1203,6 +899,7 @@ class BrowseIntegrationTests(unittest.TestCase):
         self.assertFalse(any("t03/stream" in r for r in self.requests))
 
     def test_back_cancels_delayed_library(self):
+        self.start_browser()
         self.delay_items = True
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies")

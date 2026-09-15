@@ -19,26 +19,6 @@ type musicPresentation struct {
 	error      string
 }
 
-func (s *browserSession) loadMusicConfig() {
-	source := s.config.MusicConfig
-	go func() {
-		library, err := musicviz.ParsePresets(source)
-		s.send(s.ctx, musicConfigResult{music: library, err: err})
-	}()
-}
-
-func (s *browserSession) handleMusicConfig(r musicConfigResult) bool {
-	if r.err != nil {
-		s.config.Diagnostics.ConfigurationFallback("music_visuals", "music-backgrounds-off", r.err)
-		s.startupNotices = append(s.startupNotices, "Check music configuration and assets. Music backgrounds are off.")
-		return true
-	}
-	s.music.library = r.music
-	s.music.index = r.music.Index(r.music.Config.Default)
-	s.loadMusicAssets()
-	return true
-}
-
 func (s *browserSession) cycleMusicBackground() {
 	if s.music.library == nil {
 		return

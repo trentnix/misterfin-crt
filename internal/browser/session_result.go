@@ -69,13 +69,6 @@ type shuffleResult struct {
 
 func (r shuffleResult) apply(s *browserSession) bool { return s.handleShuffle(r) }
 
-type musicConfigResult struct {
-	music *musicviz.Library
-	err   error
-}
-
-func (r musicConfigResult) apply(s *browserSession) bool { return s.handleMusicConfig(r) }
-
 type musicAssetsResult struct {
 	music *musicviz.Library
 	index int

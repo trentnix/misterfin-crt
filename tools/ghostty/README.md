@@ -74,3 +74,5 @@ Run the helper tests with:
 ```bash
 python3 -m unittest tools/ghostty/test_ghostty_harness.py
 ```
+
+Run browser integration tests with `make test-browse`. Each test in [test_go_browse.py](test_go_browse.py) explicitly starts a [Scenario](fixtures/browser.py) with its settings, mock-server behavior, and simulated player. Ordinary tests write `settings.json` directly. One explicit scenario checks legacy files. The standalone player programs in [fixtures](fixtures/) publish controlled frames and playback feedback without opening a media decoder or audio device. These tests need the Go host build and loopback networking, but do not need Ghostty or a Jellyfin server.

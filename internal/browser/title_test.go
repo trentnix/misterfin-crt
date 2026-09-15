@@ -2,9 +2,6 @@ package browser
 
 import (
 	"bytes"
-	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,50 +10,6 @@ import (
 	"misterfin-crt/internal/ui"
 	"misterfin-crt/internal/videoout"
 )
-
-func TestLoadTitle(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "ui.json")
-	if title, err := LoadTitle(path); title != nil || err != nil {
-		t.Fatalf("missing config: %v, %v", title, err)
-	}
-	for _, data := range []string{`{}`, `{"title":null}`} {
-		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
-			t.Fatal(err)
-		}
-		if title, err := LoadTitle(path); title != nil || err != nil {
-			t.Fatalf("unset title: %v, %v", title, err)
-		}
-	}
-	for _, tc := range []struct {
-		data, want string
-		invalid    bool
-	}{
-
-		{`{"title":""}`, "", false},
-		{`{"title":"  Trent's CRT  "}`, "Trent's CRT", false},
-		{`{"title":"First\n\tSecond\u0000"}`, "First Second", false},
-		{`{"title":"  \u0000  "}`, "", false},
-		{`{"title":"Café"}`, "Café", false},
-		{`{"title":"` + strings.Repeat("W", 1000) + `"}`, strings.Repeat("W", 1000), false},
-		{`null`, "", true},
-		{`[]`, "", true},
-		{`{"unknown":true}`, "", true},
-		{`{"title":4}`, "", true},
-		{`{} {}`, "", true},
-		{strings.Repeat(" ", 4097), "", true},
-	} {
-		if err := os.WriteFile(path, []byte(tc.data), 0600); err != nil {
-			t.Fatal(err)
-		}
-		got, err := LoadTitle(path)
-		if (err != nil) != tc.invalid {
-			t.Fatalf("config %q: unexpected error: %v", tc.data, err)
-		}
-		if !tc.invalid && (got == nil || *got != tc.want) {
-			t.Fatalf("config %q: expected explicit title %q, got %v", tc.data, tc.want, got)
-		}
-	}
-}
 
 func TestRootHeadingTruncatesBeforeClock(t *testing.T) {
 	for _, width := range []int{320, 640} {
@@ -175,11 +128,7 @@ func TestSettingsNoticesQueueWithoutReplacingActiveMessage(t *testing.T) {
 	s.frameInterval = time.Second / 60
 	s.output = noticeTestOutput{}
 	s.renderer = &noticeTestRenderer{}
-	s.startupNotices = []string{"First settings warning"}
-	s.handleMusicConfig(musicConfigResult{err: errors.New("private/path")})
-	if s.model.Notice != "" || len(s.startupNotices) != 2 {
-		t.Fatal("music failure blocked navigation or lost another warning")
-	}
+	s.startupNotices = []string{"First settings warning", "Check music configuration and assets. Music backgrounds are off."}
 	s.message = MessagePresentation{Text: "Active message", Until: time.Now().Add(time.Hour)}
 	if err := s.draw(); err != nil {
 		t.Fatal(err)

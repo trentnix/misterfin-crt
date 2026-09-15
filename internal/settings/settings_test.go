@@ -277,3 +277,46 @@ func TestMigrationRejectsOversizedCombinedUIWithoutWriting(t *testing.T) {
 		t.Fatal("migration changed original UI")
 	}
 }
+
+// Legacy files and the shared document must both remain startup snapshots.
+func TestLegacySourcesAreReadOnce(t *testing.T) {
+	dir := t.TempDir()
+	ui := filepath.Join(dir, "ui.json")
+	music := filepath.Join(dir, "music.json")
+	write(t, ui, `{"title":"Original"}`)
+	write(t, music, `{"meters":false}`)
+	source, err := Load(filepath.Join(dir, "settings.json"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, ui, `{"title":"Changed"}`)
+	write(t, music, `{"meters":true}`)
+	write(t, filepath.Join(dir, "sounds.json"), `{"enabled":false}`)
+	if title := source.UI().Title; title == nil || *title != "Original" {
+		t.Fatal("UI snapshot changed")
+	}
+	if string(source.Section("music_visuals").Data) != `{"meters":false}` {
+		t.Fatal("music snapshot changed")
+	}
+	if source.Section("ui.navigation_sounds").Data != nil {
+		t.Fatal("absent sound snapshot reread the file")
+	}
+}
+
+func TestMalformedMusicAliasCannotChangeBehaviorThroughMigration(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "music.json"), `{"meters":"bad","show_audio_meters":false}`)
+	source, err := Load(filepath.Join(dir, "settings.json"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if MusicVisuals(source.Section("music_visuals")).Err == nil {
+		t.Fatal("malformed alias accepted")
+	}
+	if err := source.Migrate(); err == nil {
+		t.Fatal("migration removed a malformed alias and changed its fallback")
+	}
+	if _, err := os.Stat(source.Path); !os.IsNotExist(err) {
+		t.Fatal("failed migration wrote settings")
+	}
+}

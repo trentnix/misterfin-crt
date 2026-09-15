@@ -67,7 +67,11 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 	})
 	s.model.Rows = visibleRows(s.geometry.Width, s.geometry.Height)
 	s.about.Build = config.Build
-	s.loadMusicConfig()
+	s.music.library = config.MusicVisuals
+	if s.music.library != nil {
+		s.music.index = s.music.library.Index(s.music.library.Config.Default)
+		s.loadMusicAssets()
+	}
 	s.ticker = time.NewTicker(s.frameInterval)
 	return s
 }

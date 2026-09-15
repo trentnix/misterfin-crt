@@ -3,7 +3,6 @@
 package musicviz
 
 import (
-	"encoding/json"
 	"fmt"
 	"image"
 	"os"
@@ -76,34 +75,18 @@ func parse(source settings.Section, decode bool) (*Library, error) {
 	path := source.Path
 	config := Defaults()
 	var overrides struct {
-		Default       json.RawMessage `json:"default_background"`
-		Meters        json.RawMessage `json:"show_audio_meters"`
-		LegacyDefault *string         `json:"default"`
-		LegacyMeters  *bool           `json:"meters"`
-		Backgrounds   *[]Preset       `json:"backgrounds"`
+		Default     *string   `json:"default_background"`
+		Meters      *bool     `json:"show_audio_meters"`
+		Backgrounds *[]Preset `json:"backgrounds"`
 	}
-	if err := source.Decode(&overrides); err != nil {
+	if err := settings.MusicVisuals(source).Decode(&overrides); err != nil {
 		return nil, err
 	}
-	// Canonical fields take precedence even when null, which keeps the default.
-	// Raw messages distinguish an omitted field from an explicit null.
-	if len(overrides.Default) != 0 {
-		overrides.LegacyDefault = nil
-		if err := json.Unmarshal(overrides.Default, &overrides.LegacyDefault); err != nil {
-			return nil, err
-		}
+	if overrides.Default != nil {
+		config.Default = *overrides.Default
 	}
-	if len(overrides.Meters) != 0 {
-		overrides.LegacyMeters = nil
-		if err := json.Unmarshal(overrides.Meters, &overrides.LegacyMeters); err != nil {
-			return nil, err
-		}
-	}
-	if overrides.LegacyDefault != nil {
-		config.Default = *overrides.LegacyDefault
-	}
-	if overrides.LegacyMeters != nil {
-		config.Meters = *overrides.LegacyMeters
+	if overrides.Meters != nil {
+		config.Meters = *overrides.Meters
 	}
 
 	explicitBackgrounds := overrides.Backgrounds != nil

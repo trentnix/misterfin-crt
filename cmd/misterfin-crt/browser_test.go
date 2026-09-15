@@ -240,7 +240,7 @@ func TestUnifiedSettingsAssemblyAndRelativePaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.Title == nil || *config.Title != "" || config.MusicConfig.Path != path {
+	if config.Title == nil || *config.Title != "" || config.MusicVisuals == nil || config.MusicVisuals.Config.Default != "Off" || config.MusicVisuals.Config.Meters {
 		t.Fatal("lost explicit title or music source")
 	}
 	sounds, notice := browsingSounds(o, nil, source)

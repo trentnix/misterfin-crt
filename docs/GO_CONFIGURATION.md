@@ -18,7 +18,7 @@ Sections and their fields can be omitted to keep defaults. An empty object uses 
 
 The Go executable accepts `-settings /path/to/settings.json`. `MISTERFIN_SETTINGS` supplies the default for that flag. The Ghostty harness accepts `--settings /path/to/settings.json`. A command-line path takes precedence over the environment. An explicitly selected file must exist.
 
-The file is read once per process. Relative background, music-asset, and diagnostic-log paths resolve beside it. A legacy per-section override resolves relative paths beside its own file. The interlaced core remains installed beside `jellyfin.conf`.
+The shared file or legacy files are read once per process. Relative background, music-asset, and diagnostic-log paths resolve beside their source file. A legacy per-section override resolves relative paths beside its own file. The interlaced core remains installed beside `jellyfin.conf`.
 
 Navigation sounds live under `ui.navigation_sounds`. The old top-level `sounds` section remains accepted when the nested setting is omitted. If both exist, the nested object takes precedence as a whole.
 
@@ -42,7 +42,9 @@ For the separate 480i installation:
 /media/fat/misterfin-crt/interlaced-test/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/interlaced-test/jellyfin.conf
 ```
 
-For local development, run `build/misterfin-crt -migrate-settings -config /path/to/jellyfin.conf`. Migration reads legacy files from the destination settings directory. It moves `sounds` into `ui.navigation_sounds` and renames `music` to `music_visuals`, `default` to `default_background`, and `meters` to `show_audio_meters`. It preserves their values, relative paths, and originals. It refuses to overwrite `settings.json` and rejects malformed legacy JSON. It does not open a display, connect to Jellyfin, or modify sign-in state. Section values are validated during normal startup. After testing the new file, the old settings files can be archived or removed.
+For local development, run `build/misterfin-crt -migrate-settings -config /path/to/jellyfin.conf`. Migration reads legacy files from the destination settings directory. It moves `sounds` into `ui.navigation_sounds` and renames `music` to `music_visuals`, `default` to `default_background`, and `meters` to `show_audio_meters`. It preserves their values, relative paths, and originals.
+
+Migration refuses to overwrite `settings.json` and rejects malformed legacy JSON or invalid types in legacy music aliases. Migration does not open a display, connect to Jellyfin, or modify sign-in state. Section values are validated during normal startup. After testing the new file, the old settings files can be archived or removed.
 
 ## Defaults and recovery
 
@@ -65,3 +67,7 @@ The document must contain one JSON object no larger than 256 KiB. Sections must 
 Server configuration and sign-in storage errors show retryable setup screens. The default transcode limit remains `720x576@12000000`. Corrupt artwork caches become misses and can be rebuilt. Unwritable caches leave browsing available without disk caching. Missing or damaged playback preferences use defaults. Choices that cannot be saved remain usable during the run, and saving failures are reported at exit.
 
 See the guides for [backgrounds and title](GO_BACKGROUND.md), [sounds](GO_SOUNDS.md), [diagnostics](GO_DIAGNOSTICS.md), [music](GO_MUSIC.md), [input](GO_INPUT.md), and [interlaced display](GO_DISPLAY.md).
+
+## Code ownership
+
+[`internal/settings`](../internal/settings/settings.go) reads startup snapshots and owns the UI schema and legacy names. [Compatibility normalization](../internal/settings/compatibility.go) serves both parsing and [migration](../internal/settings/migration.go). Each component validates its own values and supplies its defaults. [Startup assembly](../cmd/misterfin-crt/paths.go) passes the decoded title and validated music presets to the browser. The browser loads music images on its asset worker and does not parse settings JSON.
