@@ -53,7 +53,11 @@ To enable interlaced output:
 3. Set the `display` section in `/media/fat/misterfin-crt/settings.json`:
 
 ```json
-{"display": {"interlaced": true}}
+{
+  "display": {
+    "interlaced": true
+  }
+}
 ```
 
 Launch **MiSTerFin-CRT** from the normal Scripts menu. The application switches to the interlaced core and restores the normal menu when you exit. Synchronization is automatic. The same launcher works for both modes.
@@ -61,7 +65,11 @@ Launch **MiSTerFin-CRT** from the normal Scripts menu. The application switches 
 To return to the progressive default, exit the application and set `display.interlaced` to `false`:
 
 ```json
-{"display": {"interlaced": false}}
+{
+  "display": {
+    "interlaced": false
+  }
+}
 ```
 
 Omitting the `display` section also restores the default on the next launch. Preserve other sections when changing this setting. The [display guide](docs/GO_DISPLAY.md) explains core verification, the scoped `MiSTer.ini` changes and backup, and hardware requirements.
