@@ -52,17 +52,34 @@ func axisRange(fd int, code uint16) (min, max int32, ok bool) {
 	return info.Minimum, info.Maximum, errno == 0 && info.Maximum > info.Minimum
 }
 
+// axisBindings adds gamepad left-stick defaults before applying explicit
+// bindings. Keep defaults out of Profile so labels can prefer configured inputs.
+func (d *device) axisBindings(keys [96]byte) map[uint16]Axis {
+	bindings := make(map[uint16]Axis)
+	// BTN_GAMEPAD (BTN_SOUTH) identifies a gamepad rather than a touchscreen
+	// or pointer with ABS_X/ABS_Y. MiSTer's virtual node supplies arrows only.
+	if !d.bindings.Replace && d.name != "MiSTer virtual input" && keys[304/8]&(1<<(304%8)) != 0 {
+		bindings[0] = Axis{Negative: control.Previous, Positive: control.Next, Press: 40, Release: 25}
+		bindings[1] = Axis{Negative: control.Up, Positive: control.Down, Press: 40, Release: 25}
+	}
+	for code, binding := range d.bindings.Axes {
+		bindings[code] = binding
+	}
+	return bindings
+}
+
 func (d *device) configure(config Config) {
 	d.bindings = config.bindings(d.name)
+	keys := keyCapabilities(d.fd)
 	_, _, d.hats[0] = axisRange(d.fd, 16)
 	_, _, d.hats[1] = axisRange(d.fd, 17)
 	d.axes = make(map[uint16]*mappedAxis)
-	for code, binding := range d.bindings.Axes {
+	for code, binding := range d.axisBindings(keys) {
 		if min, max, ok := axisRange(d.fd, code); ok {
 			d.axes[code] = newMappedAxis(binding, min, max)
 		}
 	}
-	d.legend = d.labels(keyCapabilities(d.fd))
+	d.legend = d.labels(keys)
 }
 
 func (d *device) mappedAction(e event) control.Action {
@@ -73,10 +90,9 @@ func (d *device) mappedAction(e event) control.Action {
 		if key, ok := d.bindings.Buttons[e.Code]; ok {
 			return key
 		}
-	} else if _, ok := d.bindings.Axes[e.Code]; ok {
-		if axis := d.axes[e.Code]; axis != nil {
-			return axis.action(e.Value)
-		}
+	} else if axis := d.axes[e.Code]; axis != nil {
+		return axis.action(e.Value)
+	} else if _, configured := d.bindings.Axes[e.Code]; configured {
 		return ""
 	}
 	if d.bindings.Replace {

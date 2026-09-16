@@ -37,6 +37,8 @@ MiSTer's synthetic action-key echoes are filtered to avoid duplicate presses. Vi
 
 `axes` maps decimal Linux `EV_ABS` codes. The driver supplies each range. An empty axis object disables that axis.
 
+Gamepads use the left stick for navigation by default: axis `0` selects left/right, and axis `1` selects up/down. A direction activates at 40% travel and releases below 25%, preventing small stick movements from navigating. Held directions use the same acceleration as the D-pad. Explicit axis bindings override these defaults, and `replace: true` removes them. The right stick is unmapped unless configured.
+
 | `rest` | Input | Allowed directions |
 | --- | --- | --- |
 | `center` (default) | Stick or hat | `negative`, `positive` |

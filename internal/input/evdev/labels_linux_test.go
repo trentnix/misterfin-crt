@@ -64,3 +64,23 @@ func TestLabelsUseKeyboardAndControllerNames(t *testing.T) {
 		}
 	}
 }
+
+func TestLeftStickLabelsAndExplicitPreference(t *testing.T) {
+	ranges := map[uint16][2]int32{0: {-1000, 1000}, 1: {-1000, 1000}}
+	d := configuredTestAxes("gamepad", advertised(304), Profile{}, ranges)
+	labels := d.labels(advertised(304))
+	for action, name := range map[control.Action]string{control.Previous: "Left", control.Next: "Right", control.Up: "Up", control.Down: "Down"} {
+		if labels.Name(action) != name {
+			t.Fatalf("%s: %q, want %q", action, labels.Name(action), name)
+		}
+	}
+	profile := Profile{Buttons: map[uint16]control.Action{311: control.Down}, ButtonLabels: map[uint16]string{311: "R1"}, Axes: map[uint16]Axis{0: {}}}
+	d = configuredTestAxes("gamepad", advertised(304, 311), profile, ranges)
+	labels = d.labels(advertised(304, 311))
+	if labels.Name(control.Down) != "R1" {
+		t.Fatal("stick displaced explicit label", labels)
+	}
+	if labels.Name(control.Next) != "" || labels.Name(control.Previous) != "" {
+		t.Fatal("disabled stick advertised", labels)
+	}
+}
