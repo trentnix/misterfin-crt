@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"misterfin-crt/internal/update"
 	"os"
 	"path/filepath"
 	"strings"
@@ -177,6 +178,37 @@ func TestBadDiagnosticsDoNotPreventStartup(t *testing.T) {
 		trace.close(nil)
 		if strings.Contains(trace.notice, dir) {
 			t.Fatal("raw path exposed in warning")
+		}
+	}
+}
+
+func TestRestartDiagnosticsDistinguishCleanupFailure(t *testing.T) {
+	for _, failure := range []bool{false, true} {
+		dir := t.TempDir()
+		config := filepath.Join(dir, "jellyfin.conf")
+		if err := os.WriteFile(config, []byte("DEBUGLOG\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		o := launchOptions{browse: true, config: config}
+		trace, err := openStartupDiagnostics(o, false, mustSettings(t, o))
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := update.ErrRestart
+		if failure {
+			result = errors.Join(result, errors.New("cleanup failed"))
+		}
+		trace.close(result)
+		data, err := os.ReadFile(filepath.Join(dir, "debug.log"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := decodeStartupEvents(t, data)
+		if events[len(events)-1]["failed"] != failure {
+			t.Fatal(events)
+		}
+		if strings.Contains(string(data), "update.restart") == failure {
+			t.Fatal(events)
 		}
 	}
 }

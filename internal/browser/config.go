@@ -47,6 +47,9 @@ type Config struct {
 	// Updater installs a release outside the event loop. Nil permits release
 	// notes but requires manual installation. Run cancels and joins active work.
 	Updater update.Installer
+	// RestartAfterUpdate lets Run return update.ErrRestart after installation.
+	// Enable only when the caller and launcher support restarting after cleanup.
+	RestartAfterUpdate bool
 
 	// ConfigPath names the Jellyfin connection configuration file.
 	ConfigPath string

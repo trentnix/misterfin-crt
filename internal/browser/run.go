@@ -27,7 +27,9 @@ import (
 //
 // Cancellation and user exit stop pending work and wait for tracked decoders
 // and detached server cleanup. The caller must cancel and join its input reader,
-// then close output after Run returns.
+// then close output after Run returns. A successful installation returns
+// update.ErrRestart when Config.RestartAfterUpdate is enabled. The caller must
+// finish cleanup before restarting and must not restart if cleanup fails.
 func Run(ctx context.Context, config Config, player playback.Config, output videoout.Output, renderer rendering.Renderer, feedback sound.Feedback, keys <-chan control.Event) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -66,7 +68,7 @@ func Run(ctx context.Context, config Config, player playback.Config, output vide
 			s.controls = key.Labels
 			redraw = s.handleKey(key.Action)
 			if s.model.Quit {
-				return nil
+				return s.update.exitErr
 			}
 		case event := <-s.driver.events:
 			redraw = s.handlePlayback(event)
@@ -74,7 +76,7 @@ func Run(ctx context.Context, config Config, player playback.Config, output vide
 			redraw = s.handleResult(r)
 		}
 		if s.model.Quit || (!s.update.exitAt.IsZero() && !time.Now().Before(s.update.exitAt)) {
-			return nil
+			return s.update.exitErr
 		}
 		if redraw {
 			if err := s.draw(); err != nil {

@@ -39,6 +39,7 @@ type Progress struct {
 // honor cancellation and finish rollback before returning a cancellation error.
 // notify is optional and called serially on the worker. It must return promptly.
 // After success, the caller must exit before starting another media player.
+// A supported launcher can then start the updated application.
 type Installer interface {
 	Install(context.Context, release.Status, func(Progress)) error
 }

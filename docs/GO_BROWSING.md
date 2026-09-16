@@ -53,7 +53,7 @@ No GitHub credentials are sent. A missing or inaccessible release displays “No
 
 Release authors can put concise on-screen text under `## Release summary` in the GitHub release description. Use plain paragraphs and optional third-level headings. The app displays that section through the next first- or second-level heading. Put manual-installation instructions under a separate `## Installation` heading. Missing or empty summaries fall back to the full notes. Selected text is limited to 8,192 characters.
 
-The updater downloads and verifies the release, backs up the installed files, then replaces the client and matching player. Back cancels during download or validation. During replacement, wait for completion. Success stays visible for two seconds before the app exits. Reopen MiSTerFin CRT.
+The updater downloads and verifies the release, backs up the installed files, then replaces the client and matching player. Back cancels during download or validation. During replacement, wait for completion. Success shows “Update installed. Restarting...” for two seconds before the app restarts. Launchers without restart support show a manual-relaunch message instead.
 
 Failures restore the previous files. Startup recovers an interrupted replacement before opening the display. Settings, sign-in, playback choices, caches, and the optional 480i core stay intact. See [installation and recovery](GO_BUILD.md#application-updates).
 

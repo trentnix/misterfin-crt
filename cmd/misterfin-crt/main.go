@@ -14,6 +14,7 @@ import (
 	"misterfin-crt/internal/mister"
 	"misterfin-crt/internal/mister/displaymode"
 	"misterfin-crt/internal/platform"
+	"misterfin-crt/internal/update"
 )
 
 func run() (err error) {
@@ -78,6 +79,9 @@ func run() (err error) {
 
 func main() {
 	if err := run(); err != nil {
+		if update.RestartRequested(err) {
+			os.Exit(update.RestartExitCode)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

@@ -15,6 +15,7 @@ import (
 	"misterfin-crt/internal/diagnostics"
 	"misterfin-crt/internal/release"
 	"misterfin-crt/internal/settings"
+	"misterfin-crt/internal/update"
 )
 
 // startupDiagnostics owns the process log through display and input cleanup.
@@ -82,6 +83,10 @@ func (s *startupDiagnostics) phase(stage string) {
 // close records the final stage after resources have been released and drains
 // accepted events. Diagnostic failures never replace the application's result.
 func (s *startupDiagnostics) close(err error) {
+	if update.RestartRequested(err) {
+		s.log.Record("update.restart")
+		err = nil
+	}
 	if err != nil {
 		s.log.Record("application.failure", slog.String("stage", s.stage), slog.String("error_kind", diagnostics.ErrorKind(err)))
 	}

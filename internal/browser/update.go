@@ -12,9 +12,10 @@ import (
 // updateWork owns the installer worker. Shutdown joins it after cancellation so
 // no filesystem transaction outlives the application or display teardown.
 type updateWork struct {
-	cancel context.CancelFunc
-	done   <-chan struct{}
-	exitAt time.Time
+	cancel  context.CancelFunc
+	done    <-chan struct{}
+	exitAt  time.Time
+	exitErr error
 }
 
 func (s *browserSession) installUpdate() {
@@ -59,6 +60,10 @@ func (r installResult) apply(s *browserSession) bool {
 	switch {
 	case r.err == nil:
 		s.about.Installed = true
+		s.about.Restarting = s.config.RestartAfterUpdate
+		if s.about.Restarting {
+			s.update.exitErr = update.ErrRestart
+		}
 		s.update.exitAt = time.Now().Add(2 * time.Second)
 	case errors.Is(r.err, update.ErrRecovery):
 		s.about.Message = "Recovery needed. Exit and relaunch MiSTerFin CRT."

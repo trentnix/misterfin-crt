@@ -21,12 +21,16 @@ type AboutPresentation struct {
 	Notes                           []string
 	Scroll                          int
 	CanInstall, Updating, Installed bool
-	Progress                        update.Progress
+	// Restarting distinguishes a supported automatic restart from manual relaunch.
+	Restarting bool
+	Progress   update.Progress
 }
 
 // Status returns safe user-facing release or installation state.
 func (a AboutPresentation) Status() string {
 	switch {
+	case a.Installed && a.Restarting:
+		return "Update installed. Restarting..."
 	case a.Installed:
 		return "Installed. Reopen MiSTerFin CRT."
 	case a.Updating:

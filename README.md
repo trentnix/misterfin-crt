@@ -36,11 +36,11 @@ The client checks for the latest public release at startup. An available update 
 
 1. While browsing, press START/Menu on a controller or F1 on a keyboard to open **About**.
 2. Select **View release** and review the changes.
-3. Select **Install** and wait for completion. The app exits after a successful update. Reopen MiSTerFin CRT.
+3. Select **Install** and wait for completion. The app restarts automatically after a successful update.
 
 Updates replace the application, matching MPlayer, and standard launcher together. Your settings, sign-in, playback preferences, cached artwork, and optional interlaced core are preserved. Back cancels during download or validation. During installation, wait for completion. Failed replacements restore the previous files. Interrupted replacements recover at the next startup.
 
-Automatic updates require the standard installation paths above. Desktop and custom installations use manual installation. See [manual installation and recovery](docs/GO_BUILD.md#application-updates) for details.
+Automatic updates require the standard installation paths above. Older clients or launchers may require reopening the app once after an update. Desktop and custom installations use manual installation. See [manual installation and recovery](docs/GO_BUILD.md#application-updates) for details.
 
 ## Progressive and interlaced output
 
