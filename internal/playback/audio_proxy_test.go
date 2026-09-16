@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"misterfin-crt/internal/jellyfin"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"misterfin-crt/internal/jellyfin"
 )
 
 func TestAudioProxyRangesAndPrivacy(t *testing.T) {
@@ -25,7 +26,11 @@ func TestAudioProxyRangesAndPrivacy(t *testing.T) {
 	}))
 	defer server.Close()
 	c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{Token: "private-token"})
-	source, closeProxy, err := audioProxy(context.Background(), c, c.AudioStreamURL("track", "session"))
+	stream, err := c.PrepareAudio(t.Context(), jellyfin.Item{ID: "track"}, "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, closeProxy, err := audioProxy(context.Background(), c, stream.URL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

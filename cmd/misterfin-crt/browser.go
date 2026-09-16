@@ -8,12 +8,10 @@ import (
 
 	"misterfin-crt/internal/browser"
 	"misterfin-crt/internal/input"
-	"misterfin-crt/internal/jellyfin"
-	jellyfinremote "misterfin-crt/internal/jellyfin/remote"
+	jfconnection "misterfin-crt/internal/jellyfin/connection"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/remote"
 	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/settings"
 	"misterfin-crt/internal/sound"
@@ -36,8 +34,8 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	if err != nil {
 		return err
 	}
-	config.Remote = func(client *jellyfin.Client) remote.Source { return jellyfinremote.New(client) }
 	config.Build = release.CurrentBuild()
+	config.Connector = jfconnection.Connector{ConfigPath: o.config, StateDir: config.StateDir, Version: config.Build.Version, Diagnostics: trace.log}
 	if executable, err := os.Executable(); err == nil {
 		if installer := installedUpdater(o, executable); installer != nil {
 			config.Updater = installer
@@ -81,6 +79,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	preferences := playback.NewPreferences(config.StateDir, trace.log)
 	defer func() { err = errors.Join(err, preferences.Close()) }()
 	player.Preferences = preferences
+	player.Diagnostics = trace.log
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

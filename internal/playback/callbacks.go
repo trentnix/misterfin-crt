@@ -5,7 +5,7 @@ package playback
 // goroutine and must return promptly without waiting for Run to end. Callers
 // forwarding progress or audio levels must avoid blocking on a slow consumer.
 type Callbacks struct {
-	// Position receives absolute Jellyfin positions in 100-nanosecond ticks.
+	// Position receives absolute server positions in 100-nanosecond ticks.
 	Position func(int64)
 	// TrackInfo publishes source metadata before the decoder start gate.
 	TrackInfo func(VideoTracks)

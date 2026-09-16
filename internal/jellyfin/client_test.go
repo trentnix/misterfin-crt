@@ -28,7 +28,7 @@ func TestCollectionQueries(t *testing.T) {
 	} {
 		t.Run(tc.collection, func(t *testing.T) {
 			want, _ := url.ParseQuery("userId=user-id&ParentId=view&SortBy=SortName&SortOrder=Ascending&Fields=" + tc.fields + "&EnableUserData=" + tc.userData + "&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop&StartIndex=12&Limit=34&" + tc.extra)
-			got := ItemsQuery("user-id", "view", tc.collection, 12, 34)
+			got := itemsQuery("user-id", "view", tc.collection, 12, 34)
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("got %v, want %v", got, want)
 			}

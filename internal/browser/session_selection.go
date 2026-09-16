@@ -2,8 +2,9 @@ package browser
 
 import (
 	"context"
+	"errors"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 )
 
 // selectionState owns the selected metadata, images, and request lifetime.
@@ -64,8 +65,8 @@ func (s *browserSession) handleSelection(r selectionResult) bool {
 	if r.generation != s.selection.generation {
 		return false
 	}
-	if jellyfin.Rejected(r.update.err) {
-		s.setup = setupFailure(connectionAuthentication, r.update.err, s.config)
+	if errors.Is(r.update.err, media.ErrUnauthorized) {
+		s.setup = s.setupPresentation(r.update.err)
 		return false
 	}
 	if r.update.err != nil {

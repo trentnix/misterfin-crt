@@ -1,7 +1,7 @@
 package browser
 
 import (
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/rendering"
 )
 
@@ -27,7 +27,7 @@ const (
 type selectionUpdate struct {
 	kind   selectionUpdateKind
 	art    artUpdate
-	detail *jellyfin.Item
+	detail *media.Item
 	count  *int
 	err    error
 }

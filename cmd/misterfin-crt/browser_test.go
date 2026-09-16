@@ -93,7 +93,7 @@ func TestBrowserStartupResolvesStorage(t *testing.T) {
 			if wantState == "" {
 				wantState = filepath.Join(state, "misterfin-crt")
 			}
-			if got.ConfigPath != "server.conf" || got.StateDir != wantState {
+			if got.StateDir != wantState {
 				t.Fatalf("config: %+v", got)
 			}
 			if got.ArtworkCacheDir != filepath.Join(tc.cacheRoot, "misterfin-crt", "covercache") || got.MosaicCacheDir != filepath.Join(tc.cacheRoot, "misterfin-crt", "gridcache") {

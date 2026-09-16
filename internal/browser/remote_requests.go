@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/remote"
 	"misterfin-crt/internal/rendering"
@@ -32,7 +32,7 @@ type remoteRequests struct {
 type remoteItemsResult struct {
 	generation int
 	command    remote.Command
-	items      []jellyfin.Item
+	items      []media.Item
 	err        error
 }
 
@@ -91,7 +91,12 @@ func (s *browserSession) resolveRemotePlay(cmd remote.Command) {
 	generation, client := q.generation, s.client
 	go func() {
 		defer cancel()
-		items, err := client.RemoteItems(ctx, cmd.IDs, cmd.PlayMode == remote.PlayMix)
+		catalog, ok := client.(media.RemoteCatalog)
+		if !ok {
+			s.send(ctx, remoteItemsResult{generation: generation, command: cmd, err: errors.New("remote queues are not supported by this server")})
+			return
+		}
+		items, err := catalog.RemoteItems(ctx, cmd.IDs, cmd.PlayMode == remote.PlayMix)
 		if err == nil {
 			for _, item := range items {
 				if !playback.Supported(item) {

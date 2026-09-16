@@ -7,8 +7,8 @@ import (
 	"strconv"
 )
 
-// ItemsQuery preserves collection-specific field costs and folder hierarchy.
-func ItemsQuery(user, parent, collection string, start, limit int) url.Values {
+// itemsQuery preserves collection-specific field costs and folder hierarchy.
+func itemsQuery(user, parent, collection string, start, limit int) url.Values {
 	q := url.Values{"userId": {user}, "ParentId": {parent}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"}, "Fields": {"ProductionYear,RunTimeTicks,ChildCount,RecursiveItemCount"}, "EnableUserData": {"true"}, "ImageTypeLimit": {"1"}, "EnableImageTypes": {"Primary,Backdrop"}, "StartIndex": {strconv.Itoa(max(0, start))}, "Limit": {strconv.Itoa(limit)}}
 	switch collection {
 	case "movies", "musicvideos":
@@ -40,7 +40,7 @@ func ItemsQuery(user, parent, collection string, start, limit int) url.Values {
 // are returned as complete lists with totals derived from their item counts.
 func (c *Client) List(ctx context.Context, loc Location, start, limit int) (Page, error) {
 	path := "/Items"
-	q := ItemsQuery(c.Session.UserID, loc.ParentID, loc.Collection, start, limit)
+	q := itemsQuery(c.Session.UserID, loc.ParentID, loc.Collection, start, limit)
 	switch loc.Kind {
 	case "views":
 		path = "/UserViews"
@@ -105,8 +105,8 @@ func (c *Client) details(ctx context.Context, id, extraFields string) (Item, err
 	return item, err
 }
 
-// CollectionItemType mirrors collection_item_type in src/jellyfin.c.
-func CollectionItemType(collection string) string {
+// collectionItemType selects types for library counts and mosaic sampling.
+func collectionItemType(collection string) string {
 	return map[string]string{"movies": "Movie", "tvshows": "Series", "music": "MusicAlbum", "musicvideos": "MusicVideo", "homevideos": "Video,Photo", "mixed": "Movie,Series,Video,MusicVideo,Audio,Photo"}[collection]
 }
 
@@ -117,7 +117,7 @@ func (c *Client) LibraryCount(ctx context.Context, item Item) (*int, error) {
 		return nil, nil
 	}
 	q := url.Values{"userId": {c.Session.UserID}, "ParentId": {item.ID}, "Recursive": {"true"}, "Limit": {"0"}}
-	if kind := CollectionItemType(item.CollectionType); kind != "" {
+	if kind := collectionItemType(item.CollectionType); kind != "" {
 		q.Set("IncludeItemTypes", kind)
 	}
 	var page Page
@@ -138,7 +138,7 @@ func (c *Client) Mosaic(ctx context.Context, item Item) (Page, error) {
 		return Page{}, nil
 	}
 	q := url.Values{"userId": {c.Session.UserID}, "ParentId": {item.ID}, "Recursive": {"true"}, "Limit": {"12"}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"}, "Fields": {"ProductionYear,RunTimeTicks"}, "EnableUserData": {"true"}, "ImageTypeLimit": {"1"}, "EnableImageTypes": {"Primary"}}
-	if kind := CollectionItemType(item.CollectionType); kind != "" {
+	if kind := collectionItemType(item.CollectionType); kind != "" {
 		q.Set("IncludeItemTypes", kind)
 	}
 	var page Page

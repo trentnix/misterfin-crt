@@ -4,11 +4,10 @@ import (
 	"context"
 	"image"
 
+	"misterfin-crt/internal/connection"
 	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/musicviz"
 	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/remote"
 	"misterfin-crt/internal/update"
 )
 
@@ -16,6 +15,9 @@ import (
 // chooses platform defaults. Run does not resolve paths from the display or
 // decoder configuration.
 type Config struct {
+	// Connector supplies authentication and safe setup instructions for the selected backend.
+	Connector connection.Connector
+
 	// MusicVisuals contains validated immutable presets. Nil disables visuals.
 	// Startup assembly supplies defaults. Selected images load on a worker.
 	MusicVisuals *musicviz.Library
@@ -33,13 +35,9 @@ type Config struct {
 	// Nil preserves the default mosaic and item backdrops.
 	Background image.Image
 
-	// Remote constructs a control source after sign-in. Nil disables remote control.
-	// The browser owns its cancellation and waits for Run before closing.
-	Remote func(*jellyfin.Client) remote.Source
-
 	// Diagnostics is borrowed until Run and its tracked cleanup finish. Nil disables logging.
 	Diagnostics *diagnostics.Log
-	// Build identifies the executable in About and in Jellyfin client requests.
+	// Build identifies the executable in About and in server client requests.
 	Build release.Build
 	// CheckUpdate optionally checks release availability. It must honor context
 	// cancellation. Nil disables network checks. The browser serializes calls.
@@ -51,9 +49,7 @@ type Config struct {
 	// Enable only when the caller and launcher support restarting after cleanup.
 	RestartAfterUpdate bool
 
-	// ConfigPath names the Jellyfin connection configuration file.
-	ConfigPath string
-	// StateDir holds the persisted Jellyfin authentication session.
+	// StateDir holds private authentication and playback state.
 	StateDir string
 	// ArtworkCacheDir holds decoded artwork. Empty disables artwork disk caching.
 	// The browser adds a subdirectory for each server and user after sign-in.

@@ -106,6 +106,10 @@ Video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Recorded vid
 
 Go owns authenticated HTTP/TLS. Video reaches decoders through descriptor 3. Controllable music uses a private loopback proxy that forwards byte-range requests for the fixed Jellyfin audio stream. Player arguments contain no Jellyfin URL or credentials. Raw decoder diagnostics are discarded.
 
+Shared playback uses `media.Playback` to prepare and open streams. The Jellyfin adapter retains transcode queries, reporting payloads, and tuner release. `media.PreparedStream` binds reporting and cleanup to one attempt. The extraction preserves the existing MPEG-2 video profile, original audio streams, and saved playback choices. See the [media service boundaries](GO_RENDERING.md#media-services).
+
+The Jellyfin implementation groups [preparation and subtitles](../internal/jellyfin/playback.go), [HTTP streaming](../internal/jellyfin/stream.go), [progress reporting](../internal/jellyfin/reporting.go), and [Live TV ownership](../internal/jellyfin/live.go) by responsibility. Both streaming operations validate same-origin URLs. Video allows 60 seconds for response headers and uses a dedicated connection. Audio reuses pooled connections with a 15-second header timeout. Neither imposes a total timeout on the media body.
+
 Session start follows position feedback. Progress and resume updates run every ten seconds and on pause changes. Successful completion near the known end marks recorded video watched. Cancellation does not newly mark it watched, and startup failure preserves its resume position. Final stop/save requests have a five-second deadline. Shutdown waits for bounded outstanding cleanup.
 
 ## MiSTer menu music

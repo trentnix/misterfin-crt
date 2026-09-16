@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 )
 
 func TestTrackPreparationChoosesSourceAndBurnIn(t *testing.T) {
@@ -29,7 +30,7 @@ func TestTrackPreparationChoosesSourceAndBurnIn(t *testing.T) {
 		start := int64(50000000)
 		request := Request{
 			Item: jellyfin.Item{ID: "movie", Type: "Movie"}, StartTicks: &start,
-			Tracks: &TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: 4, SubtitleIndex: tc.index}},
+			Tracks: &TrackOptions{Selection: media.TrackSelection{AudioIndex: 4, SubtitleIndex: tc.index}},
 		}
 		choices := prepareTrackChoices(client, Config{}, request)
 		choices.clientSubtitles = !tc.burnText
@@ -37,11 +38,11 @@ func TestTrackPreparationChoosesSourceAndBurnIn(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(session.streamURL, "subtitleStreamIndex="+tc.burn) || !strings.Contains(session.streamURL, "audioStreamIndex=4") || !strings.Contains(session.streamURL, "mediaSourceId=file-source") || session.start != start {
+		if !strings.Contains(session.stream.URL, "subtitleStreamIndex="+tc.burn) || !strings.Contains(session.stream.URL, "audioStreamIndex=4") || !strings.Contains(session.stream.URL, "mediaSourceId=file-source") || session.start != start {
 			t.Fatal("wrong source, track, or offset")
 		}
 	}
-	request := Request{Item: jellyfin.Item{ID: "movie"}, Tracks: &TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: 99, SubtitleIndex: -1}}}
+	request := Request{Item: jellyfin.Item{ID: "movie"}, Tracks: &TrackOptions{Selection: media.TrackSelection{AudioIndex: 99, SubtitleIndex: -1}}}
 	_, err := preparePlayback(context.Background(), client, Config{}, request, prepareTrackChoices(client, Config{}, request))
 	if err == nil {
 		t.Fatal("missing track silently fell back")
@@ -100,7 +101,7 @@ func TestPictureZoomPersistsAcrossSourceAspectRatios(t *testing.T) {
 			}
 			for _, options := range []trackPreparation{
 				{saved: &videoPreference{SourceID: "source", Picture: PictureZoom43}},
-				{explicit: &TrackOptions{Picture: PictureZoom43, Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}},
+				{explicit: &TrackOptions{Picture: PictureZoom43, Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}},
 			} {
 				tracks, err := videoTracks(item, options)
 				if err != nil {

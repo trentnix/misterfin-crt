@@ -7,13 +7,14 @@ import (
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/subtitles"
 )
 
 func trackFixture(t *testing.T) *controllerFixture {
 	f := newControllerFixture(t)
-	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: playback.VideoTracks{ClientSubtitles: true, SourceID: "source", TrackOptions: playback.TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}, Streams: []jellyfin.MediaStream{{Type: "Audio", Index: 3, DisplayTitle: "Japanese"}, {Type: "Audio", Index: 8, DisplayTitle: "English"}, {Type: "Subtitle", Index: 12, Codec: "ass", DisplayTitle: "English text"}, {Type: "Subtitle", Index: 20, Codec: "pgssub", DisplayTitle: "English PGS"}}}}, f.now)
+	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: playback.VideoTracks{ClientSubtitles: true, SourceID: "source", TrackOptions: playback.TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}, Streams: []jellyfin.MediaStream{{Type: "Audio", Index: 3, DisplayTitle: "Japanese"}, {Type: "Audio", Index: 8, DisplayTitle: "English"}, {Type: "Subtitle", Index: 12, Codec: "ass", DisplayTitle: "English text"}, {Type: "Subtitle", Index: 20, Codec: "pgssub", DisplayTitle: "English PGS"}}}}, f.now)
 	return f
 }
 func TestTextSubtitleSelectionDoesNotRestartVideo(t *testing.T) {

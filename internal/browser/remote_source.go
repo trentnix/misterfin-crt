@@ -20,11 +20,8 @@ type remoteSession struct {
 
 func (s *browserSession) startRemote() {
 	s.stopRemote()
-	if s.config.Remote == nil || s.about.Updating || !s.update.exitAt.IsZero() {
-		return
-	}
-	source := s.config.Remote(s.client)
-	if source == nil {
+	source := s.controlSource
+	if source == nil || s.about.Updating || !s.update.exitAt.IsZero() {
 		return
 	}
 	ctx, cancel := context.WithCancel(s.ctx)

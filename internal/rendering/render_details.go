@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/ui"
 )
 
@@ -64,7 +64,7 @@ func (p *screenPainter) details() [][]controlHint {
 		c.Text(metadataX+9, ty, fmt.Sprintf("%.1f", v.Detail.CommunityRating), dimColor, w)
 	}
 	s, col := subtitle(*v.Detail)
-	if jellyfin.IsLive(*v.Detail) {
+	if media.IsLive(*v.Detail) {
 		center(c, ty, truncate(s, w-48, 1), col, 1)
 	} else {
 		c.Text(w-24-textWidth(s, 1), ty, s, col, w-24)

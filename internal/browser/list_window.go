@@ -1,6 +1,6 @@
 package browser
 
-import "misterfin-crt/internal/jellyfin"
+import "misterfin-crt/internal/media"
 
 const prefetchRows = 24
 
@@ -17,7 +17,7 @@ func (v *View) centerSelection(rows int) {
 // retainPage joins adjacent responses without changing absolute item positions.
 // Each view retains at most three pages. Published item slices are immutable,
 // including when a media worker borrows the parent view.
-func (v *View) retainPage(start int, page jellyfin.Page, target, rows int) {
+func (v *View) retainPage(start int, page media.Page, target, rows int) {
 	end := start + len(page.Items)
 	oldEnd := v.Start + len(v.Page.Items)
 	if len(v.Page.Items) > 0 && start <= oldEnd && end >= v.Start {
@@ -30,7 +30,7 @@ func (v *View) retainPage(start int, page jellyfin.Page, target, rows int) {
 			last = min(last, *page.TotalRecordCount)
 		}
 		last = max(first, last)
-		items := make([]jellyfin.Item, last-first)
+		items := make([]media.Item, last-first)
 		if v.Start < last {
 			copy(items[v.Start-first:], v.Page.Items)
 		}
@@ -43,7 +43,7 @@ func (v *View) retainPage(start int, page jellyfin.Page, target, rows int) {
 	if len(page.Items) > 3*PageSize && v.Location.Kind != "views" && v.Location.Kind != "seasons" {
 		first := max(0, target/PageSize*PageSize-PageSize-start)
 		// Copy so the discarded page's metadata can be reclaimed.
-		page.Items = append([]jellyfin.Item(nil), page.Items[first:min(len(page.Items), first+3*PageSize)]...)
+		page.Items = append([]media.Item(nil), page.Items[first:min(len(page.Items), first+3*PageSize)]...)
 		start += first
 	}
 	v.Page, v.Start = page, start

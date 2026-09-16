@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"os/exec"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	playerapi "misterfin-crt/internal/player"
 )
 
 // Supported reports whether the item type has a playback path. It does not
 // verify stream availability, installed players, or decoder support.
-func Supported(item jellyfin.Item) bool {
-	if jellyfin.IsLive(item) {
+func Supported(item media.Item) bool {
+	if media.IsLive(item) {
 		return true
 	}
 	switch item.Type {
@@ -24,7 +24,7 @@ func Supported(item jellyfin.Item) bool {
 
 // selectDecoder validates the selected protocol without opening a process or
 // making network requests. Audio and video settings are resolved by the caller.
-func selectDecoder(o Config, item jellyfin.Item, picture PictureMode) (playerapi.Decoder, error) {
+func selectDecoder(o Config, item media.Item, picture PictureMode) (playerapi.Decoder, error) {
 	if !Supported(item) {
 		return nil, errors.New("playback for this item type is not implemented")
 	}
@@ -40,7 +40,7 @@ func selectDecoder(o Config, item jellyfin.Item, picture PictureMode) (playerapi
 }
 
 // resolveDecoder locates the selected executable before playback preparation.
-func resolveDecoder(o Config, item jellyfin.Item, picture PictureMode) (playerapi.Decoder, string, error) {
+func resolveDecoder(o Config, item media.Item, picture PictureMode) (playerapi.Decoder, string, error) {
 	d, err := selectDecoder(o, item, picture)
 	if err != nil {
 		return nil, "", err
@@ -53,7 +53,7 @@ func resolveDecoder(o Config, item jellyfin.Item, picture PictureMode) (playerap
 }
 
 // decoder selects injected settings without interpreting an executable protocol.
-func (o Config) decoder(item jellyfin.Item) playerapi.Decoder {
+func (o Config) decoder(item media.Item) playerapi.Decoder {
 	if item.Type == "Audio" {
 		return o.AudioDecoder
 	}

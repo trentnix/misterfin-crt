@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/remote"
 	"misterfin-crt/internal/rendering"
 )
@@ -15,7 +15,7 @@ import (
 type remotePlayback struct {
 	paused bool
 	queue  remote.Queue
-	items  map[string]jellyfin.Item
+	items  map[string]media.Item
 	// active gives this queue ownership of track advancement. During switching,
 	// Current already identifies the next item while the old decoder stops.
 	active, switching bool
@@ -26,15 +26,15 @@ type remotePlayback struct {
 }
 
 // replace installs one catalog snapshot without changing playback or navigation.
-func (q *remotePlayback) replace(items []jellyfin.Item, index int) {
+func (q *remotePlayback) replace(items []media.Item, index int) {
 	q.items = nil
 	q.queue.Replace(q.remember(items), index)
 }
 
 // remember indexes metadata once while preserving duplicate queue occurrences.
-func (q *remotePlayback) remember(items []jellyfin.Item) []string {
+func (q *remotePlayback) remember(items []media.Item) []string {
 	if q.items == nil {
-		q.items = make(map[string]jellyfin.Item, len(items))
+		q.items = make(map[string]media.Item, len(items))
 	}
 	ids := make([]string, len(items))
 	for i, item := range items {
@@ -44,7 +44,7 @@ func (q *remotePlayback) remember(items []jellyfin.Item) []string {
 	return ids
 }
 
-func (s *browserSession) applyRemoteItems(cmd remote.Command, items []jellyfin.Item) {
+func (s *browserSession) applyRemoteItems(cmd remote.Command, items []media.Item) {
 	q := &s.remotePlayback
 	appendQueue := cmd.PlayMode == remote.PlayNext || cmd.PlayMode == remote.PlayLast
 	if appendQueue && !q.active {
@@ -99,7 +99,7 @@ func (s *browserSession) adoptLocalQueue() {
 	}
 	item := s.controller.item
 	q := &s.remotePlayback
-	items := []jellyfin.Item{item}
+	items := []media.Item{item}
 	index := 0
 	wasShuffle := s.shuffle.library != "" && len(s.shuffle.items) > 0
 	if wasShuffle {
@@ -108,7 +108,7 @@ func (s *browserSession) adoptLocalQueue() {
 	} else if item.Type == "Audio" {
 		if parent, ok := s.model.Parent(); ok && parent.Start == 0 && !parent.More() {
 			tracks := audioItems(parent.Page.Items)
-			if selected := slices.IndexFunc(tracks, func(track jellyfin.Item) bool { return track.ID == item.ID }); selected >= 0 {
+			if selected := slices.IndexFunc(tracks, func(track media.Item) bool { return track.ID == item.ID }); selected >= 0 {
 				items, index = tracks, selected
 			}
 		}
@@ -120,7 +120,7 @@ func (s *browserSession) adoptLocalQueue() {
 	}
 	q.active = true
 	q.returnDepth = len(s.model.Stack)
-	if item.Type == "Audio" || jellyfin.IsLive(item) {
+	if item.Type == "Audio" || media.IsLive(item) {
 		q.returnDepth = max(1, q.returnDepth-1)
 	}
 	s.publishRemoteQueue()

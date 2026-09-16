@@ -1,11 +1,11 @@
-// Package playback runs an external video player and owns its Jellyfin session.
+// Package playback runs an external video player and owns its server session.
 package playback
 
 import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	playerapi "misterfin-crt/internal/player"
 )
 
@@ -15,13 +15,10 @@ import (
 //
 // Canceling ctx stops preparation or playback. Cancellation during preparation
 // or monitoring returns nil. Setup errors can still be returned during cancellation.
-// With Request.AsyncCleanup enabled, reporting and tuner release may outlive Run.
+// With Request.AsyncCleanup enabled, reporting and server resource release may outlive Run.
 // Returned errors exclude stream URLs and raw decoder diagnostics.
-func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request) (resultErr error) {
-	var trace *playbackTrace
-	if c != nil {
-		trace = newPlaybackTrace(c.Diagnostics, config, request)
-	}
+func Run(ctx context.Context, c media.Playback, config Config, request Request) (resultErr error) {
+	trace := newPlaybackTrace(config.Diagnostics, config, request)
 	defer func() { trace.finish(ctx, resultErr) }()
 	trace.phase("decoder-configuration")
 	cleanupOwned := false
@@ -54,19 +51,19 @@ func Run(ctx context.Context, c *jellyfin.Client, config Config, request Request
 	mediaCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	session.meter = meter
-	session.reporter = newProgressReporter(ctx, c, session.liveTV)
+	session.reporter = newProgressReporter(ctx, session.stream.Reports, session.liveTV)
 	cleanupOwned = true
 	defer func() {
 		failed := session.finish(resultErr != nil, request.AsyncCleanup, request.Callbacks.CleanupDone)
 		if resultErr == nil && ctx.Err() == nil && failed {
-			resultErr = errors.New("playback ended, but Jellyfin progress reporting failed")
+			resultErr = errors.New("playback ended, but server progress reporting failed")
 		}
 	}()
 	if request.Callbacks.TrackInfo != nil && session.item.Type != "Audio" {
 		request.Callbacks.TrackInfo(session.tracks)
 	}
 	trace.phase("stream-open")
-	source, err := openMedia(mediaCtx, c, session.streamURL, decoder.Input(session.item))
+	source, err := openMedia(mediaCtx, c, session.stream.URL, decoder.Input(session.item), config.Diagnostics)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil

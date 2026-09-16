@@ -1,6 +1,6 @@
 package playback
 
-import "misterfin-crt/internal/jellyfin"
+import "misterfin-crt/internal/media"
 
 // trackPreparation holds choices and decoder capabilities until refreshed
 // source metadata can validate them. It is private to a single Run call.
@@ -11,9 +11,9 @@ type trackPreparation struct {
 	livePicture     bool
 }
 
-func prepareTrackChoices(c *jellyfin.Client, config Config, request Request) trackPreparation {
+func prepareTrackChoices(c accountIdentity, config Config, request Request) trackPreparation {
 	t := trackPreparation{explicit: request.Tracks}
-	if config.Preferences != nil && t.explicit == nil && request.Item.Type != "Audio" && !jellyfin.IsLive(request.Item) {
+	if config.Preferences != nil && t.explicit == nil && request.Item.Type != "Audio" && !media.IsLive(request.Item) {
 		t.saved = config.Preferences.load(preferenceKey(c, request.Item.ID))
 	}
 	return t

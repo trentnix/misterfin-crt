@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
@@ -30,7 +30,7 @@ func (d *playbackDriver) send(event PlaybackEvent) {
 	}
 }
 
-func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
+func (d *playbackDriver) launch(client media.Playback, item media.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
 	d.sequence++
 	id := d.sequence
 	ctx, stop := context.WithCancel(d.ctx)

@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 )
 
 // Parent returns the view beneath the current screen. Scalars are copied. Items
@@ -18,7 +18,7 @@ func (m *Model) Parent() (View, bool) {
 // SelectAdjacent commits a completed neighbor search. The parent page and its
 // selection change together with the detail item and title. The caller must
 // reject stale requests before calling. No screen is added to the stack.
-func (m *Model) SelectAdjacent(parent View, item jellyfin.Item) bool {
+func (m *Model) SelectAdjacent(parent View, item media.Item) bool {
 	if len(m.Stack) < 2 || m.Current().Detail == nil {
 		return false
 	}

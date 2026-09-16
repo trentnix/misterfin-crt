@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	nativeplayer "misterfin-crt/internal/player/mplayer"
 	inlineplayer "misterfin-crt/internal/player/pythonhelper"
 )
@@ -123,7 +124,7 @@ func TestStopCanDetachReportingAlreadyInProgress(t *testing.T) {
 	r := newProgressReporter(context.Background(), client, false)
 	fast, returned := make(chan struct{}), make(chan struct{})
 	go func() {
-		r.finish(jellyfin.PlayState{ItemID: "item"}, false, false, false, fast)
+		r.finish(media.PlayState{ItemID: "item"}, false, false, false, fast)
 		close(returned)
 	}()
 	awaitReportSignal(t, blocked)

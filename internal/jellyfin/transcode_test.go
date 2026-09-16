@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"misterfin-crt/internal/media"
 )
 
 func TestTranscodeConfig(t *testing.T) {
@@ -73,7 +75,7 @@ func TestCustomProfilePreservesVideoChoicesAndFrameRate(t *testing.T) {
 			fps = "30"
 		}
 		for _, ticks := range []int64{0, 900000000} {
-			raw := c.SelectedVideoURL("item", "session", ticks, ntsc, "source", TrackSelection{AudioIndex: 7, SubtitleIndex: 12}, 12)
+			raw := prepareTestVideo(t, c, media.VideoRequest{Item: Item{ID: "item"}, SessionID: "session", StartTicks: ticks, NTSC: ntsc, SourceID: "source", Tracks: media.TrackSelection{AudioIndex: 7, SubtitleIndex: 12}, BurnSubtitle: 12}).URL
 			u, err := url.Parse(raw)
 			if err != nil {
 				t.Fatal(err)
@@ -85,13 +87,13 @@ func TestCustomProfilePreservesVideoChoicesAndFrameRate(t *testing.T) {
 				}
 			}
 		}
-		audio, _ := url.Parse(c.AudioStreamURL("track", "session"))
+		audio, _ := url.Parse(prepareTestAudio(t, c).URL)
 		if audio.Query().Has("maxWidth") || audio.Query().Has("videoBitRate") || audio.Query().Get("static") != "true" {
 			t.Fatal("video limits affected music")
 		}
 	}
 	c := NewClient(Config{Server: "http://example.test", Transcode: TranscodeProfile{VideoBitrate: 8000000}}, Session{})
-	u, _ := url.Parse(c.VideoStreamURL("item", "session", 0, true))
+	u, _ := url.Parse(prepareTestVideo(t, c, media.VideoRequest{Item: Item{ID: "item"}, SessionID: "session", NTSC: true, BurnSubtitle: -1}).URL)
 	if u.Query().Get("maxWidth") != "720" || u.Query().Get("maxHeight") != "576" {
 		t.Fatal("omitted fields lost defaults")
 	}
@@ -148,7 +150,7 @@ func TestCustomLiveProfileReachesNegotiationAndStream(t *testing.T) {
 	}))
 	defer server.Close()
 	c := NewClient(Config{Server: server.URL, Transcode: TranscodeProfile{640, 480, 8000000}}, Session{Token: "private"})
-	live, err := c.OpenLive(context.Background(), "channel", rate)
+	live, err := c.openLive(context.Background(), "channel", rate)
 	if err != nil {
 		t.Fatal(err)
 	}

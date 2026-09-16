@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/playback"
 )
 
@@ -21,7 +21,7 @@ type mediaNavigation struct {
 // mediaSelection holds a resolved item while the current decoder stops.
 type mediaSelection struct {
 	parent View
-	item   jellyfin.Item
+	item   media.Item
 }
 
 // navigateMedia looks for the previous (-1) or next (1) photo or music track.
@@ -82,7 +82,7 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		s.controller.Handle(event, time.Now())
 		// A stopped item can become visible before its resume save completes.
 		// Refresh it after cleanup, without disturbing a newer playback session.
-		if !s.controller.running && event.ID == s.controller.active.id && s.controller.item.Type != "Audio" && !jellyfin.IsLive(s.controller.item) {
+		if !s.controller.running && event.ID == s.controller.active.id && s.controller.item.Type != "Audio" && !media.IsLive(s.controller.item) {
 			s.refreshHome()
 			if detail := s.model.Current().Detail; detail != nil && detail.ID == s.controller.item.ID {
 				s.selection.key = ""
@@ -109,7 +109,7 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		return false
 	}
 	s.model.Notice = ""
-	if s.controller.item.Type != "Audio" && !jellyfin.IsLive(s.controller.item) {
+	if s.controller.item.Type != "Audio" && !media.IsLive(s.controller.item) {
 		s.refreshHome()
 	}
 	if s.remoteEnded(event) {
@@ -134,7 +134,7 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		wasAudio := s.model.MusicQueueActive()
 		s.shuffle = shuffleQueue{}
 		s.model.EndMusicQueue()
-		if (wasAudio && s.controller.stoppedByUser) || (s.model.Current().Detail != nil && jellyfin.IsLive(*s.model.Current().Detail)) {
+		if (wasAudio && s.controller.stoppedByUser) || (s.model.Current().Detail != nil && media.IsLive(*s.model.Current().Detail)) {
 			s.model.ReturnToParent()
 		}
 		s.selection.key = ""

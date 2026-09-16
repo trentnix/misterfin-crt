@@ -92,7 +92,7 @@ func TestSettingsFallbacks(t *testing.T) {
 			if tc.section != "sounds" && (sounds.Enabled || sounds.Volume != 7 || notice != "" || len(config.StartupNotices) != 1) {
 				t.Fatal("fallback lost notice or changed sound settings")
 			}
-			if config.StateDir != dir || config.ConfigPath != o.config {
+			if config.StateDir != dir {
 				t.Fatal("fallback changed browsing state")
 			}
 			if err := log.Close(); err != nil {

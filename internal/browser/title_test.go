@@ -19,7 +19,7 @@ func TestStartupNoticeWaitsForBrowsingAndExpires(t *testing.T) {
 	s.output = noticeTestOutput{}
 	renderer := &noticeTestRenderer{}
 	s.renderer = renderer
-	for _, setup := range []rendering.SetupPresentation{{Kind: rendering.SetupQuickConnect}, {Kind: rendering.SetupHidden}} {
+	for _, setup := range []rendering.SetupPresentation{{Kind: rendering.SetupApproval}, {Kind: rendering.SetupHidden}} {
 		s.setup = setup
 		s.model.Current().Loading = true
 		if err := s.draw(); err != nil {

@@ -2,6 +2,29 @@
 
 The browser owns navigation and playback UX. The renderer turns a read-only scene into shared pixels. Output backends handle presentation. Decoder implementations handle player protocols. Target assembly connects those parts without selecting output behavior inside the renderer.
 
+## Media services
+
+Jellyfin is the only server implementation. Application assembly injects its [connector](../internal/jellyfin/connection/connector.go) through [`connection.Connector`](../internal/connection/connector.go). The connector loads `jellyfin.conf`, authenticates, and returns account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles four layouts: hidden, connecting, approval, and failure.
+
+```mermaid
+flowchart LR
+    App["cmd: runBrowser"] --> Connector["jellyfin/connection.Connector"]
+    Connector -->|returns| Session["connection.Session"]
+    Session -->|injected services| Browser["browserSession"]
+    Client["jellyfin.Client"] -. implements .-> Server["media.Server"]
+    Server -->|Session.Server| Session
+    Browser --> Renderer["RasterRenderer.Render"]
+    Browser --> Playback["playback.Run"]
+```
+
+[`media.Server`](../internal/media/server.go) groups catalog, artwork, and playback services for session assembly. Workers use narrower contracts: `media.Artwork` for image loading, `media.Playback` for playback, `media.Progress` for reporting, and local interfaces for selection, sibling navigation, and subtitles. Live TV negotiation and remote queue lookup are optional capabilities. Shared browser, artwork, playback, renderer, and decoder packages import no Jellyfin implementation.
+
+`media.PreparedStream` carries a private URL, stream identity, numeric diagnostic limits, a reporting service, and optional resource release. Playback owns when reporting and release happen. The Jellyfin adapter owns request formats and tuner IDs. Release gets its own bounded context after final reporting, including failed playback startup. Diagnostic parsing also stays in the adapter.
+
+Reusable data processing stays outside server adapters. [`media.MergeContinueWatching`](../internal/media/continue.go) ranks normalized resume and next-episode candidates without changing its inputs. [`bitmap.Decode`](../internal/artwork/bitmap/decode.go) bounds artwork dimensions and scales decoded pixels. Adapters retain endpoint queries, metadata normalization, and artwork selection. Neither helper depends on a server, cache, or display implementation.
+
+Shared item types retain their existing field layout and JSON tags. Jellyfin aliases preserve decoding and saved track compatibility. Configuration, sign-in storage, cache identities, queries, and MPEG-2 playback profiles remain unchanged. Codec negotiation and a redesigned metadata wire model are outside this extraction. Another server can implement these contracts without changing rendering or target assembly.
+
 ## Shared UX and output
 
 ```mermaid
@@ -88,7 +111,7 @@ flowchart LR
 
 Each process gets its own feedback writer. MPlayer and Python share the ANS parser. FFplay parses its clock status. Shared framing bounds incomplete lines to 8192 bytes and serializes stdout/stderr writes. Playback receives normalized positions, levels, buffering, first-frame events, captions, and picture acknowledgments. Measurements can be dropped when queues fill. Picture acknowledgments and full caption snapshots retain the newest queued state. Raw diagnostics never become UI text.
 
-[`playback.Run`](../internal/playback/player.go) retains process lifetime, stream feeding, start gates, cancellation, output callbacks, and Jellyfin reporting. The controller prepares seek replacements before transferring output ownership. First-frame feedback clears Loading immediately, while position feedback remains responsible for resume and seek state. Stale decoder events cannot clear a newer request's loading state.
+[`playback.Run`](../internal/playback/player.go) retains process lifetime, stream feeding, start gates, cancellation, output callbacks, and server reporting through `media.Progress`. The controller prepares seek replacements before transferring output ownership. First-frame feedback clears Loading immediately, while position feedback remains responsible for resume and seek state. Stale decoder events cannot clear a newer request's loading state.
 
 [`playerProcess`](../internal/playback/process.go) stops the whole decoder process group, first resuming a paused process and requesting termination. A two-second wait limit bounds process and output-pipe cleanup. After waiting for the process, it kills any remaining group members before publishing completion and releasing output ownership.
 

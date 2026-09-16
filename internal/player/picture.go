@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 )
 
 // PictureMode controls how video fits the physical 4:3 display.
@@ -29,14 +29,14 @@ const (
 
 // Zooms reports whether this mode requests a crop for video, including Live TV.
 // Original 4:3 video can zoom to crop baked-in borders. Audio never zooms.
-func (m PictureMode) Zooms(item jellyfin.Item) bool {
+func (m PictureMode) Zooms(item media.Item) bool {
 	return m == PictureZoom43 && item.Type != "Audio"
 }
 
 // DisplayAspectRatio uses the first video stream, preferring a valid a:b
 // aspect ratio over encoded dimensions because pixels may not be square.
 // Missing or out-of-range metadata falls back to 16:9.
-func DisplayAspectRatio(item jellyfin.Item) float64 {
+func DisplayAspectRatio(item media.Item) float64 {
 	dar := 16.0 / 9
 	for _, stream := range item.MediaStreams {
 		if stream.Type != "Video" {

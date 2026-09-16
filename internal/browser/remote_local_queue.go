@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strconv"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/remote"
 )
 
@@ -53,7 +53,7 @@ func (s *browserSession) publishLocalQueue() {
 type localQueueResult struct {
 	generation int
 	itemID     string
-	items      []jellyfin.Item
+	items      []media.Item
 	err        error
 }
 
@@ -62,7 +62,7 @@ func (r localQueueResult) apply(s *browserSession) bool {
 	if r.generation != s.remoteRequests.localGeneration || !s.controller.running || q.active || s.controller.item.ID != r.itemID || r.err != nil {
 		return false
 	}
-	index := slices.IndexFunc(r.items, func(item jellyfin.Item) bool { return item.ID == r.itemID })
+	index := slices.IndexFunc(r.items, func(item media.Item) bool { return item.ID == r.itemID })
 	if index < 0 {
 		return false
 	}
@@ -74,8 +74,8 @@ func (r localQueueResult) apply(s *browserSession) bool {
 }
 
 // audioItems preserves the order of playable tracks in an already loaded page.
-func audioItems(items []jellyfin.Item) []jellyfin.Item {
-	var tracks []jellyfin.Item
+func audioItems(items []media.Item) []media.Item {
+	var tracks []media.Item
 	for _, item := range items {
 		if item.Type == "Audio" {
 			tracks = append(tracks, item)

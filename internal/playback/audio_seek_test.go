@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	playerapi "misterfin-crt/internal/player"
 	"misterfin-crt/internal/player/ffplay"
 	"misterfin-crt/internal/player/mplayer"
@@ -47,7 +48,7 @@ func TestOnlyStartedAudioAcceptsDirectSeek(t *testing.T) {
 	for _, kind := range []string{"Movie", "TvChannel", "Audio"} {
 		var commands bytes.Buffer
 		p := &playerProcess{decoder: mplayer.Decoder{}, control: playerapi.Control{Stdin: &commands}}
-		s := playbackSession{item: jellyfin.Item{Type: kind}, started: true, state: jellyfin.PlayState{IsPaused: true}}
+		s := playbackSession{item: jellyfin.Item{Type: kind}, started: true, state: media.PlayState{IsPaused: true}}
 		timer := time.NewTimer(time.Hour)
 		s.control(p, Callbacks{}, Control{Kind: SeekAudioStep, Seconds: 10}, timer)
 		timer.Stop()
@@ -69,7 +70,7 @@ func TestRelativeAudioSeekPreservesOffsetAndPause(t *testing.T) {
 	for _, seconds := range []int{-37, 83} {
 		var commands bytes.Buffer
 		p := &playerProcess{decoder: mplayer.Decoder{}, control: playerapi.Control{Stdin: &commands}}
-		s := playbackSession{item: jellyfin.Item{Type: "Audio"}, started: true, state: jellyfin.PlayState{IsPaused: true}}
+		s := playbackSession{item: jellyfin.Item{Type: "Audio"}, started: true, state: media.PlayState{IsPaused: true}}
 		timer := time.NewTimer(time.Hour)
 		s.control(p, Callbacks{}, Control{Kind: SeekAudioRelative, Seconds: seconds}, timer)
 		timer.Stop()
@@ -85,7 +86,7 @@ func TestRelativeAudioSeekPreservesOffsetAndPause(t *testing.T) {
 }
 
 func TestUnknownControlReportsFailureWithoutChangingState(t *testing.T) {
-	s := playbackSession{state: jellyfin.PlayState{IsPaused: true, PositionTicks: 123}}
+	s := playbackSession{state: media.PlayState{IsPaused: true, PositionTicks: 123}}
 	before := s.state
 	var failure error
 	s.control(nil, Callbacks{ControlError: func(err error) { failure = err }}, Control{Kind: ControlKind("typo")}, nil)

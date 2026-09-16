@@ -2,10 +2,11 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/url"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/rendering"
 )
 
@@ -36,7 +37,7 @@ func (s *browserSession) authenticate() {
 	s.selection.current = selectionData{}
 	s.selection.err = ""
 	s.selection.key = ""
-	s.setup = rendering.SetupPresentation{Kind: rendering.SetupConnecting}
+	s.setup = s.setupPresentation(nil)
 	s.connection.connect(s.ctx, s.send)
 }
 
@@ -54,14 +55,14 @@ func (s *browserSession) load(req *Request) {
 	s.requests.cancel()
 	work, stop := context.WithCancel(s.ctx)
 	s.requests.cancel = stop
-	jf := s.client
+	client := s.client
 	go func() {
-		var p jellyfin.Page
+		var p media.Page
 		var err error
 		if req.Location.Kind == "views" {
-			p, err = jf.Libraries(work)
+			p, err = client.Libraries(work)
 		} else {
-			p, err = jf.List(work, req.Location, req.Start, PageSize)
+			p, err = client.List(work, req.Location, req.Start, PageSize)
 		}
 		s.send(work, pageResult{request: *req, page: p, err: err})
 	}()
@@ -71,7 +72,7 @@ func (s *browserSession) handleAuthCode(r authCodeResult) bool {
 	if !s.connection.current(r.generation) {
 		return false
 	}
-	s.setup = rendering.SetupPresentation{Kind: rendering.SetupQuickConnect, Code: r.code, Recovered: r.recovered}
+	s.setup = r.presentation
 	return true
 }
 
@@ -80,9 +81,10 @@ func (s *browserSession) handleAuth(r authResult) bool {
 		return false
 	}
 	if r.err != nil {
-		s.setup = setupFailure(r.stage, r.err, s.config)
+		s.setup = s.setupPresentation(r.err)
 	} else {
 		s.client = r.connection.client
+		s.controlSource = r.connection.remote
 		if r.connection.recovered {
 			s.startupNotices = append(s.startupNotices, "Damaged sign-in was backed up. Connected successfully.")
 		}
@@ -114,10 +116,10 @@ func (s *browserSession) handlePage(r pageResult) bool {
 		slog.String("kind", r.request.Location.Kind),
 		slog.String("parent", parent[:min(256, len(parent))]),
 		slog.Int("start", r.request.Start), slog.Bool("failed", r.err != nil))
-	if jellyfin.Rejected(r.err) {
+	if errors.Is(r.err, media.ErrUnauthorized) {
 		s.selection.cancel()
 		s.selection.generation++
-		s.setup = setupFailure(connectionAuthentication, r.err, s.config)
+		s.setup = s.setupPresentation(r.err)
 	} else {
 		s.loadSelection()
 		s.load(s.model.Prefetch())

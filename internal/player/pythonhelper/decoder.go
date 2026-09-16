@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/player"
 )
 
@@ -29,7 +29,7 @@ type Decoder struct {
 func (d Decoder) Executable() string { return "python3" }
 
 // Input selects the local proxy for seekable audio and descriptor 3 for video.
-func (d Decoder) Input(item jellyfin.Item) player.Input {
+func (d Decoder) Input(item media.Item) player.Input {
 	if item.Type == "Audio" {
 		return player.URL
 	}
@@ -38,7 +38,7 @@ func (d Decoder) Input(item jellyfin.Item) player.Input {
 
 // Args builds helper arguments for audio or clean video frame output.
 // An empty source uses the helper's descriptor 3 default. Validate must succeed first.
-func (d Decoder) Args(item jellyfin.Item, source string) []string {
+func (d Decoder) Args(item media.Item, source string) []string {
 	var args []string
 	if item.Type == "Audio" {
 		args = []string{d.Script, "--audio-only"}
@@ -47,7 +47,7 @@ func (d Decoder) Args(item jellyfin.Item, source string) []string {
 		}
 	} else {
 		args = []string{d.Script, "--controls", "--status", "--output", d.Output, "--width", strconv.Itoa(d.Width), "--height", strconv.Itoa(d.Height)}
-		if jellyfin.IsLive(item) {
+		if media.IsLive(item) {
 			args = append(args, "--captions")
 		}
 		if d.Picture.Zooms(item) {
@@ -101,7 +101,7 @@ func (d Decoder) WithAudioLevels() (player.Decoder, player.Meter) {
 
 // Validate requires a helper script. Video also requires an output path and
 // 640x240 or 640x288 geometry. It does not check whether the script exists.
-func (d Decoder) Validate(item jellyfin.Item) error {
+func (d Decoder) Validate(item media.Item) error {
 	if d.Script == "" {
 		return errors.New("Python playback requires a helper script and no player override")
 	}

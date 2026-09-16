@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	nativeplayer "misterfin-crt/internal/player/mplayer"
 )
 
@@ -46,7 +47,7 @@ func TestConfigReuseKeepsRequestsIndependent(t *testing.T) {
 	config := Config{Preferences: preferences, VideoDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 240}, Height: 240, AudioDecoder: nativeplayer.Decoder{Width: 640, Height: 240}}
 	originalConfig := config
 	item := jellyfin.Item{ID: "movie", Type: "Movie"}
-	explicit := TrackOptions{Picture: PictureZoom43, Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
+	explicit := TrackOptions{Picture: PictureZoom43, Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
 	originalTracks := explicit
 	var zero int64
 	positions := 0

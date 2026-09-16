@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/playback"
 )
 
@@ -43,7 +43,7 @@ func (c *PlaybackController) SetPaused(paused bool) {
 // SeekTo uses the same video handoff as local seeking and a relative decoder
 // operation for audio. Live TV cannot seek. Targets are clamped to the duration.
 func (c *PlaybackController) SeekTo(target int64, now time.Time) {
-	if !c.running || c.stoppedByUser || !c.state.ProgressSeen || jellyfin.IsLive(c.item) {
+	if !c.running || c.stoppedByUser || !c.state.ProgressSeen || media.IsLive(c.item) {
 		return
 	}
 	target = max(0, target)

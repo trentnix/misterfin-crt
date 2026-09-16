@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"misterfin-crt/internal/artwork"
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 )
 
 // loadLibrary lets counts arrive while cover sampling and images are pending.
 // Live TV has neither counts nor carousel covers. Both branches finish before
 // this method returns, including when the selection context is canceled.
-func (l *selectionLoader) loadLibrary(ctx context.Context, item jellyfin.Item, emit func(selectionUpdate)) {
+func (l *selectionLoader) loadLibrary(ctx context.Context, item media.Item, emit func(selectionUpdate)) {
 	if item.ID == continueID {
 		l.loadHomeArtwork(ctx, emit)
 		return
@@ -33,7 +33,7 @@ func (l *selectionLoader) loadLibrary(ctx context.Context, item jellyfin.Item, e
 }
 
 // loadCount reuses an unexpired total or refreshes it without an image debounce.
-func (l *selectionLoader) loadCount(ctx context.Context, item jellyfin.Item, emit func(selectionUpdate)) {
+func (l *selectionLoader) loadCount(ctx context.Context, item media.Item, emit func(selectionUpdate)) {
 	lib := l.libraries.cached(item.ID)
 	if time.Now().Before(lib.countUntil) {
 		emit(selectionUpdate{kind: selectionCount, count: lib.count})
@@ -51,7 +51,7 @@ func (l *selectionLoader) loadCount(ctx context.Context, item jellyfin.Item, emi
 
 // loadCovers waits for selection to settle and refreshes the sample if needed.
 // It delegates the resolved sample to artwork.Loader for progressive image loads.
-func (l *selectionLoader) loadCovers(ctx context.Context, item jellyfin.Item, emit func(selectionUpdate)) {
+func (l *selectionLoader) loadCovers(ctx context.Context, item media.Item, emit func(selectionUpdate)) {
 	if !selectionDelay(ctx) {
 		return
 	}
@@ -112,16 +112,16 @@ func (l *selectionLoader) missingCovers(lib cachedLibrary) bool {
 }
 
 // restoreMosaic primes decoded images and cold sample metadata without marking
-// that metadata fresh. Jellyfin still checks IDs and image tags on each launch.
-func (l *selectionLoader) restoreMosaic(ctx context.Context, item jellyfin.Item) {
+// that metadata fresh. server still checks IDs and image tags on each launch.
+func (l *selectionLoader) restoreMosaic(ctx context.Context, item media.Item) {
 	covers, ok := l.disk.Load(item.ID, item.CollectionType)
 	if !ok || ctx.Err() != nil {
 		return
 	}
 	l.artwork.Restore(ctx, covers)
-	items := make([]jellyfin.Item, len(covers))
+	items := make([]media.Item, len(covers))
 	for i, cover := range covers {
-		items[i] = jellyfin.Item{ID: cover.ID, ImageTags: map[string]string{"Primary": cover.Tag}}
+		items[i] = media.Item{ID: cover.ID, ImageTags: map[string]string{"Primary": cover.Tag}}
 	}
 	l.libraries.remember(item.ID, func(value *cachedLibrary) {
 		if value.items == nil && value.itemsUntil.IsZero() {
@@ -130,7 +130,7 @@ func (l *selectionLoader) restoreMosaic(ctx context.Context, item jellyfin.Item)
 	})
 }
 
-func (l *selectionLoader) emitCovers(items []jellyfin.Item, emit func(selectionUpdate)) {
+func (l *selectionLoader) emitCovers(items []media.Item, emit func(selectionUpdate)) {
 	covers := make([]image.Image, len(items))
 	for i, item := range items {
 		covers[i] = l.artwork.Cached(item, "Primary")

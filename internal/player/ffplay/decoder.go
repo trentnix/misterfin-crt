@@ -4,7 +4,7 @@ package ffplay
 import (
 	"syscall"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/player"
 )
 
@@ -26,11 +26,11 @@ func (d Decoder) Executable() string {
 }
 
 // Input selects descriptor 3 for both audio and video.
-func (d Decoder) Input(jellyfin.Item) player.Input { return player.Pipe }
+func (d Decoder) Input(media.Item) player.Input { return player.Pipe }
 
 // Args builds FFplay arguments with timestamps rebased for this session.
 // An empty source reads media from descriptor 3. Recorded video applies Picture.
-func (d Decoder) Args(item jellyfin.Item, source string) []string {
+func (d Decoder) Args(item media.Item, source string) []string {
 	if source == "" {
 		source = "pipe:3"
 	}
@@ -46,7 +46,7 @@ func (d Decoder) Args(item jellyfin.Item, source string) []string {
 
 // ffplayZoomFilter crops to 4:3 for wide and narrow sources. A source already
 // near 4:3 receives a fixed 4/3 enlargement for baked-in letterboxing.
-func ffplayZoomFilter(item jellyfin.Item) string {
+func ffplayZoomFilter(item media.Item) string {
 	aspect := player.DisplayAspectRatio(item)
 	switch {
 	case aspect > player.DisplayAspect43+player.AspectTolerance:
@@ -82,7 +82,7 @@ func (d Decoder) ClientSubtitles() bool { return false }
 
 // Validate returns nil because FFplay has no additional launch constraints.
 // Executable lookup and media validation remain the caller's responsibility.
-func (d Decoder) Validate(item jellyfin.Item) error {
+func (d Decoder) Validate(item media.Item) error {
 	return nil
 }
 

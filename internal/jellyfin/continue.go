@@ -6,7 +6,8 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
-	"time"
+
+	"misterfin-crt/internal/media"
 )
 
 // ContinueWatching combines the server's resumable videos and next episodes.
@@ -44,7 +45,11 @@ func (c *Client) ContinueWatching(ctx context.Context) (Page, error) {
 	if ctx.Err() != nil {
 		return Page{}, ctx.Err()
 	}
-	items := mergeContinue(resume, next, history)
+	// NextUp may omit Type. Normalize the wire result before shared ranking.
+	for i := range next {
+		next[i].Type = "Episode"
+	}
+	items := media.MergeContinueWatching(resume, next, history)
 	total := len(items)
 	return Page{Items: items, TotalRecordCount: &total}, errors.Join(resumeErr, nextErr)
 }
@@ -98,13 +103,4 @@ func (c *Client) continueItems(ctx context.Context, path string, extra url.Value
 			return items, errors.New("Continue Watching exceeds 10000 source items")
 		}
 	}
-}
-
-// lastPlayed tolerates omitted dates. Next-up episodes usually have no played
-// date themselves, so their series' recent history supplies it when available.
-func lastPlayed(item Item) time.Time {
-	if item.UserData.LastPlayedDate != nil {
-		return *item.UserData.LastPlayedDate
-	}
-	return time.Time{}
 }

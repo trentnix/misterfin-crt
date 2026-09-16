@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/remote"
 	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/sound"
 	"misterfin-crt/internal/videoout"
@@ -18,6 +19,7 @@ import (
 type browserSession struct {
 	update         updateWork
 	remote         remoteSession
+	controlSource  remote.Source // Supplied by the authenticated connection and reusable after update cancellation.
 	remoteRequests remoteRequests
 	remotePlayback remotePlayback
 	message        rendering.MessagePresentation
@@ -26,7 +28,7 @@ type browserSession struct {
 	ctx              context.Context
 	config           Config
 	model            *Model
-	client           *jellyfin.Client
+	client           media.Server
 	setup            rendering.SetupPresentation
 	about            rendering.AboutPresentation
 	connection       connectionManager
@@ -64,7 +66,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 		media:      mediaNavigation{cancel: func() {}},
 	}
 	s.driver = playbackDriver{feedback: feedback, ctx: ctx, config: player, output: output, events: make(chan PlaybackEvent, 16)}
-	s.controller = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
+	s.controller = newPlaybackController(func(item media.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
 		return s.driver.launch(s.client, item, offset, gate, prepared, controls, tracks)
 	})
 	s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)

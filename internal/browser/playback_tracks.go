@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/rendering"
 )
@@ -26,7 +26,7 @@ func (c *PlaybackController) hasTracks() bool {
 }
 
 func (c *PlaybackController) trackRows(tab int) []rendering.TrackRow {
-	if jellyfin.IsLive(c.item) {
+	if media.IsLive(c.item) {
 		if tab == 0 {
 			return c.captions.rows()
 		}
@@ -35,7 +35,7 @@ func (c *PlaybackController) trackRows(tab int) []rendering.TrackRow {
 		}
 	}
 	if tab == 2 {
-		if jellyfin.IsLive(c.item) && !c.tracks.LivePicture {
+		if media.IsLive(c.item) && !c.tracks.LivePicture {
 			return []rendering.TrackRow{{Index: int(playback.PictureOriginal), Label: "Original", Active: true}}
 		}
 		return []rendering.TrackRow{
@@ -109,7 +109,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 	// Keep selection within the current tab if stream metadata changes.
 	c.picker.selected[c.picker.tab] = min(c.picker.selected[c.picker.tab], len(rows)-1)
 	index := rows[c.picker.selected[c.picker.tab]].Index
-	if jellyfin.IsLive(c.item) && c.picker.tab == 0 {
+	if media.IsLive(c.item) && c.picker.tab == 0 {
 		c.captions.enabled = index == 0
 		c.picker.visible = false
 		c.state.HideControls()
@@ -214,7 +214,7 @@ func (c *PlaybackController) trackPresentation(p *rendering.PlaybackPresentation
 	if !c.state.Paused && p.WaitLabel == "" {
 		ticks += int64(min(time.Second, max(0, now.Sub(c.state.LastAdvance))) / 100)
 	}
-	if jellyfin.IsLive(c.item) {
+	if media.IsLive(c.item) {
 		if c.captions.enabled {
 			p.Subtitle = c.captions.text
 		}
@@ -225,7 +225,7 @@ func (c *PlaybackController) trackPresentation(p *rendering.PlaybackPresentation
 
 // trackMessage explains the selected picture mode or an unavailable live option.
 func (c *PlaybackController) trackMessage(tab, selected int) string {
-	if jellyfin.IsLive(c.item) {
+	if media.IsLive(c.item) {
 		switch tab {
 		case 0:
 			if !c.captions.available {

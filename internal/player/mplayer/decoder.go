@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/player"
 )
 
@@ -34,7 +34,7 @@ func (d Decoder) Executable() string {
 }
 
 // Input selects the local proxy for seekable audio and descriptor 3 for video.
-func (d Decoder) Input(item jellyfin.Item) player.Input {
+func (d Decoder) Input(item media.Item) player.Input {
 	if item.Type == "Audio" {
 		return player.URL
 	}
@@ -43,7 +43,7 @@ func (d Decoder) Input(item jellyfin.Item) player.Input {
 
 // Args builds audio filters or CRT video settings without opening resources.
 // An empty source reads media from descriptor 3. Validate must succeed first.
-func (d Decoder) Args(item jellyfin.Item, source string) []string {
+func (d Decoder) Args(item media.Item, source string) []string {
 	if source == "" {
 		source = "/dev/fd/3"
 	}
@@ -61,7 +61,7 @@ func (d Decoder) Args(item jellyfin.Item, source string) []string {
 	// delay measurements. Live TV reacts sooner to broadcast timing changes.
 	autosync := "30"
 	decodeOptions := "threads=2:fast"
-	if jellyfin.IsLive(item) {
+	if media.IsLive(item) {
 		autosync = "1"
 		decodeOptions += ":misterfin-captions"
 	}
@@ -118,7 +118,7 @@ func (d Decoder) SetPicture(c player.Control, mode player.PictureMode, request i
 
 // Validate requires a 640-pixel framebuffer with 240, 288, 480, or 576 lines.
 // It does not open the framebuffer or verify the installed player.
-func (d Decoder) Validate(item jellyfin.Item) error {
+func (d Decoder) Validate(item media.Item) error {
 	if d.Width != 640 || (d.Height != 240 && d.Height != 288 && d.Height != 480 && d.Height != 576) {
 		return errors.New("MiSTer playback currently requires a 640-pixel PAL or NTSC framebuffer")
 	}

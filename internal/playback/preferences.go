@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 )
 
 // Preferences stores per-video choices under the application's state directory.
@@ -57,15 +57,19 @@ func (p *Preferences) Close() error {
 // Stream metadata prevents an old index from selecting a different track after
 // a file is replaced. Picture mode remains usable when the media source changes.
 type videoPreference struct {
-	Version  int                  `json:"version"`
-	SourceID string               `json:"source_id"`
-	Picture  PictureMode          `json:"picture"`
-	Audio    jellyfin.MediaStream `json:"audio"`
-	Subtitle jellyfin.MediaStream `json:"subtitle"`
+	Version  int               `json:"version"`
+	SourceID string            `json:"source_id"`
+	Picture  PictureMode       `json:"picture"`
+	Audio    media.MediaStream `json:"audio"`
+	Subtitle media.MediaStream `json:"subtitle"`
 }
 
-func preferenceKey(c *jellyfin.Client, item string) string {
-	key, _ := json.Marshal([3]string{c.Config.Server, c.Session.UserID, item})
+// accountIdentity supplies only the account scope used by saved preferences.
+type accountIdentity interface{ Identity() media.Identity }
+
+func preferenceKey(c accountIdentity, item string) string {
+	identity := c.Identity()
+	key, _ := json.Marshal([3]string{identity.Server, identity.User, item})
 	sum := sha256.Sum256(key)
 	return hex.EncodeToString(sum[:])
 }
@@ -101,7 +105,7 @@ func (p *Preferences) load(key string) *videoPreference {
 }
 
 func (v videoPreference) restore(t VideoTracks) TrackOptions {
-	o := TrackOptions{Picture: v.Picture, Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
+	o := TrackOptions{Picture: v.Picture, Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
 	if v.SourceID != t.SourceID {
 		return o
 	}
@@ -119,7 +123,7 @@ func (p *Preferences) save(key string, t VideoTracks) {
 		return
 	}
 	v := videoPreference{Version: 1, SourceID: t.SourceID, Picture: t.Picture,
-		Audio: jellyfin.MediaStream{Index: -1}, Subtitle: jellyfin.MediaStream{Index: -1}}
+		Audio: media.MediaStream{Index: -1}, Subtitle: media.MediaStream{Index: -1}}
 	if stream, ok := t.Stream("Audio", t.Selection.AudioIndex); ok {
 		v.Audio = stream
 	}

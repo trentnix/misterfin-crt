@@ -3,7 +3,6 @@ package browser
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ func TestRunBorrowsInputAndOutput(t *testing.T) {
 			}
 			// No terminal or framebuffer is opened. Authentication cannot reach a server.
 			dir := t.TempDir()
-			config := Config{ConfigPath: filepath.Join(dir, "missing.conf"), StateDir: dir}
+			config := Config{StateDir: dir}
 			err := Run(ctx, config, playback.Config{}, output, rendering.NewRenderer(), nil, keys)
 			if (want == "" && err != nil) || (want != "" && (err == nil || err.Error() != want)) {
 				t.Fatalf("got %v, want %q", err, want)

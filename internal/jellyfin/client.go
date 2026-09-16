@@ -11,12 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"misterfin-crt/internal/diagnostics"
 	"net/http"
 	"net/url"
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	"misterfin-crt/internal/diagnostics"
+	"misterfin-crt/internal/media"
 )
 
 // Client shares configuration, authentication, and HTTP transport across all
@@ -34,12 +36,22 @@ type Client struct {
 	queue   atomic.Pointer[PlaybackQueue]
 }
 
+var _ media.Server = (*Client)(nil)
+
+// Identity preserves existing Jellyfin cache and preference keys.
+func (c *Client) Identity() media.Identity {
+	return media.Identity{Server: c.Config.Server, User: c.Session.UserID}
+}
+
 // NewClient copies configuration and session values and creates an HTTP client
 // with a 15-second timeout. Redirects must stay on the configured origin and are
 // limited to fewer than five hops. InsecureTLS is honored only when configured.
 func NewClient(c Config, s Session) *Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: c.InsecureTLS}
+	// Range streaming borrows this transport without the JSON client's total
+	// timeout. Keep its header wait bounded while reusing pooled connections.
+	t.ResponseHeaderTimeout = 15 * time.Second
 	h := &http.Client{Timeout: 15 * time.Second, Transport: t, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 5 || req.URL.Scheme != via[0].URL.Scheme || req.URL.Host != via[0].URL.Host {
 			return errors.New("redirect outside server refused")
@@ -72,11 +84,15 @@ type HTTPError struct{ Status int }
 // Error returns a status-only diagnostic suitable for display.
 func (e *HTTPError) Error() string { return fmt.Sprintf("Jellyfin returned HTTP %d", e.Status) }
 
+// Is identifies authentication rejection through the shared media error.
+func (e *HTTPError) Is(target error) bool {
+	return target == media.ErrUnauthorized && (e.Status == 401 || e.Status == 403)
+}
+
 // Rejected reports whether err wraps an authentication or authorization failure
 // (HTTP 401 or 403). Temporary transport errors do not reject saved credentials.
 func Rejected(err error) bool {
-	var e *HTTPError
-	return errors.As(err, &e) && (e.Status == 401 || e.Status == 403)
+	return errors.Is(err, media.ErrUnauthorized)
 }
 
 // request sends authenticated JSON or artwork requests and limits buffered

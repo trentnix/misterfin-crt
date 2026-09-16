@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/url"
 	"os/exec"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -18,7 +15,7 @@ import (
 var diagnosticSequence atomic.Uint64
 
 // playbackTrace records session milestones on the playback loop. IDs are local
-// counters, not Jellyfin session or item identifiers. Nil disables all work.
+// counters, not server session or item identifiers. Nil disables all work.
 type playbackTrace struct {
 	log                     *diagnostics.Log
 	id                      uint64
@@ -65,33 +62,16 @@ func (t *playbackTrace) finish(ctx context.Context, err error) {
 	t.record("playback.end", slog.String("stage", t.stage), slog.Bool("failed", err != nil), slog.Bool("canceled", ctx.Err() != nil))
 }
 
-// prepared copies only numeric transcode limits from the private stream URL.
-// Audio streams and absent parameters report zero. No arbitrary query data is logged.
+// prepared records the adapter's numeric limits without parsing its private URL.
+// Audio streams and absent parameters report zero.
 func (t *playbackTrace) prepared(s *playbackSession) {
 	if t == nil {
 		return
 	}
-	attrs := []slog.Attr{slog.Int64("start_ticks", s.start), slog.Bool("live", s.liveTV)}
-	if u, err := url.Parse(s.streamURL); err == nil {
-		q := u.Query()
-		for _, key := range []string{"maxWidth", "maxHeight", "videoBitRate", "maxFramerate"} {
-			value := q.Get(key)
-			if value == "" {
-				for name, values := range q {
-					if strings.EqualFold(name, key) && len(values) > 0 {
-						value = values[0]
-						break
-					}
-				}
-			}
-			n, _ := strconv.ParseFloat(value, 64)
-			if n < 0 || n > 1e9 || n != n {
-				n = 0
-			}
-			attrs = append(attrs, slog.Float64(key, n))
-		}
-	}
-	t.record("playback.prepared", attrs...)
+	limits := s.stream.Limits
+	t.record("playback.prepared", slog.Int64("start_ticks", s.start), slog.Bool("live", s.liveTV),
+		slog.Float64("maxWidth", limits.MaxWidth), slog.Float64("maxHeight", limits.MaxHeight),
+		slog.Float64("videoBitRate", limits.VideoBitrate), slog.Float64("maxFramerate", limits.MaxFrameRate))
 }
 
 func (t *playbackTrace) buffering(waiting bool) {

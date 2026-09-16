@@ -2,18 +2,19 @@ package browser
 
 import (
 	"context"
-	"misterfin-crt/internal/jellyfin"
+
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/playback"
 )
 
-func resumableVideo(item *jellyfin.Item) bool {
+func resumableVideo(item *media.Item) bool {
 	return item != nil && playback.Supported(*item) && item.Type != "Audio" &&
-		!jellyfin.IsLive(*item) && !item.UserData.Played && item.UserData.PlaybackPositionTicks > 0
+		!media.IsLive(*item) && !item.UserData.Played && item.UserData.PlaybackPositionTicks > 0
 }
 
 // Find adjacent media without replacing the visible page until a match arrives.
 // Photos skip other item types. A music queue ends at a non-audio item, as in C.
-func adjacentMedia(ctx context.Context, c *jellyfin.Client, parent View, kind string, direction, rows int) (View, *jellyfin.Item, error) {
+func adjacentMedia(ctx context.Context, c itemLister, parent View, kind string, direction, rows int) (View, *media.Item, error) {
 	if direction != 1 && direction != -1 {
 		return parent, nil, nil
 	}
@@ -54,4 +55,9 @@ func adjacentMedia(ctx context.Context, c *jellyfin.Client, parent View, kind st
 		index += direction
 	}
 	return parent, nil, nil
+}
+
+// itemLister pages through siblings without requiring playback or artwork access.
+type itemLister interface {
+	List(context.Context, media.Location, int, int) (media.Page, error)
 }

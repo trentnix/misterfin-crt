@@ -3,19 +3,18 @@ package browser
 import (
 	"context"
 	"errors"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/videoout"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/platform"
+	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/release"
 	"misterfin-crt/internal/remote"
+	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/update"
+	"misterfin-crt/internal/videoout"
 )
 
 type testUpdater func(context.Context, release.Status, func(update.Progress)) error
@@ -252,7 +251,7 @@ func TestUpdateExitThroughBrowser(t *testing.T) {
 				}
 			}
 			config := Config{
-				ConfigPath: filepath.Join(dir, "missing.conf"), StateDir: dir,
+				StateDir:           dir,
 				RestartAfterUpdate: tc.automatic,
 				CheckUpdate: func(context.Context) (release.Status, error) {
 					return release.Status{Available: true, HasBundle: true, Latest: "v1.1.0"}, nil

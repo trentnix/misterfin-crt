@@ -2,21 +2,25 @@ package browser
 
 import (
 	"context"
+	"errors"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/connection"
+	"misterfin-crt/internal/media"
+	"misterfin-crt/internal/remote"
 )
 
 // authenticatedConnection groups the client and loaders that become valid
 // together after authentication. The browser loop owns the returned values.
 type authenticatedConnection struct {
-	client    *jellyfin.Client
+	client    media.Server
+	remote    remote.Source
 	selection *selectionLoader
 	recovered bool
 }
 
-// connectionManager owns configuration loading, authentication cancellation,
-// and construction of dependencies scoped to the authenticated account. Only
-// the browser loop calls its methods.
+// connectionManager serializes connector attempts and owns their cancellation.
+// Successful attempts assemble account-scoped loaders. Only the browser loop
+// calls its methods.
 type connectionManager struct {
 	config        Config
 	width, height int
@@ -50,38 +54,23 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 		if work.Err() != nil {
 			return
 		}
-		stage := connectionConfig
-		server, err := jellyfin.LoadConfig(config.ConfigPath)
+		var session connection.Session
+		var err error
+		if config.Connector == nil {
+			err = errors.New("no server connector configured")
+		} else {
+			session, err = config.Connector.Connect(work, func(p connection.Presentation) {
+				send(work, authCodeResult{generation: generation, presentation: p})
+			})
+		}
 		var connection *authenticatedConnection
 		if err == nil {
-			stage = connectionSession
-			var session jellyfin.Session
-			var recovered bool
-			session, recovered, err = jellyfin.LoadSession(config.StateDir, server.Server)
-			if err == nil {
-				stage = connectionAuthentication
-				client := jellyfin.NewClient(server, session)
-				client.Diagnostics = config.Diagnostics
-				client.Version = config.Build.Version
-				if recovered {
-					config.Diagnostics.Record("authentication.session-recovered")
-				}
-				err = client.Authenticate(work, config.StateDir, func(code string) {
-					send(work, authCodeResult{generation: generation, code: code, recovered: recovered})
-				})
-				if err == nil {
-					caches := newSelectionCaches(config, client)
-					selection := newSelectionLoader(client, width, height, caches)
-					selection.customBackground = config.Background != nil
-					connection = &authenticatedConnection{
-						client:    client,
-						recovered: recovered,
-						selection: selection,
-					}
-				}
-			}
+			caches := newSelectionCaches(config, session.Server.Identity())
+			selection := newSelectionLoader(session.Server, width, height, caches)
+			selection.customBackground = config.Background != nil
+			connection = &authenticatedConnection{client: session.Server, remote: session.Remote, recovered: session.Recovered, selection: selection}
 		}
-		send(work, authResult{generation: generation, connection: connection, stage: stage, err: err})
+		send(work, authResult{generation: generation, connection: connection, err: err})
 	}()
 }
 

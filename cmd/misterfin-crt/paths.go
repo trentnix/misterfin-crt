@@ -15,7 +15,7 @@ import (
 // The cache override retains the C client's root convention while keeping Go
 // cache files in their own directory.
 func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File) (browser.Config, error) {
-	config := browser.Config{ConfigPath: o.config, StateDir: o.stateDir, Diagnostics: log}
+	config := browser.Config{StateDir: o.stateDir, Diagnostics: log}
 	musicSource := source.Section("music_visuals")
 	if override := os.Getenv("MISTERFIN_MUSIC_CONFIG"); override != "" {
 		musicSource = settings.Read(override, 64<<10, true)

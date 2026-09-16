@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	"misterfin-crt/internal/rendering"
 	"misterfin-crt/internal/ui"
 )
@@ -197,7 +198,7 @@ func TestVideoSeekTargets(t *testing.T) {
 		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: kind, RunTimeTicks: 100 * 10000000}})
 		state.PositionTicks = 2 * 10000000
 		state.seekVideo(m.Current().Detail, "seek-forward", now)
-		if kind == "Audio" || jellyfin.IsLive(*m.Current().Detail) {
+		if kind == "Audio" || media.IsLive(*m.Current().Detail) {
 			if state.SeekTarget != nil {
 				t.Fatal("seek allowed for", kind)
 			}

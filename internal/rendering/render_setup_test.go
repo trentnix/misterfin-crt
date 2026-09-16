@@ -18,18 +18,15 @@ import (
 func TestSetupRenderingAndConfiguredControls(t *testing.T) {
 	var cache sceneCache
 	for _, height := range []int{240, 288} {
-		for kind := SetupConnecting; kind <= SetupSessionUnavailable; kind++ {
+		for kind := SetupConnecting; kind <= SetupFailure; kind++ {
 			for _, labels := range []control.Labels{control.KeyboardLabels(), {"open": "Cross", "back": "Circle"}, {"back": "Back"}} {
-				setup := SetupPresentation{Kind: kind, Path: "/media/fat/misterfin-crt/interlaced-test/jellyfin.conf"}
-				if kind == SetupQuickConnect {
+				setup := SetupPresentation{Kind: kind, Title: "Example setup", Message: "Follow the server instructions.", Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/misterfin-crt/interlaced-test/jellyfin.conf"}
+				if kind == SetupApproval {
 					setup.Code = "123456"
 					setup.Path = ""
 				}
-				if kind == SetupConnecting || kind == SetupCodeExpired {
-					setup.Path = ""
-				}
-				if kind == SetupSessionUnavailable {
-					setup.Path = "/media/fat/misterfin-crt/state"
+				if kind == SetupConnecting {
+					setup.Path, setup.Retry = "", ""
 				}
 				scene := Scene{Setup: setup, Controls: labels, Now: time.Unix(100, 0)}
 				c := ui.New(640, height)
@@ -61,7 +58,7 @@ func TestSetupRenderingAndConfiguredControls(t *testing.T) {
 }
 
 func TestSetupWaitingAnimationDoesNotMoveTheCode(t *testing.T) {
-	s := Scene{Setup: SetupPresentation{Kind: SetupQuickConnect, Code: "123456"}, Controls: control.KeyboardLabels()}
+	s := Scene{Setup: SetupPresentation{Kind: SetupApproval, Code: "123456"}, Controls: control.KeyboardLabels()}
 	first := renderScene(ui.New(640, 240), nil, s, Animation{})
 	next := renderScene(ui.New(640, 240), nil, s, Animation{Seconds: .3})
 	if bytes.Equal(first, next) {
@@ -75,7 +72,7 @@ func TestSetupWaitingAnimationDoesNotMoveTheCode(t *testing.T) {
 }
 
 func TestLongSetupPathAndLabelsStayAboveControls(t *testing.T) {
-	s := Scene{Setup: SetupPresentation{Kind: SetupConfigInvalid, Path: "/root/" + strings.Repeat("long directory/", 30) + "jellyfin.conf"}, Controls: control.Labels{"open": strings.Repeat("X", 40), "back": strings.Repeat("Y", 40)}}
+	s := Scene{Setup: SetupPresentation{Kind: SetupFailure, Retry: "Retry", PathLabel: "Configuration file", Path: "/root/" + strings.Repeat("long directory/", 30) + "jellyfin.conf"}, Controls: control.Labels{"open": strings.Repeat("X", 40), "back": strings.Repeat("Y", 40)}}
 	pixels := renderScene(ui.New(640, 240), nil, s, Animation{})
 	rows := controlRows(640, []controlHint{hint(s.Controls, "open", "Retry"), hint(s.Controls, "back", "Exit")})
 	expected := ui.New(640, 240)

@@ -6,23 +6,22 @@ import (
 	"log/slog"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"misterfin-crt/internal/media"
 	playerapi "misterfin-crt/internal/player"
 )
 
-// playbackSession owns one Jellyfin play session. Its loop updates decoder
+// playbackSession owns one server play session. Its loop updates decoder
 // state and queues snapshots to progressReporter without waiting for HTTP.
 type playbackSession struct {
 	trace           *playbackTrace
 	meter           playerapi.Meter // Borrowed from Run, which closes it after decoder cleanup.
 	tracks          VideoTracks
-	client          *jellyfin.Client
-	item            jellyfin.Item
+	client          media.Playback
+	item            media.Item
 	start           int64
-	streamURL       string
-	live            jellyfin.LivePlayback
+	stream          media.PreparedStream
 	liveTV          bool
-	state           jellyfin.PlayState
+	state           media.PlayState
 	played, started bool
 	reporter        *progressReporter
 	preferences     *Preferences
@@ -37,7 +36,7 @@ func (s *playbackSession) rememberChoices() {
 	}
 }
 
-// finish follows decoder, output, and source cleanup. Stop/save and tuner
+// finish follows decoder, output, and source cleanup. Stop/save and stream
 // release remain ordered, but an explicit handoff lets them outlive Run.
 func (s *playbackSession) finish(failed bool, async <-chan struct{}, cleanupDone func()) bool {
 	reportFailed := s.reporter.finish(s.state, s.started, s.played, failed, async)
@@ -45,7 +44,7 @@ func (s *playbackSession) finish(failed bool, async <-chan struct{}, cleanupDone
 	go func() {
 		defer close(done)
 		<-s.reporter.done
-		s.closeLive()
+		s.releaseStream()
 		if cleanupDone != nil {
 			cleanupDone()
 		}
@@ -57,15 +56,15 @@ func (s *playbackSession) finish(failed bool, async <-chan struct{}, cleanupDone
 	return reportFailed
 }
 
-// closeLive releases a negotiated tuner with a fresh bounded context, even
-// after the playback context has been canceled. Non-live sessions need no release.
-func (s *playbackSession) closeLive() {
-	if !s.liveTV {
+// releaseStream gives backend cleanup its own deadline even when the playback
+// context or final progress report timed out. Only finish invokes this method.
+func (s *playbackSession) releaseStream() {
+	if s.stream.Release == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = s.client.CloseLive(ctx, s.live.LiveStreamID)
+	_ = s.stream.Release(ctx)
 }
 
 // update converts decoder seconds to an item position using the session offset.
