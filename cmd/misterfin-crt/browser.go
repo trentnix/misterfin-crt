@@ -41,6 +41,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	if executable, err := os.Executable(); err == nil {
 		if installer := installedUpdater(o, executable); installer != nil {
 			config.Updater = installer
+			config.RestartAfterUpdate = os.Getenv("MISTERFIN_CRT_AUTO_RESTART") == "1"
 		}
 	}
 	if os.Getenv("MISTERFIN_CRT_UPDATE_RECOVERED") == "1" {

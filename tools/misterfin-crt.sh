@@ -46,7 +46,17 @@ taskset -p 3 "$$" >/dev/null
 
 # The 480i supervisor leaves normal menu return to finish(), but still restores
 # hardware itself after a failure. Older launchers retain supervisor restoration.
-MISTERFIN_CRT_LAUNCHER=1 "$binary" -browse \
+status=0
+MISTERFIN_CRT_LAUNCHER=1 MISTERFIN_CRT_AUTO_RESTART=1 "$binary" -browse \
     -config /media/fat/misterfin-crt/jellyfin.conf \
     -state-dir /media/fat/misterfin-crt/state \
-    -player "$player"
+    -player "$player" || status=$?
+
+# Exit 75 means installation and cleanup succeeded. The 480i supervisor has
+# restored the normal core. Exec the installed launcher to use updated startup
+# logic, even when MiSTer ran this script from a temporary copy. Other exits
+# retain finish() behavior. A failed restart stays visible instead of looping.
+if [ "$status" -eq 75 ]; then
+    exec /media/fat/Scripts/MiSTerFin-CRT.sh
+fi
+exit "$status"

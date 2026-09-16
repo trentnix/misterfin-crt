@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"misterfin-crt/internal/update"
 )
 
 // ActiveEnv is inherited only by the supervised client and its native player.
@@ -24,6 +26,7 @@ const LauncherEnv = "MISTERFIN_CRT_LAUNCHER"
 // Run starts a supervised copy of the client under the standalone interlaced
 // core. It owns the core switch, exclusive hardware access, and failure recovery.
 // If LauncherEnv is "1", the launcher must restore the menu after successful exit.
+// An update restart restores the normal core before returning update.ErrRestart.
 // Arguments are the original client arguments without the executable name.
 func Run(ctx context.Context, directory string, args []string) (err error) {
 	directory, err = filepath.Abs(directory)
@@ -87,7 +90,17 @@ func Run(ctx context.Context, directory string, args []string) (err error) {
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, os.Stdout, os.Stderr
 	child.Cancel = func() error { return child.Process.Signal(syscall.SIGTERM) }
 	child.WaitDelay = 5 * time.Second
-	return child.Run()
+	return childResult(child.Run())
+}
+
+// childResult preserves an update restart through the supervisor. Deferred
+// hardware cleanup joins its errors, preventing a restart if restoration fails.
+func childResult(err error) error {
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == update.RestartExitCode {
+		return update.ErrRestart
+	}
+	return err
 }
 
 // command bounds FIFO access, including when Main is stopped or restarting.

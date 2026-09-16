@@ -1,13 +1,17 @@
 package displaymode
 
 import (
+	"context"
 	"errors"
+	"misterfin-crt/internal/update"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // TestLauncherMenuReturn exercises the installed script against a private FIFO
@@ -79,6 +83,136 @@ fi
 			}
 			if got, want := string(buffer[:n]), "load_core "+filepath.Join(fat, "menu.rbf")+"\n"; got != want {
 				t.Fatalf("menu return: got %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// TestLauncherUpdateRestart simulates atomic replacement while the old script
+// is running from a temporary copy. Only the installed launcher may restart it.
+func TestLauncherUpdateRestart(t *testing.T) {
+	source, err := os.ReadFile("../../../tools/misterfin-crt.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		interlaced bool
+		nextStatus int
+		missing    bool
+	}{
+		{"240p", false, 0, false},
+		{"480i", true, 0, false},
+		{"new client fails", false, 1, false},
+		{"launcher missing", false, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			fat := filepath.Join(dir, "fat")
+			app := filepath.Join(fat, "misterfin-crt")
+			scripts := filepath.Join(fat, "Scripts")
+			for _, path := range []string{app, scripts} {
+				if err := os.MkdirAll(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			fifo := filepath.Join(dir, "commands")
+			if err := syscall.Mkfifo(fifo, 0600); err != nil {
+				t.Fatal(err)
+			}
+			fd, err := syscall.Open(fifo, syscall.O_RDWR|syscall.O_NONBLOCK, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer syscall.Close(fd)
+			script := strings.NewReplacer("/dev/tty0", filepath.Join(dir, "console"), "/dev/MiSTer_cmd", fifo, "/media/fat", fat).Replace(string(source))
+			// The replacement records entry before running its own startup.
+			replacement := "#!/bin/bash\nprintf 'updated launcher\\n' >> \"$TEST_EVENTS\"\n" + script
+			helper := `#!/bin/bash
+set -eu
+[ "$MISTERFIN_CRT_AUTO_RESTART" = 1 ]
+if [ ! -f "$TEST_STARTED" ]; then
+    touch "$TEST_STARTED"
+    printf 'old client\n' >> "$TEST_EVENTS"
+    if [ "$TEST_MISSING" != true ]; then
+        cp "$TEST_REPLACEMENT" "$TEST_LAUNCHER.new"
+        chmod +x "$TEST_LAUNCHER.new"
+        mv "$TEST_LAUNCHER.new" "$TEST_LAUNCHER"
+    fi
+    if [ "$TEST_INTERLACED" = true ]; then
+        printf 'restored core\n' >> "$TEST_EVENTS"
+        printf 'load_core %s\n' "$TEST_MENU" > "$TEST_FIFO"
+    fi
+    exit "$TEST_RESTART_STATUS"
+fi
+printf 'new client\n' >> "$TEST_EVENTS"
+exit "$TEST_NEXT_STATUS"
+`
+			files := map[string]string{
+				filepath.Join(dir, "launch-copy.sh"): script,
+				filepath.Join(dir, "replacement.sh"): replacement,
+				filepath.Join(dir, "taskset"):        "#!/bin/sh\nexit 0\n",
+				filepath.Join(fat, "menu.rbf"):       "test core",
+				filepath.Join(app, "misterfin-crt"):  helper,
+				filepath.Join(app, "mplayer-arm"):    "#!/bin/sh\nexit 0\n",
+			}
+			for path, data := range files {
+				if err := os.WriteFile(path, []byte(data), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "bash", filepath.Join(dir, "launch-copy.sh"))
+			cmd.Env = append(os.Environ(),
+				"PATH="+dir+":"+os.Getenv("PATH"),
+				"TEST_EVENTS="+filepath.Join(dir, "events"),
+				"TEST_STARTED="+filepath.Join(dir, "started"),
+				"TEST_REPLACEMENT="+filepath.Join(dir, "replacement.sh"),
+				"TEST_LAUNCHER="+filepath.Join(scripts, "MiSTerFin-CRT.sh"),
+				"TEST_MENU="+filepath.Join(fat, "menu.rbf"), "TEST_FIFO="+fifo,
+				"TEST_INTERLACED="+strconv.FormatBool(tc.interlaced),
+				"TEST_MISSING="+strconv.FormatBool(tc.missing),
+				"TEST_RESTART_STATUS="+strconv.Itoa(update.RestartExitCode),
+				"TEST_NEXT_STATUS="+strconv.Itoa(tc.nextStatus))
+			out, err := cmd.CombinedOutput()
+			if ctx.Err() != nil {
+				t.Fatalf("restart loop: %v", ctx.Err())
+			}
+			if (tc.nextStatus != 0 || tc.missing) != (err != nil) {
+				t.Fatalf("unexpected exit: %v %s", err, out)
+			}
+			events, err := os.ReadFile(filepath.Join(dir, "events"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "old client\n"
+			if tc.interlaced {
+				want += "restored core\n"
+			}
+			if !tc.missing {
+				want += "updated launcher\nnew client\n"
+			}
+			if string(events) != want {
+				t.Fatalf("handoff: %q, want %q", events, want)
+			}
+			buffer := make([]byte, 4096)
+			n, err := syscall.Read(fd, buffer)
+			if err == syscall.EAGAIN {
+				n = 0
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			returns := 0
+			if tc.interlaced {
+				returns++
+			}
+			if tc.nextStatus == 0 && !tc.missing {
+				returns++
+			}
+			want = strings.Repeat("load_core "+filepath.Join(fat, "menu.rbf")+"\n", returns)
+			if string(buffer[:n]) != want {
+				t.Fatalf("menu restoration: %q, want %q", buffer[:n], want)
 			}
 		})
 	}

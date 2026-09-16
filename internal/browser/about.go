@@ -64,7 +64,7 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 		return true
 	}
 	if s.about.Installed || !s.update.exitAt.IsZero() {
-		s.model.Quit = true
+		// Keep the completion message visible until its deadline.
 		return false
 	}
 	switch key {

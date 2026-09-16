@@ -38,3 +38,16 @@ func TestReleaseNoteScrollGeometryMatchesFooter(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallationCompletionStatus(t *testing.T) {
+	for _, automatic := range []bool{false, true} {
+		a := AboutPresentation{Installed: true, Restarting: automatic}
+		want := "Installed. Reopen MiSTerFin CRT."
+		if automatic {
+			want = "Update installed. Restarting..."
+		}
+		if got := a.Status(); got != want {
+			t.Fatalf("completion status: %q, want %q", got, want)
+		}
+	}
+}

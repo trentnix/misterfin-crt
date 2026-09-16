@@ -3,6 +3,10 @@ package browser
 import (
 	"context"
 	"errors"
+	"misterfin-crt/internal/playback"
+	"misterfin-crt/internal/rendering"
+	"misterfin-crt/internal/videoout"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -201,4 +205,84 @@ func TestFailedCheckPreservesKnownRelease(t *testing.T) {
 	if s.about.Release.Available || s.about.Message != "No public release available." {
 		t.Fatal("missing release remained available")
 	}
+}
+
+// TestUpdateExitThroughBrowser exercises the installation result, completion
+// screen, exit deadline, and resource cleanup through the real browser loop.
+func TestUpdateExitThroughBrowser(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		automatic   bool
+		installErr  error
+		wantRestart bool
+	}{
+		{"restart", true, nil, true},
+		{"older launcher", false, nil, false},
+		{"failure", true, errors.New("download failed"), false},
+		{"canceled", true, context.Canceled, false},
+		{"recovery", true, update.ErrRecovery, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+			defer cancel()
+			keys := make(chan control.Event, 8)
+			dir := t.TempDir()
+			finished := false
+			installedAt := time.Time{}
+			renderer := &updateTestRenderer{Renderer: rendering.NewRenderer()}
+			started := false
+			renderer.inspect = func(scene rendering.Scene) {
+				if scene.About.Checked && !started {
+					started = true
+					for _, key := range []control.Action{control.About, control.Open, control.Open} {
+						keys <- control.Event{Action: key}
+					}
+				}
+				if scene.About.Installed && installedAt.IsZero() {
+					installedAt = time.Now()
+					if scene.About.Restarting != tc.automatic {
+						t.Error("completion message does not match launcher capability")
+					}
+					// Ordinary navigation must not erase the success message.
+					keys <- control.Event{Action: control.Back}
+				}
+				if tc.installErr != nil && !errors.Is(tc.installErr, update.ErrRecovery) && scene.About.Message != "" {
+					keys <- control.Event{Action: control.Quit}
+				}
+			}
+			config := Config{
+				ConfigPath: filepath.Join(dir, "missing.conf"), StateDir: dir,
+				RestartAfterUpdate: tc.automatic,
+				CheckUpdate: func(context.Context) (release.Status, error) {
+					return release.Status{Available: true, HasBundle: true, Latest: "v1.1.0"}, nil
+				},
+				Updater: testUpdater(func(context.Context, release.Status, func(update.Progress)) error {
+					finished = true
+					return tc.installErr
+				}),
+			}
+			output := &runTestOutput{}
+			err := Run(ctx, config, playback.Config{}, output, renderer, nil, keys)
+			if update.RestartRequested(err) != tc.wantRestart || (err != nil && !tc.wantRestart) {
+				t.Fatalf("unexpected browser result: %v", err)
+			}
+			if !finished || !output.cleared || output.closed || ctx.Err() != nil {
+				t.Fatalf("incorrect shutdown: installed=%v cleared=%v closed=%v context=%v", finished, output.cleared, output.closed, ctx.Err())
+			}
+			if tc.installErr == nil && (installedAt.IsZero() || time.Since(installedAt) < 1900*time.Millisecond) {
+				t.Fatal("completion screen dismissed before restart deadline")
+			}
+		})
+	}
+}
+
+type updateTestRenderer struct {
+	rendering.Renderer
+	inspect func(rendering.Scene)
+}
+
+func (r *updateTestRenderer) Render(width, height int, scene rendering.Scene) videoout.Frame {
+	r.inspect(scene)
+	return r.Renderer.Render(width, height, scene)
 }
