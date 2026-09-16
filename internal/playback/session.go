@@ -184,7 +184,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 	loader := subtitleLoader{results: make(chan SubtitleResult, 1)}
 	defer loader.stop()
 	if s.tracks.ClientSubtitles && s.tracks.Text == nil {
-		if sub, ok := s.tracks.Stream("Subtitle", s.tracks.Selection.SubtitleIndex); ok && sub.TextSubtitle() {
+		if sub, ok := s.tracks.Stream("Subtitle", s.tracks.Selection.SubtitleIndex); ok && sub.ClientSubtitle() {
 			loader.start(ctx, s.client, s.item.ID, s.tracks.SourceID, sub.Index, 0)
 		}
 	}
@@ -247,7 +247,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 			}
 			if control.Kind == SelectSubtitle {
 				sub, ok := s.tracks.Stream("Subtitle", control.Index)
-				if s.tracks.ClientSubtitles && (control.Index == -1 || ok && sub.TextSubtitle()) {
+				if s.tracks.ClientSubtitles && (control.Index == -1 || ok && sub.ClientSubtitle()) {
 					loader.start(ctx, s.client, s.item.ID, s.tracks.SourceID, control.Index, control.Request)
 				}
 			} else {

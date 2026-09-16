@@ -4,7 +4,7 @@ Use the [MiSTer launcher](GO_BUILD.md#install-on-mister) or [development harness
 
 ## Setup and sign-in
 
-A missing or invalid `jellyfin.conf` opens setup help with the selected path and an example server address. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back exits setup.
+Connection settings normally come from `settings.json`. Invalid JSON connection settings stop startup with a field-level error. Restart after correcting them. When no `server` section exists, a missing or invalid legacy `jellyfin.conf` opens setup help with the selected path and an example server address. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back exits setup.
 
 Quick Connect displays a public approval code. Enter it in an already signed-in Jellyfin client. The waiting indicator animates until approval or the five-minute timeout. New code cancels the previous attempt. The screen does not expose credentials or Quick Connect secrets.
 

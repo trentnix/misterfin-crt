@@ -304,3 +304,14 @@ func TestPictureMenuKeepsZoomWhenSourceMetadataChanges(t *testing.T) {
 		t.Fatal("source metadata changed the uniform picture choices")
 	}
 }
+
+func TestServerRenderedTextSubtitleRestartsStream(t *testing.T) {
+	f := trackFixture(t)
+	f.c.tracks.Streams[2].RequiresBurnIn = true
+	f.c.Key(control.Select, f.now)
+	f.c.Key(control.Down, f.now)
+	f.c.Key(control.Open, f.now)
+	if len(f.calls) != 2 || f.calls[1].tracks.Selection.SubtitleIndex != 12 {
+		t.Fatal("embedded server-rendered text attempted a local download")
+	}
+}

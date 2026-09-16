@@ -35,7 +35,10 @@ func openStartupDiagnostics(o launchOptions, supervisor bool, source *settings.F
 	if !o.browse {
 		return s, nil
 	}
-	c, err := diagnostics.ParseConfig(source.Section("diagnostics"), legacyDebugLog(o.config))
+	server := source.Section("server")
+	// Explicit server settings supersede all legacy connection-file switches.
+	legacyEnabled := server.Data == nil && server.Err == nil && legacyDebugLog(o.config)
+	c, err := diagnostics.ParseConfig(source.Section("diagnostics"), legacyEnabled)
 	if err != nil {
 		s.notice = "Check diagnostics settings. Logging is off."
 		fmt.Fprintln(os.Stderr, s.notice)

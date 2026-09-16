@@ -295,3 +295,20 @@ func TestPreferencesRetryAfterStorageRecovers(t *testing.T) {
 		})
 	}
 }
+
+func TestServerRenderedSubtitlePreferenceSurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	tracks := preferenceTracks()
+	tracks.Streams[1].RequiresBurnIn = true
+	p := NewPreferences(dir, nil)
+	p.save("plex-subtitle", tracks)
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restored := NewPreferences(dir, nil)
+	defer restored.Close()
+	saved := restored.load("plex-subtitle")
+	if saved == nil || saved.restore(tracks).Selection.SubtitleIndex != 12 {
+		t.Fatal("server-rendered subtitle choice lost after restart")
+	}
+}

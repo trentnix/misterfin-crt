@@ -4,8 +4,8 @@ Install on MiSTer
 
 1. Exit MiSTerFin CRT. Keep a copy of the installed binaries before upgrading.
 2. Extract the ZIP on your computer. Copy Scripts/MiSTerFin-CRT.sh to /media/fat/Scripts/ and the contents of misterfin-crt/ to /media/fat/misterfin-crt/ on the SD card.
-3. For a new installation, copy jellyfin.conf.example to jellyfin.conf in /media/fat/misterfin-crt/. Replace the example URL with your Jellyfin URL. If you already have jellyfin.conf, keep it.
-4. Settings are optional. For a new installation, you can copy settings.example.json to settings.json and edit it. Keep existing settings.
+3. For a new installation, copy settings.example.json to settings.json in /media/fat/misterfin-crt/. Set server.provider and server.url. Jellyfin uses provider "jellyfin".
+4. Keep existing settings and saved state when upgrading. Existing jellyfin.conf remains supported when settings.json has no server section. See docs/GO_CONFIGURATION.md to migrate connection settings into settings.json.
 5. Make the launcher and both binaries executable if the filesystem requires it.
 6. Launch MiSTerFin-CRT from MiSTer's Scripts menu. Approve Quick Connect in another signed-in Jellyfin client if prompted.
 

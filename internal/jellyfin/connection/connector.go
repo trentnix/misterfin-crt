@@ -11,9 +11,11 @@ import (
 	jellyfinremote "misterfin-crt/internal/jellyfin/remote"
 )
 
-// Connector reloads Jellyfin configuration and saved sign-in on each attempt.
+// Connector uses supplied configuration or reloads the legacy file on each attempt.
 // Calls sharing StateDir must be serialized. Diagnostics may be nil.
 type Connector struct {
+	// Config is an immutable validated snapshot. Nil selects legacy ConfigPath.
+	Config                        *jellyfin.Config
 	ConfigPath, StateDir, Version string
 	Diagnostics                   *diagnostics.Log
 }
@@ -23,9 +25,15 @@ var _ connection.Connector = Connector{}
 // Connect authenticates an account and supplies its media and remote services.
 // Progress exposes only the public approval code, never the sign-in secret.
 func (c Connector) Connect(ctx context.Context, progress func(connection.Presentation)) (connection.Session, error) {
-	config, err := jellyfin.LoadConfig(c.ConfigPath)
-	if err != nil {
-		return connection.Session{}, &connectionError{connectionConfig, err}
+	var config jellyfin.Config
+	if c.Config != nil {
+		config = *c.Config
+	} else {
+		var err error
+		config, err = jellyfin.LoadConfig(c.ConfigPath)
+		if err != nil {
+			return connection.Session{}, &connectionError{connectionConfig, err}
+		}
 	}
 	saved, recovered, err := jellyfin.LoadSession(c.StateDir, config.Server)
 	if err != nil {

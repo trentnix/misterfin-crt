@@ -19,7 +19,7 @@ class ReleaseTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.write(".gitignore", b"build/\njellyfin.conf\nsettings.json\nstate/\n")
-        for name in ("tools/misterfin-crt.sh", "tools/release-install.txt", "jellyfin.conf.example", "settings.example.json", "LICENSE", "docs/licenses/coder-websocket.txt"):
+        for name in ("tools/misterfin-crt.sh", "tools/release-install.txt", "jellyfin.conf.example", "settings.example.json", "LICENSE", "docs/licenses/coder-websocket.txt", "docs/licenses/fusion-pixel.txt", "docs/licenses/noto.txt", "docs/licenses/go-text.txt", "docs/licenses/go-extensions.txt"):
             self.write(name, name.encode())
         self.write("docs/THIRD_PARTY.md", b"[license](../LICENSE) [external](https://example.org)\n")
         archive = io.BytesIO()
@@ -67,6 +67,9 @@ class ReleaseTest(unittest.TestCase):
             self.assertIn("misterfin-crt/jellyfin.conf.example", names)
             self.assertIn("misterfin-crt/settings.example.json", names)
             self.assertIn("misterfin-crt/licenses/mplayer/LICENSE", names)
+            self.assertEqual(archive.read("misterfin-crt/licenses/fusion-pixel.txt"), b"docs/licenses/fusion-pixel.txt")
+            for name in ("noto", "go-text", "go-extensions"):
+                self.assertEqual(archive.read(f"misterfin-crt/licenses/{name}.txt"), f"docs/licenses/{name}.txt".encode())
             self.assertFalse(any("state/" in name or name.endswith(("/settings.json", "/jellyfin.conf")) for name in names))
             self.assertEqual(archive.read("misterfin-crt/VERSION"), b"v0.1.0\n")
             self.assertEqual(archive.read("misterfin-crt/UPDATE_FORMAT"), b"1\n")

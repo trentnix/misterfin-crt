@@ -218,3 +218,18 @@ func TestDetailsAndMosaicRequests(t *testing.T) {
 		t.Fatalf("mosaic: %+v %v", page, err)
 	}
 }
+
+func TestAuthorizationUsesApplicationBuildVersion(t *testing.T) {
+	c := NewClient(Config{}, Session{DeviceID: "device"})
+	if !strings.Contains(c.Authorization(), `Version="dev"`) {
+		t.Fatal("missing development version")
+	}
+	c.Version = "v1.2.3"
+	if !strings.Contains(c.Authorization(), `Version="v1.2.3"`) {
+		t.Fatal("release version missing")
+	}
+	c.Version = "v1.2.3\", Token=\"injected"
+	if !strings.Contains(c.Authorization(), `Version="v1.2.3\", Token=\"injected"`) {
+		t.Fatal("version was not quoted")
+	}
+}

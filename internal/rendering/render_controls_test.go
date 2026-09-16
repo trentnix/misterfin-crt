@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"misterfin-crt/internal/caption"
 	"misterfin-crt/internal/input/control"
 	"misterfin-crt/internal/jellyfin"
 	"misterfin-crt/internal/ui"
@@ -46,7 +47,7 @@ func TestControlLabelsReachSharedVideoRenderer(t *testing.T) {
 	s := Scene{Video: true, Playback: p, Now: time.Unix(100, 0), Controls: control.KeyboardLabels()}
 	r := NewRenderer()
 	keyboard := append([]byte(nil), r.Render(640, 240, s).Overlay...)
-	expected := renderVideoOverlayOn(ui.NewOverlay(640, 240), p, s.Now, s.Controls)
+	expected := renderVideoOverlayOn(ui.NewOverlay(640, 240), p, s.Now, s.Controls, &caption.Renderer{})
 	if !bytes.Equal(keyboard, expected) {
 		t.Fatal("scene labels did not reach video overlay")
 	}
@@ -144,7 +145,7 @@ func TestTrackMenuAndSubtitlesUseSharedOverlay(t *testing.T) {
 		s := Scene{Video: true, Playback: p, Controls: control.KeyboardLabels(), Now: now}
 		renderer := NewRenderer()
 		frame := renderer.Render(640, height, s)
-		if !bytes.Equal(frame.Overlay, renderVideoOverlayOn(ui.NewOverlay(640, height), p, now, s.Controls)) {
+		if !bytes.Equal(frame.Overlay, renderVideoOverlayOn(ui.NewOverlay(640, height), p, now, s.Controls, &caption.Renderer{})) {
 			t.Fatal("track picker bypassed shared renderer")
 		}
 		if bytes.Equal(frame.Overlay, make([]byte, len(frame.Overlay))) {
@@ -171,7 +172,7 @@ func TestViewTabsSharePanelBoundsAndOpacity(t *testing.T) {
 		var want []byte
 		for tab := 0; tab < 3; tab++ {
 			p.Tracks.Tab = tab
-			frame := renderVideoOverlayOn(ui.NewOverlay(640, height), p, now, control.KeyboardLabels())
+			frame := renderVideoOverlayOn(ui.NewOverlay(640, height), p, now, control.KeyboardLabels(), &caption.Renderer{})
 			// At x=13 only the panel background is drawn, so this column captures
 			// both its vertical extent and opacity independently of the tab's text.
 			column := make([]byte, height)
@@ -187,5 +188,52 @@ func TestViewTabsSharePanelBoundsAndOpacity(t *testing.T) {
 				t.Fatal("panel no longer covers the full View area")
 			}
 		}
+	}
+}
+
+func TestUnicodeSubtitlesUseFallbackOnBothOutputSizes(t *testing.T) {
+	for _, height := range []int{240, 480} {
+		s := Scene{Video: true, Playback: PlaybackPresentation{Subtitle: "††† ♪ Don’t go — please…"}}
+		renderer := NewRenderer()
+		frame := append([]byte(nil), renderer.Render(640, height, s).Overlay...)
+		s.Playback.Subtitle = "??? ? Don?t go ? please?"
+		replaced := renderer.Render(640, height, s).Overlay
+		if bytes.Equal(frame, replaced) {
+			t.Fatalf("Unicode subtitles replaced at height %d", height)
+		}
+	}
+}
+
+func TestCaptionSurvivesControlsAndClears(t *testing.T) {
+	for _, height := range []int{240, 480} {
+		r := NewRenderer()
+		s := Scene{Video: true, Playback: PlaybackPresentation{Subtitle: "日本語の字幕 مرحبا"}}
+		initial := bytes.Clone(r.Render(640, height, s).Overlay)
+		s.Playback.ControlsVisible = true
+		controls := bytes.Clone(r.Render(640, height, s).Overlay)
+		if bytes.Equal(initial, controls) {
+			t.Fatal("controls did not move caption")
+		}
+		s.Playback.ControlsVisible = false
+		if !bytes.Equal(initial, r.Render(640, height, s).Overlay) {
+			t.Fatal("hiding controls altered caption")
+		}
+		s.Playback.Subtitle = ""
+		for _, value := range r.Render(640, height, s).Overlay {
+			if value != 0 {
+				t.Fatal("caption left stale pixels after clearing")
+			}
+		}
+	}
+}
+
+func BenchmarkVideoCaption(b *testing.B) {
+	r := NewRenderer()
+	s := Scene{Video: true, Playback: PlaybackPresentation{Subtitle: "The quick brown fox jumps over the lazy dog."}}
+	r.Render(640, 240, s)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Render(640, 240, s)
 	}
 }

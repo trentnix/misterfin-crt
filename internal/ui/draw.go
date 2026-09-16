@@ -42,7 +42,7 @@ func (c *Canvas) Rect(x, y, w, h int, color uint32) {
 	}
 }
 
-// Text draws one line with 8x8 glyphs. maxWidth is the absolute right edge,
+// Text draws one line with 8x8 glyphs and an embedded Unicode fallback. maxWidth is the absolute right edge,
 // not a character count or width relative to x. Unsupported runes become question marks.
 func (c *Canvas) Text(x, y int, s string, color uint32, maxWidth int) {
 	c.TextScaled(x, y, s, color, maxWidth, 1)
@@ -58,13 +58,7 @@ func (c *Canvas) TextScaled(x, y int, s string, color uint32, maxWidth, scale in
 		if r == '\n' {
 			break
 		}
-		if r < 32 {
-			r = ' '
-		}
-		if r > 255 {
-			r = '?'
-		}
-		glyph := font[r]
+		glyph := glyphForRune(r)
 		for yy, bits := range glyph {
 			for xx := 0; xx < 8; xx++ {
 				if bits&(1<<xx) != 0 {

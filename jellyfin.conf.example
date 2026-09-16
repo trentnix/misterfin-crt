@@ -1,4 +1,5 @@
-# MiSTerFin CRT: copy to /media/fat/misterfin-crt/jellyfin.conf.
+# Legacy Jellyfin configuration. New installations use settings.example.json.
+# This file is read only when settings.json has no server section.
 # Blank lines and lines beginning with # are ignored.
 # A server URL is enough to use Quick Connect. Approve the displayed code
 # from an already signed-in Jellyfin client.

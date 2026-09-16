@@ -10,7 +10,10 @@ type MediaStream struct {
 	Index                                int
 	Codec, Language, Title, DisplayTitle string
 	IsDefault, IsForced, IsExternal      bool
-	Width, Height                        int
+	// RequiresBurnIn marks subtitles the server cannot export as standalone text.
+	// The zero value preserves codec-based selection for existing providers.
+	RequiresBurnIn bool `json:"RequiresBurnIn,omitempty"`
+	Width, Height  int
 }
 
 // MediaSource identifies the file whose stream indexes server exposes.

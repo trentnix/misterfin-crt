@@ -22,10 +22,15 @@ For a new installation, download `misterfin-crt-vX.Y.Z-mister.zip` from the [lat
 
 Copy the remaining files from the ZIP’s `misterfin-crt` directory into `/media/fat/misterfin-crt/`. The archive includes examples, notices, and version information but no active configuration or saved state. Its `INSTALL.txt` has detailed instructions. To build from source, follow the [build guide](docs/GO_BUILD.md).
 
-For a new installation, create `/media/fat/misterfin-crt/jellyfin.conf` containing your server URL:
+For a new installation, copy [settings.example.json](settings.example.json) to `/media/fat/misterfin-crt/settings.json` and set your server address. A minimal Jellyfin configuration is:
 
-```text
-http://your-jellyfin-server:8096
+```json
+{
+  "server": {
+    "provider": "jellyfin",
+    "url": "http://your-jellyfin-server:8096"
+  }
+}
 ```
 
 Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Connect code in Jellyfin. The launcher filename must contain no spaces. Login, playback choices, and artwork caches persist on the SD card.
@@ -98,12 +103,14 @@ Also see the [movie library](docs/images/screenshots/movies-list.png) and [movie
 
 ## Configuration
 
-To change video conversion limits, add a line such as `640x480@8000000` to `jellyfin.conf` and restart. The values are maximum width, maximum height, and bitrate in bits per second. The default is `720x576@12000000`. The profile applies to recorded video and Live TV. See [transcode configuration](docs/GO_PLAYBACK.md#transcode-configuration).
-
-Application settings live in **`settings.json`** beside `jellyfin.conf`. On MiSTer, that is `/media/fat/misterfin-crt/settings.json`. For a new installation, copy [settings.example.json](settings.example.json) and edit the sections you need. For an existing installation, use the migration command below before creating this file. Omitted sections and fields use defaults. Restart after changing settings. Jellyfin connection details remain in `jellyfin.conf`.
+Connection and application settings live in **`settings.json`**, normally `/media/fat/misterfin-crt/settings.json` on MiSTer. Both providers use `server.provider`, `server.url`, `server.insecure_tls`, and `server.transcode`. For a new installation, copy [settings.example.json](settings.example.json). Existing installations can use the migration command below. Omitted optional fields use defaults. Restart after changing settings.
 
 ```json
 {
+  "server": {
+    "provider": "jellyfin",
+    "url": "http://your-jellyfin-server:8096"
+  },
   "ui": {
     "title": "MiSTerFin CRT",
     "navigation_sounds": {
@@ -121,21 +128,22 @@ Application settings live in **`settings.json`** beside `jellyfin.conf`. On MiST
 
 | Setting | Defaults and options | Guide |
 | --- | --- | --- |
+| `server` | Provider: `jellyfin`. URL required when the section exists. TLS verified. Transcode limits: 720×576 at 12 Mbps. | [Connection](docs/GO_CONFIGURATION.md#server-connection) |
 | `ui.title` | Heading: `MiSTerFin CRT`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_CONFIGURATION.md#browsing-title) |
 | `ui.navigation_sounds` | `enabled: true`, `volume: 10` out of 100. False or volume zero silences navigation sounds. | [Sounds](docs/GO_CONFIGURATION.md#navigation-sounds) |
 | `background` | Generated carousel mosaics and item artwork on lists. `image` selects one custom background. | [Background](docs/GO_CONFIGURATION.md#browsing-background) |
 | `display` | `interlaced: false`. Keep the current display, normally progressive. | [Display](docs/GO_DISPLAY.md) |
 | `input` | Built-in controller mappings and button labels. Profiles override matching devices. | [Input](docs/GO_INPUT.md) |
 | `music_visuals` | Music playback appearance only. `default_background: "Starfield"`, `show_audio_meters: true`. Missing optional Toasty sprites are omitted. | [Music visuals](docs/GO_MUSIC.md) |
-| `diagnostics` | Off unless `DEBUGLOG` is set. Path: `debug.log`. Limit: 1 MiB per file. | [Diagnostics](docs/GO_DIAGNOSTICS.md) |
+| `diagnostics` | Off. Legacy `DEBUGLOG` applies only without a `server` section. Path: `debug.log`. Limit: 1 MiB per file. | [Diagnostics](docs/GO_DIAGNOSTICS.md) |
 
-Existing installations still read the separate JSON files when `settings.json` is absent. To combine those files on MiSTer:
+Existing installations retain `jellyfin.conf` fallback when `server` is absent. Separate legacy JSON files are read when `settings.json` is absent. To consolidate connection and application settings on MiSTer:
 
 ```bash
 /media/fat/misterfin-crt/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/jellyfin.conf
 ```
 
-Migration preserves the originals and refuses to overwrite `settings.json`. Once the new file exists, omitted sections use defaults instead of reading old files. See [configuration paths, migration, and recovery](docs/GO_CONFIGURATION.md).
+Migration preserves `jellyfin.conf` and legacy JSON files. If `settings.json` exists, migration adds the connection section after saving a private `settings.json.before-server` backup. Existing server sections, backups, and concurrent edits are never overwritten. Once `server` exists, all connection settings come from JSON. See [configuration paths, migration, and recovery](docs/GO_CONFIGURATION.md).
 
 ### Browsing background
 
@@ -180,6 +188,10 @@ python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
 The harness builds the client automatically. See the [development harness guide](tools/ghostty/README.md) for dependencies, connecting to Jellyfin, and testing playback.
+
+## Experimental Plex support
+
+An experimental Plex implementation supports account linking, movie, TV, and music browsing, artwork, and playback through the existing UI. It is available on the development branch. Basic playback has been tested on Ghostty and MiSTer. See [configuration and limits](docs/GO_PLEX.md).
 
 ## Deferred work
 

@@ -22,6 +22,12 @@ func (s MediaStream) TextSubtitle() bool {
 	return false
 }
 
+// ClientSubtitle reports whether this stream can use the shared timed-text
+// overlay. Providers can require server rendering even for a text codec.
+func (s MediaStream) ClientSubtitle() bool {
+	return s.TextSubtitle() && !s.RequiresBurnIn
+}
+
 // Label prefers the server's descriptive title, including language and codec.
 func (s MediaStream) Label() string {
 	label := s.DisplayTitle

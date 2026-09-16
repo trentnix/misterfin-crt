@@ -267,7 +267,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="compatibility flag (Go is always used)",
     )
     parser.add_argument("--inline-video", action="store_true", help="play video inside Ghostty using libmpv (requires --browse)")
-    parser.add_argument("--browse", action="store_true", help="browse Jellyfin with the Go client")
+    parser.add_argument("--browse", action="store_true", help="browse the configured media server with the Go client")
     parser.add_argument("--demo", action="store_true", help="browse a local mock server with the Go client")
     parser.add_argument("--config", type=Path, help="Go Jellyfin configuration path")
     parser.add_argument("--settings", type=Path, help="sectioned settings.json path")
@@ -293,7 +293,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if args.fps is None:
         args.fps = VIDEO_FPS if args.inline_video else DEFAULT_FPS
     if args.inline_video and (not args.browse or args.demo):
-        parser.error("--inline-video requires --browse with a real Jellyfin server")
+        parser.error("--inline-video requires --browse with a real media server")
     if not math.isfinite(args.fps) or args.fps <= 0:
         parser.error("--fps must be finite and greater than zero")
     if args.demo:

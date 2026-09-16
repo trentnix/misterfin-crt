@@ -89,7 +89,7 @@ func (c *PlaybackController) trackKey(key control.Action, now time.Time) {
 	case control.SeekBackward, control.SeekForward:
 		// While choosing subtitles, triggers adjust text timing rather than seeking.
 		sub, ok := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
-		if c.picker.tab == 0 && ok && sub.TextSubtitle() && c.tracks.ClientSubtitles {
+		if c.picker.tab == 0 && ok && sub.ClientSubtitle() && c.tracks.ClientSubtitles {
 			delta := 100 * time.Millisecond
 			if key == control.SeekBackward {
 				delta = -delta
@@ -143,7 +143,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 		options.Text = nil
 		old, oldOK := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
 		sub, subOK := c.tracks.Stream("Subtitle", index)
-		if c.tracks.ClientSubtitles && (!oldOK || old.TextSubtitle()) && (index < 0 || subOK && sub.TextSubtitle()) {
+		if c.tracks.ClientSubtitles && (!oldOK || old.ClientSubtitle()) && (index < 0 || subOK && sub.ClientSubtitle()) {
 			request := c.subtitleRequest + 1
 			select {
 			case c.controls <- playback.Control{Kind: playback.SelectSubtitle, Index: index, Request: request}:
@@ -203,7 +203,7 @@ func (c *PlaybackController) trackPresentation(p *rendering.PlaybackPresentation
 			p.Tracks.Message = c.trackMessage(c.picker.tab, selected)
 		}
 		sub, ok := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
-		if c.picker.tab == 0 && ok && sub.TextSubtitle() && c.tracks.ClientSubtitles {
+		if c.picker.tab == 0 && ok && sub.ClientSubtitle() && c.tracks.ClientSubtitles {
 			p.Tracks.Delay = fmt.Sprintf("Subtitle delay: %+.1fs", c.subtitleDelay.Seconds())
 		}
 	}

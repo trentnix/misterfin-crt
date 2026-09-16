@@ -1,6 +1,8 @@
 # Media playback
 
-MiSTer uses the patched MPlayer. Local development uses Python/libmpv inside Ghostty. FFplay is an alternate test player with a separate video window. All paths share browsing, playback state, and Jellyfin reporting.
+MiSTer uses the patched MPlayer. Local development uses Python/libmpv inside Ghostty. FFplay is an alternate test player with a separate video window. All paths share browsing and playback state. Server adapters own reporting.
+
+The [experimental Plex adapter](GO_PLEX.md) uses the same playback interfaces. The Jellyfin-specific features below do not imply Plex parity.
 
 ## Players and local use
 
@@ -52,11 +54,11 @@ MiSTer and inline Ghostty change picture mode within the running player, includi
 
 ### Subtitles and audio tracks
 
-Audio lists Server default plus selectable Jellyfin tracks. Subtitles includes Off. Audio changes and image subtitles such as PGS/VobSub request a new stream at the current position while preserving pause state. Changing or disabling server-burned subtitles also replaces the stream.
+Audio lists Server default plus selectable server tracks. Subtitles includes Off. Audio changes and image subtitles such as PGS/VobSub request a new stream at the current position while preserving pause state. Changing or disabling server-burned subtitles also replaces the stream.
 
-MiSTer and inline Ghostty download text subtitles as SubRip and draw them through the shared overlay. Switching text tracks or Off normally needs no decoder restart. A failed download keeps the previous text. FFplay requests server burn-in for text too, because shared overlay pixels cannot reach its separate window.
+MiSTer and inline Ghostty download text subtitles as SubRip and draw them through the shared overlay. Switching downloadable text tracks or Off normally needs no decoder restart. Plex embedded tracks require server burn-in and reload, while Plex sidecar text uses the shared overlay. A failed download keeps the previous text. FFplay requests server burn-in for text too, because shared overlay pixels cannot reach its separate window.
 
-Client text supports up to three lines, basic markup removal, and ASCII/Latin-1 glyphs. Complex ASS styling, positioned signs, and other writing systems are not reproduced. With a text track selected in the Subtitles tab, LT/RT or J/L adjusts timing in 0.1-second steps within ±10 seconds. Timing changes last for the current playback session. Server-burned subtitles can be cropped by Zoom and have no client timing control.
+Client text uses the shared [Unicode caption renderer](GO_RENDERING.md#text-coverage), with font fallback, bidirectional layout, shaping, and up to three outlined lines. Complex ASS styling and positioned signs are not reproduced. With a text track selected in the Subtitles tab, LT/RT or J/L adjusts timing in 0.1-second steps within ±10 seconds. Timing changes last for the current playback session. Server-burned subtitles can be cropped by Zoom and have no client timing control.
 
 ### Remembered choices
 
@@ -84,13 +86,21 @@ MPlayer decodes caption side data from the existing video decoder. The libmpv he
 
 ## Transcode configuration
 
-Add a profile line to `jellyfin.conf` and restart:
+Set conversion limits under `server.transcode` in `settings.json` and restart. The same fields apply to Jellyfin and Plex:
 
-```text
-640x480@8000000
+```json
+{
+  "server": {
+    "provider": "jellyfin",
+    "url": "http://your-jellyfin-server:8096",
+    "transcode": {
+      "max_width": 640,
+      "max_height": 480,
+      "video_bitrate": 8000000
+    }
+  }
+}
 ```
-
-The format is `WIDTHxHEIGHT@BITRATE`, with bitrate in bits per second. `WIDTHxHEIGHT` keeps the current bitrate. Defaults are `720x576@12000000`. Profiles can appear anywhere. If several appear, the last dimensions win and an omitted bitrate retains the preceding value.
 
 | Limit | Default | Accepted range |
 | --- | --- | --- |
@@ -98,13 +108,13 @@ The format is `WIDTHxHEIGHT@BITRATE`, with bitrate in bits per second. `WIDTHxHE
 | Maximum height | 576 | 120–1080 pixels |
 | Video bitrate | 12,000,000 | 100,000–50,000,000 bits/sec |
 
-Invalid profiles produce a setup error with the line number. Comments belong on separate lines. The profile applies to recorded video and Live TV, not original music, photos, or UI dimensions. Live TV treats bitrate as a streaming budget, so negotiated video bitrate can be lower after audio overhead. Dimensions preserve source proportions. Lower dimensions can reduce decoding work. Larger accepted values do not guarantee smooth MiSTer playback.
+Invalid JSON limits stop startup. Limits apply to recorded video and Jellyfin Live TV, not original music, photos, or UI dimensions. When `server` is absent, legacy Jellyfin `WIDTHxHEIGHT[@BITRATE]` lines remain supported. Live TV treats bitrate as a streaming budget, so negotiated video bitrate can be lower after audio overhead. Dimensions preserve source proportions. Lower dimensions can reduce decoding work. Larger accepted values do not guarantee smooth MiSTer playback.
 
-Video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Recorded video caps at 30 fps for NTSC or 25 fps for PAL. 480i Live TV uses 30000/1001 fps. The player does not force source speed. [Diagnostics](GO_DIAGNOSTICS.md) records requested transcode limits, not measured stream properties.
+Jellyfin video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Recorded video caps at 30 fps for NTSC or 25 fps for PAL. 480i Live TV uses 30000/1001 fps. The player does not force source speed. [Diagnostics](GO_DIAGNOSTICS.md) records requested transcode limits, not measured stream properties.
 
 ## Streams and reporting
 
-Go owns authenticated HTTP/TLS. Video reaches decoders through descriptor 3. Controllable music uses a private loopback proxy that forwards byte-range requests for the fixed Jellyfin audio stream. Player arguments contain no Jellyfin URL or credentials. Raw decoder diagnostics are discarded.
+Go owns authenticated HTTP/TLS. Video reaches decoders through descriptor 3. Controllable music uses a private loopback proxy that forwards byte-range requests for the selected audio stream. Player arguments contain no server URL or credentials. Raw decoder diagnostics are discarded.
 
 Shared playback uses `media.Playback` to prepare and open streams. The Jellyfin adapter retains transcode queries, reporting payloads, and tuner release. `media.PreparedStream` binds reporting and cleanup to one attempt. The extraction preserves the existing MPEG-2 video profile, original audio streams, and saved playback choices. See the [media service boundaries](GO_RENDERING.md#media-services).
 

@@ -51,7 +51,7 @@ func (c Connector) Describe(err error) connection.Presentation {
 	case errors.Is(err, jellyfin.ErrQuickConnectDisabled):
 		p.Title, p.Message = "Quick Connect is disabled", "Enable Quick Connect on your Jellyfin server, then retry.\nOr add an API key and username to your configuration."
 	case errors.Is(err, jellyfin.ErrUsernameNotFound):
-		p.Title, p.Message = "Check your username", "The configured username was not found on the server.\nCheck the username after your API key, then retry."
+		p.Title, p.Message = "Check your username", "The configured username was not found on the server.\nCheck the configured username, then retry."
 	case jellyfin.Rejected(err):
 		p.Retry = "Sign in"
 		p.Title, p.Message = "Sign-in required", "Jellyfin rejected your sign-in. Sign in again.\nIf you use an API key, check it in your configuration."

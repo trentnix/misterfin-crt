@@ -56,7 +56,7 @@ func preparePlayback(ctx context.Context, c media.Playback, config Config, reque
 		// Decoder geometry must describe the same source as the transcode request.
 		item.MediaStreams = tracks.Streams
 		burn := -1
-		if sub, ok := tracks.Stream("Subtitle", tracks.Selection.SubtitleIndex); ok && (!sub.TextSubtitle() || !tracks.ClientSubtitles) {
+		if sub, ok := tracks.Stream("Subtitle", tracks.Selection.SubtitleIndex); ok && (!sub.ClientSubtitle() || !tracks.ClientSubtitles) {
 			burn = sub.Index
 			tracks.Text = nil
 		}

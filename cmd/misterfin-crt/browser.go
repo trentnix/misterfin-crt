@@ -8,7 +8,6 @@ import (
 
 	"misterfin-crt/internal/browser"
 	"misterfin-crt/internal/input"
-	jfconnection "misterfin-crt/internal/jellyfin/connection"
 	"misterfin-crt/internal/platform"
 	"misterfin-crt/internal/playback"
 	"misterfin-crt/internal/release"
@@ -35,7 +34,10 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 		return err
 	}
 	config.Build = release.CurrentBuild()
-	config.Connector = jfconnection.Connector{ConfigPath: o.config, StateDir: config.StateDir, Version: config.Build.Version, Diagnostics: trace.log}
+	config.Connector, err = serverConnector(source, o.config, config.StateDir, config.Build.Version, trace.log)
+	if err != nil {
+		return err
+	}
 	if executable, err := os.Executable(); err == nil {
 		if installer := installedUpdater(o, executable); installer != nil {
 			config.Updater = installer

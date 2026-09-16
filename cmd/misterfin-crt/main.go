@@ -33,10 +33,10 @@ func run() (err error) {
 		return err
 	}
 	if o.migrateSettings {
-		if err := source.Migrate(); err != nil {
+		if err := migrateSettings(o, source); err != nil {
 			return err
 		}
-		fmt.Fprintln(os.Stdout, "Created", source.Path, "(legacy files preserved)")
+		fmt.Fprintln(os.Stdout, "Migrated", source.Path, "(legacy files preserved)")
 		return nil
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -61,7 +61,7 @@ func run() (err error) {
 	}
 	if mode.Interlaced {
 		trace.phase("interlaced-supervisor")
-		return displaymode.Run(ctx, filepath.Dir(o.config), os.Args[1:])
+		return displaymode.Run(ctx, filepath.Dir(source.Path), os.Args[1:])
 	}
 	trace.phase("display-open")
 	d, err := platform.Open(platform.Options{Device: o.device, Headless: o.headless, Output: o.output})

@@ -43,6 +43,7 @@ class Scenario:
     player: str = "idle"
     controlling_terminal: bool = True
     legacy_settings: bool = False
+    unified_server: bool = False
 
 
 class BrowserFixture(unittest.TestCase):
@@ -234,6 +235,8 @@ class BrowserFixture(unittest.TestCase):
         # than assuming a loopback response is rendered within a fixed delay.
         self.diagnostics = self.directory / "logs" / "diagnostics.log"
         self.write_settings()
+        if self.scenario.unified_server:
+            config.unlink()  # The shared document must be sufficient on its own.
         self.environment = {**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"),
                             "MISTERFIN_SETTINGS": "", "MISTERFIN_INPUT_CONFIG": "",
                             "MISTERFIN_SOUND_CONFIG": "", "MISTERFIN_MUSIC_CONFIG": "",
@@ -352,6 +355,13 @@ class BrowserFixture(unittest.TestCase):
                     "music_visuals": {"default_background": "Off", "show_audio_meters": False,
                                       "backgrounds": backgrounds},
                     "diagnostics": diagnostics}
+        if self.scenario.unified_server:
+            settings["server"] = {
+                "provider": "jellyfin",
+                "url": f"http://127.0.0.1:{self.server.server_port}",
+                "jellyfin": {"api_key": "mock-api-key", "username": "mockuser"},
+                "transcode": {"max_width": 640, "max_height": 480, "video_bitrate": 8000000},
+            }
         for section, value in self.scenario.settings.items():
             # A custom title must not accidentally enable workstation sound.
             if section == "ui" and isinstance(value, dict):

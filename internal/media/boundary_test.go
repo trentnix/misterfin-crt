@@ -13,7 +13,7 @@ import (
 // Shared packages must not import the server adapter. Check direct imports in
 // each shared layer and its helpers so failures identify the responsible file.
 // Adapter integration tests remain permitted.
-func TestSharedPackagesDoNotImportJellyfin(t *testing.T) {
+func TestSharedPackagesDoNotImportProviders(t *testing.T) {
 	for _, dir := range []string{"media", "connection", "browser", "artwork", "playback", "player", "rendering", "videoout"} {
 		err := filepath.WalkDir(filepath.Join("..", dir), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
@@ -31,7 +31,7 @@ func TestSharedPackagesDoNotImportJellyfin(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if name == "misterfin-crt/internal/jellyfin" || strings.HasPrefix(name, "misterfin-crt/internal/jellyfin/") {
+				if name == "misterfin-crt/internal/jellyfin" || strings.HasPrefix(name, "misterfin-crt/internal/jellyfin/") || name == "misterfin-crt/internal/plex" || strings.HasPrefix(name, "misterfin-crt/internal/plex/") {
 					t.Errorf("%s imports server implementation %s", path, name)
 				}
 			}

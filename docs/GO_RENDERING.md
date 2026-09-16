@@ -4,26 +4,28 @@ The browser owns navigation and playback UX. The renderer turns a read-only scen
 
 ## Media services
 
-Jellyfin is the only server implementation. Application assembly injects its [connector](../internal/jellyfin/connection/connector.go) through [`connection.Connector`](../internal/connection/connector.go). The connector loads `jellyfin.conf`, authenticates, and returns account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles four layouts: hidden, connecting, approval, and failure.
+Application assembly selects Jellyfin by default or the experimental [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles four layouts: hidden, connecting, approval, and failure.
 
 ```mermaid
 flowchart LR
-    App["cmd: runBrowser"] --> Connector["jellyfin/connection.Connector"]
+    App["cmd: serverConnector"] --> Connector["connection.Connector"]
+    JF["jellyfin/connection.Connector"] -. implements .-> Connector
+    Plex["plex.Connector"] -. implements .-> Connector
     Connector -->|returns| Session["connection.Session"]
     Session -->|injected services| Browser["browserSession"]
-    Client["jellyfin.Client"] -. implements .-> Server["media.Server"]
+    Client["jellyfin.Client or plex.Client"] -. implements .-> Server["media.Server"]
     Server -->|Session.Server| Session
     Browser --> Renderer["RasterRenderer.Render"]
     Browser --> Playback["playback.Run"]
 ```
 
-[`media.Server`](../internal/media/server.go) groups catalog, artwork, and playback services for session assembly. Workers use narrower contracts: `media.Artwork` for image loading, `media.Playback` for playback, `media.Progress` for reporting, and local interfaces for selection, sibling navigation, and subtitles. Live TV negotiation and remote queue lookup are optional capabilities. Shared browser, artwork, playback, renderer, and decoder packages import no Jellyfin implementation.
+[`media.Server`](../internal/media/server.go) groups catalog, artwork, and playback services for session assembly. Workers use narrower contracts: `media.Artwork` for image loading, `media.Playback` for playback, `media.Progress` for reporting, and local interfaces for selection, sibling navigation, and subtitles. Live TV negotiation and remote queue lookup are optional capabilities. Shared browser, artwork, playback, renderer, and decoder packages import neither server implementation.
 
 `media.PreparedStream` carries a private URL, stream identity, numeric diagnostic limits, a reporting service, and optional resource release. Playback owns when reporting and release happen. The Jellyfin adapter owns request formats and tuner IDs. Release gets its own bounded context after final reporting, including failed playback startup. Diagnostic parsing also stays in the adapter.
 
 Reusable data processing stays outside server adapters. [`media.MergeContinueWatching`](../internal/media/continue.go) ranks normalized resume and next-episode candidates without changing its inputs. [`bitmap.Decode`](../internal/artwork/bitmap/decode.go) bounds artwork dimensions and scales decoded pixels. Adapters retain endpoint queries, metadata normalization, and artwork selection. Neither helper depends on a server, cache, or display implementation.
 
-Shared item types retain their existing field layout and JSON tags. Jellyfin aliases preserve decoding and saved track compatibility. Configuration, sign-in storage, cache identities, queries, and MPEG-2 playback profiles remain unchanged. Codec negotiation and a redesigned metadata wire model are outside this extraction. Another server can implement these contracts without changing rendering or target assembly.
+Shared item types retain their existing field layout and JSON tags. Jellyfin aliases preserve decoding and saved track compatibility. Application assembly maps the shared `server` settings into each adapter’s configuration. Jellyfin retains legacy-file fallback, sign-in paths, cache identities, queries, and MPEG-2 defaults. Both providers use the private `serverstate` store. Plex credentials live in a separate subdirectory. Codec negotiation and a redesigned metadata wire model remain deferred. Plex implements the existing contracts without changing rendering or target assembly.
 
 ## Shared UX and output
 
@@ -149,3 +151,13 @@ Renderer tests compare screen hashes, cached/uncached pixels, overlay clearing, 
 go test ./internal/rendering -run '^$' -bench . -benchmem
 go test ./internal/ui -run '^$' -bench BenchmarkBackdrop -benchmem
 ```
+
+## Text coverage
+
+Menus retain the original 8×8 Latin-1 font. `ui.Canvas.Text` uses an embedded bitmap fallback for additional punctuation, music symbols, and supported East Asian characters. Lookup allocates no memory. Unsupported menu characters appear as `?`.
+
+[`caption.Renderer`](../internal/caption/renderer.go) handles plain-text subtitles and closed captions for both Ghostty and MiSTer. `RasterRenderer` owns it. It resolves script-specific Noto fonts, shapes text with go-text, orders bidirectional runs, and wraps at Unicode line breaks. It draws up to three centered, outlined lines with antialiasing and accounts for tall logical CRT pixels. The output adapter still controls physical resolution. Opening playback controls moves the cached cue without reshaping it.
+
+The embedded font set covers Latin, Greek, Cyrillic, Arabic, Hebrew, Devanagari, Bengali, Tamil, Telugu, Malayalam, Kannada, Gujarati, Gurmukhi, Sinhala, Thai, Lao, Khmer, Myanmar, Georgian, Armenian, Ethiopic, Tibetan, Chinese, Japanese, and Korean, plus selected symbols. Han characters use Noto's Japanese glyph forms. Coverage is broad, not universal. Unsupported glyphs use a visible replacement box. Color emoji, vertical text, complex ASS styling, and positioned signs are not reproduced. Image subtitles and server-burned text remain server-rendered pixels.
+
+Fonts load on demand from an embedded, uncompressed archive. Reading the embedded bytes directly avoids first-caption decompression on MiSTer. Release archives compress those bytes for download. The renderer caches one cue image by text and viewport size, so unchanged frames neither shape text nor allocate. Cue input is capped at 2,048 runes. [`tools/build_subtitle_fonts.py`](../tools/build_subtitle_fonts.py) rebuilds the archive from pinned upstream revisions and includes a source/checksum manifest. Adding a font and its script tags extends the fallback set without changing media providers or display adapters. See [font and library licenses](THIRD_PARTY.md).

@@ -65,7 +65,7 @@ Copy these files to the SD card and make them executable:
 | `build/misterfin-crt-mplayer-arm` | `/media/fat/misterfin-crt/mplayer-arm` |
 | [`tools/misterfin-crt.sh`](../tools/misterfin-crt.sh) | `/media/fat/Scripts/MiSTerFin-CRT.sh` |
 
-Create `jellyfin.conf` beside the binaries with your server URL. Add optional [settings](GO_CONFIGURATION.md) in the same directory. Launch **MiSTerFin-CRT** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. An SSH launch alone does not perform the Scripts display setup.
+Copy `settings.example.json` to `settings.json` beside the binaries and set `server.provider` and `server.url`. See [configuration and migration](GO_CONFIGURATION.md) for existing installations. Launch **MiSTerFin-CRT** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. An SSH launch alone does not perform the Scripts display setup.
 
 The launcher enables both CPU cores, hides the console cursor, and reloads the normal menu after a successful exit. Failures leave their messages visible. Login and playback choices persist under `/media/fat/misterfin-crt/state`. Caches use separate [artwork directories](GO_BROWSING.md#persistent-artwork-cache). For 480i, follow the [display guide](GO_DISPLAY.md).
 

@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"misterfin-crt/internal/caption"
 	"misterfin-crt/internal/musicviz"
 	"misterfin-crt/internal/ui"
 	"misterfin-crt/internal/videoout"
@@ -11,6 +12,7 @@ import (
 // Returned pixels are borrowed until the next Render call.
 type RasterRenderer struct {
 	music     musicviz.Renderer
+	captions  caption.Renderer
 	canvas    *ui.Canvas
 	cache     sceneCache
 	overlay   *ui.Canvas
@@ -29,7 +31,7 @@ func (r *RasterRenderer) Render(w, h int, s Scene) videoout.Frame {
 	f := videoout.Frame{UI: renderSceneWithMusic(r.canvas, &r.cache, s, anim, &r.music), Video: s.Video}
 	if s.Video {
 		clear(r.overlay.Pixels)
-		f.Overlay = renderVideoOverlayOn(r.overlay, s.Playback, s.Now, s.Controls)
+		f.Overlay = renderVideoOverlayOn(r.overlay, s.Playback, s.Now, s.Controls, &r.captions)
 		drawMessage(r.overlay, s.Message, s.Now)
 	}
 	drawMessage(r.canvas, s.Message, s.Now)

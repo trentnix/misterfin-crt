@@ -252,6 +252,19 @@ class BrowseIntegrationTests(BrowserFixture):
                 pages.append(query.get("StartIndex"))
         self.assertEqual(pages, [["0"], ["64"]])
 
+    def test_unified_connection_without_legacy_file(self):
+        self.start_browser(Scenario(unified_server=True))
+        self.assertFalse((self.directory / "jellyfin.conf").exists())
+        self.key(b"b")
+        self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
+        self.key(b"b")
+        self.wait_request("/Items/movie-tricky-0")
+        self.key(b"b")
+        self.wait_request("/Videos/movie-tricky-0/stream", maxWidth=640, maxHeight=480, videoBitRate=8000000)
+        self.key(b"a")
+        self.wait_request("/Items/movie-tricky-0")
+        self.assertIsNone(self.process.poll())
+
     def test_transcode_profile_from_configuration(self):
         self.start_browser(Scenario(transcode_profile="640x480@8000000"))
         self.key(b"b")
