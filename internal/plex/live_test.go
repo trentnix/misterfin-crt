@@ -181,14 +181,14 @@ func TestLivePlaybackOwnershipAndReports(t *testing.T) {
 			t.Errorf("unexpected request %s", r.URL.Path)
 		}
 	})
-	a, err := c.PrepareLive(t.Context(), liveID("2", "channel"), 30000.0/1001)
+	a, err := c.PrepareLive(t.Context(), media.LiveRequest{ChannelID: liveID("2", "channel"), MaxFrameRate: 30000.0 / 1001, AudioIndex: -1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if a.Streams[0].AspectRatio != "1.78" || a.Streams[0].Width != 720 || a.Streams[2].Codec != "eia_608" {
 		t.Fatalf("source geometry/captions lost: %+v", a.Streams)
 	}
-	b, err := c.PrepareLive(t.Context(), liveID("2", "channel"), 30000.0/1001)
+	b, err := c.PrepareLive(t.Context(), media.LiveRequest{ChannelID: liveID("2", "channel"), MaxFrameRate: 30000.0 / 1001, AudioIndex: -1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +255,7 @@ func TestLivePreparationFailuresReleaseConsumer(t *testing.T) {
 					t.Errorf("unexpected request %s", r.URL.Path)
 				}
 			})
-			if _, err := c.PrepareLive(ctx, liveID("2", "channel"), 30); err == nil {
+			if _, err := c.PrepareLive(ctx, media.LiveRequest{ChannelID: liveID("2", "channel"), MaxFrameRate: 30, AudioIndex: -1}); err == nil {
 				t.Fatal("failed negotiation succeeded")
 			}
 			if len(released) != 2 {
@@ -268,13 +268,13 @@ func TestLivePreparationFailuresReleaseConsumer(t *testing.T) {
 func TestLiveRejectsInvalidCadenceBeforeTuning(t *testing.T) {
 	c := testClient(t, func(http.ResponseWriter, *http.Request) { t.Error("invalid request reached server") })
 	for _, fps := range []float64{-1, 0, math.NaN(), math.Inf(1), 1000} {
-		if _, err := c.PrepareLive(t.Context(), liveID("2", "channel"), fps); err == nil {
+		if _, err := c.PrepareLive(t.Context(), media.LiveRequest{ChannelID: liveID("2", "channel"), MaxFrameRate: fps, AudioIndex: -1}); err == nil {
 			t.Fatal("invalid cadence accepted")
 		}
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := c.PrepareLive(ctx, liveID("2", "channel"), 30); err != context.Canceled {
+	if _, err := c.PrepareLive(ctx, media.LiveRequest{ChannelID: liveID("2", "channel"), MaxFrameRate: 30, AudioIndex: -1}); err != context.Canceled {
 		t.Fatalf("cancellation = %v", err)
 	}
 }
@@ -331,5 +331,40 @@ func TestLiveChannelLogoUsesServerProxy(t *testing.T) {
 		if _, err := c.image(t.Context(), source, 320, 240); err == nil || called {
 			t.Fatal("untrusted external image source accepted")
 		}
+	}
+}
+
+func TestLiveTuneOutlivesMetadataTimeout(t *testing.T) {
+	c := liveClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/tune") {
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+		time.Sleep(40 * time.Millisecond)
+		fmt.Fprint(w, liveReply)
+	})
+	c.HTTP.Timeout = 5 * time.Millisecond
+	owner := livePlayback{client: c, session: "consumer"}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	data, err := owner.tune(ctx, "2", "channel")
+	if err != nil {
+		t.Fatal("tune inherited metadata timeout", err)
+	}
+	if _, err := tunedVideo(data); err != nil {
+		t.Fatal(err)
+	}
+	if c.HTTP.Timeout != 5*time.Millisecond {
+		t.Fatal("tuner startup changed shared HTTP timeout")
+	}
+}
+
+func TestLiveTuneDeadlineExplainsFailure(t *testing.T) {
+	c := liveClient(t, func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() })
+	owner := livePlayback{client: c, session: "consumer"}
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	_, err := owner.tune(ctx, "2", "channel")
+	if err == nil || !strings.Contains(err.Error(), "Plex did not finish tuning") || strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("unhelpful tuner error: %v", err)
 	}
 }

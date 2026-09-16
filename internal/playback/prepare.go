@@ -80,18 +80,22 @@ func preparePlayback(ctx context.Context, c media.Playback, config Config, reque
 		if !ok {
 			return nil, errors.New("Live TV is not supported by this server")
 		}
-		stream, err = live.PrepareLive(ctx, item.ID, maxFrameRate)
+		audioIndex := -1
+		if choices.explicit != nil {
+			audioIndex = choices.explicit.Selection.AudioIndex
+		}
+		stream, err = live.PrepareLive(ctx, media.LiveRequest{ChannelID: item.ID, MaxFrameRate: maxFrameRate, AudioIndex: audioIndex})
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, nil
 			}
 			return nil, err
 		}
-		// Live tracks describe the negotiated source. Track switching and recorded
-		// subtitle extraction remain unavailable, but picture fitting is local.
+		// Live tracks describe the negotiated source. The adapter advertises audio
+		// selection separately from local picture fitting and decoded captions.
 		tracks = VideoTracks{
-			SourceID: stream.SourceID, Streams: stream.Streams, LivePicture: choices.livePicture,
-			TrackOptions: TrackOptions{Picture: choices.picture(), Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}},
+			SourceID: stream.SourceID, Streams: stream.Streams, LivePicture: choices.livePicture, LiveAudio: stream.LiveAudio,
+			TrackOptions: TrackOptions{Picture: choices.picture(), Selection: media.TrackSelection{AudioIndex: audioIndex, SubtitleIndex: -1}},
 		}
 		if len(stream.Streams) > 0 {
 			item.MediaStreams = stream.Streams

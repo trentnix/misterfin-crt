@@ -21,6 +21,8 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --config
 
 Without `--inline-video`, the harness uses FFplay for video. Keep keyboard focus in Ghostty for client controls. The harness uses the Python/libmpv helper for music in either video mode. Direct headless runs without an audio helper use FFplay for music too. MiSTer needs neither Python nor libmpv. See the [harness guide](../tools/ghostty/README.md) and [MPlayer build](GO_BUILD.md#mplayer).
 
+MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% before decoding. Live TV begins demuxing without a cache prefill because a low-bitrate broadcast may not supply 1.6 MiB before the 30-second startup deadline.
+
 ## Playback controls
 
 | Action | Xbox controller | Keyboard |
@@ -76,7 +78,7 @@ Media response headers have a 60-second timeout. Back and replacement seeks canc
 
 Selecting a channel tunes it directly. Stop, completion, or failure returns to that channel in the list. Jellyfin negotiates the tuner and transcode through `PlaybackInfo`. Plex discovers enabled DVR channels and tunes a separate consumer through its [Live TV adapter](GO_PLEX.md#live-tv). The client releases the tuner after stop or failure, including cancellation during negotiation. Live channels do not write movie resume or watched state.
 
-MiSTer and inline Ghostty support Original/Zoom and locally decoded captions. Reopening a channel resets picture mode to Original and captions to Off. Live TV has no seeking or timeshift support. Audio-track selection is not implemented. The tested Jellyfin transcode exposed only one audio stream, even where another client exposed alternate broadcast audio.
+MiSTer and inline Ghostty support Original/Zoom and locally decoded captions. Reopening a channel resets picture mode to Original and captions to Off. Live TV has no seeking or timeshift support. Plex channels with selectable alternate tracks expose View → Audio. A selection reloads at the live edge and preserves picture mode and captions. The adapter advertises this capability through `PreparedStream.LiveAudio` and validates `LiveRequest.AudioIndex` against fresh tuner metadata. Jellyfin audio selection remains unavailable. The tested Jellyfin transcode exposed only one audio stream, even where another client exposed alternate broadcast audio.
 
 ### Closed captions
 
@@ -108,7 +110,7 @@ Set conversion limits under `server.transcode` in `settings.json` and restart. T
 | Maximum height | 576 | 120–1080 pixels |
 | Video bitrate | 12,000,000 | 100,000–50,000,000 bits/sec |
 
-Invalid JSON limits stop startup. Limits apply to recorded video and Jellyfin Live TV, not original music, photos, or UI dimensions. When `server` is absent, legacy Jellyfin `WIDTHxHEIGHT[@BITRATE]` lines remain supported. Live TV treats bitrate as a streaming budget, so negotiated video bitrate can be lower after audio overhead. Dimensions preserve source proportions. Lower dimensions can reduce decoding work. Larger accepted values do not guarantee smooth MiSTer playback.
+Invalid JSON limits stop startup. Limits apply to recorded video and Live TV for both providers, not original music, photos, or UI dimensions. When `server` is absent, legacy Jellyfin `WIDTHxHEIGHT[@BITRATE]` lines remain supported. Live TV treats bitrate as a streaming budget, so negotiated video bitrate can be lower after audio overhead. Dimensions preserve source proportions. Lower dimensions can reduce decoding work. Larger accepted values do not guarantee smooth MiSTer playback.
 
 Jellyfin video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Recorded video caps at 30 fps for NTSC or 25 fps for PAL. 480i Live TV uses 30000/1001 fps. The player does not force source speed. [Diagnostics](GO_DIAGNOSTICS.md) records requested transcode limits, not measured stream properties.
 

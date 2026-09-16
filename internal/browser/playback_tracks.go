@@ -30,7 +30,7 @@ func (c *PlaybackController) trackRows(tab int) []rendering.TrackRow {
 		if tab == 0 {
 			return c.captions.rows()
 		}
-		if tab == 1 {
+		if tab == 1 && !c.tracks.LiveAudio {
 			return nil
 		}
 	}
@@ -161,8 +161,11 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 	c.trackOptions = options
 	c.picker.visible = false
 	c.notice = ""
-	// Reuse the tested replacement gate and pause restoration at the current time.
+	// Reuse the replacement gate. Live audio changes reopen at the live edge.
 	target := c.state.PositionTicks
+	if media.IsLive(c.item) {
+		target = 0
+	}
 	c.state.SwitchingTracks = true
 	c.state.SeekTarget = &target
 	c.state.SeekDeadline = now
@@ -233,7 +236,10 @@ func (c *PlaybackController) trackMessage(tab, selected int) string {
 			}
 			return ""
 		case 1:
-			return "Live TV audio selection is not available."
+			if !c.tracks.LiveAudio {
+				return "Live TV audio selection is not available."
+			}
+			return "Changing audio briefly reloads the channel."
 		case 2:
 			if !c.tracks.LivePicture {
 				return "This player cannot change Live TV picture mode."

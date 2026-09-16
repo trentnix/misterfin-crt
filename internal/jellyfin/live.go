@@ -130,8 +130,11 @@ func (c *Client) closeLive(ctx context.Context, id string) error {
 
 // PrepareLive wraps Jellyfin's tuner negotiation in an owned stream. The tuner
 // identity stays in this adapter for reporting and release.
-func (c *Client) PrepareLive(ctx context.Context, item string, frameRate float64) (media.PreparedStream, error) {
-	live, err := c.openLive(ctx, item, frameRate)
+func (c *Client) PrepareLive(ctx context.Context, request media.LiveRequest) (media.PreparedStream, error) {
+	if request.AudioIndex != -1 {
+		return media.PreparedStream{}, errors.New("Live TV audio selection is not available")
+	}
+	live, err := c.openLive(ctx, request.ChannelID, request.MaxFrameRate)
 	if err != nil {
 		return media.PreparedStream{}, err
 	}

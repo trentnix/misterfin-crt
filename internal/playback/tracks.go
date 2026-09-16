@@ -24,6 +24,7 @@ type VideoTracks struct {
 	SourceID        string
 	Streams         []media.MediaStream
 	ClientSubtitles bool
+	LiveAudio       bool // Server supports selecting another live audio track.
 	LivePicture     bool // Decoder supports changing fit without replacing the stream.
 }
 

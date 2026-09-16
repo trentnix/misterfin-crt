@@ -110,7 +110,7 @@ func (c *PlaybackController) Key(key control.Action, now time.Time) {
 		return
 	}
 	if c.seekPhase != seekInactive && key != control.Back && key != control.ToggleControls {
-		if key == control.SeekBackward || key == control.SeekForward {
+		if !media.IsLive(c.item) && (key == control.SeekBackward || key == control.SeekForward) {
 			c.retargetSeek(key, now)
 		}
 		return

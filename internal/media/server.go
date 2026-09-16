@@ -80,9 +80,18 @@ type Progress interface {
 	SavePlaybackPosition(context.Context, string, int64, bool) error
 }
 
+// LiveRequest describes one live-edge stream. AudioIndex is an index from a
+// preceding preparation's Streams, or -1 to use the server default. Adapters
+// must resolve the index against fresh tuner metadata before selecting it.
+type LiveRequest struct {
+	ChannelID    string
+	MaxFrameRate float64
+	AudioIndex   int
+}
+
 // LiveTV is an optional capability for negotiating tuner streams.
 type LiveTV interface {
-	PrepareLive(context.Context, string, float64) (PreparedStream, error)
+	PrepareLive(context.Context, LiveRequest) (PreparedStream, error)
 }
 
 // RemoteCatalog is an optional capability for resolving remote playback queues.
@@ -98,6 +107,7 @@ type RemoteCatalog interface {
 type PreparedStream struct {
 	URL, SessionID, SourceID string
 	Streams                  []MediaStream
+	LiveAudio                bool // The server can select audio on subsequent live preparations.
 	Limits                   StreamLimits
 	Reports                  Progress
 	Release                  func(context.Context) error

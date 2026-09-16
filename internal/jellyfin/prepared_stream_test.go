@@ -110,7 +110,7 @@ func TestPreparedLiveStreamRetainsPrivateTunerOwnership(t *testing.T) {
 	defer server.Close()
 	var service media.LiveTV = NewClient(Config{Server: server.URL}, Session{})
 	ctx, cancel := context.WithCancel(t.Context())
-	stream, err := service.PrepareLive(ctx, "channel", 30000.0/1001)
+	stream, err := service.PrepareLive(ctx, media.LiveRequest{ChannelID: "channel", MaxFrameRate: 30000.0 / 1001, AudioIndex: -1})
 	cancel()
 	if err != nil {
 		t.Fatal(err)

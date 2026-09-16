@@ -38,14 +38,17 @@ func TestLiveTVAspectFallbackAndMetadata(t *testing.T) {
 }
 
 func TestHardwareVideoSynchronization(t *testing.T) {
-	for _, tc := range []struct{ kind, autosync string }{
-		{"Movie", "30"}, {"Episode", "30"}, {"TvChannel", "1"},
+	for _, tc := range []struct{ kind, autosync, cacheMinimum string }{
+		{"Movie", "30", "20"}, {"Episode", "30", "20"}, {"TvChannel", "1", "0"}, {"LiveTvChannel", "1", "0"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			args := Decoder{Width: 640, Height: 240, Device: "/dev/fb0"}.Args(jellyfin.Item{Type: tc.kind}, "")
 			joined := " " + strings.Join(args, " ") + " "
 			if !strings.Contains(joined, " -framedrop ") || !strings.Contains(joined, " -autosync "+tc.autosync+" ") {
 				t.Fatalf("missing hardware synchronization policy: %v", args)
+			}
+			if !strings.Contains(joined, " -cache 8192 ") || !strings.Contains(joined, " -cache-min "+tc.cacheMinimum+" ") {
+				t.Fatalf("incorrect startup buffering policy: %v", args)
 			}
 			if strings.Contains(joined, " -fps ") || strings.Contains(joined, " -speed ") {
 				t.Fatalf("hardware playback must respect stream timing: %v", args)

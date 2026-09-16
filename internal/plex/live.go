@@ -31,11 +31,15 @@ type liveVideo struct {
 		AspectRatio   json.Number
 		Width, Height int
 		Part          []struct {
+			ID      identifier
 			Streams []struct {
-				Type            int `json:"streamType"`
-				Index           int
-				Codec, Language string
-				Width, Height   int
+				ID                  identifier
+				Type                int `json:"streamType"`
+				Index               int
+				Codec, Language     string
+				Title, DisplayTitle string
+				Selected            bool
+				Width, Height       int
 			} `json:"Stream"`
 		} `json:"Part"`
 	} `json:"Media"`
@@ -44,13 +48,17 @@ type liveVideo struct {
 // PrepareLive tunes a channel at the live edge using the same conversion limits
 // as recorded video. Tuner identities and reporting remain inside this adapter.
 // A canceled or failed preparation releases the consumer before returning.
-func (c *Client) PrepareLive(ctx context.Context, id string, frameRate float64) (prepared media.PreparedStream, resultErr error) {
+func (c *Client) PrepareLive(ctx context.Context, request media.LiveRequest) (prepared media.PreparedStream, resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return prepared, err
 	}
-	dvr, channel, err := parseChannelID(id)
+	dvr, channel, err := parseChannelID(request.ChannelID)
 	if err != nil {
 		return prepared, err
+	}
+	frameRate := request.MaxFrameRate
+	if request.AudioIndex < -1 {
+		return prepared, errors.New("invalid Live TV audio selection")
 	}
 	if frameRate <= 0 || frameRate > 120 || math.IsNaN(frameRate) || math.IsInf(frameRate, 0) {
 		return prepared, errors.New("invalid Plex Live TV frame-rate limit")
@@ -70,9 +78,9 @@ func (c *Client) PrepareLive(ctx context.Context, id string, frameRate float64) 
 	// Finish bounded negotiation after cancellation so Plex cannot create a tuner
 	// consumer after its cleanup. The operation ID is also known before the POST,
 	// allowing cleanup after malformed replies or lost responses.
-	negotiation, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	negotiation, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	data, err := c.request(negotiation, "POST", "/livetv/dvrs/"+dvr+"/channels/"+url.PathEscape(channel)+"/tune", live.identity())
+	data, err := live.tune(negotiation, dvr, channel)
 	if ctx.Err() != nil {
 		return prepared, ctx.Err()
 	}
@@ -80,6 +88,10 @@ func (c *Client) PrepareLive(ctx context.Context, id string, frameRate float64) 
 		return prepared, err
 	}
 	video, err := tunedVideo(data)
+	if err != nil {
+		return prepared, err
+	}
+	liveAudio, err := c.selectLiveAudio(ctx, video, request.AudioIndex, live.identity())
 	if err != nil {
 		return prepared, err
 	}
@@ -99,7 +111,7 @@ func (c *Client) PrepareLive(ctx context.Context, id string, frameRate float64) 
 			if kind == "" {
 				continue
 			}
-			track := media.MediaStream{Type: kind, Index: s.Index, Codec: s.Codec, Language: s.Language, Width: s.Width, Height: s.Height}
+			track := media.MediaStream{Type: kind, Index: s.Index, Codec: s.Codec, Language: s.Language, Title: s.Title, DisplayTitle: s.DisplayTitle, IsDefault: s.Selected, Width: s.Width, Height: s.Height}
 			if kind == "Video" && (track.Width == 0 || track.Height == 0) {
 				track.Width, track.Height = source.Width, source.Height
 			}
@@ -111,7 +123,24 @@ func (c *Client) PrepareLive(ctx context.Context, id string, frameRate float64) 
 			streams = append(streams, track)
 		}
 	}
-	return media.PreparedStream{URL: c.Config.Server + "/video/:/transcode/universal/start.mkv?" + q.Encode(), SessionID: session, SourceID: source.UUID, Streams: streams, Limits: limits, Reports: live, Release: live.release}, nil
+	return media.PreparedStream{URL: c.Config.Server + "/video/:/transcode/universal/start.mkv?" + q.Encode(), SessionID: session, SourceID: source.UUID, Streams: streams, LiveAudio: liveAudio, Limits: limits, Reports: live, Release: live.release}, nil
+}
+
+// tune uses the negotiation deadline instead of the metadata client's shorter
+// timeout. Plex Web also allows 30 seconds for tuner startup. The caller must
+// provide a bounded context and release this consumer after a failed request.
+func (p livePlayback) tune(ctx context.Context, dvr, channel string) ([]byte, error) {
+	client := *p.client.HTTP
+	client.Timeout = 0
+	started := time.Now()
+	data, status, err := p.client.fetch(ctx, &client, p.client.Config.Server, p.client.Session.Token,
+		"POST", "/livetv/dvrs/"+dvr+"/channels/"+url.PathEscape(channel)+"/tune", p.identity())
+	// Log the operation without server, channel, or consumer identifiers.
+	p.client.Diagnostics.Request("POST", "/livetv/dvrs/:dvr/channels/:channel/tune", status, time.Since(started), int64(len(data)), err != nil)
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, errors.New("Plex did not finish tuning this channel within 30 seconds. Try again")
+	}
+	return data, err
 }
 
 // tunedVideo normalizes the two tune envelopes without trusting returned URLs.

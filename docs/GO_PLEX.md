@@ -49,11 +49,13 @@ Plex resizes original photos to the viewer dimensions, preserves aspect ratio, a
 
 ## Live TV
 
-A Live TV carousel card appears when the linked account can access enabled channels on a Plex DVR. Select the card to open the channel list. Selecting a channel starts playback immediately. Back stops playback and returns to that list. Original/Zoom, buffering feedback, controls, and decoded closed captions use the same UX as Jellyfin. Seeking, timeshift, and alternate audio-track selection remain unavailable.
+A Live TV carousel card appears when the linked account can access enabled channels on a Plex DVR. Select the card to open the channel list. Selecting a channel starts playback immediately. Back stops playback and returns to that list. Original/Zoom, buffering feedback, controls, and decoded closed captions use the same UX as Jellyfin. Seeking and timeshift remain unavailable.
+
+When a tuned channel exposes selectable audio alternatives, View → Audio lists them with Plex’s labels. Changing audio briefly reloads at the live edge while keeping picture mode and the captions setting. Plex resolves each choice against the new session’s stream IDs before conversion. The choice applies to the current playback and is not saved in the client. Plex may remember the per-user selection.
 
 Channels come from enabled DVR mappings, with duplicate tuner mappings removed and channel numbers sorted naturally. Protected channels are omitted when the tuner identifies them. Guide names, logos, and current program titles are optional. Without a guide, the list uses tuner names or channel numbers. A full schedule grid, recording controls, and Plex's free online Live TV service are not included.
 
-Tuning uses the existing `media.LiveTV` interface. Each attempt owns a unique Plex consumer and conversion session. Stopping, canceling, or failing playback releases both without canceling another client's consumer or a DVR recording. Conversion uses the configured dimensions and bitrate, capped at 30 fps for 240p, 30000/1001 fps for 480i, or 25 fps for PAL, matching the shared output cadence policy.
+Tuning uses the existing `media.LiveTV` interface. Tuner startup has its own 30-second deadline, matching Plex Web, rather than the 15-second metadata timeout. Diagnostics identify tune requests without logging private channel or consumer IDs. Each attempt owns a unique Plex consumer and conversion session. Stopping, canceling, or failing playback releases both without canceling another client's consumer or a DVR recording. Conversion uses the configured dimensions and bitrate, capped at 30 fps for 240p, 30000/1001 fps for 480i, or 25 fps for PAL, matching the shared output cadence policy.
 
 Live validation against the configured HDHomeRun found 29 enabled channels and decoded channel 2.1 through the Ghostty helper, including EIA-608 caption text. The installed MiSTer MPlayer decoded 180 frames offscreen at 640×360 and 29.970 fps. Automated tests cover missing guide data, paging, source geometry, isolated ownership, cancellation, and failed preparation.
 

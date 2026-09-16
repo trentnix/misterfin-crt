@@ -60,12 +60,16 @@ func (d Decoder) Args(item media.Item, source string) []string {
 	// Match the C player's audio-clock correction. Recorded video smooths ALSA
 	// delay measurements. Live TV reacts sooner to broadcast timing changes.
 	autosync := "30"
+	cacheMinimum := "20"
 	decodeOptions := "threads=2:fast"
 	if media.IsLive(item) {
+		// Live sources can fill the cache too slowly to meet the startup deadline.
+		// Let demuxing begin with available bytes, retaining the cache for read-ahead.
+		cacheMinimum = "0"
 		autosync = "1"
 		decodeOptions += ":misterfin-captions"
 	}
-	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + d.Device, "-ao", "alsa", "-osdlevel", "0", "-framedrop", "-autosync", autosync, "-demuxer", "lavf", "-cache", "8192", "-cache-min", "20", "-sws", "0", "-vf", filter, "-lavdopts", decodeOptions, "-af", "volume=-3", source}
+	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + d.Device, "-ao", "alsa", "-osdlevel", "0", "-framedrop", "-autosync", autosync, "-demuxer", "lavf", "-cache", "8192", "-cache-min", cacheMinimum, "-sws", "0", "-vf", filter, "-lavdopts", decodeOptions, "-af", "volume=-3", source}
 }
 
 // Pause sends MPlayer's toggle command. The paused argument is not encoded.
