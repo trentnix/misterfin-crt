@@ -57,7 +57,9 @@ func (d *device) labels(keys [96]byte) control.Labels {
 				if d.bindings.Replace {
 					continue
 				}
-				if d.triggers[code] != nil {
+				if axis := d.axes[code]; axis != nil {
+					binding = axis.binding
+				} else if d.triggers[code] != nil {
 					binding = Axis{Positive: triggerKey(code)}
 				} else if code == 16 && d.hats[0] {
 					binding = Axis{Negative: control.Previous, Positive: control.Next}
@@ -100,12 +102,12 @@ func axisLabel(code uint16, positive bool) string {
 		return "LT"
 	case 5, 9:
 		return "RT"
-	case 16:
+	case 0, 16:
 		if positive {
 			return "Right"
 		}
 		return "Left"
-	case 17:
+	case 1, 17:
 		if positive {
 			return "Down"
 		}
