@@ -74,7 +74,7 @@ Media response headers have a 60-second timeout. Back and replacement seeks canc
 
 ## Live TV
 
-Selecting a channel tunes it directly. Stop, completion, or failure returns to that channel in the list. Jellyfin negotiates the tuner and transcode through `PlaybackInfo`. The client releases the tuner after stop or failure, including cancellation during negotiation. Live channels do not write movie resume or watched state.
+Selecting a channel tunes it directly. Stop, completion, or failure returns to that channel in the list. Jellyfin negotiates the tuner and transcode through `PlaybackInfo`. Plex discovers enabled DVR channels and tunes a separate consumer through its [Live TV adapter](GO_PLEX.md#live-tv). The client releases the tuner after stop or failure, including cancellation during negotiation. Live channels do not write movie resume or watched state.
 
 MiSTer and inline Ghostty support Original/Zoom and locally decoded captions. Reopening a channel resets picture mode to Original and captions to Off. Live TV has no seeking or timeshift support. Audio-track selection is not implemented. The tested Jellyfin transcode exposed only one audio stream, even where another client exposed alternate broadcast audio.
 

@@ -81,15 +81,19 @@ func Rejected(err error) bool {
 func (c *Client) headers(req *http.Request, token string) {
 	// Prepared stream URLs carry the playback identity through the shared stream
 	// interface. Plex requires this identity in a header, including timeline calls.
-	q := req.URL.Query()
-	if session := q.Get("X-Plex-Session-Identifier"); session != "" {
-		req.Header.Set("X-Plex-Session-Identifier", session)
-		q.Del("X-Plex-Session-Identifier")
-		req.URL.RawQuery = q.Encode()
-	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Plex-Product", "MiSTerFin CRT")
 	req.Header.Set("X-Plex-Client-Identifier", c.Session.DeviceID)
+	q := req.URL.Query()
+	// Live TV also has a per-attempt consumer identity. It prevents late cleanup
+	// from canceling a newly tuned channel belonging to the same installation.
+	for _, name := range []string{"X-Plex-Session-Identifier", "X-Plex-Client-Identifier"} {
+		if value := q.Get(name); value != "" {
+			req.Header.Set(name, value)
+			q.Del(name)
+		}
+	}
+	req.URL.RawQuery = q.Encode()
 	req.Header.Set("X-Plex-Version", c.Version)
 	req.Header.Set("X-Plex-Device", "MiSTer")
 	req.Header.Set("X-Plex-Platform", "Linux")

@@ -40,6 +40,8 @@ func testClient(t *testing.T, handler http.HandlerFunc) *Client {
 func TestLibraryHierarchyAndPagination(t *testing.T) {
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/livetv/dvrs":
+			fmt.Fprint(w, `{"MediaContainer":{"Dvr":[]}}`)
 		case "/library/sections":
 			fmt.Fprint(w, `{"MediaContainer":{"Directory":[{"key":"1","title":"Nostalgia","type":"movie"},{"key":"2","title":"Series","type":"show"}]}}`)
 		case "/library/sections/1/all":
@@ -423,7 +425,7 @@ func TestLibraryAndContinueScope(t *testing.T) {
 		}
 	})
 	libraries, err := c.Libraries(t.Context())
-	if err != nil || len(libraries.Items) != 2 || libraries.Items[1].CollectionType != "music" {
+	if err != nil || len(libraries.Items) != 3 || libraries.Items[1].CollectionType != "music" || libraries.Items[2].CollectionType != "photos" {
 		t.Fatalf("libraries: %+v %v", libraries, err)
 	}
 	page, err := c.ContinueWatching(t.Context())

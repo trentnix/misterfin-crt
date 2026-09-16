@@ -39,7 +39,25 @@ type container struct {
 	Offset      int        `json:"offset"`
 	Directories []metadata `json:"Directory"`
 	Metadata    []metadata `json:"Metadata"`
+	Photos      []metadata `json:"Photo"`
 }
+
+// entries normalizes Plex's item containers. Directory records with type photo
+// are albums. Navigation shortcuts without a ratingKey are not media items.
+func (c *container) entries() []metadata {
+	entries := append([]metadata(nil), c.Metadata...)
+	for _, entry := range c.Directories {
+		if entry.ID == "" {
+			continue
+		}
+		if entry.Type == "photo" {
+			entry.Type = "photoalbum"
+		}
+		entries = append(entries, entry)
+	}
+	return append(entries, c.Photos...)
+}
+
 type metadata struct {
 	ID               identifier `json:"ratingKey"`
 	Key              string     `json:"key"`
@@ -104,8 +122,12 @@ type stream struct {
 
 func (m metadata) item() media.Item {
 	item := media.Item{ID: string(m.ID), Name: m.Title, Overview: m.Summary, ProductionYear: m.Year, RunTimeTicks: m.Duration * 10000, IndexNumber: m.Index, ParentIndexNumber: m.ParentIndex, ChildCount: m.ChildCount, RecursiveItemCount: m.LeafCount, CommunityRating: m.Rating, ImageTags: make(map[string]string)}
-	item.Type = map[string]string{"movie": "Movie", "show": "Series", "season": "Season", "episode": "Episode", "clip": "Video", "artist": "MusicArtist", "album": "MusicAlbum", "track": "Audio"}[m.Type]
-	item.IsFolder = m.Type == "show" || m.Type == "season" || m.Type == "artist" || m.Type == "album"
+	item.Type = map[string]string{"movie": "Movie", "show": "Series", "season": "Season", "episode": "Episode", "clip": "Video", "artist": "MusicArtist", "album": "MusicAlbum", "track": "Audio", "photo": "Photo", "photoalbum": "PhotoAlbum"}[m.Type]
+	// JSON Metadata can also encode albums as photo with a children endpoint.
+	if m.Type == "photo" && strings.HasSuffix(m.Key, "/children") {
+		item.Type = "PhotoAlbum"
+	}
+	item.IsFolder = item.Type == "PhotoAlbum" || m.Type == "show" || m.Type == "season" || m.Type == "artist" || m.Type == "album"
 	if item.Type == "" {
 		item.Type = "Folder"
 		item.IsFolder = true
@@ -117,10 +139,20 @@ func (m metadata) item() media.Item {
 		item.UserData.LastPlayedDate = &at
 	}
 	thumb := m.Thumb
-	if thumb == "" {
+	if item.Type == "Photo" {
+		// Resize the original photo through Plex instead of enlarging a thumbnail
+		// or downloading a full-resolution image into the framebuffer client.
+		for _, v := range m.Media {
+			if len(v.Part) == 1 && v.Part[0].Key != "" {
+				thumb = v.Part[0].Key
+				break
+			}
+		}
+	}
+	if thumb == "" && item.Type != "Photo" {
 		thumb = m.ParentThumb
 	}
-	if thumb == "" {
+	if thumb == "" && item.Type != "Photo" {
 		thumb = m.GrandparentThumb
 	}
 	if thumb != "" {

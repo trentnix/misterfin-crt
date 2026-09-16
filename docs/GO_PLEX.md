@@ -1,6 +1,6 @@
 # Experimental Plex support
 
-The first Plex adapter supports account linking, movie, TV, and music libraries, seasons and episodes, Continue Watching, artwork, and playback. It uses the existing browser, controls, picture modes, and output implementations. Jellyfin remains the default.
+The first Plex adapter supports account linking, movie, TV, music, and photo libraries, seasons and episodes, Continue Watching, artwork, playback, and tuner-backed Live TV. It uses the existing browser, controls, picture modes, and output implementations. Jellyfin remains the default.
 
 ## Run locally
 
@@ -39,10 +39,36 @@ Music uses artist → album → track navigation, ordered album queues, and whol
 
 Validation covered saved sign-in, library and series navigation, Continue Watching, artwork, music queues and decoding, and overlapping video streams during seeking against a local Plex server. Basic MiSTer playback has also been tested. Sustained Plex playback smoothness still needs validation. The shared transcode limits apply to both providers. Jellyfin's MPEG-2 codec selection does not apply to Plex.
 
-Photos, multi-file videos, Plex Home profile switching, server discovery, Live TV, and Plex remote control are not implemented. Photo libraries are omitted. The linked account determines library access. Account avatars and profile-selection UX remain future work.
+Multi-file videos, Plex Home profile switching, server discovery, and Plex remote control are not implemented. The linked account determines library access. Account avatars and profile-selection UX remain future work.
+
+## Photos
+
+Photo libraries use their Plex names in the carousel. Open an album or folder, then select a photo to use the existing viewer. Previous/next skips folders and videos. Up toggles the controls, and Back returns to the containing list. Automatic slideshow playback is not implemented. Video clips within photo libraries use normal video playback.
+
+Plex resizes original photos to the viewer dimensions, preserves aspect ratio, and applies EXIF orientation. The client bounds image downloads and decoding. Missing or invalid images show the existing retry message. Photos use the shared memory cache. Album artwork and carousel mosaics use the existing disk caches. No new settings or output-specific code are required.
+
+## Live TV
+
+A Live TV carousel card appears when the linked account can access enabled channels on a Plex DVR. Select the card to open the channel list. Selecting a channel starts playback immediately. Back stops playback and returns to that list. Original/Zoom, buffering feedback, controls, and decoded closed captions use the same UX as Jellyfin. Seeking, timeshift, and alternate audio-track selection remain unavailable.
+
+Channels come from enabled DVR mappings, with duplicate tuner mappings removed and channel numbers sorted naturally. Protected channels are omitted when the tuner identifies them. Guide names, logos, and current program titles are optional. Without a guide, the list uses tuner names or channel numbers. A full schedule grid, recording controls, and Plex's free online Live TV service are not included.
+
+Tuning uses the existing `media.LiveTV` interface. Each attempt owns a unique Plex consumer and conversion session. Stopping, canceling, or failing playback releases both without canceling another client's consumer or a DVR recording. Conversion uses the configured dimensions and bitrate, capped at 30 fps for 240p, 30000/1001 fps for 480i, or 25 fps for PAL, matching the shared output cadence policy.
+
+Live validation against the configured HDHomeRun found 29 enabled channels and decoded channel 2.1 through the Ghostty helper, including EIA-608 caption text. The installed MiSTer MPlayer decoded 180 frames offscreen at 640×360 and 29.970 fps. Automated tests cover missing guide data, paging, source geometry, isolated ownership, cancellation, and failed preparation.
+
+## Other library types
+
+| Type | Status |
+| --- | --- |
+| Movies and TV shows | Supported, including recorded TV stored in ordinary libraries. |
+| Music | Supported, including album queues and shuffle. |
+| Other Videos | Uses Plex's movie/clip types and the existing video path. No separate backend is needed. |
+| Photos | Supported, including album folders and previous/next navigation. |
+| Collections and playlists | Dedicated browsing is deferred. These are organizational features, not library types. |
 
 ## Code boundaries
 
 [Application assembly](../cmd/misterfin-crt/server.go) selects a [`connection.Connector`](../internal/connection/connector.go). [`plex.Connector`](../internal/plex/connector.go) links the account and returns a [`media.Server`](../internal/media/server.go) implemented by `plex.Client`. Plex endpoints, response types, and transcode policy stay in [`internal/plex`](../internal/plex). Neither the browser nor the renderer imports the adapter.
 
-[`serverstate`](../internal/serverstate/session.go) supplies private, atomic session storage to both adapters. The existing catalog and playback contracts cover both video and music. Provider-specific additions stay in the adapter.
+[`serverstate`](../internal/serverstate/session.go) supplies private, atomic session storage to both adapters. The existing catalog and playback contracts cover video and music. `media.Artwork.Photo` supplies images to the shared photo viewer. The optional `media.LiveTV` contract covers tuner negotiation. [`live_channels.go`](../internal/plex/live_channels.go) discovers channels, [`live.go`](../internal/plex/live.go) owns tuner consumers, and [`transcode.go`](../internal/plex/transcode.go) shares conversion policy with recorded video. Provider-specific additions stay in the adapter.

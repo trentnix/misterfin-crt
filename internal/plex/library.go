@@ -5,12 +5,13 @@ import (
 	"errors"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"misterfin-crt/internal/media"
 )
 
-// Libraries lists supported personal-media sections in server order.
-// Plex's online catalog and tuner providers are separate APIs, not libraries.
+// Libraries lists personal-media sections, then Live TV when accessible tuner
+// channels exist. An unavailable optional tuner does not hide personal libraries.
 func (c *Client) Libraries(ctx context.Context) (media.Page, error) {
 	var response containerResponse
 	if err := c.json(ctx, "/library/sections", nil, &response); err != nil {
@@ -21,7 +22,7 @@ func (c *Client) Libraries(ctx context.Context) (media.Page, error) {
 	}
 	result := media.Page{Items: []media.Item{}}
 	for _, section := range response.Container.Directories {
-		collection := map[string]string{"movie": "movies", "show": "tvshows", "artist": "music"}[section.Type]
+		collection := map[string]string{"movie": "movies", "show": "tvshows", "artist": "music", "photo": "photos"}[section.Type]
 		if collection == "" {
 			continue
 		}
@@ -29,6 +30,12 @@ func (c *Client) Libraries(ctx context.Context) (media.Page, error) {
 			return media.Page{}, errors.New("invalid Plex library ID")
 		}
 		result.Items = append(result.Items, media.Item{ID: "library:" + section.Key, Name: section.Title, Type: "CollectionFolder", CollectionType: collection, IsFolder: true})
+	}
+	if channels, err := c.liveChannels(ctx); err == nil && len(channels) > 0 {
+		result.Items = append(result.Items, media.Item{ID: liveLibraryID, Name: "Live TV", CollectionType: "livetv", IsFolder: true})
+	}
+	if err := ctx.Err(); err != nil {
+		return media.Page{}, err
 	}
 	total := len(result.Items)
 	result.TotalRecordCount = &total
@@ -41,7 +48,7 @@ func (c *Client) List(ctx context.Context, loc media.Location, start, limit int)
 		return c.Libraries(ctx)
 	}
 	if loc.Kind == "livetv" {
-		return media.Page{}, errors.New("Plex Live TV is not supported yet")
+		return c.channelPage(ctx, start, limit)
 	}
 	path := ""
 	q := url.Values{}
@@ -79,14 +86,7 @@ func (c *Client) page(ctx context.Context, path string, q url.Values, start, lim
 		return media.Page{}, errors.New("invalid Plex item count")
 	}
 	result := media.Page{Items: []media.Item{}, TotalRecordCount: container.Total}
-	entries := container.Metadata
-	for _, entry := range container.Directories {
-		// Plex includes navigation shortcuts such as All episodes alongside
-		// seasons. They have a key but no ratingKey and are not media items.
-		if entry.ID != "" {
-			entries = append(entries, entry)
-		}
-	}
+	entries := container.entries()
 	for _, entry := range entries {
 		if !validID(string(entry.ID)) {
 			return media.Page{}, errors.New("invalid Plex item ID")
@@ -104,14 +104,21 @@ func (c *Client) metadata(ctx context.Context, id string) (metadata, error) {
 	if err := c.json(ctx, "/library/metadata/"+id, nil, &response); err != nil {
 		return metadata{}, err
 	}
-	if response.Container == nil || len(response.Container.Metadata) != 1 || string(response.Container.Metadata[0].ID) != id {
+	if response.Container == nil {
 		return metadata{}, errors.New("invalid Plex item details")
 	}
-	return response.Container.Metadata[0], nil
+	entries := response.Container.entries()
+	if len(entries) != 1 || string(entries[0].ID) != id {
+		return metadata{}, errors.New("invalid Plex item details")
+	}
+	return entries[0], nil
 }
 
 // Details returns one item's metadata, artwork references, and resume position.
 func (c *Client) Details(ctx context.Context, id string) (media.Item, error) {
+	if strings.HasPrefix(id, "live:") {
+		return c.channelDetails(ctx, id)
+	}
 	entry, err := c.metadata(ctx, id)
 	if err != nil {
 		return media.Item{}, err
@@ -126,11 +133,19 @@ func (c *Client) PlaybackDetails(ctx context.Context, id string) (media.Item, er
 
 // LibraryCount reports the same top-level item count as opening the library.
 func (c *Client) LibraryCount(ctx context.Context, item media.Item) (*int, error) {
-	page, err := c.List(ctx, media.Location{Kind: "items", ParentID: item.ID}, 0, 1)
+	page, err := c.List(ctx, libraryLocation(item), 0, 1)
 	return page.TotalRecordCount, err
 }
 
 // Mosaic obtains a small, deterministic cover sample for the library collage.
 func (c *Client) Mosaic(ctx context.Context, item media.Item) (media.Page, error) {
-	return c.List(ctx, media.Location{Kind: "items", ParentID: item.ID}, 0, 12)
+	return c.List(ctx, libraryLocation(item), 0, 12)
+}
+
+// libraryLocation keeps synthetic Live TV out of personal-library endpoints.
+func libraryLocation(item media.Item) media.Location {
+	if item.CollectionType == "livetv" || item.ID == liveLibraryID {
+		return media.Location{Kind: "livetv"}
+	}
+	return media.Location{Kind: "items", ParentID: item.ID}
 }

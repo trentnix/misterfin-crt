@@ -3,7 +3,6 @@ package plex
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -59,43 +58,13 @@ func (c *Client) PrepareVideo(ctx context.Context, request media.VideoRequest) (
 	if _, err := c.request(ctx, "PUT", "/library/parts/"+partID, q); err != nil {
 		return media.PreparedStream{}, err
 	}
-	width, height, bitrate := c.Config.MaxWidth, c.Config.MaxHeight, c.Config.VideoBitrate
-	if width == 0 {
-		width = 720
-	}
-	if height == 0 {
-		height = 576
-	}
-	if bitrate == 0 {
-		bitrate = 12000000
-	}
-	fps := 25
+	fps := 25.0
 	if ntsc {
 		fps = 30
 	}
-	// Plex does not supply the MPEG-2 encoder used by the Jellyfin adapter.
-	profile := "add-transcode-target(type=videoProfile&context=streaming&protocol=http&container=mkv&videoCodec=h264&audioCodec=mp3&replace=true)" +
-		"+add-limitation(scope=videoCodec&scopeName=h264&type=upperBound&name=video.frameRate&value=" + strconv.Itoa(fps) + "&replace=true)"
-	q = url.Values{
-		"path":                        {"/library/metadata/" + item.ID},
-		"mediaIndex":                  {index},
-		"partIndex":                   {"0"},
-		"protocol":                    {"http"},
-		"directPlay":                  {"0"},
-		"directStream":                {"0"},
-		"directStreamAudio":           {"0"},
-		"fastSeek":                    {"1"},
-		"location":                    {"lan"},
-		"offset":                      {strconv.FormatFloat(float64(max(0, start))/10000000, 'f', 7, 64)},
-		"videoResolution":             {fmt.Sprintf("%dx%d", width, height)},
-		"videoBitrate":                {strconv.Itoa(bitrate / 1000)},
-		"maxVideoBitrate":             {strconv.Itoa(bitrate / 1000)},
-		"audioBoost":                  {"100"},
-		"session":                     {session},
-		"X-Plex-Session-Identifier":   {session},
-		"X-Plex-Client-Profile-Name":  {"Generic"},
-		"X-Plex-Client-Profile-Extra": {profile},
-		"subtitles":                   {"none"}}
+	q, limits := c.videoQuery("/library/metadata/"+item.ID, session, fps)
+	q.Set("mediaIndex", index)
+	q.Set("offset", strconv.FormatFloat(float64(max(0, start))/10000000, 'f', 7, 64))
 	if burn >= 0 {
 		q.Set("subtitles", "burn")
 		q.Set("advancedSubtitles", "burn")
@@ -105,22 +74,14 @@ func (c *Client) PrepareVideo(ctx context.Context, request media.VideoRequest) (
 	// Without this decision request Plex rejects an explicit session identity.
 	// Omitting the identity lets an old timeline stop terminate a replacement
 	// stream during seeking, even when the transcode session IDs differ.
-	var decision struct {
-		Container *struct {
-			Code int `json:"generalDecisionCode"`
-		} `json:"MediaContainer"`
-	}
-	if err := c.json(ctx, "/video/:/transcode/universal/decision", q, &decision); err != nil {
+	if err := c.decideVideo(ctx, q); err != nil {
 		return media.PreparedStream{}, err
-	}
-	if decision.Container == nil || decision.Container.Code < 1000 || decision.Container.Code >= 2000 {
-		return media.PreparedStream{}, errors.New("Plex cannot convert this video")
 	}
 	return media.PreparedStream{
 		URL:       c.Config.Server + "/video/:/transcode/universal/start.mkv?" + q.Encode(),
 		SessionID: session, SourceID: source,
 		Reports: playbackReports{client: c, duration: item.RunTimeTicks},
-		Limits:  media.StreamLimits{MaxWidth: float64(width), MaxHeight: float64(height), VideoBitrate: float64(bitrate), MaxFrameRate: float64(fps)},
+		Limits:  limits,
 		Release: func(ctx context.Context) error { return c.stopTranscode(ctx, session) }}, nil
 }
 

@@ -191,7 +191,7 @@ The harness builds the client automatically. See the [development harness guide]
 
 ## Experimental Plex support
 
-An experimental Plex implementation supports account linking, movie, TV, and music browsing, artwork, and playback through the existing UI. It is available on the development branch. Basic playback has been tested on Ghostty and MiSTer. See [configuration and limits](docs/GO_PLEX.md).
+An experimental Plex implementation supports account linking, movie, TV, music, and photo browsing, artwork, playback, and tuner-backed Live TV through the existing UI. It is available on the development branch. Basic playback has been tested on Ghostty and MiSTer. See [configuration and limits](docs/GO_PLEX.md).
 
 ## Deferred work
 
