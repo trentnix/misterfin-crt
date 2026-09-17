@@ -16,9 +16,9 @@ var errNoServers = errors.New("no Jellyfin servers found")
 
 // resolveConfig preserves explicit configuration, including its errors. Only a
 // missing legacy file permits a remembered selection or network discovery.
-func (c Connector) resolveConfig(ctx context.Context, interaction connection.Interaction) (jellyfin.Config, error) {
+func (c Connector) resolveConfig(ctx context.Context, interaction connection.Interaction) (jellyfin.Config, *connection.Server, error) {
 	if c.Config != nil {
-		return *c.Config, nil
+		return *c.Config, nil, nil
 	}
 	config := jellyfin.Config{Transcode: jellyfin.DefaultTranscodeProfile()}
 	err := os.ErrNotExist
@@ -26,35 +26,40 @@ func (c Connector) resolveConfig(ctx context.Context, interaction connection.Int
 		config, err = jellyfin.LoadConfig(c.ConfigPath)
 	}
 	if err == nil {
-		return config, nil
+		return config, nil, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) || c.Discovery == nil {
-		return config, &connectionError{connectionConfig, err}
+		return config, nil, &connectionError{connectionConfig, err}
 	}
 	path := filepath.Join(c.StateDir, "jellyfin-server.json")
 	var server connection.Server
+	var remembered *connection.Server
 	if !interaction.SelectServer {
 		server, err = serverstate.LoadServer(path)
+		if err == nil {
+			saved := server
+			remembered = &saved
+		}
 	}
 	if !interaction.SelectServer && err != nil && !errors.Is(err, os.ErrNotExist) {
-		return config, &connectionError{connectionServerStorage, err}
+		return config, nil, &connectionError{connectionServerStorage, err}
 	}
 	if interaction.SelectServer || errors.Is(err, os.ErrNotExist) {
 		interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Finding Jellyfin servers", Message: "Looking on your local network."})
 		servers, err := c.Discovery.Discover(ctx)
 		c.Diagnostics.Record("connection.discovery", slog.Int("servers", len(servers)), slog.Bool("failed", err != nil))
 		if err != nil {
-			return config, &connectionError{connectionDiscovery, err}
+			return config, nil, &connectionError{connectionDiscovery, err}
 		}
 		if len(servers) == 0 {
-			return config, &connectionError{connectionDiscovery, errNoServers}
+			return config, nil, &connectionError{connectionDiscovery, errNoServers}
 		}
 		if interaction.ChooseServer == nil {
-			return config, &connectionError{connectionDiscovery, errors.New("server selection is unavailable")}
+			return config, nil, &connectionError{connectionDiscovery, errors.New("server selection is unavailable")}
 		}
 		server, err = interaction.ChooseServer(ctx, servers)
 		if err != nil {
-			return config, err
+			return config, nil, err
 		}
 		// The UI must return an offered candidate, not an arbitrary address.
 		found := false
@@ -65,13 +70,13 @@ func (c Connector) resolveConfig(ctx context.Context, interaction connection.Int
 			}
 		}
 		if !found {
-			return config, &connectionError{connectionDiscovery, errors.New("invalid server selection")}
+			return config, nil, &connectionError{connectionDiscovery, errors.New("invalid server selection")}
 		}
 		if err := ctx.Err(); err != nil {
-			return config, err
+			return config, nil, err
 		}
 		if err := serverstate.SaveServer(path, server); err != nil {
-			return config, &connectionError{connectionServerStorage, err}
+			return config, nil, &connectionError{connectionServerStorage, err}
 		}
 	}
 	// A remembered discovery choice can be changed during sign-in too. Publish
@@ -80,5 +85,5 @@ func (c Connector) resolveConfig(ctx context.Context, interaction connection.Int
 	progress.BackToServers = true
 	interaction.Show(progress)
 	config.Server = server.URL
-	return config, nil
+	return config, remembered, nil
 }

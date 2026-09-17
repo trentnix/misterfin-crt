@@ -36,7 +36,8 @@ Each line is JSON with a timestamp and event name in `msg`.
 | `mister.display`, `.framebuffer`, `.setting`, `.settings` | Interlaced state, kernel framebuffer geometry, and allowlisted numeric INI settings. |
 | `update.start`, `.end`, `.recovered`, `.restart` | Installation start, completion flags for failure/cancellation/recovery, startup rollback, and a restart request after successful cleanup. No download URLs or raw errors. |
 | `configuration.fallback` | Logical setting, safe error category, and selected recovery behavior. |
-| `connection.discovery` | Discovered server count and failure flag. No server names or addresses. |
+| `connection.discovery`, `connection.rediscovery` | Discovered server count and failure flag for initial discovery or remembered-address recovery. No server names or addresses. |
+| `connection.address-recovered` | A confirmed new address was authenticated and saved successfully. No server names, addresses, or credentials. |
 | `authentication.session-recovered` | Damaged saved sign-in was backed up and replaced. No file contents or paths. |
 | `http.request`, `remote.socket` | Endpoint/status/timing or WebSocket connection result. No query strings or credentials. |
 | `browser.page`, `.home` | Accepted page/feed results, bounded identifiers, counts, and failures. |

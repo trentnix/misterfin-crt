@@ -12,8 +12,13 @@ import (
 	"path/filepath"
 )
 
-// Session belongs to one client installation and is bound to its server URL.
-type Session struct{ Server, DeviceID, Token, UserID string }
+// Session belongs to one client installation and records its server URL and
+// optional stable server identity. Tokens and device identifiers are private.
+type Session struct {
+	Server, DeviceID, Token, UserID string
+	// ServerID optionally binds sign-in to a stable, verified server identity.
+	ServerID string `json:",omitempty"`
+}
 
 // LoadSession restores sign-in for server or creates a new device identity.
 // A malformed or oversized record is preserved privately as session-damaged-*
@@ -21,7 +26,15 @@ type Session struct{ Server, DeviceID, Token, UserID string }
 // fresh sign-in. I/O and permission errors preserve the original and return an
 // error. Session records are limited to 64 KiB. Calls for one directory must be
 // serialized with SaveSession.
-func LoadSession(dir, server string) (session Session, recovered bool, err error) {
+func LoadSession(dir, server string) (Session, bool, error) {
+	return LoadSessionForServer(dir, server, "")
+}
+
+// LoadSessionForServer also accepts a matching stable server ID after an address
+// change. The returned Server remains the address recorded with the credentials.
+// Before sending them to a different address, the caller must verify that endpoint's
+// identity. Empty serverID retains strict URL matching. Storage rules match LoadSession.
+func LoadSessionForServer(dir, server, serverID string) (session Session, recovered bool, err error) {
 	path := filepath.Join(dir, "session.json")
 	f, err := os.Open(path)
 	if err == nil {
@@ -57,7 +70,7 @@ func LoadSession(dir, server string) (session Session, recovered bool, err error
 				return Session{}, false, e
 			}
 			recovered = true
-		} else if saved.Server == server && saved.DeviceID != "" {
+		} else if saved.DeviceID != "" && saved.matchesServer(server, serverID) {
 			return saved, false, nil
 		}
 	} else if !os.IsNotExist(err) {
@@ -91,4 +104,13 @@ func SaveSession(dir string, s Session) error {
 		return err
 	}
 	return os.Rename(f.Name(), filepath.Join(dir, "session.json"))
+}
+
+// matchesServer uses stable identity when both records supply it. Legacy and
+// explicitly configured connections retain their existing URL-only matching.
+func (s Session) matchesServer(server, id string) bool {
+	if id != "" && s.ServerID != "" {
+		return s.ServerID == id
+	}
+	return s.Server == server
 }

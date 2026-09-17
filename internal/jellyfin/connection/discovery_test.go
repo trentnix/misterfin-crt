@@ -35,7 +35,7 @@ func TestDiscoverySelectionPersistsAndExplicitConfigurationWins(t *testing.T) {
 		return servers[1], nil
 	}}
 	for range 2 {
-		config, err := c.resolveConfig(t.Context(), interaction)
+		config, _, err := c.resolveConfig(t.Context(), interaction)
 		if err != nil || config.Server != second.URL || config.InsecureTLS {
 			t.Fatalf("selection: %#v %v", config, err)
 		}
@@ -47,18 +47,18 @@ func TestDiscoverySelectionPersistsAndExplicitConfigurationWins(t *testing.T) {
 	if err := os.WriteFile(c.ConfigPath, []byte("https://configured:8920\nINSECURE_TLS\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	config, err := c.resolveConfig(t.Context(), interaction)
+	config, _, err := c.resolveConfig(t.Context(), interaction)
 	if err != nil || config.Server != "https://configured:8920" || !config.InsecureTLS || scans != 1 {
 		t.Fatal("legacy config did not win")
 	}
 	if err := os.WriteFile(c.ConfigPath, []byte("invalid"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.resolveConfig(t.Context(), interaction); err == nil || scans != 1 {
+	if _, _, err := c.resolveConfig(t.Context(), interaction); err == nil || scans != 1 {
 		t.Fatal("invalid explicit config triggered discovery")
 	}
 	c.Config = &jellyfin.Config{Server: "https://json:8920"}
-	config, err = c.resolveConfig(t.Context(), interaction)
+	config, _, err = c.resolveConfig(t.Context(), interaction)
 	if err != nil || config.Server != c.Config.Server || scans != 1 {
 		t.Fatal("JSON config did not win")
 	}
@@ -92,7 +92,7 @@ func TestDiscoveryFailuresAndCancellationDoNotSaveSelection(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			_, err := c.resolveConfig(ctx, connection.Interaction{ChooseServer: func(context.Context, []connection.Server) (connection.Server, error) {
+			_, _, err := c.resolveConfig(ctx, connection.Interaction{ChooseServer: func(context.Context, []connection.Server) (connection.Server, error) {
 				if kind == "cancel" {
 					cancel()
 				}
@@ -207,7 +207,7 @@ func TestReselectServerPreservesSavedChoiceUntilSelection(t *testing.T) {
 				}
 				return []connection.Server{first, second}, nil
 			})}
-			config, err := c.resolveConfig(t.Context(), connection.Interaction{SelectServer: true, ChooseServer: func(context.Context, []connection.Server) (connection.Server, error) {
+			config, _, err := c.resolveConfig(t.Context(), connection.Interaction{SelectServer: true, ChooseServer: func(context.Context, []connection.Server) (connection.Server, error) {
 				if outcome == "cancel" {
 					return connection.Server{}, context.Canceled
 				}
@@ -227,7 +227,7 @@ func TestReselectServerPreservesSavedChoiceUntilSelection(t *testing.T) {
 				t.Fatalf("saved choice: %#v, error: %v, scans: %d", saved, loadErr, scans)
 			}
 			// New-code retries and later launches use the choice without rescanning.
-			config, err = c.resolveConfig(t.Context(), connection.Interaction{})
+			config, _, err = c.resolveConfig(t.Context(), connection.Interaction{})
 			if err != nil || config.Server != expected.URL || scans != 1 {
 				t.Fatal("normal retry did not reuse saved selection")
 			}

@@ -77,6 +77,10 @@ func (c *Client) Authorization() string {
 	return auth
 }
 
+// ErrServerUnavailable identifies a failed transport request without exposing
+// the URL or credentials. HTTP error statuses and invalid responses are distinct.
+var ErrServerUnavailable = errors.New("cannot reach Jellyfin (check address, TLS certificate, and connection)")
+
 // HTTPError reports a non-success HTTP status without retaining response bodies
 // or credential-bearing URLs.
 type HTTPError struct{ Status int }
@@ -130,7 +134,7 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, errors.New("cannot reach Jellyfin (check address, TLS certificate, and connection)")
+		return nil, ErrServerUnavailable
 	}
 	defer resp.Body.Close()
 	status = resp.StatusCode

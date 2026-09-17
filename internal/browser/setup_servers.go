@@ -18,7 +18,10 @@ func (r serverChoicesResult) apply(s *browserSession) bool {
 		return false
 	}
 	s.connection.choice = r.choice
-	s.setup = connection.Presentation{Kind: connection.SetupServers, Title: "Choose a server", Servers: r.servers}
+	if s.setup.Kind != connection.SetupServers {
+		s.setup = connection.Presentation{Kind: connection.SetupServers, Title: "Choose a server"}
+	}
+	s.setup.Servers, s.setup.Selected, s.setup.BackToServers = r.servers, 0, false
 	return true
 }
 

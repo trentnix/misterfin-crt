@@ -186,7 +186,7 @@ Use the configuration path of the installation being migrated. Migration preserv
 
 Explicit `diagnostics.enabled` wins over legacy `DEBUGLOG`. Existing server sections, backups, and files edited after loading cause migration to stop. Invalid connection settings fail before writing. Migration opens no display and contacts no server. Archive old configuration and any credential-bearing backup after verifying the new settings.
 
-The remembered discovery selection (`jellyfin-server.json` in the state directory), saved sign-in, playback preferences, and caches are application state and remain separate. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.
+The remembered discovery selection (`jellyfin-server.json` in the state directory), saved sign-in, playback preferences, and caches are application state and remain separate. Jellyfin sign-in can also record a stable server ID so [confirmed address recovery](GO_BROWSING.md#jellyfin-discovery) preserves credentials. Explicit server configuration remains authoritative. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.
 
 ## Saved sign-in recovery
 

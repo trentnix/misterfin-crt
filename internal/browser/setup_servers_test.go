@@ -272,3 +272,21 @@ func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 		})
 	}
 }
+
+func TestRecoveryChoiceKeepsExplanationAndCanBackOut(t *testing.T) {
+	s := testSession(t)
+	s.controller.running = false
+	s.config.ReturnConnectionID = "plex"
+	s.about.Connections = []connection.Choice{{ID: "plex", Name: "Plex"}}
+	s.handleAuthCode(authCodeResult{generation: 0, presentation: connection.Presentation{Kind: connection.SetupServers, Title: "Server address changed", Message: "Same server at a new address."}})
+	candidate := connection.Server{ID: "same", Name: "Server", URL: "http://new"}
+	(serverChoicesResult{generation: 0, servers: []connection.Server{candidate}, choice: make(chan connection.Server, 1)}).apply(s)
+	if s.setup.Title != "Server address changed" || s.setup.Message == "" || s.setup.BackToServers {
+		t.Fatal("recovery explanation or navigation changed")
+	}
+	s.handleKey(control.Back)
+	s.handleKey(control.Back)
+	if s.connectionChange == nil || s.connectionChange.ID != "plex" {
+		t.Fatal("Back could not leave recovery")
+	}
+}

@@ -174,3 +174,24 @@ func TestConnectionMenuLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoveryPromptLayout(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		s := Scene{Setup: SetupPresentation{Kind: SetupServers, Title: "Server address changed", Message: "Same server found at a new address.\nSelect to reconnect, or go back.", Servers: []connection.Server{{ID: "saved", Name: "Living room", URL: "http://192.168.1.208:8096"}}}, Controls: control.KeyboardLabels()}
+		s.About.Connections = []connection.Choice{{Name: "Jellyfin"}}
+		c := ui.New(640, height)
+		pixels := renderScene(c, nil, s, Animation{})
+		rows := controlRows(640, []controlHint{hint(s.Controls, control.Open, "Select"), hint(s.Controls, control.Select, "Scan again"), hint(s.Controls, control.About, "About"), hint(s.Controls, control.Back, "Back")})
+		bottom := height - 8 - safeY(640, height)
+		expected := ui.New(640, height)
+		expected.Rect(0, 0, 640, height, 0x0b0d13)
+		drawControls(expected, bottom, rows)
+		start := controlsTop(bottom, rows) * 640 * 4
+		if !bytes.Equal(pixels[start:], expected.Pixels[start:]) {
+			t.Fatal("recovery prompt overlaps controls")
+		}
+		if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+			writeSetupPreview(t, dir, fmt.Sprintf("recovery-%d.png", height), c)
+		}
+	}
+}

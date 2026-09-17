@@ -2,7 +2,7 @@ package jellyfin
 
 import "mistervision/internal/serverstate"
 
-// Session stores this installation's Jellyfin sign-in, bound to its server URL.
+// Session stores this installation's Jellyfin sign-in and server identity.
 type Session = serverstate.Session
 
 // LoadSession restores Jellyfin sign-in using the shared private session store.

@@ -18,6 +18,7 @@ const (
 	connectionAuthentication
 	connectionDiscovery
 	connectionServerStorage
+	connectionRecovery
 )
 
 // Describe translates Jellyfin failures into safe, actionable instructions.
@@ -34,6 +35,9 @@ func (c Connector) Describe(err error) connection.Presentation {
 	p := connection.Presentation{Kind: connection.SetupFailure, Retry: "Retry", Path: c.ConfigPath, PathLabel: "Configuration file",
 		Title: "Can't connect to Jellyfin", Message: "Check your server address and network connection.\nMake sure Jellyfin is running, then retry."}
 	switch {
+	case stage == connectionRecovery:
+		p.Title, p.Message = "Your Jellyfin server is unavailable", "Check that your server is running, then retry.\nYour saved server and sign-in have been kept."
+		p.Path = ""
 	case stage == connectionDiscovery:
 		p.Title, p.Message = "Can't find Jellyfin servers", "Check Jellyfin and your local network, then retry.\nOr set server.url in settings.json."
 		if errors.Is(err, errNoServers) {

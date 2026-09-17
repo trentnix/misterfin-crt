@@ -4,11 +4,13 @@ package connection
 
 import (
 	"context"
+	"errors"
 
 	"mistervision/internal/connection"
 	"mistervision/internal/diagnostics"
 	"mistervision/internal/jellyfin"
 	jellyfinremote "mistervision/internal/jellyfin/remote"
+	"mistervision/internal/serverstate"
 )
 
 // Connector uses explicit configuration or resolves a remembered/discovered
@@ -33,26 +35,56 @@ var _ connection.Connector = Connector{}
 // Connect authenticates an account and supplies its media and remote services.
 // Progress exposes only the public approval code, never the sign-in secret.
 func (c Connector) Connect(ctx context.Context, interaction connection.Interaction) (connection.Session, error) {
-	config, err := c.resolveConfig(ctx, interaction)
+	config, remembered, err := c.resolveConfig(ctx, interaction)
 	if err != nil {
 		return connection.Session{}, err
 	}
-	saved, recovered, err := jellyfin.LoadSession(c.StateDir, config.Server)
+	id := ""
+	if remembered != nil {
+		id = remembered.ID
+	}
+	saved, recovered, err := serverstate.LoadSessionForServer(c.StateDir, config.Server, id)
 	if err != nil {
 		return connection.Session{}, &connectionError{connectionSession, err}
 	}
+	client, err := c.authenticate(ctx, interaction, config, saved, recovered, id)
+	if err != nil && remembered != nil && errors.Is(err, jellyfin.ErrServerUnavailable) && ctx.Err() == nil {
+		client, err = c.recoverAddress(ctx, interaction, config, *remembered, saved, recovered)
+	}
+	if err != nil {
+		return connection.Session{}, err
+	}
+	return connection.Session{Server: client, Remote: jellyfinremote.New(client), Recovered: recovered}, nil
+}
+
+// authenticate validates a moved endpoint before using credentials from another
+// address. Stable identity metadata also makes interrupted address saves recoverable.
+func (c Connector) authenticate(ctx context.Context, interaction connection.Interaction, config jellyfin.Config, saved jellyfin.Session, recovered bool, id string) (*jellyfin.Client, error) {
+	if saved.Server != config.Server {
+		if err := jellyfin.VerifyServer(ctx, config.Server, id); err != nil {
+			return nil, &connectionError{connectionAuthentication, err}
+		}
+	}
+	changed := saved.Server != config.Server || saved.ServerID != id
+	saved.Server, saved.ServerID = config.Server, id
 	client := jellyfin.NewClient(config, saved)
 	client.Version, client.Diagnostics = c.Version, c.Diagnostics
 	if recovered {
 		c.Diagnostics.Record("authentication.session-recovered")
 	}
-	err = client.Authenticate(ctx, c.StateDir, func(code string) {
-		interaction.Show(approval(code, recovered))
-	})
+	err := client.Authenticate(ctx, c.StateDir, func(code string) { interaction.Show(approval(code, recovered)) })
 	if err != nil {
-		return connection.Session{}, &connectionError{connectionAuthentication, err}
+		return nil, &connectionError{connectionAuthentication, err}
 	}
-	return connection.Session{Server: client, Remote: jellyfinremote.New(client), Recovered: recovered}, nil
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if changed {
+		if err := jellyfin.SaveSession(c.StateDir, client.Session); err != nil {
+			return nil, &connectionError{connectionSession, err}
+		}
+	}
+	return client, nil
 }
 
 // connectionError retains the failed operation without adding sensitive text.

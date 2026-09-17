@@ -42,6 +42,10 @@ func (p *screenPainter) setup() {
 	bodyY := titleY + 28
 	switch s.Kind {
 	case SetupServers:
+		if s.Message != "" {
+			setupLines(c, bodyY, s.Message, 2)
+			bodyY += 28
+		}
 		setupServers(c, bodyY, bottom, s)
 	case SetupApproval:
 		setupLines(c, bodyY, message, 2)
