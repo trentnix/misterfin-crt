@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // triggerAxis converts an analog trigger into a held action. Separate press

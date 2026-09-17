@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 )
 
 func TestFFplayZoomCropMatchesSourceAspect(t *testing.T) {

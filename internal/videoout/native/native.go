@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/ui"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/platform"
+	"mistervision/internal/ui"
+	"mistervision/internal/videoout"
 )
 
 // OverlayPath is the shared publication path read by the patched MPlayer driver.
-const OverlayPath = "/tmp/misterfin_crt_overlay"
+const OverlayPath = "/tmp/mistervision_overlay"
 
 var overlayMagic = [8]byte{'M', 'F', 'G', 'O', 'O', 'V', '1', 0}
 

@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 // Frame supplies output-independent animation input. Levels are linear stereo

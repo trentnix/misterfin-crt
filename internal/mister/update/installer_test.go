@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/release"
-	updateapi "misterfin-crt/internal/update"
+	"mistervision/internal/release"
+	updateapi "mistervision/internal/update"
 )
 
 func testARM() []byte {
@@ -31,12 +31,12 @@ func testARM() []byte {
 
 func testPayload() map[string][]byte {
 	return map[string][]byte{
-		"misterfin-crt/misterfin-crt": testARM(), "misterfin-crt/mplayer-arm": testARM(),
-		"Scripts/MiSTerFin-CRT.sh": []byte("#!/bin/sh\n"),
-		"misterfin-crt/VERSION":    []byte("v0.2.0\n"), "misterfin-crt/UPDATE_FORMAT": []byte("1\n"),
-		"misterfin-crt/BUILD.txt": []byte("build"), "misterfin-crt/LICENSE": []byte("license"),
-		"misterfin-crt/THIRD_PARTY.md": []byte("notices"), "misterfin-crt/licenses/new.txt": []byte("new notice"),
-		"misterfin-crt/settings.example.json": []byte("{}"),
+		"mistervision/mistervision": testARM(), "mistervision/mplayer-arm": testARM(),
+		"Scripts/MiSTerVision.sh": []byte("#!/bin/sh\n"),
+		"mistervision/VERSION":    []byte("v0.2.0\n"), "mistervision/UPDATE_FORMAT": []byte("1\n"),
+		"mistervision/BUILD.txt": []byte("build"), "mistervision/LICENSE": []byte("license"),
+		"mistervision/THIRD_PARTY.md": []byte("notices"), "mistervision/licenses/new.txt": []byte("new notice"),
+		"mistervision/settings.example.json": []byte("{}"),
 	}
 }
 
@@ -83,10 +83,10 @@ func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) { retur
 func testInstaller(t *testing.T, archive []byte) (*Installer, map[string][]byte) {
 	t.Helper()
 	dir := t.TempDir()
-	app := filepath.Join(dir, "misterfin-crt")
-	launcher := filepath.Join(dir, "Scripts", "MiSTerFin-CRT.sh")
+	app := filepath.Join(dir, "mistervision")
+	launcher := filepath.Join(dir, "Scripts", "MiSTerVision.sh")
 	original := map[string][]byte{
-		filepath.Join(app, "misterfin-crt"):         []byte("old client"),
+		filepath.Join(app, "mistervision"):          []byte("old client"),
 		filepath.Join(app, "mplayer-arm"):           []byte("old player"),
 		launcher:                                    []byte("old launcher"),
 		filepath.Join(app, "VERSION"):               []byte("v0.1.0\n"),
@@ -108,7 +108,7 @@ func testInstaller(t *testing.T, archive []byte) (*Installer, map[string][]byte)
 			t.Error("credentials sent to release server")
 		}
 		if strings.HasSuffix(r.URL.Path, "/SHA256SUMS") {
-			fmt.Fprintf(w, "%x  misterfin-crt-v0.2.0-mister.zip\n", sha256.Sum256(archive))
+			fmt.Fprintf(w, "%x  mistervision-v0.2.0-mister.zip\n", sha256.Sum256(archive))
 		} else {
 			w.Write(archive)
 		}
@@ -250,19 +250,19 @@ func TestInvalidArchivesLeaveInstallationUntouched(t *testing.T) {
 			payload := testPayload()
 			switch kind {
 			case "legacy":
-				delete(payload, "misterfin-crt/UPDATE_FORMAT")
+				delete(payload, "mistervision/UPDATE_FORMAT")
 			case "format":
-				payload["misterfin-crt/UPDATE_FORMAT"] = []byte("2\n")
+				payload["mistervision/UPDATE_FORMAT"] = []byte("2\n")
 			case "version":
-				payload["misterfin-crt/VERSION"] = []byte("v9.0.0\n")
+				payload["mistervision/VERSION"] = []byte("v9.0.0\n")
 			case "missing-player":
-				delete(payload, "misterfin-crt/mplayer-arm")
+				delete(payload, "mistervision/mplayer-arm")
 			case "host-player":
-				payload["misterfin-crt/mplayer-arm"] = []byte("wrong executable")
+				payload["mistervision/mplayer-arm"] = []byte("wrong executable")
 			case "traversal":
-				payload["misterfin-crt/licenses/../../outside"] = []byte("bad")
+				payload["mistervision/licenses/../../outside"] = []byte("bad")
 			case "active-config":
-				payload["misterfin-crt/settings.json"] = []byte("bad")
+				payload["mistervision/settings.json"] = []byte("bad")
 			case "checksum":
 				payload["SHA256SUMS"] = []byte("bad checksum list")
 			}
@@ -283,7 +283,7 @@ func TestChecksumFailureAndCanceledDownload(t *testing.T) {
 				if cancel {
 					return nil, context.Canceled
 				}
-				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(strings.Repeat("0", 64) + "  misterfin-crt-v0.2.0-mister.zip\n")), Header: make(http.Header)}, nil
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(strings.Repeat("0", 64) + "  mistervision-v0.2.0-mister.zip\n")), Header: make(http.Header)}, nil
 			})
 			if err := i.Install(context.Background(), available(), nil); err == nil {
 				t.Fatal("accepted damaged download")
@@ -389,7 +389,7 @@ func TestRecoveryRejectsInvalidJournalAndRetainsEvidence(t *testing.T) {
 	if err := os.Mkdir(pending, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pending, "journal.json"), []byte(`[{"Name":"misterfin-crt/state/session.json","HadOriginal":false}]`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(pending, "journal.json"), []byte(`[{"Name":"mistervision/state/session.json","HadOriginal":false}]`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := i.Recover(); !errors.Is(err, updateapi.ErrRecovery) {

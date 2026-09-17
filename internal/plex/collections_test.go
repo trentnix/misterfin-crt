@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 func TestCollectionsAndPlaylistsUseDedicatedEndpoints(t *testing.T) {

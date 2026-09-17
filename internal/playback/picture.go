@@ -1,6 +1,6 @@
 package playback
 
-import "misterfin-crt/internal/player"
+import "mistervision/internal/player"
 
 // PictureMode controls recorded-video fit before shared UI composition.
 type PictureMode = player.PictureMode

@@ -1,6 +1,6 @@
-# Experimental Plex support
+# Plex support
 
-The first Plex adapter supports account linking, movie, TV, music, and photo libraries, seasons and episodes, Continue Watching, artwork, playback, and tuner-backed Live TV. It uses the existing browser, controls, picture modes, and output implementations. Jellyfin remains the default.
+MiSTerVision’s Plex adapter supports account linking, movie, TV, music, and photo libraries, seasons and episodes, Continue Watching, artwork, playback, and tuner-backed Live TV. It uses the existing browser, controls, picture modes, and output implementations. Jellyfin remains the default.
 
 ## Run locally
 
@@ -73,6 +73,6 @@ Collections use `/library/all?type=18` and `/library/collections/{id}/items`. Pl
 
 ## Code boundaries
 
-[Application assembly](../cmd/misterfin-crt/server.go) selects a [`connection.Connector`](../internal/connection/connector.go). [`plex.Connector`](../internal/plex/connector.go) links the account and returns a [`media.Server`](../internal/media/server.go) implemented by `plex.Client`. Plex endpoints, response types, and transcode policy stay in [`internal/plex`](../internal/plex). Neither the browser nor the renderer imports the adapter.
+[Application assembly](../cmd/mistervision/server.go) selects a [`connection.Connector`](../internal/connection/connector.go). [`plex.Connector`](../internal/plex/connector.go) links the account and returns a [`media.Server`](../internal/media/server.go) implemented by `plex.Client`. Plex endpoints, response types, and transcode policy stay in [`internal/plex`](../internal/plex). Neither the browser nor the renderer imports the adapter.
 
 [`serverstate`](../internal/serverstate/session.go) supplies private, atomic session storage to both adapters. The existing catalog and playback contracts cover video and music. `media.Artwork.Photo` supplies images to the shared photo viewer. The optional `media.LiveTV` contract covers tuner negotiation. [`live_channels.go`](../internal/plex/live_channels.go) discovers channels, [`live.go`](../internal/plex/live.go) owns tuner consumers, and [`transcode.go`](../internal/plex/transcode.go) shares conversion policy with recorded video. Provider-specific additions stay in the adapter.

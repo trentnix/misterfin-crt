@@ -4,10 +4,10 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/sound"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/sound"
+	"mistervision/internal/videoout"
 )
 
 // playbackDriver connects the controller to external decoding. Launch runs on

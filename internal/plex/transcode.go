@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // videoQuery applies one transcode policy to recorded video and tuner streams.

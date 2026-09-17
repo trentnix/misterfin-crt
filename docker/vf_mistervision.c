@@ -152,7 +152,7 @@ static int put_image(vf_instance_t *vf, mp_image_t *mpi, double pts, double endp
 static int control(vf_instance_t *vf, int request, void *data)
 {
     struct vf_priv_s *p = vf->priv;
-    if (request == VFCTRL_MISTERFIN_PICTURE) {
+    if (request == VFCTRL_MISTERVISION_PICTURE) {
         int mode = *(int *)data;
         if (mode < 0 || mode > 1 || !p->have_frame) return CONTROL_FALSE;
         int old = p->mode;
@@ -205,6 +205,6 @@ static int vf_open(vf_instance_t *vf, char *args)
     return 1;
 }
 
-const vf_info_t vf_info_misterfin = {
-    "MiSTerFin live CRT picture fit", "misterfin", "", "", vf_open, NULL
+const vf_info_t vf_info_mistervision = {
+    "MiSTerVision live CRT picture fit", "mistervision", "", "", vf_open, NULL
 };

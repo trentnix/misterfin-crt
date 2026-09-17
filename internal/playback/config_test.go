@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func TestConfigReuseKeepsRequestsIndependent(t *testing.T) {
@@ -78,9 +78,9 @@ func TestConfigReuseKeepsRequestsIndependent(t *testing.T) {
 			t.Fatal("missing stream request")
 		}
 		args, err := os.ReadFile(argsFile)
-		wantPicture := "misterfin=640:240:1.777777778:1"
+		wantPicture := "mistervision=640:240:1.777777778:1"
 		if i == 1 {
-			wantPicture = "misterfin=640:240:1.777777778:0"
+			wantPicture = "mistervision=640:240:1.777777778:0"
 		}
 		if err != nil || !strings.Contains(string(args), wantPicture) {
 			t.Fatalf("request %d decoder picture mismatch: %s (%v)", i, args, err)

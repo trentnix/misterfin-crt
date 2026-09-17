@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/playback"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/playback"
 )
 
 // musicPresentation owns effect selection and the latest disposable audio

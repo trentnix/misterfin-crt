@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/sound"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/platform"
+	"mistervision/internal/playback"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
+	"mistervision/internal/sound"
+	"mistervision/internal/videoout"
 )
 
 // browserSession owns one browser run. Only the event loop mutates its state.

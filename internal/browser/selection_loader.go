@@ -5,9 +5,9 @@ import (
 	"image"
 	"time"
 
-	"misterfin-crt/internal/artwork"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/artwork"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
 
 // selectionCatalog supplies only the metadata used by selection workers.

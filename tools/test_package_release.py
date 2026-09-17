@@ -19,7 +19,7 @@ class ReleaseTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.write(".gitignore", b"build/\njellyfin.conf\nsettings.json\nstate/\n")
-        for name in ("tools/misterfin-crt.sh", "tools/release-install.txt", "jellyfin.conf.example", "settings.example.json", "LICENSE", "docs/licenses/coder-websocket.txt", "docs/licenses/fusion-pixel.txt", "docs/licenses/noto.txt", "docs/licenses/go-text.txt", "docs/licenses/go-extensions.txt"):
+        for name in ("tools/mistervision.sh", "tools/release-install.txt", "jellyfin.conf.example", "settings.example.json", "LICENSE", "docs/licenses/coder-websocket.txt", "docs/licenses/fusion-pixel.txt", "docs/licenses/noto.txt", "docs/licenses/go-text.txt", "docs/licenses/go-extensions.txt"):
             self.write(name, name.encode())
         self.write("docs/THIRD_PARTY.md", b"[license](../LICENSE) [external](https://example.org)\n")
         archive = io.BytesIO()
@@ -31,11 +31,11 @@ class ReleaseTest(unittest.TestCase):
                 source.addfile(member, io.BytesIO(data))
         self.upstream = archive.getvalue()
         self.write("docker/build-mplayer.sh", f"MPLAYER_VER=1.5\nMPLAYER_SHA256={release.sha256(self.upstream)}\n".encode())
-        self.write("build/misterfin-crt-mplayer-source.tar.xz", self.upstream)
+        self.write("build/mistervision-mplayer-source.tar.xz", self.upstream)
         elf = bytearray(52)
         elf[:6] = b"\x7fELF\x01\x01"
         elf[16:20] = b"\x02\x00\x28\x00"
-        for name in ("misterfin-crt-arm", "misterfin-crt-mplayer-arm"):
+        for name in ("mistervision-arm", "mistervision-mplayer-arm"):
             self.write("build/" + name, elf)
         self.write("build/release-manifest.txt", b"paired build metadata\n")
         self.write("build/go-LICENSE", b"Go license")
@@ -62,23 +62,23 @@ class ReleaseTest(unittest.TestCase):
 
     def test_payload_preserves_settings_and_has_correct_hashes_and_modes(self):
         self.package()
-        with zipfile.ZipFile(self.output / "misterfin-crt-v0.1.0-mister.zip") as archive:
+        with zipfile.ZipFile(self.output / "mistervision-v0.1.0-mister.zip") as archive:
             names = archive.namelist()
-            self.assertIn("misterfin-crt/jellyfin.conf.example", names)
-            self.assertIn("misterfin-crt/settings.example.json", names)
-            self.assertIn("misterfin-crt/licenses/mplayer/LICENSE", names)
-            self.assertEqual(archive.read("misterfin-crt/licenses/fusion-pixel.txt"), b"docs/licenses/fusion-pixel.txt")
+            self.assertIn("mistervision/jellyfin.conf.example", names)
+            self.assertIn("mistervision/settings.example.json", names)
+            self.assertIn("mistervision/licenses/mplayer/LICENSE", names)
+            self.assertEqual(archive.read("mistervision/licenses/fusion-pixel.txt"), b"docs/licenses/fusion-pixel.txt")
             for name in ("noto", "go-text", "go-extensions"):
-                self.assertEqual(archive.read(f"misterfin-crt/licenses/{name}.txt"), f"docs/licenses/{name}.txt".encode())
+                self.assertEqual(archive.read(f"mistervision/licenses/{name}.txt"), f"docs/licenses/{name}.txt".encode())
             self.assertFalse(any("state/" in name or name.endswith(("/settings.json", "/jellyfin.conf")) for name in names))
-            self.assertEqual(archive.read("misterfin-crt/VERSION"), b"v0.1.0\n")
-            self.assertEqual(archive.read("misterfin-crt/UPDATE_FORMAT"), b"1\n")
+            self.assertEqual(archive.read("mistervision/VERSION"), b"v0.1.0\n")
+            self.assertEqual(archive.read("mistervision/UPDATE_FORMAT"), b"1\n")
             for line in archive.read("SHA256SUMS").decode().splitlines():
                 digest, name = line.split("  ", 1)
                 self.assertEqual(digest, hashlib.sha256(archive.read(name)).hexdigest())
-            for name in ("Scripts/MiSTerFin-CRT.sh", "misterfin-crt/misterfin-crt", "misterfin-crt/mplayer-arm"):
+            for name in ("Scripts/MiSTerVision.sh", "mistervision/mistervision", "mistervision/mplayer-arm"):
                 self.assertEqual(archive.getinfo(name).external_attr >> 16, 0o100755)
-            notices = archive.read("misterfin-crt/THIRD_PARTY.md").decode()
+            notices = archive.read("mistervision/THIRD_PARTY.md").decode()
             self.assertIn(f"/blob/{self.revision}/LICENSE", notices)
             self.assertIn("https://example.org", notices)
         for line in (self.output / "SHA256SUMS").read_text().splitlines():
@@ -87,8 +87,8 @@ class ReleaseTest(unittest.TestCase):
 
     def test_source_contains_exact_upstream_and_committed_recipe_without_secrets(self):
         self.package()
-        with tarfile.open(self.output / "misterfin-crt-v0.1.0-source.tar.gz") as archive:
-            prefix = "misterfin-crt-v0.1.0/"
+        with tarfile.open(self.output / "mistervision-v0.1.0-source.tar.gz") as archive:
+            prefix = "mistervision-v0.1.0/"
             self.assertEqual(archive.extractfile(prefix + "docker/MPlayer-source.tar.xz").read(), self.upstream)
             self.assertIn(prefix + "docker/build-mplayer.sh", archive.getnames())
             self.assertNotIn(prefix + "jellyfin.conf", archive.getnames())
@@ -113,11 +113,11 @@ class ReleaseTest(unittest.TestCase):
             release.checkout(self.root, "v0.1.0")
 
     def test_rejects_corrupt_source_or_wrong_architecture(self):
-        self.write("build/misterfin-crt-mplayer-source.tar.xz", b"bad archive")
+        self.write("build/mistervision-mplayer-source.tar.xz", b"bad archive")
         with self.assertRaisesRegex(ValueError, "checksum"):
             self.package()
-        self.write("build/misterfin-crt-mplayer-source.tar.xz", self.upstream)
-        self.write("build/misterfin-crt-arm", b"host executable")
+        self.write("build/mistervision-mplayer-source.tar.xz", self.upstream)
+        self.write("build/mistervision-arm", b"host executable")
         with self.assertRaisesRegex(ValueError, "ARM executable"):
             self.package()
 
@@ -138,7 +138,7 @@ class ReleaseTest(unittest.TestCase):
 
     def test_packaging_failure_does_not_publish_partial_release(self):
         self.output.rmdir()
-        self.write("build/misterfin-crt-mplayer-source.tar.xz", b"corrupted")
+        self.write("build/mistervision-mplayer-source.tar.xz", b"corrupted")
         with mock.patch.object(release.subprocess, "check_call"):
             with self.assertRaisesRegex(ValueError, "checksum"):
                 release.build_release(self.root, "v0.1.0", "go")

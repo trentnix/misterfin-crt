@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
 
 func TestOptionalArtworkFailuresAreLoggedWithoutBanner(t *testing.T) {

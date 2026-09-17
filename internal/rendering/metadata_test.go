@@ -1,7 +1,7 @@
 package rendering
 
 import (
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 	"testing"
 )
 

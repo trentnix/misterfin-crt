@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/input/evdev"
-	"misterfin-crt/internal/mister/bgm"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/player/mplayer"
-	"misterfin-crt/internal/sound/alsa"
-	"misterfin-crt/internal/videoout/native"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/control"
+	"mistervision/internal/input/evdev"
+	"mistervision/internal/mister/bgm"
+	"mistervision/internal/platform"
+	"mistervision/internal/playback"
+	"mistervision/internal/player/mplayer"
+	"mistervision/internal/sound/alsa"
+	"mistervision/internal/videoout/native"
 )
 
 // misterTarget combines evdev input, the patched MPlayer, and native output.

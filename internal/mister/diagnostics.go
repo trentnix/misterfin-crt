@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"misterfin-crt/internal/diagnostics"
+	"mistervision/internal/diagnostics"
 )
 
 // RecordStartup reads a bounded snapshot of display settings when logging is
@@ -59,7 +59,7 @@ func recordSettings(log *diagnostics.Log, source io.Reader) {
 			continue
 		}
 		switch section {
-		case "top", "mister", "menu", "misterfininterlaced":
+		case "top", "mister", "menu", "mistervisioninterlaced":
 		default:
 			continue
 		}

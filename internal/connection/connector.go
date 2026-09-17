@@ -3,8 +3,8 @@ package connection
 import (
 	"context"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 // Connector authenticates the backend selected by application assembly. Connect

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/sound"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/input/control"
+	"mistervision/internal/playback"
+	"mistervision/internal/rendering"
+	"mistervision/internal/sound"
+	"mistervision/internal/videoout"
 )
 
 // Run owns the browser session and borrows input, output, and renderer. The loop

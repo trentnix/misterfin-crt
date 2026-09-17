@@ -3,9 +3,9 @@ package rendering
 import (
 	"fmt"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/ui"
 )
 
 const titleColor = 0xffe040

@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"misterfin-crt/internal/mister"
-	"misterfin-crt/internal/mister/displaymode"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/mister"
+	"mistervision/internal/mister/displaymode"
+	"mistervision/internal/platform"
+	"mistervision/internal/update"
 )
 
 func run() (err error) {

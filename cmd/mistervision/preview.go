@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/testframe"
+	"mistervision/internal/platform"
+	"mistervision/internal/testframe"
 )
 
 // runPreview presents one test frame and optionally waits for a duration or

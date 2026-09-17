@@ -7,8 +7,8 @@ import (
 )
 
 func TestLaunchOptionsRejectConflictingModes(t *testing.T) {
-	t.Setenv("MISTERFIN_FB", "")
-	t.Setenv("MISTERFIN_FRAME_OUT", "")
+	t.Setenv("MISTERVISION_FB", "")
+	t.Setenv("MISTERVISION_FRAME_OUT", "")
 	for _, args := range [][]string{
 		{"unexpected"}, {"-hold=-1s"}, {"-wait", "-hold=1s"},
 		{"-browse", "-wait"}, {"-browse", "-hold=1s"},
@@ -24,8 +24,8 @@ func TestLaunchOptionsRejectConflictingModes(t *testing.T) {
 }
 
 func TestLaunchOptionsUseEnvironmentWithoutRetainingPreviousParse(t *testing.T) {
-	t.Setenv("MISTERFIN_FB", "640x240")
-	t.Setenv("MISTERFIN_FRAME_OUT", "frame")
+	t.Setenv("MISTERVISION_FB", "640x240")
+	t.Setenv("MISTERVISION_FRAME_OUT", "frame")
 	o, err := parseOptions([]string{"-browse", "-terminal-player=helper.py"})
 	if err != nil || !o.browse || o.headless != "640x240" || o.output != "frame" {
 		t.Fatalf("%+v: %v", o, err)
@@ -40,7 +40,7 @@ func TestLaunchOptionsUseEnvironmentWithoutRetainingPreviousParse(t *testing.T) 
 }
 
 func TestInputConfigFlagOverridesEnvironment(t *testing.T) {
-	t.Setenv("MISTERFIN_INPUT_CONFIG", "/tmp/controller.json")
+	t.Setenv("MISTERVISION_INPUT_CONFIG", "/tmp/controller.json")
 	o, err := parseOptions(nil)
 	if err != nil || o.inputConfig != "/tmp/controller.json" {
 		t.Fatalf("environment default: %+v: %v", o, err)
@@ -52,7 +52,7 @@ func TestInputConfigFlagOverridesEnvironment(t *testing.T) {
 }
 
 func TestSoundConfigOverride(t *testing.T) {
-	t.Setenv("MISTERFIN_SOUND_CONFIG", "/tmp/sounds.json")
+	t.Setenv("MISTERVISION_SOUND_CONFIG", "/tmp/sounds.json")
 	o, err := parseOptions(nil)
 	if err != nil || o.soundConfig != "/tmp/sounds.json" {
 		t.Fatalf("environment: %+v %v", o, err)
@@ -64,7 +64,7 @@ func TestSoundConfigOverride(t *testing.T) {
 }
 
 func TestSettingsPathFlagOverridesEnvironment(t *testing.T) {
-	t.Setenv("MISTERFIN_SETTINGS", "/tmp/from-env.json")
+	t.Setenv("MISTERVISION_SETTINGS", "/tmp/from-env.json")
 	o, err := parseOptions(nil)
 	if err != nil || o.settingsPath != "/tmp/from-env.json" {
 		t.Fatal("settings environment lost", err)

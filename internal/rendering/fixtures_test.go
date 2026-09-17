@@ -3,7 +3,7 @@ package rendering
 import (
 	"time"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 func testScene(s Scene, p PlaybackPresentation, setup SetupPresentation, art Artwork, err string, now time.Time) Scene {

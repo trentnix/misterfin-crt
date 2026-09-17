@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"time"
 
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/rendering"
 )
 
 // draw owns frame pacing and the paused-overlay refresh check.

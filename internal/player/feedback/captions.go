@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"misterfin-crt/internal/subtitles"
+	"mistervision/internal/subtitles"
 )
 
 // parseCaption accepts bounded UTF-8 screen snapshots from video decoders.

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // Libraries lists personal-media sections, then accessible collections,

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
-const continueID = "misterfin-crt:continue"
+const continueID = "mistervision:continue"
 
 // homeState owns the combined Continue Watching snapshot and its independent
 // request. Library browsing never waits for this request or cancels it.

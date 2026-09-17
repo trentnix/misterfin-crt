@@ -1,12 +1,12 @@
 package main
 
 import (
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/jellyfin"
-	jfconnection "misterfin-crt/internal/jellyfin/connection"
-	"misterfin-crt/internal/plex"
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/connection"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/jellyfin"
+	jfconnection "mistervision/internal/jellyfin/connection"
+	"mistervision/internal/plex"
+	"mistervision/internal/settings"
 )
 
 // serverConnector is the application assembly point for media providers.

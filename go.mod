@@ -1,4 +1,4 @@
-module misterfin-crt
+module mistervision
 
 go 1.26.8
 

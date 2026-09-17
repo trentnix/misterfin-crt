@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/diagnostics"
+	"mistervision/internal/diagnostics"
 )
 
 func TestSettingsLogPreservesSectionsAndExcludesPrivateValues(t *testing.T) {
@@ -19,7 +19,7 @@ password=secret-password
 video_mode=640,480,60 ; secret comment
 [Menu]
 vsync_adjust=2
-[MiSTerFinInterlaced]
+[MiSTerVisionInterlaced]
 video_mode_ntsc=640,16,64,80,480,1,3,14,12.587
 [private-core]
 video_mode=42
@@ -41,7 +41,7 @@ video_mode=secret-value
 			settings = append(settings, e)
 		}
 	}
-	if len(settings) != 4 || settings[0]["section"] != "top" || settings[1]["section"] != "mister" || settings[2]["section"] != "menu" || settings[3]["section"] != "misterfininterlaced" {
+	if len(settings) != 4 || settings[0]["section"] != "top" || settings[1]["section"] != "mister" || settings[2]["section"] != "menu" || settings[3]["section"] != "mistervisioninterlaced" {
 		t.Fatal(settings)
 	}
 	if !strings.Contains(data, `"rejected_values":1`) {

@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/serverstate"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/media"
+	"mistervision/internal/serverstate"
 )
 
 // Config selects the Plex server, TLS policy, and validated conversion limits.
@@ -82,7 +82,7 @@ func (c *Client) headers(req *http.Request, token string) {
 	// Prepared stream URLs carry the playback identity through the shared stream
 	// interface. Plex requires this identity in a header, including timeline calls.
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Plex-Product", "MiSTerFin CRT")
+	req.Header.Set("X-Plex-Product", "MiSTerVision")
 	req.Header.Set("X-Plex-Client-Identifier", c.Session.DeviceID)
 	q := req.URL.Query()
 	// Live TV also has a per-attempt consumer identity. It prevents late cleanup

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const ownerEnv = "MISTERFIN_CRT_DISPLAY_OWNER"
+const ownerEnv = "MISTERVISION_DISPLAY_OWNER"
 
 // ownedProcesses finds only descendants carrying this supervisor's marker.
 // The marker survives reparenting after a client crash, unlike PPid. Environments

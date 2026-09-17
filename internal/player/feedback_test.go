@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"misterfin-crt/internal/player"
-	"misterfin-crt/internal/player/ffplay"
-	"misterfin-crt/internal/player/mplayer"
-	"misterfin-crt/internal/player/pythonhelper"
+	"mistervision/internal/player"
+	"mistervision/internal/player/ffplay"
+	"mistervision/internal/player/mplayer"
+	"mistervision/internal/player/pythonhelper"
 )
 
 func TestDecodersParseOnlyTheirOwnFeedback(t *testing.T) {

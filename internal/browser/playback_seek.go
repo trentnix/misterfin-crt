@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/playback"
+	"mistervision/internal/input/control"
+	"mistervision/internal/playback"
 )
 
 // seekPhase describes a replacement stream's lifecycle. The initial half-second
@@ -117,7 +117,7 @@ func (c *PlaybackController) replacementFailed(err error, now time.Time) {
 	c.pending = playbackProcess{}
 	c.clearSeek()
 	if err != nil {
-		c.notice = err.Error() + "  A:back"
+		c.notice = err.Error()
 	}
 	if originalEnded {
 		c.finishVideo()

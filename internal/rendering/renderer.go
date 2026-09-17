@@ -1,7 +1,7 @@
 package rendering
 
 import (
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/videoout"
 )
 
 // Renderer turns a read-only Scene into output-independent pixels. Call Render

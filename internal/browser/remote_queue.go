@@ -4,9 +4,9 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 // remotePlayback owns queue entries, their metadata, and decoder handoff state.

@@ -196,9 +196,9 @@ func (c *Client) Libraries(ctx context.Context) (Page, error) {
 		page.Items = append(page.Items, item)
 	}
 	for _, card := range []Item{
-		{ID: "misterfin-crt:collections", Name: "Collections", CollectionType: "boxsets", IsFolder: true},
-		{ID: "misterfin-crt:playlists", Name: "Playlists", CollectionType: "playlists", IsFolder: true},
-		{ID: "misterfin-crt:live-tv", Name: "Live TV", CollectionType: "livetv", IsFolder: true},
+		{ID: "mistervision:collections", Name: "Collections", CollectionType: "boxsets", IsFolder: true},
+		{ID: "mistervision:playlists", Name: "Playlists", CollectionType: "playlists", IsFolder: true},
+		{ID: "mistervision:live-tv", Name: "Live TV", CollectionType: "livetv", IsFolder: true},
 	} {
 		if present[card.CollectionType] {
 			continue

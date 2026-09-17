@@ -1,5 +1,5 @@
 // Package bgm coordinates MiSTer's optional menu music through its control socket.
-// MiSTerFin runs under the Menu core, so BGM's core-change detection cannot stop
+// MiSTerVision runs under the Menu core, so BGM's core-change detection cannot stop
 // menu music for it. The protocol follows the C client's BGM integration.
 package bgm
 

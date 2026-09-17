@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/sound"
 )
 
 // TestSettingsFallbacks checks real section loading through startup assembly,
@@ -182,7 +182,7 @@ func TestMigrationPreservesEffectiveSettings(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			t.Setenv("MISTERFIN_MUSIC_CONFIG", "")
+			t.Setenv("MISTERVISION_MUSIC_CONFIG", "")
 			for name, data := range tc.files {
 				if err := os.WriteFile(filepath.Join(dir, name+".json"), []byte(data), 0600); err != nil {
 					t.Fatal(err)
@@ -238,7 +238,7 @@ func TestMusicSettingsFallbackAtStartup(t *testing.T) {
 		if tc.override != "" {
 			override = filepath.Join(dir, tc.override)
 		}
-		t.Setenv("MISTERFIN_MUSIC_CONFIG", override)
+		t.Setenv("MISTERVISION_MUSIC_CONFIG", override)
 		logPath := filepath.Join(dir, "events.log")
 		log, err := diagnostics.Open(diagnostics.Config{Enabled: true, Path: logPath, MaxBytes: 65536})
 		if err != nil {

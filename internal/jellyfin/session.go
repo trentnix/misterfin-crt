@@ -1,6 +1,6 @@
 package jellyfin
 
-import "misterfin-crt/internal/serverstate"
+import "mistervision/internal/serverstate"
 
 // Session stores this installation's Jellyfin sign-in, bound to its server URL.
 type Session = serverstate.Session

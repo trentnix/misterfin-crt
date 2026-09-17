@@ -1,8 +1,8 @@
 package browser
 
 import (
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
 
 // selectionData is the selected item's presentation data. Library counts remain

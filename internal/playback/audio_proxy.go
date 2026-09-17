@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/media"
 )
 
 // audioProxy keeps credentials and TLS in Go while allowing the decoder to seek

@@ -3,8 +3,8 @@ package browser
 import (
 	"context"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
 )
 
 func resumableVideo(item *media.Item) bool {

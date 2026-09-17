@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-crt/internal/artwork"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/artwork"
+	"mistervision/internal/media"
 )
 
 // loadLibrary lets counts arrive while cover sampling and images are pending.

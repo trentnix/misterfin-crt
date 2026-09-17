@@ -3,17 +3,17 @@ GO ?= go
 STATICCHECK_VERSION := v0.8.1
 GOVULNCHECK_VERSION := v1.8.0
 VERSION ?= dev
-GO_LDFLAGS = -X misterfin-crt/internal/release.Version=$(VERSION)
+GO_LDFLAGS = -X mistervision/internal/release.Version=$(VERSION)
 GO_ARM_CC ?= sh $(CURDIR)/tools/zig-cc-go.sh
 
 .DEFAULT_GOAL := host
 
 .PHONY: host arm lint vulnerability-check native-player release-manifest release test test-browse headless clean
 host:
-	CGO_ENABLED=1 $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/misterfin-crt ./cmd/misterfin-crt
+	CGO_ENABLED=1 $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/mistervision ./cmd/mistervision
 
 arm:
-	CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC="$(GO_ARM_CC)" $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/misterfin-crt-arm ./cmd/misterfin-crt
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC="$(GO_ARM_CC)" $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/mistervision-arm ./cmd/mistervision
 
 # A versioned tool invocation leaves go.mod and go.sum unchanged.
 lint:
@@ -26,15 +26,15 @@ vulnerability-check:
 
 native-player:
 	mkdir -p build
-	docker build -f docker/Dockerfile.misterfin-crt -t misterfin-crt-mplayer docker
-	docker run --rm --mount "type=bind,src=$(CURDIR)/build,dst=/output" -e OUTPUT_DIR=/output misterfin-crt-mplayer
+	docker build -f docker/Dockerfile.mistervision -t mistervision-mplayer docker
+	docker run --rm --mount "type=bind,src=$(CURDIR)/build,dst=/output" -e OUTPUT_DIR=/output mistervision-mplayer
 
 # Run after arm and native-player so the manifest describes the matching pair.
 release-manifest:
 	install -m 644 "$$($(GO) env GOROOT)/LICENSE" build/go-LICENSE
-	$(GO) version -m build/misterfin-crt-arm > build/release-manifest.txt
-	cat build/misterfin-crt-mplayer-build.txt >> build/release-manifest.txt
-	cd build && sha256sum misterfin-crt-arm misterfin-crt-mplayer-arm >> release-manifest.txt
+	$(GO) version -m build/mistervision-arm > build/release-manifest.txt
+	cat build/mistervision-mplayer-build.txt >> build/release-manifest.txt
+	cd build && sha256sum mistervision-arm mistervision-mplayer-arm >> release-manifest.txt
 
 # Build both executables before packaging. Refuse dirty source or an existing bundle.
 release:
@@ -49,8 +49,8 @@ test-browse: host
 	python3 -m unittest -v tools/ghostty/test_go_browse.py
 
 headless: host
-	./build/misterfin-crt -headless 640x288 -output build/go-frame.raw
+	./build/mistervision -headless 640x288 -output build/go-frame.raw
 	python3 tools/raw_to_png.py build/go-frame.raw 640 288 build/go-frame.png
 
 clean:
-	rm -f build/misterfin-crt build/misterfin-crt-arm build/go-frame.raw build/go-frame.png
+	rm -f build/mistervision build/mistervision-arm build/go-frame.raw build/go-frame.png

@@ -4,7 +4,7 @@
                libmpcodecs/vf_rgbtest.c          \
                libmpcodecs/vf_rotate.c           \
                libmpcodecs/vf_sab.c              \
-+              libmpcodecs/vf_misterfin.c        \
++              libmpcodecs/vf_mistervision.c        \
                libmpcodecs/vf_scale.c            \
                libmpcodecs/vf_smartblur.c        \
                libmpcodecs/vf_softpulldown.c     \
@@ -14,7 +14,7 @@
  extern const vf_info_t vf_info_rgbtest;
  extern const vf_info_t vf_info_rotate;
  extern const vf_info_t vf_info_sab;
-+extern const vf_info_t vf_info_misterfin;
++extern const vf_info_t vf_info_mistervision;
  extern const vf_info_t vf_info_scale;
  extern const vf_info_t vf_info_screenshot;
  extern const vf_info_t vf_info_smartblur;
@@ -22,7 +22,7 @@
  #endif
      &vf_info_crop,
      &vf_info_expand,
-+    &vf_info_misterfin,
++    &vf_info_mistervision,
      &vf_info_scale,
  //    &vf_info_osd,
      &vf_info_vo,
@@ -32,7 +32,7 @@
  #define VFCTRL_GET_PTS         17 /* Return last pts value that reached vf_vo*/
  #define VFCTRL_GET_ENDPTS      18 /* Return last endpts value that reached vf_vo*/
  #define VFCTRL_SET_DEINTERLACE 19 /* Set deinterlacing status */
-+#define VFCTRL_MISTERFIN_PICTURE 100
++#define VFCTRL_MISTERVISION_PICTURE 100
  #define VFCTRL_GET_DEINTERLACE 20 /* Get deinterlacing status */
  
  #include "vfcap.h"
@@ -42,7 +42,7 @@
    MP_CMD_MUTE,
    MP_CMD_LOADFILE,
    MP_CMD_LOADLIST,
-+  MP_CMD_MISTERFIN_PICTURE,
++  MP_CMD_MISTERVISION_PICTURE,
    MP_CMD_VF_CHANGE_RECTANGLE,
    MP_CMD_GAMMA,
    MP_CMD_SUB_VISIBILITY,
@@ -52,7 +52,7 @@
    { MP_CMD_LOADLIST, "loadlist", 1, { {MP_CMD_ARG_STRING, {0}}, {MP_CMD_ARG_INT,{0}}, {-1,{0}} } },
    { MP_CMD_RUN, "run", 1, { {MP_CMD_ARG_STRING,{0}}, {-1,{0}} } },
    { MP_CMD_CAPTURING, "capturing", 0, { {-1,{0}} } },
-+  { MP_CMD_MISTERFIN_PICTURE, "misterfin_picture", 2, { {MP_CMD_ARG_INT,{0}}, {MP_CMD_ARG_INT,{0}}, {-1,{0}}}},
++  { MP_CMD_MISTERVISION_PICTURE, "mistervision_picture", 2, { {MP_CMD_ARG_INT,{0}}, {MP_CMD_ARG_INT,{0}}, {-1,{0}}}},
    { MP_CMD_VF_CHANGE_RECTANGLE, "change_rectangle", 2, { {MP_CMD_ARG_INT,{0}}, {MP_CMD_ARG_INT,{0}}, {-1,{0}}}},
    { MP_CMD_TV_TELETEXT_ADD_DEC, "teletext_add_dec", 1, { {MP_CMD_ARG_STRING,{0}}, {-1,{0}} } },
    { MP_CMD_TV_TELETEXT_GO_LINK, "teletext_go_link", 1, { {MP_CMD_ARG_INT,{0}}, {-1,{0}} } },
@@ -62,11 +62,11 @@
              }
              break;
  
-+        case MP_CMD_MISTERFIN_PICTURE: {
++        case MP_CMD_MISTERVISION_PICTURE: {
 +            int mode = cmd->args[0].v.i;
 +            int accepted = sh_video && sh_video->vfilter &&
 +                ((vf_instance_t *)sh_video->vfilter)->control(sh_video->vfilter,
-+                    VFCTRL_MISTERFIN_PICTURE, &mode) == CONTROL_TRUE;
++                    VFCTRL_MISTERVISION_PICTURE, &mode) == CONTROL_TRUE;
 +            mp_msg(MSGT_GLOBAL, MSGL_INFO, "ANS_PICTURE_MODE=%d,%d\n",
 +                   cmd->args[1].v.i, accepted ? mode : -1);
 +            fflush(stdout);

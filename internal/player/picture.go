@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // PictureMode controls how video fits the physical 4:3 display.

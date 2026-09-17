@@ -3,7 +3,7 @@ package rendering
 import (
 	"fmt"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // carousel draws library names over cached artwork strips and returns its controls.

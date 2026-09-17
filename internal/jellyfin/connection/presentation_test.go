@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/connection"
+	"mistervision/internal/jellyfin"
 )
 
 func TestSetupFailuresHaveSpecificRecoveryWithoutRawErrors(t *testing.T) {

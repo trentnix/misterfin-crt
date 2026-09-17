@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // shuffleQueue leaves the artist view intact. Its bounded history supports

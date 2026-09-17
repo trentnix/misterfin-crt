@@ -3,7 +3,7 @@ package mplayer
 import (
 	"encoding/json"
 	"fmt"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 	"strings"
 	"testing"
 )
@@ -13,7 +13,7 @@ func TestMPlayerCRTAspect(t *testing.T) {
 	json.Unmarshal([]byte(`{"MediaStreams":[{"Type":"Video","Width":720,"Height":576,"AspectRatio":"16:9"}]}`), &item)
 	for _, h := range []int{240, 288} {
 		args := Decoder{Width: 640, Height: h, Device: "/dev/fb0"}.Args(item, "")
-		want := fmt.Sprintf("misterfin=640:%d:1.777777778:0", h)
+		want := fmt.Sprintf("mistervision=640:%d:1.777777778:0", h)
 		if !strings.Contains(strings.Join(args, " "), want) {
 			t.Fatalf("args %v", args)
 		}
@@ -30,7 +30,7 @@ func TestLiveTVAspectFallbackAndMetadata(t *testing.T) {
 			item.MediaStreams = []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 576, AspectRatio: tc.aspect}}
 		}
 		args := Decoder{Width: 640, Height: 240, Device: "/dev/fb0"}.Args(item, "")
-		want := fmt.Sprintf("misterfin=640:240:%.9f:0", tc.dar)
+		want := fmt.Sprintf("mistervision=640:240:%.9f:0", tc.dar)
 		if !strings.Contains(strings.Join(args, " "), want) {
 			t.Fatalf("aspect %q: %v", tc.aspect, args)
 		}

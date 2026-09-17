@@ -4,7 +4,7 @@ package sound
 import (
 	"fmt"
 
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/settings"
 )
 
 // Config controls navigation sounds. Volume scales the original PCM amplitude.

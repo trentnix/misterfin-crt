@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/media"
-	playerapi "misterfin-crt/internal/player"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/media"
+	playerapi "mistervision/internal/player"
 )
 
 // mediaSource owns either an authenticated stream or a local audio proxy.

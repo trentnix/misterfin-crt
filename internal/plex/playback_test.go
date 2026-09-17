@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // Model Plex's session-scoped timeline stop while two streams overlap. A seek

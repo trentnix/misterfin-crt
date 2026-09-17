@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/connection"
+	"mistervision/internal/jellyfin"
 )
 
 // connectionStage identifies the operation that failed during sign-in.
@@ -67,7 +67,7 @@ func (c Connector) Describe(err error) connection.Presentation {
 // approval presents only the public code and explains any recovered session.
 func approval(code string, recovered bool) connection.Presentation {
 	p := connection.Presentation{Kind: connection.SetupApproval, Title: "Quick Connect", Code: code, Recovered: recovered, Retry: "New code",
-		Message: "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerFin CRT."}
+		Message: "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerVision."}
 	if recovered {
 		p.Message = "Saved sign-in was damaged and backed up.\nOpen Quick Connect in Jellyfin and approve this code."
 	}

@@ -1,9 +1,9 @@
 package browser
 
 import (
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/sound"
 )
 
 // navigationState captures only user-visible browsing changes. Artwork arrivals

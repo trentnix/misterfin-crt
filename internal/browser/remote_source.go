@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/playback"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 // remoteSession owns the control source for one authenticated account. Commands

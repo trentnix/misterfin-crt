@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/player"
+	"mistervision/internal/media"
+	"mistervision/internal/player"
 )
 
 // Decoder speaks the helper's line protocol for inline video and audio.

@@ -1,7 +1,7 @@
 package remote
 
 import (
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/remote"
 	"testing"
 )
 

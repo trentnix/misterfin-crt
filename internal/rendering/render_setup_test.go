@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 func TestSetupRenderingAndConfiguredControls(t *testing.T) {
@@ -20,7 +20,7 @@ func TestSetupRenderingAndConfiguredControls(t *testing.T) {
 	for _, height := range []int{240, 288} {
 		for kind := SetupConnecting; kind <= SetupFailure; kind++ {
 			for _, labels := range []control.Labels{control.KeyboardLabels(), {"open": "Cross", "back": "Circle"}, {"back": "Back"}} {
-				setup := SetupPresentation{Kind: kind, Title: "Example setup", Message: "Follow the server instructions.", Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/misterfin-crt/interlaced-test/jellyfin.conf"}
+				setup := SetupPresentation{Kind: kind, Title: "Example setup", Message: "Follow the server instructions.", Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/mistervision/interlaced-test/jellyfin.conf"}
 				if kind == SetupApproval {
 					setup.Code = "123456"
 					setup.Path = ""

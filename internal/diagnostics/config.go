@@ -7,7 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/settings"
 )
 
 // Config controls one current log and one rotated log. MaxBytes applies to each.

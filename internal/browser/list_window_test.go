@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
 )
 
 func windowPage(start, total int) jellyfin.Page {

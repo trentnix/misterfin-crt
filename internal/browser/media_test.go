@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
+	"mistervision/internal/ui"
 )
 
 func TestResumableVideo(t *testing.T) {

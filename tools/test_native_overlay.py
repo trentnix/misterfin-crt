@@ -138,7 +138,7 @@ static int ban_clip_top(void) { return in_height; }
 static void memcpy_pic2(uint8_t *d, uint8_t *s, int w, int h, int ds, int ss, int unused) {
     for (int y = 0; y < h; y++) memcpy(d + y * ds, s + y * ss, w);
 }
-''' + adapter.replace('"/tmp/misterfin_crt_overlay"', '"overlay"') + draw.replace('"/tmp/misterdvd_vsync"', '"vsync"') + r'''
+''' + adapter.replace('"/tmp/mistervision_overlay"', '"overlay"') + draw.replace('"/tmp/misterdvd_vsync"', '"vsync"') + r'''
 static void publish(void) {
     uint8_t header[40] = {'M','F','G','O','O','V','1',0};
     header[8] = 4; header[12] = 2;
@@ -150,7 +150,7 @@ static void publish(void) {
     assert(fwrite(pixel, 1, 4, f) == 4); fclose(f);
 }
 int main(int argc, char **argv) {
-    if (argc > 1) setenv("MISTERFIN_CRT_INTERLACED","1",1);
+    if (argc > 1) setenv("MISTERVISION_INTERLACED","1",1);
     FILE *counter = fopen("field_count", "w"); assert(counter); fclose(counter);
     publish();
     int probe = open(OUTPUT_LOCK_FILE, O_CREAT | O_RDWR, 0600);
@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
                 return text[start:end]
             start = text.index('#define OVERLAY_FILE')
             end = text.index('\n}\n', text.index('static void overlay_frame')) + 3
-            adapter = text[start:end].replace('"/tmp/misterfin_crt_overlay"', '"overlay"').replace('"/sys/module/MiSTer_fb/parameters/frame_count"', '"field_count"')
+            adapter = text[start:end].replace('"/tmp/mistervision_overlay"', '"overlay"').replace('"/sys/module/MiSTer_fb/parameters/frame_count"', '"field_count"')
             program = r'''
 #include <stdint.h>
 #include <stdlib.h>
@@ -274,7 +274,7 @@ static void vo_draw_text(int w, int h, int unused) {}
 int main(int argc, char **argv) {
     FILE *counter = fopen("field_count", "w"); assert(counter); fclose(counter);
     int interlaced = argc > 1;
-    if(interlaced) setenv("MISTERFIN_CRT_INTERLACED","1",1);
+    if(interlaced) setenv("MISTERVISION_INTERLACED","1",1);
     assert(overlay_prepare());
     for(int i=1;i<=100;i++) {
         memset(go_video,i,32);

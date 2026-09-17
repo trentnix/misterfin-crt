@@ -1,6 +1,6 @@
 package playback
 
-import playerapi "misterfin-crt/internal/player"
+import playerapi "mistervision/internal/player"
 
 // configureAudioLevels enables an optional feedback transport. Run owns a
 // returned meter until decoder cleanup. Status-pipe implementations return nil.

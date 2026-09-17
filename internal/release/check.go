@@ -44,7 +44,7 @@ func check(ctx context.Context, client *http.Client, endpoint, installed string)
 		return Status{}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "MiSTerFin-CRT")
+	req.Header.Set("User-Agent", "MiSTerVision")
 	resp, err := client.Do(req)
 	if err != nil {
 		return Status{}, err
@@ -84,7 +84,7 @@ func check(ctx context.Context, client *http.Client, endpoint, installed string)
 	}
 	archive, sums := false, false
 	for _, asset := range result.Assets {
-		archive = archive || asset.Name == "misterfin-crt-"+result.Tag+"-mister.zip"
+		archive = archive || asset.Name == "mistervision-"+result.Tag+"-mister.zip"
 		sums = sums || asset.Name == "SHA256SUMS"
 	}
 	return Status{Latest: result.Tag, Available: newer(result.Tag, installed), Notes: screenNotes(result.Body), HasBundle: archive && sums}, nil

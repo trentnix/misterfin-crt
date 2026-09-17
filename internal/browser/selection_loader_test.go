@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 )
 
 func artPNG(t *testing.T) []byte {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // Config overrides hardware bindings by device name. Its zero value keeps the

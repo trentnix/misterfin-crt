@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 func TestTranscodeConfig(t *testing.T) {

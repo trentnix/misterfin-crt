@@ -17,8 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/media"
 )
 
 // Client shares configuration, authentication, and HTTP transport across all
@@ -70,7 +70,7 @@ func (c *Client) Authorization() string {
 	if version == "" {
 		version = "dev"
 	}
-	auth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version=` + strconv.Quote(version) + `, DeviceId=` + strconv.Quote(c.Session.DeviceID)
+	auth := `MediaBrowser Client="MiSTerVision", Device="MiSTerVision", Version=` + strconv.Quote(version) + `, DeviceId=` + strconv.Quote(c.Session.DeviceID)
 	if c.Session.Token != "" {
 		auth += ", Token=" + strconv.Quote(c.Session.Token)
 	}

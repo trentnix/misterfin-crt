@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 func TestSourceHTTPAndTLS(t *testing.T) {
@@ -26,7 +26,7 @@ func TestSourceHTTPAndTLS(t *testing.T) {
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Jellyfin can reject query-only socket authentication. Require
 				// the same authenticated identity for the upgrade and API calls.
-				wantAuth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="v2.3.4", DeviceId="device", Token="token"`
+				wantAuth := `MediaBrowser Client="MiSTerVision", Device="MiSTerVision", Version="v2.3.4", DeviceId="device", Token="token"`
 				if r.Header.Get("Authorization") != wantAuth {
 					w.WriteHeader(http.StatusForbidden)
 					return

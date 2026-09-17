@@ -22,7 +22,7 @@ SELECT/Tab cycles backgrounds during music playback and briefly shows the name. 
 | Toasty Squadron | Layered flying sprite sequences. |
 | Off | Plain background. Meters remain separately configurable. |
 
-Effects use the shared Go renderer and do not reproduce every detail of the C visualizers. The default cycle omits Toasty when its optional assets are absent. Asset discovery checks `assets/toasty` beside the configuration, then in the working directory, `/media/fat/misterfin-crt/toasty`, and the legacy `/media/fat/misterfin/toasty` directory.
+Effects use the shared Go renderer and do not reproduce every detail of the C visualizers. The default cycle omits Toasty when its optional assets are absent. Asset discovery checks `assets/toasty` beside the configuration, then in the working directory, `/media/fat/mistervision/toasty`, and the legacy `/media/fat/misterfin/toasty` directory.
 
 ## Configuration
 

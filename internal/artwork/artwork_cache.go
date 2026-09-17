@@ -4,7 +4,7 @@ import (
 	"image"
 	"sync"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 const artworkBudget = 16 * 1024 * 1024

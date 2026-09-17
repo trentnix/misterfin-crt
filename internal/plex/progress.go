@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // playbackReports binds the duration to one prepared stream. Plex requires duration

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 func TestHomeExcludesReadingLibrariesByCategory(t *testing.T) {

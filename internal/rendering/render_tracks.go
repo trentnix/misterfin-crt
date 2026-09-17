@@ -1,10 +1,10 @@
 package rendering
 
 import (
-	"misterfin-crt/internal/caption"
+	"mistervision/internal/caption"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 // drawTrackMenu uses the shared overlay canvas on every video output.

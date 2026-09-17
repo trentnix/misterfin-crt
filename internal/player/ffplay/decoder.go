@@ -4,8 +4,8 @@ package ffplay
 import (
 	"syscall"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/player"
+	"mistervision/internal/media"
+	"mistervision/internal/player"
 )
 
 // Decoder supplies desktop commands. FFplay has no slave control pipe,
@@ -41,7 +41,7 @@ func (d Decoder) Args(item media.Item, source string) []string {
 	if d.Picture.Zooms(item) {
 		filter += ffplayZoomFilter(item)
 	}
-	return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerFin CRT playback", "-vf", filter, "-af", "asetpts=PTS-STARTPTS", "-i", source}
+	return []string{"-hide_banner", "-loglevel", "info", "-stats", "-autoexit", "-exitonkeydown", "-window_title", "MiSTerVision playback", "-vf", filter, "-af", "asetpts=PTS-STARTPTS", "-i", source}
 }
 
 // ffplayZoomFilter crops to 4:3 for wide and narrow sources. A source already

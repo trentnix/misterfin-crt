@@ -4,8 +4,8 @@ package input
 import (
 	"context"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/terminal"
+	"mistervision/internal/input/control"
+	"mistervision/internal/terminal"
 )
 
 // ReadTerminal returns semantic actions with keyboard labels, followed by a

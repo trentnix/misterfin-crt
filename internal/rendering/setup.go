@@ -1,6 +1,6 @@
 package rendering
 
-import "misterfin-crt/internal/connection"
+import "mistervision/internal/connection"
 
 // SetupKind selects the shared setup layout and activity indicator.
 type SetupKind = connection.SetupKind

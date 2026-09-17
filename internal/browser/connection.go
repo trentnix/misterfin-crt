@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/connection"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 // authenticatedConnection groups the client and loaders that become valid

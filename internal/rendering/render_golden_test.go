@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/release"
+	"mistervision/internal/ui"
 )
 
 // TestRenderScreenPixels protects screen layout across structural changes.
@@ -44,9 +44,9 @@ func TestRenderScreenPixels(t *testing.T) {
 			case "connecting":
 				setup = SetupPresentation{Kind: SetupConnecting, Title: "Connecting to Jellyfin", Message: "Checking your connection and saved sign-in."}
 			case "quick-connect":
-				setup = SetupPresentation{Kind: SetupApproval, Retry: "New code", Code: "123456", Title: "Quick Connect", Message: "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerFin CRT."}
+				setup = SetupPresentation{Kind: SetupApproval, Retry: "New code", Code: "123456", Title: "Quick Connect", Message: "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerVision."}
 			case "connection-error":
-				setup = SetupPresentation{Kind: SetupFailure, Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/misterfin-crt/jellyfin.conf", Title: "Can't connect to Jellyfin", Message: "Check your server address and network connection.\nMake sure Jellyfin is running, then retry."}
+				setup = SetupPresentation{Kind: SetupFailure, Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/mistervision/jellyfin.conf", Title: "Can't connect to Jellyfin", Message: "Check your server address and network connection.\nMake sure Jellyfin is running, then retry."}
 			case "list":
 				m.ListMode = true
 			case "empty":

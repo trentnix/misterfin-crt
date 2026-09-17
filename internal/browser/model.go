@@ -7,8 +7,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
 )
 
 // PageSize is the requested number of items per library page.
@@ -182,7 +182,7 @@ func (m *Model) Key(key control.Action) *Request {
 		return nil
 	}
 	if v.Detail != nil && key == control.Open {
-		m.Notice = "Playback for this item type is not available yet.  A:back"
+		m.Notice = "Playback for this item type is not available yet."
 	}
 	if (v.Loading && len(v.Page.Items) == 0) || v.Detail != nil {
 		return nil

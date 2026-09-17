@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"misterfin-crt/internal/player"
+	"mistervision/internal/player"
 )
 
 // writer serializes stdout and stderr fragments. Complete lines are discarded

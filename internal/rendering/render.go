@@ -1,8 +1,8 @@
 package rendering
 
 import (
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/ui"
 )
 
 // renderScene selects exactly one screen. Browsing screens share footer and

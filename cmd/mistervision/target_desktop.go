@@ -3,17 +3,17 @@ package main
 import (
 	"context"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/input"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/player/ffplay"
-	"misterfin-crt/internal/player/pythonhelper"
-	"misterfin-crt/internal/sound/alsa"
-	"misterfin-crt/internal/videoout"
-	"misterfin-crt/internal/videoout/companion"
-	"misterfin-crt/internal/videoout/framefile"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/input"
+	"mistervision/internal/input/control"
+	"mistervision/internal/platform"
+	"mistervision/internal/playback"
+	"mistervision/internal/player/ffplay"
+	"mistervision/internal/player/pythonhelper"
+	"mistervision/internal/sound/alsa"
+	"mistervision/internal/videoout"
+	"mistervision/internal/videoout/companion"
+	"mistervision/internal/videoout/framefile"
 )
 
 // desktopTarget combines terminal input with either frame-file video for

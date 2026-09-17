@@ -1,6 +1,6 @@
 # Ghostty interactive harness
 
-This helper presents MiSTerFin CRT's desktop framebuffer inside Ghostty. MiSTerFin CRT reads the terminal directly, so the helper does not translate or intercept input.
+This helper presents MiSTerVision's desktop framebuffer inside Ghostty. MiSTerVision reads the terminal directly, so the helper does not translate or intercept input.
 
 Use Linux, Go 1.26.8 or later, a C compiler, and Python 3. Playback dependencies are listed below. See the [build guide](../../docs/GO_BUILD.md) for toolchain setup. From the repository root, run:
 
@@ -20,15 +20,15 @@ python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 
 The demo starts a temporary mock Jellyfin server on loopback. It includes more than 500 movies, TV shows, music, Live TV channels, Home Videos, and a Mixed library. Configuration and session files stay in a temporary directory and are removed on exit. No real server or credentials are needed.
 
-To browse a real Jellyfin server, create a `jellyfin.conf` containing its URL, then run:
+To connect to Jellyfin or Plex, create a `settings.json` with a `server` section as shown in the [project README](../../README.md#run-on-mister), then run:
 
 ```bash
-python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
+python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --settings /path/to/settings.json
 ```
 
-The browser displays a Quick Connect code. Approve that code in Jellyfin to sign in. The existing three-line server URL, API key, and username format also works. Go saves its session separately under the user configuration directory in `misterfin-crt/session.json`. It does not read or overwrite the C client's token or device files. `--state-dir PATH` selects another Go session directory.
+Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at `plex.tv/link`. Sessions default to the user configuration directory under `mistervision`. Plex uses its `plex` subdirectory. `--state-dir PATH` selects another state directory. For an existing MiSTerFin CRT development setup, pass its old state directory explicitly or follow the [rename instructions](../../docs/GO_BUILD.md#moving-from-misterfin-crt).
 
-Application options belong in `settings.json` beside `jellyfin.conf`. Use `--settings /path/to/settings.json` or `MISTERFIN_SETTINGS` to select another file. See [settings and migration](../../docs/GO_CONFIGURATION.md).
+Legacy Jellyfin configurations still work with `--config jellyfin.conf`. Application options default to `settings.json` beside that file. `--settings PATH` overrides `MISTERVISION_SETTINGS`. See [configuration](../../docs/GO_CONFIGURATION.md).
 
 Go browser controls:
 
@@ -55,13 +55,13 @@ Use `--go --pal` for PAL. The test frame displays color bars, a grayscale ramp, 
 
 Without `--browse` or `--demo`, the helper shows the Go test frame. The `--go` flag remains accepted for existing commands.
 
-The helper writes MiSTerFin's stdout and stderr to `/tmp/misterfin-ghostty.log` so terminal output cannot corrupt the image. Pass `--log PATH` to choose another location.
+The helper writes MiSTerVision's stdout and stderr to `/tmp/mistervision-ghostty.log` so terminal output cannot corrupt the image. Pass `--log PATH` to choose another location.
 
-The artwork cache defaults to `/tmp/misterfin-cache`. Carousel collages use its `misterfin-crt/gridcache` directory. Covers, backdrops, and logos use `misterfin-crt/covercache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERFIN_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
+The artwork cache defaults to `/tmp/mistervision-cache`. Carousel collages use its `mistervision/gridcache` directory. Covers, backdrops, and logos use `mistervision/covercache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERVISION_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
 
 Ghostty must report `TERM=xterm-ghostty`. The `--force` option permits another terminal that implements the Kitty graphics protocol.
 
-The viewer double-buffers terminal images to avoid flicker. It uploads a complete frame under an alternate image ID, then places the new frame and deletes the old frame within one synchronized terminal update. The upload stays outside that update so the current image remains visible while data transfers. MiSTerFin's 640x240 and 640x288 framebuffers use non-square CRT pixels, so the viewer fits them into a physical 4:3 rectangle using the terminal's cell geometry. The viewer skips duplicate frames.
+The viewer double-buffers terminal images to avoid flicker. It uploads a complete frame under an alternate image ID, then places the new frame and deletes the old frame within one synchronized terminal update. The upload stays outside that update so the current image remains visible while data transfers. MiSTerVision's 640x240 and 640x288 framebuffers use non-square CRT pixels, so the viewer fits them into a physical 4:3 rectangle using the terminal's cell geometry. The viewer skips duplicate frames.
 
 The presentation cap defaults to 20 FPS, or 60 FPS with `--inline-video`. Change the cap with `--fps NUMBER`. The presenter wakes when the Go frame file is complete, then uploads changed frames up to the configured cap. Upload time counts toward each interval. If an upload overruns a deadline, the presenter skips expired slots rather than building a backlog. This cap affects the terminal preview and does not change the decoder's playback clock.
 

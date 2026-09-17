@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // selectionState owns the selected metadata, images, and request lifetime.

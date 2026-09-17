@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // timedOutReports forces the final report to consume its entire cleanup budget.

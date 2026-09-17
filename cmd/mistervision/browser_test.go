@@ -6,19 +6,19 @@ import (
 	"path/filepath"
 	"testing"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/input/evdev"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/player"
-	desktopplayer "misterfin-crt/internal/player/ffplay"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
-	inlineplayer "misterfin-crt/internal/player/pythonhelper"
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/evdev"
+	"mistervision/internal/platform"
+	"mistervision/internal/player"
+	desktopplayer "mistervision/internal/player/ffplay"
+	nativeplayer "mistervision/internal/player/mplayer"
+	inlineplayer "mistervision/internal/player/pythonhelper"
+	"mistervision/internal/settings"
 )
 
 func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
-	t.Setenv("MISTERFIN_FB", "")
-	t.Setenv("MISTERFIN_FRAME_OUT", "")
+	t.Setenv("MISTERVISION_FB", "")
+	t.Setenv("MISTERVISION_FRAME_OUT", "")
 	mplayer := nativeplayer.Decoder{Width: 640, Height: 480, Device: "/dev/test-fb"}
 	ffplay := desktopplayer.Decoder{}
 	video := inlineplayer.Decoder{Script: "video.py", Output: "frame.raw.video", Width: 640, Height: 480}
@@ -84,19 +84,19 @@ func TestBrowserStartupResolvesStorage(t *testing.T) {
 		{"desktop override", "640x240", override, state, override},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("MISTERFIN_CACHE_ROOT", tc.override)
+			t.Setenv("MISTERVISION_CACHE_ROOT", tc.override)
 			got, err := browserConfig(launchOptions{config: "server.conf", headless: tc.headless, stateDir: tc.stateDir}, nil, mustSettings(t, launchOptions{config: "server.conf", headless: tc.headless, stateDir: tc.stateDir}))
 			if err != nil {
 				t.Fatal(err)
 			}
 			wantState := tc.stateDir
 			if wantState == "" {
-				wantState = filepath.Join(state, "misterfin-crt")
+				wantState = filepath.Join(state, "mistervision")
 			}
 			if got.StateDir != wantState {
 				t.Fatalf("config: %+v", got)
 			}
-			if got.ArtworkCacheDir != filepath.Join(tc.cacheRoot, "misterfin-crt", "covercache") || got.MosaicCacheDir != filepath.Join(tc.cacheRoot, "misterfin-crt", "gridcache") {
+			if got.ArtworkCacheDir != filepath.Join(tc.cacheRoot, "mistervision", "covercache") || got.MosaicCacheDir != filepath.Join(tc.cacheRoot, "mistervision", "gridcache") {
 				t.Fatalf("cache: %+v", got)
 			}
 		})
@@ -104,7 +104,7 @@ func TestBrowserStartupResolvesStorage(t *testing.T) {
 }
 
 func TestMissingUserCacheDirectoryDisablesOnlyCaching(t *testing.T) {
-	t.Setenv("MISTERFIN_CACHE_ROOT", "")
+	t.Setenv("MISTERVISION_CACHE_ROOT", "")
 	t.Setenv("XDG_CACHE_HOME", "")
 	t.Setenv("HOME", "")
 	o := launchOptions{headless: "640x240", stateDir: t.TempDir()}
@@ -113,9 +113,9 @@ func TestMissingUserCacheDirectoryDisablesOnlyCaching(t *testing.T) {
 		t.Fatalf("%+v: %v", got, err)
 	}
 	root := t.TempDir()
-	t.Setenv("MISTERFIN_CACHE_ROOT", root)
+	t.Setenv("MISTERVISION_CACHE_ROOT", root)
 	got, err = browserConfig(o, nil, mustSettings(t, o))
-	if err != nil || got.ArtworkCacheDir != filepath.Join(root, "misterfin-crt", "covercache") {
+	if err != nil || got.ArtworkCacheDir != filepath.Join(root, "mistervision", "covercache") {
 		t.Fatalf("override: %+v: %v", got, err)
 	}
 }

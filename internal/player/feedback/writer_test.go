@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"misterfin-crt/internal/player"
+	"mistervision/internal/player"
 )
 
 func TestWriterBoundsDiagnosticsAndResumesAtNextLine(t *testing.T) {

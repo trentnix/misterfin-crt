@@ -1,6 +1,6 @@
 package browser
 
-import "misterfin-crt/internal/media"
+import "mistervision/internal/media"
 
 const prefetchRows = 24
 

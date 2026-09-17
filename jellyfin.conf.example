@@ -3,7 +3,7 @@
 # Blank lines and lines beginning with # are ignored.
 # A server URL is enough to use Quick Connect. Approve the displayed code
 # from an already signed-in Jellyfin client.
-# The launcher saves login in /media/fat/misterfin-crt/state/session.json.
+# The launcher saves login in /media/fat/mistervision/state/session.json.
 
 http://your-jellyfin-server:8096
 

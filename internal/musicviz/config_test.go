@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/settings"
 	"time"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 func TestConfigAndAnimationAssets(t *testing.T) {

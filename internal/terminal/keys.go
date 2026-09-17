@@ -3,7 +3,7 @@ package terminal
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // Decoder translates terminal byte sequences into semantic input actions.

@@ -4,13 +4,13 @@ import "testing"
 
 func TestUpdaterOnlyTargetsPermanentPair(t *testing.T) {
 	good := launchOptions{browse: true, player: installationRoot + "/mplayer-arm"}
-	if installedUpdater(good, installationRoot+"/misterfin-crt") == nil {
+	if installedUpdater(good, installationRoot+"/mistervision") == nil {
 		t.Fatal("permanent pair disabled")
 	}
 	for _, kind := range []string{"headless", "preview", "custom-player", "custom-client"} {
 		t.Run(kind, func(t *testing.T) {
 			o := good
-			executable := installationRoot + "/misterfin-crt"
+			executable := installationRoot + "/mistervision"
 			switch kind {
 			case "headless":
 				o.headless = "640x240"

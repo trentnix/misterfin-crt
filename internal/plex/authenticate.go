@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"misterfin-crt/internal/serverstate"
+	"mistervision/internal/serverstate"
 )
 
 // ErrCodeExpired indicates an unapproved Plex link code reached its deadline.

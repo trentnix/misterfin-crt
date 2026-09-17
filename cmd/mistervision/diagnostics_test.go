@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/update"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,13 +31,13 @@ func TestStartupFailureBeforeBrowserIsRecorded(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			t.Setenv("MISTERFIN_SETTINGS", "")
-			t.Setenv("MISTERFIN_FB", "")
-			t.Setenv("MISTERFIN_FRAME_OUT", "")
-			t.Setenv("MISTERFIN_CRT_INTERLACED", "")
+			t.Setenv("MISTERVISION_SETTINGS", "")
+			t.Setenv("MISTERVISION_FB", "")
+			t.Setenv("MISTERVISION_FRAME_OUT", "")
+			t.Setenv("MISTERVISION_INTERLACED", "")
 			args := os.Args
 			t.Cleanup(func() { os.Args = args })
-			os.Args = append([]string{"misterfin-crt", "-browse", "-config=" + config}, tc.args...)
+			os.Args = append([]string{"mistervision", "-browse", "-config=" + config}, tc.args...)
 			if err := run(); err == nil {
 				t.Fatal("expected startup failure")
 			}

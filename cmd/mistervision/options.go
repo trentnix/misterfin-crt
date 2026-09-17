@@ -25,9 +25,9 @@ type launchOptions struct {
 // before opening resources and returns flag.ErrHelp for a help request.
 func parseOptions(args []string) (launchOptions, error) {
 	var o launchOptions
-	flags := flag.NewFlagSet("misterfin-crt", flag.ContinueOnError)
-	flags.StringVar(&o.headless, "headless", os.Getenv("MISTERFIN_FB"), "headless output geometry, for example 640x288")
-	flags.StringVar(&o.output, "output", os.Getenv("MISTERFIN_FRAME_OUT"), "headless BGRX raw output path")
+	flags := flag.NewFlagSet("mistervision", flag.ContinueOnError)
+	flags.StringVar(&o.headless, "headless", os.Getenv("MISTERVISION_FB"), "headless output geometry, for example 640x288")
+	flags.StringVar(&o.output, "output", os.Getenv("MISTERVISION_FRAME_OUT"), "headless BGRX raw output path")
 	flags.StringVar(&o.device, "device", "/dev/fb0", "Linux framebuffer device")
 	flags.DurationVar(&o.hold, "hold", 0, "keep test frame visible for this duration, for example 10s")
 	flags.BoolVar(&o.wait, "wait", false, "keep test frame visible until interrupted")
@@ -36,11 +36,11 @@ func parseOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.terminalPlayer, "terminal-player", "", "Python helper for video in the headless framebuffer")
 	flags.BoolVar(&o.browse, "browse", false, "browse the configured media server with keyboard or controller input")
 	flags.StringVar(&o.config, "config", "jellyfin.conf", "legacy Jellyfin configuration path (fallback when settings.json has no server section)")
-	flags.StringVar(&o.settingsPath, "settings", os.Getenv("MISTERFIN_SETTINGS"), "sectioned settings JSON (default: settings.json beside jellyfin.conf)")
+	flags.StringVar(&o.settingsPath, "settings", os.Getenv("MISTERVISION_SETTINGS"), "sectioned settings JSON (default: settings.json beside jellyfin.conf)")
 	flags.BoolVar(&o.migrateSettings, "migrate-settings", false, "migrate legacy connection and JSON settings, preserving originals and backing up existing settings.json")
-	flags.StringVar(&o.inputConfig, "input-config", os.Getenv("MISTERFIN_INPUT_CONFIG"), "legacy controller settings override (prefer settings.json input section)")
-	flags.StringVar(&o.soundConfig, "sound-config", os.Getenv("MISTERFIN_SOUND_CONFIG"), "legacy sound settings override (prefer settings.json ui.navigation_sounds)")
-	flags.StringVar(&o.stateDir, "state-dir", "", "Go session directory (default: user config directory/misterfin-crt)")
+	flags.StringVar(&o.inputConfig, "input-config", os.Getenv("MISTERVISION_INPUT_CONFIG"), "legacy controller settings override (prefer settings.json input section)")
+	flags.StringVar(&o.soundConfig, "sound-config", os.Getenv("MISTERVISION_SOUND_CONFIG"), "legacy sound settings override (prefer settings.json ui.navigation_sounds)")
+	flags.StringVar(&o.stateDir, "state-dir", "", "Go session directory (default: user config directory/mistervision)")
 	if err := flags.Parse(args); err != nil {
 		return o, err
 	}

@@ -3,7 +3,7 @@ package feedback
 import (
 	"testing"
 
-	"misterfin-crt/internal/player"
+	"mistervision/internal/player"
 )
 
 func TestParseAudioLevels(t *testing.T) {

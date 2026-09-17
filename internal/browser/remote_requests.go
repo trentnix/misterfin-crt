@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 const (

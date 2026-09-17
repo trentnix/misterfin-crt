@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"testing"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // The adapter must preserve the established stream profile and wire reporting

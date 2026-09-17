@@ -5,9 +5,9 @@ import (
 	"math"
 	"strings"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/ui"
 )
 
 // details draws metadata and reserves space for the preview's button badges.

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/serverstate"
+	"mistervision/internal/media"
+	"mistervision/internal/serverstate"
 )
 
 func liveID(dvr, channel string) string {

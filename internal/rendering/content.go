@@ -3,7 +3,7 @@ package rendering
 import (
 	"fmt"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // Content describes the visible items and selection without navigation or request

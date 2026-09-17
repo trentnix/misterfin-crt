@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/playback"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 func TestRemoteCommandsIgnoreMenusAndPreserveLabels(t *testing.T) {

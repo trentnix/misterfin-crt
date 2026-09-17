@@ -3,7 +3,7 @@ package musicviz
 import (
 	"math"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 // nebula evaluates a small plasma field. Shared sine terms and a color table

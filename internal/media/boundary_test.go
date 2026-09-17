@@ -31,7 +31,7 @@ func TestSharedPackagesDoNotImportProviders(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if name == "misterfin-crt/internal/jellyfin" || strings.HasPrefix(name, "misterfin-crt/internal/jellyfin/") || name == "misterfin-crt/internal/plex" || strings.HasPrefix(name, "misterfin-crt/internal/plex/") {
+				if name == "mistervision/internal/jellyfin" || strings.HasPrefix(name, "mistervision/internal/jellyfin/") || name == "mistervision/internal/plex" || strings.HasPrefix(name, "mistervision/internal/plex/") {
 					t.Errorf("%s imports server implementation %s", path, name)
 				}
 			}

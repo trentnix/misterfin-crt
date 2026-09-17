@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/input/evdev"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/sound"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/control"
+	"mistervision/internal/input/evdev"
+	"mistervision/internal/platform"
+	"mistervision/internal/playback"
+	"mistervision/internal/sound"
+	"mistervision/internal/videoout"
 )
 
 // browserTarget assembles independent input, player settings, and output.

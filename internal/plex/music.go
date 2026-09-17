@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // RandomTracks returns up to 64 unique tracks sampled from one music library.

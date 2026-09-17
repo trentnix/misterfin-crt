@@ -1,13 +1,15 @@
-MiSTerFin CRT
+MiSTerVision
 
 Install on MiSTer
 
-1. Exit MiSTerFin CRT. Keep a copy of the installed binaries before upgrading.
-2. Extract the ZIP on your computer. Copy Scripts/MiSTerFin-CRT.sh to /media/fat/Scripts/ and the contents of misterfin-crt/ to /media/fat/misterfin-crt/ on the SD card.
-3. For a new installation, copy settings.example.json to settings.json in /media/fat/misterfin-crt/. Set server.provider and server.url. Jellyfin uses provider "jellyfin".
+1. Exit MiSTerVision. Keep a copy of the installed binaries before upgrading.
+2. Extract the ZIP on your computer. Copy Scripts/MiSTerVision.sh to /media/fat/Scripts/ and the contents of mistervision/ to /media/fat/mistervision/ on the SD card.
+3. For a new installation, copy settings.example.json to settings.json in /media/fat/mistervision/. Set server.provider and server.url. Use provider "jellyfin" with port 8096 or "plex" with port 32400, unless your server uses another port.
 4. Keep existing settings and saved state when upgrading. Existing jellyfin.conf remains supported when settings.json has no server section. See docs/GO_CONFIGURATION.md to migrate connection settings into settings.json.
 5. Make the launcher and both binaries executable if the filesystem requires it.
-6. Launch MiSTerFin-CRT from MiSTer's Scripts menu. Approve Quick Connect in another signed-in Jellyfin client if prompted.
+6. Launch MiSTerVision from MiSTer's Scripts menu. Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at plex.tv/link.
+
+When moving from MiSTerFin CRT, exit the old application and back up its directory. Copy its settings, state, caches, optional InterlacedMenu.rbf, and custom assets into /media/fat/mistervision before installing this bundle. Update absolute paths in settings and remove the old Scripts entry after verification. Do not copy old binaries over the new pair. Old releases cannot install this renamed bundle through About.
 
 The archive contains no active settings, credentials, saved state, or caches. Copying its files preserves those files in an existing installation. Stop the application before replacing either binary, and always replace the pair.
 

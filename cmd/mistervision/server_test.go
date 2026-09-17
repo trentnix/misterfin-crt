@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	jfconnection "misterfin-crt/internal/jellyfin/connection"
-	"misterfin-crt/internal/plex"
-	"misterfin-crt/internal/settings"
+	jfconnection "mistervision/internal/jellyfin/connection"
+	"mistervision/internal/plex"
+	"mistervision/internal/settings"
 )
 
 func TestServerSelection(t *testing.T) {

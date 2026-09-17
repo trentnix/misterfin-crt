@@ -1,6 +1,6 @@
 # Configuration
 
-Connection and application options belong in `settings.json`, normally under `/media/fat/misterfin-crt`. Restart after changing JSON settings. Legacy Jellyfin Setup Retry still reloads `jellyfin.conf` when no `server` section exists.
+Connection and application options belong in `settings.json`, normally under `/media/fat/mistervision`. Restart after changing JSON settings. Legacy Jellyfin Setup Retry still reloads `jellyfin.conf` when no `server` section exists.
 
 ## Server connection
 
@@ -21,7 +21,7 @@ Both providers use the same connection fields:
 }
 ```
 
-For experimental Plex, set `provider` to `plex` and `url` to your Plex Media Server address, normally using port 32400. See [linking and current limits](GO_PLEX.md).
+For Plex, set `provider` to `plex` and `url` to your Plex Media Server address, normally using port 32400. See [linking and current limits](GO_PLEX.md).
 
 | Field | Default and behavior |
 | --- | --- |
@@ -56,7 +56,7 @@ Copy [settings.example.json](../settings.example.json), or include only the sect
 
 ```json
 {
-  "ui": {"title": "MiSTerFin CRT", "navigation_sounds": {"enabled": false}},
+  "ui": {"title": "MiSTerVision", "navigation_sounds": {"enabled": false}},
   "background": {"image": "background.png"},
   "display": {"interlaced": false}
 }
@@ -67,7 +67,7 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 | Section | Default | Failure behavior |
 | --- | --- | --- |
 | `server` | Absent: legacy Jellyfin fallback. Present: Jellyfin provider, verified TLS, default transcode limits. | Invalid section stops startup. |
-| `ui.title` | `MiSTerFin CRT`. Empty hides the heading. | Restore default title with a notice. |
+| `ui.title` | `MiSTerVision`. Empty hides the heading. | Restore default title with a notice. |
 | `ui.show_collections`, `ui.show_playlists` | Both `true`. Empty categories stay hidden. | Restore the invalid option to `true`, with a notice and a diagnostic event. |
 | `ui.navigation_sounds` | `enabled: true`, `volume: 10`. | Disable sounds with a notice. Media volume is unchanged. |
 | `background` | Carousel mosaics and item artwork. | Restore normal artwork with a notice. |
@@ -97,7 +97,7 @@ Values must be booleans. A mistyped value or `null` falls back to `true`, shows 
 
 ## Browsing title
 
-`ui.title` changes the carousel and root-list heading. An omitted title uses `MiSTerFin CRT`. `""` or whitespace-only text hides it while keeping the clock. Whitespace is collapsed and control characters are removed. Long titles end in `...` within the heading area, which fits 33 characters at the standard width. Library titles and About keep their own names.
+`ui.title` changes the carousel and root-list heading. An omitted title uses `MiSTerVision`. `""` or whitespace-only text hides it while keeping the clock. Whitespace is collapsed and control characters are removed. Long titles end in `...` within the heading area, which fits 33 characters at the standard width. Library titles and About keep their own names.
 
 ## Browsing background
 
@@ -115,9 +115,9 @@ Only visible browsing actions produce cues. Boundaries, redraws, and media contr
 
 ## Paths and precedence
 
-The executable accepts `-settings PATH`. `MISTERFIN_SETTINGS` supplies its default. The harness accepts `--settings PATH`. Flags override the environment. Relative image, music-asset, and log paths resolve beside the file that supplied them. The interlaced core lives beside `settings.json`.
+The executable accepts `-settings PATH`. `MISTERVISION_SETTINGS` supplies its default. The harness accepts `--settings PATH`. Flags override the environment. Relative image, music-asset, and log paths resolve beside the file that supplied them. The interlaced core lives beside `settings.json`.
 
-When `settings.json` exists, omitted application sections use defaults rather than legacy JSON files. The absent `server` section is the compatibility exception: it permits `jellyfin.conf`. Legacy `-input-config`, `-sound-config`, `MISTERFIN_INPUT_CONFIG`, `MISTERFIN_SOUND_CONFIG`, and `MISTERFIN_MUSIC_CONFIG` overrides still replace their sections. Remove those overrides when adopting the shared file.
+When `settings.json` exists, omitted application sections use defaults rather than legacy JSON files. The absent `server` section is the compatibility exception: it permits `jellyfin.conf`. Legacy `-input-config`, `-sound-config`, `MISTERVISION_INPUT_CONFIG`, `MISTERVISION_SOUND_CONFIG`, and `MISTERVISION_MUSIC_CONFIG` overrides still replace their sections. Remove those overrides when adopting the shared file.
 
 The old top-level `sounds` and `music` sections remain aliases. Explicit `ui.navigation_sounds` and `music_visuals` take precedence as whole sections, even if empty or invalid. In music settings, `default_background` and `show_audio_meters` replace `default` and `meters`. Explicit current fields win, including null values that select their defaults.
 
@@ -126,7 +126,7 @@ The old top-level `sounds` and `music` sections remain aliases. Explicit `ui.nav
 If the default `settings.json` is absent, the client reads legacy `ui.json`, `background.json`, `display.json`, `sounds.json`, `input.json`, `music.json`, and `diagnostics.json` beside it. The migration command also imports `jellyfin.conf`:
 
 ```sh
-/media/fat/misterfin-crt/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/jellyfin.conf
+/media/fat/mistervision/mistervision -migrate-settings -config /media/fat/mistervision/jellyfin.conf
 ```
 
 Use the configuration path of the installation being migrated. Separate 480i test installations can have their configuration under `interlaced-test`. Migration preserves originals and relative asset paths. If `settings.json` already exists without `server`, migration first saves its exact bytes in a private `settings.json.before-server` backup, then adds connection settings atomically. Explicit `diagnostics.enabled` wins over legacy `DEBUGLOG`. Existing server sections, backups, and files edited after loading cause migration to stop. Invalid connection settings fail before writing. Migration opens no display and contacts no server. Archive old configuration and any credential-bearing backup after verifying the new settings.

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 var _ media.Server = (*Client)(nil)

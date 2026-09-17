@@ -6,7 +6,7 @@ import (
 	"math"
 	"os"
 
-	"misterfin-crt/internal/player"
+	"mistervision/internal/player"
 )
 
 // audioMeter owns one MPlayer export file. The playback loop samples it while
@@ -16,7 +16,7 @@ type audioMeter struct{ path string }
 // newAudioMeter allocates an export file for one launch. A nil result means
 // sampling is unavailable. The caller must close a returned meter.
 func newAudioMeter() *audioMeter {
-	file, err := os.CreateTemp("", "misterfin-crt-audio-*")
+	file, err := os.CreateTemp("", "mistervision-audio-*")
 	if err != nil {
 		return nil // Missing meters must not prevent music playback.
 	}

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/settings"
 )
 
 // Config selects the native output at startup. The default preserves the
@@ -33,9 +33,9 @@ func Parse(source settings.Section) (Config, error) {
 	return c, nil
 }
 
-const coreName = "MiSTerFinInterlaced"
-const blockStart = "; BEGIN MiSTerFin CRT interlaced output"
-const blockEnd = "; END MiSTerFin CRT interlaced output"
+const coreName = "MiSTerVisionInterlaced"
+const blockStart = "; BEGIN MiSTerVision interlaced output"
+const blockEnd = "; END MiSTerVision interlaced output"
 
 // CoreConfig preserves existing INI text and adds an isolated MGL-name section.
 // The section is inert for the ordinary Menu core and other applications.
@@ -45,7 +45,7 @@ func CoreConfig(data []byte) ([]byte, error) {
 	if start := strings.Index(text, blockStart); start >= 0 {
 		end := strings.Index(text[start:], blockEnd)
 		if end < 0 {
-			return nil, errors.New("incomplete MiSTerFin interlaced configuration block")
+			return nil, errors.New("incomplete MiSTerVision interlaced configuration block")
 		}
 		end += start + len(blockEnd)
 		if end < len(text) && text[end] == '\n' {
@@ -54,7 +54,7 @@ func CoreConfig(data []byte) ([]byte, error) {
 		text = text[:start] + text[end:]
 	}
 	if strings.Contains(strings.ToLower(text), "["+strings.ToLower(coreName)+"]") {
-		return nil, errors.New("MiSTerFinInterlaced INI section already exists outside the managed block")
+		return nil, errors.New("MiSTerVisionInterlaced INI section already exists outside the managed block")
 	}
 	values := map[string]string{}
 	section := ""
@@ -117,7 +117,7 @@ func prepareCore(directory string) (string, error) {
 		return "", err
 	}
 	if string(configured) != string(original) {
-		backup := root + "/misterfin-crt/MiSTer.ini.before-interlaced"
+		backup := root + "/mistervision/MiSTer.ini.before-interlaced"
 		if _, e := os.Stat(backup); errors.Is(e, os.ErrNotExist) {
 			if e = os.WriteFile(backup, original, 0600); e != nil {
 				return "", e

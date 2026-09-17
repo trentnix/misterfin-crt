@@ -3,8 +3,8 @@ package browser
 import (
 	"context"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
 )
 
 // playbackProcess holds one decoder's lifecycle resources. Only the controller

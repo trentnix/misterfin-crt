@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"misterfin-crt/internal/media"
-	playerapi "misterfin-crt/internal/player"
+	"mistervision/internal/media"
+	playerapi "mistervision/internal/player"
 )
 
 // Supported reports whether the item type has a playback path. It does not

@@ -1,28 +1,30 @@
-# MiSTerFin CRT
+# MiSTerVision
 
 <p align="center">
-  <img src="docs/images/misterfin-crt-logo.png" alt="MiSTerFin CRT logo" width="256" height="256">
+  <img src="docs/images/mistervision-logo.png" alt="MiSTerVision logo" width="256" height="256">
 </p>
 
-MiSTerFin CRT is a Jellyfin client for MiSTer FPGA, designed for CRT televisions. It supports movies, TV, live TV, music, and photos.
+MiSTerVision is a Jellyfin and Plex client for CRT televisions on MiSTer FPGA. It supports movies, TV shows, live TV, music, photos, collections, and playlists through one interface.
 
-I’m continuing MiSTerFin’s focus on a great Jellyfin experience on CRTs. I test and use it on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. I tested the client with Jellyfin 12.
+My goal is a great media experience on CRTs. I test and use MiSTerVision on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. I have tested both server providers, including Jellyfin 12.
 
-![MiSTerFin CRT library carousel](docs/images/screenshots/home-carousel.png)
+![MiSTerVision library carousel](docs/images/screenshots/home-carousel.png)
 
 ## Run on MiSTer
 
-For a new installation, download `misterfin-crt-vX.Y.Z-mister.zip` from the [latest release](https://github.com/trentnix/misterfin-crt/releases/latest). Extract the ZIP and copy these files to the SD card. Make the launcher and both binaries executable if your filesystem requires it. If upgrading an existing installation manually, exit the application first and keep your configuration and state files.
+The MiSTerVision release is not published yet. For now, [build from source](docs/GO_BUILD.md). The repository remains `trentnix/misterfin-crt` until its separate rename.
+
+For a new installation, download `mistervision-vX.Y.Z-mister.zip` from the [latest release](https://github.com/trentnix/misterfin-crt/releases/latest). Extract the ZIP and copy these files to the SD card. Make the launcher and both binaries executable if your filesystem requires it. If upgrading an existing installation manually, exit the application first and keep your configuration and state files.
 
 | File | Destination |
 | --- | --- |
-| `misterfin-crt/misterfin-crt` | `/media/fat/misterfin-crt/misterfin-crt` |
-| `misterfin-crt/mplayer-arm` | `/media/fat/misterfin-crt/mplayer-arm` |
-| `Scripts/MiSTerFin-CRT.sh` | `/media/fat/Scripts/MiSTerFin-CRT.sh` |
+| `mistervision/mistervision` | `/media/fat/mistervision/mistervision` |
+| `mistervision/mplayer-arm` | `/media/fat/mistervision/mplayer-arm` |
+| `Scripts/MiSTerVision.sh` | `/media/fat/Scripts/MiSTerVision.sh` |
 
-Copy the remaining files from the ZIP’s `misterfin-crt` directory into `/media/fat/misterfin-crt/`. The archive includes examples, notices, and version information but no active configuration or saved state. Its `INSTALL.txt` has detailed instructions. To build from source, follow the [build guide](docs/GO_BUILD.md).
+Copy the remaining files from the ZIP’s `mistervision` directory into `/media/fat/mistervision/`. The archive includes examples, notices, and version information but no active configuration or saved state. Its `INSTALL.txt` has detailed instructions. To build from source, follow the [build guide](docs/GO_BUILD.md).
 
-For a new installation, copy [settings.example.json](settings.example.json) to `/media/fat/misterfin-crt/settings.json` and set your server address. A minimal Jellyfin configuration is:
+For a new installation, copy [settings.example.json](settings.example.json) to `/media/fat/mistervision/settings.json` and set your server address. A minimal Jellyfin configuration is:
 
 ```json
 {
@@ -33,7 +35,22 @@ For a new installation, copy [settings.example.json](settings.example.json) to `
 }
 ```
 
-Launch **MiSTerFin-CRT** from the Scripts menu. Approve the displayed Quick Connect code in Jellyfin. The launcher filename must contain no spaces. Login, playback choices, and artwork caches persist on the SD card.
+For Plex, use:
+
+```json
+{
+  "server": {
+    "provider": "plex",
+    "url": "http://your-plex-server:32400"
+  }
+}
+```
+
+Launch **MiSTerVision** from the Scripts menu. For Jellyfin, approve the displayed Quick Connect code in a signed-in Jellyfin client. For Plex, enter the code at [plex.tv/link](https://plex.tv/link) using an account with access to your server. Plex account linking requires internet access.
+
+The launcher filename must contain no spaces. Settings select one provider at a time. Sign-ins, playback choices, and artwork caches persist separately for each provider. See [configuration](docs/GO_CONFIGURATION.md) and [Plex limits](docs/GO_PLEX.md).
+
+If moving from MiSTerFin CRT, follow the [rename instructions](docs/GO_BUILD.md#moving-from-misterfin-crt) before installing. This rename requires a manual installation.
 
 ## Updates
 
@@ -53,9 +70,9 @@ The default uses MiSTer’s current display mode, normally 240p for NTSC or 288p
 
 To enable interlaced output:
 
-1. Exit MiSTerFin CRT. Install the matching client and MPlayer builds described above.
-2. Download the supported **InterlacedMenu.rbf v0.0.1** from the [display guide](docs/GO_DISPLAY.md#enable-or-disable-interlaced-output). Place it at `/media/fat/misterfin-crt/InterlacedMenu.rbf`.
-3. Set the `display` section in `/media/fat/misterfin-crt/settings.json`:
+1. Exit MiSTerVision. Install the matching client and MPlayer builds described above.
+2. Download the supported **InterlacedMenu.rbf v0.0.1** from the [display guide](docs/GO_DISPLAY.md#enable-or-disable-interlaced-output). Place it at `/media/fat/mistervision/InterlacedMenu.rbf`.
+3. Set the `display` section in `/media/fat/mistervision/settings.json`:
 
 ```json
 {
@@ -65,7 +82,7 @@ To enable interlaced output:
 }
 ```
 
-Launch **MiSTerFin-CRT** from the normal Scripts menu. The application switches to the interlaced core and restores the normal menu when you exit. Synchronization is automatic. The same launcher works for both modes.
+Launch **MiSTerVision** from the normal Scripts menu. The application switches to the interlaced core and restores the normal menu when you exit. Synchronization is automatic. The same launcher works for both modes.
 
 To return to the progressive default, exit the application and set `display.interlaced` to `false`:
 
@@ -85,25 +102,25 @@ Use the D-pad or left analog stick to navigate and follow the on-screen button h
 
 The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. [About](docs/GO_BROWSING.md#about-and-updates) shows the installed version and provides [updates](#updates).
 
-To control playback from another Jellyfin client, select **MiSTerFin CRT** as the playback device. Remote play, queues, pause/resume, seeking, shuffle, and repeat are supported. See [remote control](docs/GO_REMOTE.md).
+To control playback from another Jellyfin client, select **MiSTerVision** as the playback device. Remote play, queues, pause/resume, seeking, shuffle, and repeat are supported. See [remote control](docs/GO_REMOTE.md).
 
 ## Screenshots
 
-Browsing and playback captures are from MiSTer. Setup previews use the same renderer with example connection details.
+The carousel capture shows the shared renderer in the desktop harness. The other browsing and playback captures are from MiSTer. Setup previews use example connection details.
 
 | Continue Watching | Video controls |
 | --- | --- |
 | ![Continue Watching with saved playback positions](docs/images/screenshots/continue-watching.png) | ![Video playback with seek, pause, stop, and options controls](docs/images/screenshots/video-controls.png) |
 
-| Setup help | Quick Connect |
+| Jellyfin Quick Connect | Plex account linking |
 | --- | --- |
-| ![Setup screen showing where to add the Jellyfin server address](docs/images/screenshots/setup-needed.png) | ![Quick Connect instructions and an example approval code](docs/images/screenshots/quick-connect.png) |
+| ![Jellyfin Quick Connect instructions and an example approval code](docs/images/screenshots/quick-connect.png) | ![Plex account-linking instructions and an example code](docs/images/screenshots/plex-link.png) |
 
-Also see the [movie library](docs/images/screenshots/movies-list.png) and [movie details](docs/images/screenshots/movie-info.png).
+Also see [setup help](docs/images/screenshots/setup-needed.png), the [movie library](docs/images/screenshots/movies-list.png) and [movie details](docs/images/screenshots/movie-info.png).
 
 ## Configuration
 
-Connection and application settings live in **`settings.json`**, normally `/media/fat/misterfin-crt/settings.json` on MiSTer. Both providers use `server.provider`, `server.url`, `server.insecure_tls`, and `server.transcode`. For a new installation, copy [settings.example.json](settings.example.json). Existing installations can use the migration command below. Omitted optional fields use defaults. Restart after changing settings.
+Connection and application settings live in **`settings.json`**, normally `/media/fat/mistervision/settings.json` on MiSTer. Both providers use `server.provider`, `server.url`, `server.insecure_tls`, and `server.transcode`. For a new installation, copy [settings.example.json](settings.example.json). Existing installations can use the migration command below. Omitted optional fields use defaults. Restart after changing settings.
 
 ```json
 {
@@ -112,7 +129,7 @@ Connection and application settings live in **`settings.json`**, normally `/medi
     "url": "http://your-jellyfin-server:8096"
   },
   "ui": {
-    "title": "MiSTerFin CRT",
+    "title": "MiSTerVision",
     "show_collections": true,
     "show_playlists": true,
     "navigation_sounds": {
@@ -131,7 +148,7 @@ Connection and application settings live in **`settings.json`**, normally `/medi
 | Setting | Defaults and options | Guide |
 | --- | --- | --- |
 | `server` | Provider: `jellyfin`. URL required when the section exists. TLS verified. Transcode limits: 720×576 at 12 Mbps. | [Connection](docs/GO_CONFIGURATION.md#server-connection) |
-| `ui.title` | Heading: `MiSTerFin CRT`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_CONFIGURATION.md#browsing-title) |
+| `ui.title` | Heading: `MiSTerVision`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_CONFIGURATION.md#browsing-title) |
 | `ui.show_collections`, `ui.show_playlists` | Both `true`. Show nonempty categories. Set either to `false` to hide its card. | [Carousel](docs/GO_CONFIGURATION.md#carousel-categories) |
 | `ui.navigation_sounds` | `enabled: true`, `volume: 10` out of 100. False or volume zero silences navigation sounds. | [Sounds](docs/GO_CONFIGURATION.md#navigation-sounds) |
 | `background` | Generated carousel mosaics and item artwork on lists. `image` selects one custom background. | [Background](docs/GO_CONFIGURATION.md#browsing-background) |
@@ -143,7 +160,7 @@ Connection and application settings live in **`settings.json`**, normally `/medi
 Existing installations retain `jellyfin.conf` fallback when `server` is absent. Separate legacy JSON files are read when `settings.json` is absent. To consolidate connection and application settings on MiSTer:
 
 ```bash
-/media/fat/misterfin-crt/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/jellyfin.conf
+/media/fat/mistervision/mistervision -migrate-settings -config /media/fat/mistervision/jellyfin.conf
 ```
 
 Migration preserves `jellyfin.conf` and legacy JSON files. If `settings.json` exists, migration adds the connection section after saving a private `settings.json.before-server` backup. Existing server sections, backups, and concurrent edits are never overwritten. Once `server` exists, all connection settings come from JSON. See [configuration paths, migration, and recovery](docs/GO_CONFIGURATION.md).
@@ -180,7 +197,7 @@ To turn off navigation sounds, set `ui.navigation_sounds`:
 
 Sound settings affect browsing feedback only. They do not change music or video volume.
 
-`MISTERFIN_CACHE_ROOT` changes where artwork and carousel collages are cached. The default root is `/media/fat` on MiSTer and the user’s cache directory, usually `~/.cache`, for local testing. The client stores caches under `misterfin-crt` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
+`MISTERVISION_CACHE_ROOT` changes where artwork and carousel collages are cached. The default root is `/media/fat` on MiSTer and the user’s cache directory, usually `~/.cache`, for local testing. The client stores caches under `mistervision` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
 
 ## Local development and testing
 
@@ -190,17 +207,19 @@ I use the Ghostty harness on Linux to develop and test the interface without MiS
 python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
-The harness builds the client automatically. See the [development harness guide](tools/ghostty/README.md) for dependencies, connecting to Jellyfin, and testing playback.
+The harness builds the client automatically. See the [development harness guide](tools/ghostty/README.md) for dependencies, connecting to either server, and testing playback.
 
-## Experimental Plex support
+## Server support
 
-An experimental Plex implementation supports account linking, movie, TV, music, and photo browsing, artwork, playback, and tuner-backed Live TV through the existing UI. It is available on the development branch. Basic playback has been tested on Ghostty and MiSTer. See [configuration and limits](docs/GO_PLEX.md).
+Jellyfin and Plex share browsing, controls, music visuals, picture modes, and the photo viewer. Each adapter handles its own sign-in, media queries, and streaming. Playback requires a server that can supply the supported formats.
+
+Jellyfin supports remote control from other Jellyfin clients. Plex supports linked-account access and local DVR live TV, including alternate audio when the stream exposes it. Plex Home profile switching, server discovery, remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
 
 ## Deferred work
 
 - **PAL/576i and direct MiSTer YPbPr validation:** I do not have suitable hardware to test these output paths. My tested setup uses MiSTer configured for RGB through its 9-pin output and a Retrovision YPbPr cable to a consumer 4:3 CRT.
 - **Zaparoo DDR integration:** Deferred until I have a way to test it. Zaparoo is not required for the supported interlaced output.
-- **MiSTer background-music hardware validation:** Suspension and restoration are implemented and covered by automated tests. Testing with the actual add-on is deferred because I do not use it. This is separate from Jellyfin music playback.
+- **MiSTer background-music hardware validation:** Suspension and restoration are implemented and covered by automated tests. Testing with the actual add-on is deferred because I do not use it. This is separate from music played through Jellyfin or Plex.
 
 ## More information
 
@@ -214,6 +233,6 @@ See the [documentation index](docs/README.md) for all guides and current limits.
 
 ## Origins and license
 
-I started MiSTerFin CRT as a Go port of [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio, including my [C changes](https://github.com/trentnix/MiSTerFin). I maintain it independently. It remains heavily based on MiSTerFin, an excellent project.
+I started this project as MiSTerFin CRT, a Go port of [MiSTerFin](https://github.com/puddingstudio/MiSTerFin) by Pudding Studio, including my [C changes](https://github.com/trentnix/MiSTerFin). I maintain it independently. It remains heavily based on MiSTerFin, an excellent project.
 
 Original MiSTerFin material is copyright © 2026 Pudding Studio. My additions and modifications are copyright © 2026 trentnix. I distribute the application under [CC BY-NC 4.0](LICENSE), except for components covered by [separate licenses](docs/THIRD_PARTY.md), including the GPL-licensed MPlayer.

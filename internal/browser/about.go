@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/input/control"
+	"mistervision/internal/release"
+	"mistervision/internal/rendering"
+	"mistervision/internal/update"
 )
 
 // checkUpdate starts at most one request at a time. The application starts one

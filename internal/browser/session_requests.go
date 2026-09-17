@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/url"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
 
 // requestState owns the current listing request.

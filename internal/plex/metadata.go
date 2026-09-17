@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // identifier accepts Plex IDs encoded as either strings or JSON numbers.

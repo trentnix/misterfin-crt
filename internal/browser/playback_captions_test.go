@@ -3,8 +3,8 @@ package browser
 import (
 	"testing"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
 )
 
 func TestLiveCaptionsToggleWithoutRestartAndKeepMenuState(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/player"
+	"mistervision/internal/media"
+	"mistervision/internal/player"
 )
 
 // Decoder owns MiSTer's slave commands and CRT scaling policy. It holds
@@ -30,7 +30,7 @@ func (d Decoder) Executable() string {
 	if d.Player != "" {
 		return d.Player
 	}
-	return "/media/fat/misterfin-crt/mplayer-arm"
+	return "/media/fat/mistervision/mplayer-arm"
 }
 
 // Input selects the local proxy for seekable audio and descriptor 3 for video.
@@ -55,7 +55,7 @@ func (d Decoder) Args(item media.Item, source string) []string {
 		return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-novideo", "-ao", "alsa", "-af", filter, source}
 	}
 	dar := player.DisplayAspectRatio(item)
-	filter := fmt.Sprintf("misterfin=%d:%d:%.9f:%d", d.Width, d.Height, dar, d.Picture)
+	filter := fmt.Sprintf("mistervision=%d:%d:%.9f:%d", d.Width, d.Height, dar, d.Picture)
 
 	// Match the C player's audio-clock correction. Recorded video smooths ALSA
 	// delay measurements. Live TV reacts sooner to broadcast timing changes.
@@ -67,7 +67,7 @@ func (d Decoder) Args(item media.Item, source string) []string {
 		// Let demuxing begin with available bytes, retaining the cache for read-ahead.
 		cacheMinimum = "0"
 		autosync = "1"
-		decodeOptions += ":misterfin-captions"
+		decodeOptions += ":mistervision-captions"
 	}
 	return []string{"-slave", "-quiet", "-nojoystick", "-noconsolecontrols", "-vo", "fbdev:" + d.Device, "-ao", "alsa", "-osdlevel", "0", "-framedrop", "-autosync", autosync, "-demuxer", "lavf", "-cache", "8192", "-cache-min", cacheMinimum, "-sws", "0", "-vf", filter, "-lavdopts", decodeOptions, "-af", "volume=-3", source}
 }
@@ -116,7 +116,7 @@ func (d Decoder) WithAudioLevels() (player.Decoder, player.Meter) {
 // Position and pause state are preserved. MPlayer reports the result later
 // through ANS_PICTURE_MODE, echoing request to identify the command.
 func (d Decoder) SetPicture(c player.Control, mode player.PictureMode, request int) error {
-	_, err := fmt.Fprintf(c.Stdin, "pausing_keep_force misterfin_picture %d %d\n", mode, request)
+	_, err := fmt.Fprintf(c.Stdin, "pausing_keep_force mistervision_picture %d %d\n", mode, request)
 	return err
 }
 

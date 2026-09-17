@@ -21,7 +21,7 @@ from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 ROOT = Path(__file__).resolve().parents[3]
-BINARY = Path(os.environ.get("MISTERFIN_CRT_TEST_BINARY", str(ROOT / "build/misterfin-crt")))
+BINARY = Path(os.environ.get("MISTERVISION_TEST_BINARY", str(ROOT / "build/mistervision")))
 
 
 @dataclass
@@ -241,9 +241,9 @@ class BrowserFixture(unittest.TestCase):
         self.write_settings()
         if self.scenario.unified_server:
             config.unlink()  # The shared document must be sufficient on its own.
-        self.environment = {**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"),
-                            "MISTERFIN_SETTINGS": "", "MISTERFIN_INPUT_CONFIG": "",
-                            "MISTERFIN_SOUND_CONFIG": "", "MISTERFIN_MUSIC_CONFIG": "",
+        self.environment = {**os.environ, "MISTERVISION_CACHE_ROOT": str(self.directory / "cache"),
+                            "MISTERVISION_SETTINGS": "", "MISTERVISION_INPUT_CONFIG": "",
+                            "MISTERVISION_SOUND_CONFIG": "", "MISTERVISION_MUSIC_CONFIG": "",
                             "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"}
 
         self.process = subprocess.Popen(

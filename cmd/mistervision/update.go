@@ -4,16 +4,16 @@ import (
 	"os"
 	"syscall"
 
-	misterupdate "misterfin-crt/internal/mister/update"
+	misterupdate "mistervision/internal/mister/update"
 )
 
-const installationRoot = "/media/fat/misterfin-crt"
-const installationLauncher = "/media/fat/Scripts/MiSTerFin-CRT.sh"
+const installationRoot = "/media/fat/mistervision"
+const installationLauncher = "/media/fat/Scripts/MiSTerVision.sh"
 
 // installedUpdater only enables replacement of the standard, paired MiSTer
 // installation. Desktop and custom test locations retain manual installation.
 func installedUpdater(o launchOptions, executable string) *misterupdate.Installer {
-	if o.headless != "" || !o.browse || executable != installationRoot+"/misterfin-crt" || o.player != installationRoot+"/mplayer-arm" {
+	if o.headless != "" || !o.browse || executable != installationRoot+"/mistervision" || o.player != installationRoot+"/mplayer-arm" {
 		return nil
 	}
 	return misterupdate.New(installationRoot, installationLauncher)
@@ -35,7 +35,7 @@ func recoverUpdate(o launchOptions) error {
 		return err
 	}
 	if restored {
-		_ = os.Setenv("MISTERFIN_CRT_UPDATE_RECOVERED", "1")
+		_ = os.Setenv("MISTERVISION_UPDATE_RECOVERED", "1")
 		return syscall.Exec(executable, os.Args, os.Environ())
 	}
 	return nil

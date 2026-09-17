@@ -14,7 +14,7 @@ import (
 	"errors"
 	"unsafe"
 
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/sound"
 )
 
 // stream owns one nonblocking ALSA handle. The sound worker serializes access.

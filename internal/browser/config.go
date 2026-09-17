@@ -4,11 +4,11 @@ import (
 	"context"
 	"image"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/connection"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/release"
+	"mistervision/internal/update"
 )
 
 // Config supplies browsing settings, storage, and release information to [Run]. The caller
@@ -23,7 +23,7 @@ type Config struct {
 	MusicVisuals *musicviz.Library
 
 	// Title replaces the heading on the carousel and root library list.
-	// Nil uses MiSTerFin CRT. An empty value hides the heading. The renderer
+	// Nil uses MiSTerVision. An empty value hides the heading. The renderer
 	// truncates it before the clock. The caller must not modify the value during Run.
 	Title *string
 

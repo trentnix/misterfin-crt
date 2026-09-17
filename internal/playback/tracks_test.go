@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func TestTrackPreparationChoosesSourceAndBurnIn(t *testing.T) {

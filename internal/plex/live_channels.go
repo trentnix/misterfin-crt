@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 const liveLibraryID = "plex:live-tv"

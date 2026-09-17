@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/rendering"
 )
 
 // trackPicker owns navigation within the video Options menu.

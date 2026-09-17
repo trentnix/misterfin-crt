@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 var _ media.LiveTV = (*Client)(nil)

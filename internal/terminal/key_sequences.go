@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // characterAction maps terminal character codes to shared semantic actions.

@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"time"
 
-	"misterfin-crt/internal/release"
-	updateapi "misterfin-crt/internal/update"
+	"mistervision/internal/release"
+	updateapi "mistervision/internal/update"
 )
 
 const pendingName = ".update-pending"

@@ -5,7 +5,7 @@ import (
 	"image"
 	"sync"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // Loader fetches and caches images for one authenticated session. It

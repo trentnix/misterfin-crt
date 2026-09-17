@@ -1,9 +1,9 @@
 package browser
 
 import (
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/musicviz"
+	"mistervision/internal/connection"
+	"mistervision/internal/media"
+	"mistervision/internal/musicviz"
 )
 
 // workerResult is one completed outcome delivered to the browser event loop.

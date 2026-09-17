@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"misterfin-crt/internal/artwork/bitmap"
+	"mistervision/internal/artwork/bitmap"
 )
 
 // ImageKind fetches tagged artwork such as Primary, Backdrop, or Logo.

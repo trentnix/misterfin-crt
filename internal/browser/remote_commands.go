@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 // handleRemote operates on media state directly. It never synthesizes a select

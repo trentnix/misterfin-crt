@@ -3,7 +3,7 @@ package displaymode
 import (
 	"context"
 	"errors"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/update"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +18,7 @@ import (
 // and a client stub. The stub models the supervisor's launcher contract without
 // opening the host's consoles or switching a real core.
 func TestLauncherMenuReturn(t *testing.T) {
-	source, err := os.ReadFile("../../../tools/misterfin-crt.sh")
+	source, err := os.ReadFile("../../../tools/mistervision.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestLauncherMenuReturn(t *testing.T) {
 			}
 			defer syscall.Close(fd)
 			fat := filepath.Join(dir, "fat")
-			app := filepath.Join(fat, "misterfin-crt")
+			app := filepath.Join(fat, "mistervision")
 			if err := os.MkdirAll(app, 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -46,15 +46,15 @@ if [ "$TEST_MODE" = "480i failure" ]; then
  echo 'client failed' >&2
  exit 1
 fi
-if [ "$TEST_MODE" = "480i" ] && [ "${MISTERFIN_CRT_LAUNCHER:-}" != "1" ]; then
+if [ "$TEST_MODE" = "480i" ] && [ "${MISTERVISION_LAUNCHER:-}" != "1" ]; then
  printf '%s\n' "load_core $TEST_MENU" > "$TEST_FIFO"
 fi
 `
 			for name, data := range map[string]string{
-				filepath.Join(app, "misterfin-crt"): helper,
-				filepath.Join(app, "mplayer-arm"):   "#!/bin/sh\nexit 0\n",
-				filepath.Join(dir, "taskset"):       "#!/bin/sh\nexit 0\n",
-				filepath.Join(fat, "menu.rbf"):      "test core",
+				filepath.Join(app, "mistervision"): helper,
+				filepath.Join(app, "mplayer-arm"):  "#!/bin/sh\nexit 0\n",
+				filepath.Join(dir, "taskset"):      "#!/bin/sh\nexit 0\n",
+				filepath.Join(fat, "menu.rbf"):     "test core",
 			} {
 				if err := os.WriteFile(name, []byte(data), 0700); err != nil {
 					t.Fatal(err)
@@ -91,7 +91,7 @@ fi
 // TestLauncherUpdateRestart simulates atomic replacement while the old script
 // is running from a temporary copy. Only the installed launcher may restart it.
 func TestLauncherUpdateRestart(t *testing.T) {
-	source, err := os.ReadFile("../../../tools/misterfin-crt.sh")
+	source, err := os.ReadFile("../../../tools/mistervision.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestLauncherUpdateRestart(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			fat := filepath.Join(dir, "fat")
-			app := filepath.Join(fat, "misterfin-crt")
+			app := filepath.Join(fat, "mistervision")
 			scripts := filepath.Join(fat, "Scripts")
 			for _, path := range []string{app, scripts} {
 				if err := os.MkdirAll(path, 0700); err != nil {
@@ -130,7 +130,7 @@ func TestLauncherUpdateRestart(t *testing.T) {
 			replacement := "#!/bin/bash\nprintf 'updated launcher\\n' >> \"$TEST_EVENTS\"\n" + script
 			helper := `#!/bin/bash
 set -eu
-[ "$MISTERFIN_CRT_AUTO_RESTART" = 1 ]
+[ "$MISTERVISION_AUTO_RESTART" = 1 ]
 if [ ! -f "$TEST_STARTED" ]; then
     touch "$TEST_STARTED"
     printf 'old client\n' >> "$TEST_EVENTS"
@@ -153,7 +153,7 @@ exit "$TEST_NEXT_STATUS"
 				filepath.Join(dir, "replacement.sh"): replacement,
 				filepath.Join(dir, "taskset"):        "#!/bin/sh\nexit 0\n",
 				filepath.Join(fat, "menu.rbf"):       "test core",
-				filepath.Join(app, "misterfin-crt"):  helper,
+				filepath.Join(app, "mistervision"):   helper,
 				filepath.Join(app, "mplayer-arm"):    "#!/bin/sh\nexit 0\n",
 			}
 			for path, data := range files {
@@ -169,7 +169,7 @@ exit "$TEST_NEXT_STATUS"
 				"TEST_EVENTS="+filepath.Join(dir, "events"),
 				"TEST_STARTED="+filepath.Join(dir, "started"),
 				"TEST_REPLACEMENT="+filepath.Join(dir, "replacement.sh"),
-				"TEST_LAUNCHER="+filepath.Join(scripts, "MiSTerFin-CRT.sh"),
+				"TEST_LAUNCHER="+filepath.Join(scripts, "MiSTerVision.sh"),
 				"TEST_MENU="+filepath.Join(fat, "menu.rbf"), "TEST_FIFO="+fifo,
 				"TEST_INTERLACED="+strconv.FormatBool(tc.interlaced),
 				"TEST_MISSING="+strconv.FormatBool(tc.missing),

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // livePlayback holds the identifiers allocated by PlaybackInfo. StreamURL
@@ -35,7 +35,7 @@ func (c *Client) liveProfile(maxFrameRate float64) any {
 		"EnableDirectPlay": false, "EnableDirectStream": false, "EnableTranscoding": true,
 		"AllowVideoStreamCopy": false, "AllowAudioStreamCopy": false, "MaxStreamingBitrate": profile.VideoBitrate,
 		"DeviceProfile": map[string]any{
-			"Name": "MiSTerFin", "MaxStreamingBitrate": profile.VideoBitrate, "MaxStaticBitrate": profile.VideoBitrate,
+			"Name": "MiSTerVision", "MaxStreamingBitrate": profile.VideoBitrate, "MaxStaticBitrate": profile.VideoBitrate,
 			"DirectPlayProfiles": []any{}, "SubtitleProfiles": []any{},
 			"TranscodingProfiles": []any{map[string]any{"Container": "ts", "Type": "Video", "Protocol": "http", "AudioCodec": "mp3", "VideoCodec": "mpeg2video", "Context": "Streaming", "MaxAudioChannels": "2"}},
 			"CodecProfiles":       []any{map[string]any{"Type": "Video", "Codec": "mpeg2video", "Conditions": conditions}},

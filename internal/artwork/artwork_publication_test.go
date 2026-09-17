@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 )
 
 func TestRetryRejectsOlderInFlightImage(t *testing.T) {

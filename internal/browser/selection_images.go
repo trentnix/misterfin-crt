@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // itemImages requests each image independently and waits for all workers.

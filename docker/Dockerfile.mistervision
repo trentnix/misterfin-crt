@@ -42,15 +42,15 @@ COPY mplayer_overlay_refresh.patch /build/mplayer_overlay_refresh.patch
 COPY mplayer_picture.patch /build/mplayer_picture.patch
 COPY swscale_arm_return.patch /build/swscale_arm_return.patch
 COPY mplayer_captions.patch /build/mplayer_captions.patch
-COPY misterfin_captions.h /build/misterfin_captions.h
-COPY vf_misterfin.c /build/vf_misterfin.c
+COPY mistervision_captions.h /build/mistervision_captions.h
+COPY vf_mistervision.c /build/vf_mistervision.c
 COPY font8x8.h /build/font8x8.h
 # Apply playback timing changes only in this private Go player build.
 RUN patch -p2 < /build/vo_fbdev_go.patch \
     && patch -p2 < /build/vo_fbdev_interlaced.patch \
     && sed -i '/^cd MPlayer-/a patch -p1 < /build/mplayer_go.patch\npatch -p1 < /build/mplayer_overlay_refresh.patch' /build/build-mplayer.sh \
-    && sed -i '/^cd MPlayer-/a cp /build/vf_misterfin.c libmpcodecs/\npatch -p1 < /build/mplayer_picture.patch' /build/build-mplayer.sh \
-    && sed -i '/^cd MPlayer-/a cp /build/misterfin_captions.h libmpcodecs/\npatch -p1 < /build/mplayer_captions.patch' /build/build-mplayer.sh \
+    && sed -i '/^cd MPlayer-/a cp /build/vf_mistervision.c libmpcodecs/\npatch -p1 < /build/mplayer_picture.patch' /build/build-mplayer.sh \
+    && sed -i '/^cd MPlayer-/a cp /build/mistervision_captions.h libmpcodecs/\npatch -p1 < /build/mplayer_captions.patch' /build/build-mplayer.sh \
     && sed -i '/^make -j/i patch -p1 < /build/swscale_arm_return.patch' /build/build-mplayer.sh \
     && chmod +x /build/build-mplayer.sh
 

@@ -1,8 +1,8 @@
 package playback
 
 import (
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/player"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/player"
 )
 
 // Config holds reusable decoder and storage settings. Run copies Config and

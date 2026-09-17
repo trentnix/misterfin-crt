@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/media"
 )
 
 // Preferences stores per-video choices under the application's state directory.

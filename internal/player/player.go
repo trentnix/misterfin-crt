@@ -6,7 +6,7 @@ import (
 	"io"
 	"syscall"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // Decoder holds immutable launch settings. The caller owns the process and its

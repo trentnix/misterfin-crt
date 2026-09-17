@@ -1,5 +1,5 @@
-#ifndef MISTERFIN_SOUND_ADAPTER_H
-#define MISTERFIN_SOUND_ADAPTER_H
+#ifndef MISTERVISION_SOUND_ADAPTER_H
+#define MISTERVISION_SOUND_ADAPTER_H
 #include <stdint.h>
 typedef struct mf_sound mf_sound;
 mf_sound *mf_sound_open(void);

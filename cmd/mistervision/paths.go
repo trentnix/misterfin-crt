@@ -4,11 +4,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"misterfin-crt/internal/browser"
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/settings"
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/browser"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/settings"
+	"mistervision/internal/sound"
 )
 
 // browserConfig loads optional browsing settings and resolves storage at startup.
@@ -17,7 +17,7 @@ import (
 func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File) (browser.Config, error) {
 	config := browser.Config{StateDir: o.stateDir, Diagnostics: log}
 	musicSource := source.Section("music_visuals")
-	if override := os.Getenv("MISTERFIN_MUSIC_CONFIG"); override != "" {
+	if override := os.Getenv("MISTERVISION_MUSIC_CONFIG"); override != "" {
 		musicSource = settings.Read(override, 64<<10, true)
 	}
 	var err error
@@ -29,7 +29,7 @@ func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File)
 	ui := source.UI()
 	if ui.TitleError != nil {
 		log.ConfigurationFallback("ui", "default-title", ui.TitleError)
-		config.StartupNotices = append(config.StartupNotices, "Could not load title settings. Using MiSTerFin CRT.")
+		config.StartupNotices = append(config.StartupNotices, "Could not load title settings. Using MiSTerVision.")
 	} else {
 		config.Title = ui.Title
 	}
@@ -60,9 +60,9 @@ func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File)
 		if err != nil {
 			return config, err
 		}
-		config.StateDir = filepath.Join(dir, "misterfin-crt")
+		config.StateDir = filepath.Join(dir, "mistervision")
 	}
-	root := os.Getenv("MISTERFIN_CACHE_ROOT")
+	root := os.Getenv("MISTERVISION_CACHE_ROOT")
 	if root == "" {
 		if o.headless == "" {
 			root = "/media/fat"
@@ -72,8 +72,8 @@ func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File)
 		}
 	}
 	if root != "" {
-		config.ArtworkCacheDir = filepath.Join(root, "misterfin-crt", "covercache")
-		config.MosaicCacheDir = filepath.Join(root, "misterfin-crt", "gridcache")
+		config.ArtworkCacheDir = filepath.Join(root, "mistervision", "covercache")
+		config.MosaicCacheDir = filepath.Join(root, "mistervision", "gridcache")
 	}
 	return config, nil
 }

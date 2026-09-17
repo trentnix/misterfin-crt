@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"misterfin-crt/internal/media"
-	playerapi "misterfin-crt/internal/player"
+	"mistervision/internal/media"
+	playerapi "mistervision/internal/player"
 )
 
 // playbackSession owns one server play session. Its loop updates decoder

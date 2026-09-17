@@ -98,7 +98,7 @@ int mf_open(mf_display **out, const char *device, int width, int height)
         if (d->mem == MAP_FAILED) { d->mem = NULL; error = errno; goto fail; }
         /* Own graphics mode until the app closes. Scripts may have no
          * controlling terminal, so use the active virtual console then. */
-        const char *interlaced = getenv("MISTERFIN_CRT_INTERLACED");
+        const char *interlaced = getenv("MISTERVISION_INTERLACED");
         int interlaced_active = interlaced && !strcmp(interlaced, "1");
         /* The interlaced supervisor selects VT1. A Scripts launcher retains
          * tty2 as its controlling terminal, so use the active console. */

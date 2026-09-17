@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func preferenceTracks() VideoTracks {
@@ -215,7 +215,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 			}
 		}
 		data, err := os.ReadFile(args)
-		if err != nil || !strings.Contains(string(data), "misterfin=640:240:1.777777778:1") {
+		if err != nil || !strings.Contains(string(data), "mistervision=640:240:1.777777778:1") {
 			t.Fatal("decoder did not restore Zoom")
 		}
 	}

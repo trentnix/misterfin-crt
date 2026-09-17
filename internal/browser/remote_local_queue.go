@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strconv"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 // publishLocalQueue makes locally started media visible to remote controllers.

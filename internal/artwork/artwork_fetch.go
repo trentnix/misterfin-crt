@@ -6,7 +6,7 @@ import (
 	"image"
 	"image/draw"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // Fetch reuses tagged artwork before acquiring a request slot and checks

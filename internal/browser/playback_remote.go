@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
 )
 
 // wantsPause returns user intent, excluding the temporary pause used for seeking.

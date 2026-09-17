@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install as /media/fat/Scripts/MiSTerFin-CRT.sh. Main_MiSTer does not quote paths.
+# Install as /media/fat/Scripts/MiSTerVision.sh. Main_MiSTer does not quote paths.
 # Launch from MiSTer's Scripts menu so Main_MiSTer enables framebuffer output.
 # Binaries, login, and playback choices persist on the SD card.
 set -eu
@@ -28,15 +28,15 @@ trap finish EXIT
 clear_console
 printf '\033[?25l' > /dev/tty0
 
-binary=/media/fat/misterfin-crt/misterfin-crt
-player=/media/fat/misterfin-crt/mplayer-arm
+binary=/media/fat/mistervision/mistervision
+player=/media/fat/mistervision/mplayer-arm
 if [ ! -x "$binary" ]; then
-    echo "Install the Go ARM build at $binary before launching MiSTerFin CRT."
+    echo "Install the Go ARM build at $binary before launching MiSTerVision."
     exit 1
 fi
 
 if [ ! -x "$player" ]; then
-    echo "Install the Go-specific MPlayer build at $player before launching MiSTerFin CRT."
+    echo "Install the Go-specific MPlayer build at $player before launching MiSTerVision."
     exit 1
 fi
 
@@ -47,9 +47,9 @@ taskset -p 3 "$$" >/dev/null
 # The 480i supervisor leaves normal menu return to finish(), but still restores
 # hardware itself after a failure. Older launchers retain supervisor restoration.
 status=0
-MISTERFIN_CRT_LAUNCHER=1 MISTERFIN_CRT_AUTO_RESTART=1 "$binary" -browse \
-    -config /media/fat/misterfin-crt/jellyfin.conf \
-    -state-dir /media/fat/misterfin-crt/state \
+MISTERVISION_LAUNCHER=1 MISTERVISION_AUTO_RESTART=1 "$binary" -browse \
+    -config /media/fat/mistervision/jellyfin.conf \
+    -state-dir /media/fat/mistervision/state \
     -player "$player" || status=$?
 
 # Exit 75 means installation and cleanup succeeded. The 480i supervisor has
@@ -57,6 +57,6 @@ MISTERFIN_CRT_LAUNCHER=1 MISTERFIN_CRT_AUTO_RESTART=1 "$binary" -browse \
 # logic, even when MiSTer ran this script from a temporary copy. Other exits
 # retain finish() behavior. A failed restart stays visible instead of looping.
 if [ "$status" -eq 75 ]; then
-    exec /media/fat/Scripts/MiSTerFin-CRT.sh
+    exec /media/fat/Scripts/MiSTerVision.sh
 fi
 exit "$status"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // preparePlayback resolves metadata, resume position, and Live TV negotiation.

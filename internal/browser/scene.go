@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/rendering"
 )
 
 // sceneFromModel combines navigation and a decoder snapshot once per frame.

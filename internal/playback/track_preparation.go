@@ -1,6 +1,6 @@
 package playback
 
-import "misterfin-crt/internal/media"
+import "mistervision/internal/media"
 
 // trackPreparation holds choices and decoder capabilities until refreshed
 // source metadata can validate them. It is private to a single Run call.

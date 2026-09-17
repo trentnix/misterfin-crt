@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // PrepareVideo builds one progressive MPEG-2 request with explicit track choices.

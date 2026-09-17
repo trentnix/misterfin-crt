@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"testing"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 func TestPhotoLibraryHierarchy(t *testing.T) {

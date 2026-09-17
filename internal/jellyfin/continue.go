@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"sync"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // ContinueWatching combines the server's resumable videos and next episodes.

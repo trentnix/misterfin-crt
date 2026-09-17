@@ -5,10 +5,10 @@ package connection
 import (
 	"context"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/jellyfin"
-	jellyfinremote "misterfin-crt/internal/jellyfin/remote"
+	"mistervision/internal/connection"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/jellyfin"
+	jellyfinremote "mistervision/internal/jellyfin/remote"
 )
 
 // Connector uses supplied configuration or reloads the legacy file on each attempt.

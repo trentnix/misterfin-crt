@@ -2,8 +2,8 @@
  * This adapter is part of the private MPlayer build, under MPlayer's GPL-2.0-or-later
  * license. FFmpeg owns caption decoding. Go owns selection and rendering.
  */
-#ifndef MISTERFIN_CAPTIONS_H
-#define MISTERFIN_CAPTIONS_H
+#ifndef MISTERVISION_CAPTIONS_H
+#define MISTERVISION_CAPTIONS_H
 #include <stdio.h>
 #include <string.h>
 #include "libavcodec/avcodec.h"

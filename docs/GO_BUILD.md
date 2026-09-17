@@ -11,7 +11,7 @@ make arm
 ZIG=/absolute/path/to/zig make arm
 ```
 
-The outputs are `build/misterfin-crt` and `build/misterfin-crt-arm`. The ARM target enables cgo and uses `GOOS=linux GOARCH=arm GOARM=7`. The [compiler wrapper](../tools/zig-cc-go.sh) targets `arm-linux-gnueabihf.2.31` and Cortex-A9. Zig 0.14.1 has been tested. `GO_ARM_CC` can select another compatible compiler. Set `GOCACHE` and `ZIG_GLOBAL_CACHE_DIR` if their default directories are unwritable.
+The outputs are `build/mistervision` and `build/mistervision-arm`. The ARM target enables cgo and uses `GOOS=linux GOARCH=arm GOARM=7`. The [compiler wrapper](../tools/zig-cc-go.sh) targets `arm-linux-gnueabihf.2.31` and Cortex-A9. Zig 0.14.1 has been tested. `GO_ARM_CC` can select another compatible compiler. Set `GOCACHE` and `ZIG_GLOBAL_CACHE_DIR` if their default directories are unwritable.
 
 Development builds show `dev`, the Git revision, and a modified marker when available. Jellyfin HTTP and WebSocket requests report the same version label, without the revision suffix. Set `VERSION` for a stable release label:
 
@@ -21,15 +21,15 @@ make arm VERSION=v1.0.0
 
 ## MPlayer
 
-Build the matching patched player from [Dockerfile.misterfin-crt](../docker/Dockerfile.misterfin-crt):
+Build the matching patched player from [Dockerfile.mistervision](../docker/Dockerfile.mistervision):
 
 ```sh
 make native-player
 ```
 
-The outputs are `build/misterfin-crt-mplayer-arm` and its source/compiler record, `build/misterfin-crt-mplayer-build.txt`. The base image is pinned by digest, and the build verifies the MPlayer source archive with SHA-256. The Bullseye toolchain targets MiSTer's glibc 2.31. The patches provide shared overlays, picture changes, captions, interlaced presentation, and playback timing fixes. The original C client's player cannot substitute for this build. Update both binaries together when their protocol changes. See [third-party notices](THIRD_PARTY.md) for corresponding source and licenses.
+The outputs are `build/mistervision-mplayer-arm` and its source/compiler record, `build/mistervision-mplayer-build.txt`. The base image is pinned by digest, and the build verifies the MPlayer source archive with SHA-256. The Bullseye toolchain targets MiSTer's glibc 2.31. The patches provide shared overlays, picture changes, captions, interlaced presentation, and playback timing fixes. The original C client's player cannot substitute for this build. Update both binaries together when their protocol changes. See [third-party notices](THIRD_PARTY.md) for corresponding source and licenses.
 
-The native build also exports `build/misterfin-crt-mplayer-source.tar.xz`, the verified upstream source used by that build. The source archive includes MPlayer's bundled FFmpeg. The Go vulnerability scan does not audit these native dependencies.
+The native build also exports `build/mistervision-mplayer-source.tar.xz`, the verified upstream source used by that build. The source archive includes MPlayer's bundled FFmpeg. The Go vulnerability scan does not audit these native dependencies.
 
 ## Release bundles
 
@@ -43,17 +43,17 @@ This command rebuilds both ARM executables, records their metadata and checksums
 
 | Artifact | Contents |
 | --- | --- |
-| `misterfin-crt-v1.0.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
-| `misterfin-crt-v1.0.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
+| `mistervision-v1.0.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
+| `mistervision-v1.0.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
 | `SHA256SUMS` | Checksums for both downloadable archives. |
 
 The ZIP contains only example configuration files. It contains no active `jellyfin.conf`, `settings.json`, sign-in, preferences, or caches. Read its `INSTALL.txt` before copying files. The optional interlaced core remains a separate download. To rebuild MPlayer from the source bundle, run `make native-player` in its extracted project directory. Docker uses the included upstream archive and still verifies its checksum. The base image and compiler packages need network access or a local Docker cache.
 
-`make release-manifest` remains available after separate `make arm` and `make native-player` builds. It writes `build/release-manifest.txt`, which records Go metadata, MPlayer source/compiler details, and both executable checksums. Packaging includes that record as `misterfin-crt/BUILD.txt`, with the release version and source revision. Packaging the same inputs produces identical archives. This does not promise identical compiler output across toolchain or environment changes.
+`make release-manifest` remains available after separate `make arm` and `make native-player` builds. It writes `build/release-manifest.txt`, which records Go metadata, MPlayer source/compiler details, and both executable checksums. Packaging includes that record as `mistervision/BUILD.txt`, with the release version and source revision. Packaging the same inputs produces identical archives. This does not promise identical compiler output across toolchain or environment changes.
 
 The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release. Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing and repository visibility remain manual decisions. Draft or private releases are unavailable to the application's unauthenticated checker.
 
-The [latest release](https://github.com/trentnix/misterfin-crt/releases/latest) provides both archives and their checksums. Bundles include `misterfin-crt/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
+The [latest release](https://github.com/trentnix/misterfin-crt/releases/latest) provides both archives and their checksums. Bundles include `mistervision/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
 
 ## Install on MiSTer
 
@@ -61,21 +61,31 @@ Copy these files to the SD card and make them executable:
 
 | File | Destination |
 | --- | --- |
-| `build/misterfin-crt-arm` | `/media/fat/misterfin-crt/misterfin-crt` |
-| `build/misterfin-crt-mplayer-arm` | `/media/fat/misterfin-crt/mplayer-arm` |
-| [`tools/misterfin-crt.sh`](../tools/misterfin-crt.sh) | `/media/fat/Scripts/MiSTerFin-CRT.sh` |
+| `build/mistervision-arm` | `/media/fat/mistervision/mistervision` |
+| `build/mistervision-mplayer-arm` | `/media/fat/mistervision/mplayer-arm` |
+| [`tools/mistervision.sh`](../tools/mistervision.sh) | `/media/fat/Scripts/MiSTerVision.sh` |
 
-Copy `settings.example.json` to `settings.json` beside the binaries and set `server.provider` and `server.url`. See [configuration and migration](GO_CONFIGURATION.md) for existing installations. Launch **MiSTerFin-CRT** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. An SSH launch alone does not perform the Scripts display setup.
+Copy `settings.example.json` to `settings.json` beside the binaries and set `server.provider` and `server.url`. See [configuration and migration](GO_CONFIGURATION.md) for existing installations. Launch **MiSTerVision** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. An SSH launch alone does not perform the Scripts display setup.
 
-The launcher enables both CPU cores, hides the console cursor, and reloads the normal menu after a successful exit. Failures leave their messages visible. Login and playback choices persist under `/media/fat/misterfin-crt/state`. Caches use separate [artwork directories](GO_BROWSING.md#persistent-artwork-cache). For 480i, follow the [display guide](GO_DISPLAY.md).
+The launcher enables both CPU cores, hides the console cursor, and reloads the normal menu after a successful exit. Failures leave their messages visible. Login and playback choices persist under `/media/fat/mistervision/state`. Caches use separate [artwork directories](GO_BROWSING.md#persistent-artwork-cache). For 480i, follow the [display guide](GO_DISPLAY.md).
 
 For manual installation, exit before replacing binaries. Copy replacements to temporary filenames in the installation directory, set executable permissions, then rename them over the installed files. Always replace the client and matching player together.
 
-If migrating from `misterfin-go`, copy its state, caches, server configuration, settings, and referenced assets into the corresponding `misterfin-crt` directories. On desktop, use the user configuration and cache directories. Preserve the old installation until verified, and reconcile existing destinations before copying. [Settings migration](GO_CONFIGURATION.md#migration) combines legacy JSON files.
+## Moving from MiSTerFin CRT
+
+The rename changes binaries, install directories, launcher names, release assets, and environment variables. Install the new application and its matching MPlayer together. Existing releases cannot install the renamed bundle through About. The repository URL remains `trentnix/misterfin-crt` until its separate rename.
+
+On MiSTer, exit the old app and back up `/media/fat/misterfin-crt`. Copy its `settings.json`, optional `jellyfin.conf`, `state`, `covercache`, `gridcache`, `InterlacedMenu.rbf`, and custom assets into `/media/fat/mistervision`. Copy only files that exist. Update absolute paths in settings, including custom backgrounds and music assets. Then install the new binaries and `Scripts/MiSTerVision.sh`. After testing, remove `Scripts/MiSTerFin-CRT.sh` so the menu has one entry. Keep the backup until the new installation is verified.
+
+On desktop, move or copy `$XDG_CONFIG_HOME/misterfin-crt` to `$XDG_CONFIG_HOME/mistervision`, using `~/.config` when `XDG_CONFIG_HOME` is unset. Preserve both providers’ sessions and playback preferences. The same directory rename applies beneath the user cache root. Do not overwrite an existing destination without reconciling its contents. Explicit `--state-dir` paths remain supported, so development commands can continue using an old directory intentionally.
+
+Environment overrides now start with `MISTERVISION_`, for example `MISTERVISION_SETTINGS` and `MISTERVISION_CACHE_ROOT`. The internal player and launcher protocol changed with the name, so an old player must not be paired with the renamed client. The new interlaced section is `[MiSTerVisionInterlaced]`. The old managed section can remain inert until removed after verification.
+
+[Settings migration](GO_CONFIGURATION.md#migration) still combines legacy JSON configuration files. It does not move installation directories.
 
 ## Application updates
 
-In About, select **View release**, review the notes, then select **Install**. Automatic installation requires the client at `/media/fat/misterfin-crt/misterfin-crt` and the configured player at `/media/fat/misterfin-crt/mplayer-arm`. The standard Scripts launcher is updated with the pair. Custom installations and desktop development retain manual installation.
+In About, select **View release**, review the notes, then select **Install**. Automatic installation requires the client at `/media/fat/mistervision/mistervision` and the configured player at `/media/fat/mistervision/mplayer-arm`. The standard Scripts launcher is updated with the pair. Custom installations and desktop development retain manual installation.
 
 For manual upgrades, use the latest release ZIP. Keep the existing settings and state files. Do not copy example configuration over active configuration.
 
@@ -95,7 +105,7 @@ python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 
 The demo builds the client and serves mock browsing data. It does not provide playable media. See the [harness guide](../tools/ghostty/README.md) for dependencies and real-server playback.
 
-For a framebuffer test without Jellyfin:
+For a framebuffer test without a media server:
 
 ```sh
 make headless
@@ -119,7 +129,7 @@ make test-browse
 
 `make lint` checks formatting, runs `go vet`, and uses pinned Staticcheck. [Linter settings](../staticcheck.conf) preserve proper-name capitalization in errors. `make vulnerability-check` uses pinned govulncheck to check reachable Go advisories. It does not scan native MPlayer dependencies.
 
-`make test` covers Go with and without cgo plus Python/native adapter tests. `make test-browse` runs the built client against isolated HTTP/WebSocket fixtures. Generated media and local servers avoid a Jellyfin account or MiSTer dependency. Decoder tests can skip when their external dependencies are absent.
+`make test` covers Go with and without cgo plus Python/native adapter tests. `make test-browse` runs the built client against isolated HTTP/WebSocket fixtures. Generated media and local servers avoid a real media-server account or MiSTer dependency. Decoder tests can skip when their external dependencies are absent.
 
 | CI job | Checks and triggers | Timeout |
 | --- | --- | --- |

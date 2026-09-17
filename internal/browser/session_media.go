@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
 )
 
 // mediaNavigation owns adjacent-photo, music, and playlist navigation. It is separate
@@ -163,7 +163,7 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		s.selection.key = ""
 		s.loadSelection()
 		if event.Err != nil {
-			s.model.Notice = event.Err.Error() + "  A:back"
+			s.model.Notice = event.Err.Error()
 		}
 	}
 
@@ -187,7 +187,7 @@ func (s *browserSession) handleNeighbor(r neighborResult) bool {
 		return false
 	}
 	if r.err != nil {
-		s.model.Notice = "Could not load adjacent item. A:back"
+		s.model.Notice = "Could not load adjacent item."
 		s.model.EndMusicQueue()
 	} else if r.item != nil {
 		if !s.model.SelectAdjacent(r.parent, *r.item) {

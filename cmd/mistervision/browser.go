@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"os"
 
-	"misterfin-crt/internal/browser"
-	"misterfin-crt/internal/input"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/settings"
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/browser"
+	"mistervision/internal/input"
+	"mistervision/internal/platform"
+	"mistervision/internal/playback"
+	"mistervision/internal/release"
+	"mistervision/internal/rendering"
+	"mistervision/internal/settings"
+	"mistervision/internal/sound"
 )
 
 // runBrowser owns input, preferences, and video output around the shared browser.
@@ -41,11 +41,11 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	if executable, err := os.Executable(); err == nil {
 		if installer := installedUpdater(o, executable); installer != nil {
 			config.Updater = installer
-			config.RestartAfterUpdate = os.Getenv("MISTERFIN_CRT_AUTO_RESTART") == "1"
+			config.RestartAfterUpdate = os.Getenv("MISTERVISION_AUTO_RESTART") == "1"
 		}
 	}
-	if os.Getenv("MISTERFIN_CRT_UPDATE_RECOVERED") == "1" {
-		_ = os.Unsetenv("MISTERFIN_CRT_UPDATE_RECOVERED")
+	if os.Getenv("MISTERVISION_UPDATE_RECOVERED") == "1" {
+		_ = os.Unsetenv("MISTERVISION_UPDATE_RECOVERED")
 		trace.log.Record("update.recovered")
 		config.StartupNotices = append(config.StartupNotices, "An interrupted update was rolled back.")
 	}

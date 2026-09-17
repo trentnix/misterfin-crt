@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/settings"
 )
 
 // loadSettings resolves the one application settings file. Missing default

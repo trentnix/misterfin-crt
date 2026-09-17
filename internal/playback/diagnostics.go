@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
+	"mistervision/internal/diagnostics"
 )
 
 var diagnosticSequence atomic.Uint64

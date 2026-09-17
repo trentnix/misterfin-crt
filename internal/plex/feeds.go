@@ -3,7 +3,7 @@ package plex
 import (
 	"context"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // ContinueWatching uses Plex's combined resume and next-episode feed.

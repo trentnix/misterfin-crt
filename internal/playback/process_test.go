@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func TestDecoderShutdownOwnsProcessGroup(t *testing.T) {

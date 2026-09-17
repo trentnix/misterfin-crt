@@ -3,9 +3,9 @@ package rendering
 import (
 	"strings"
 
-	"misterfin-crt/internal/branding"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/branding"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 // setup draws connection progress, approval codes, and actionable setup errors.

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/serverstate"
+	"mistervision/internal/connection"
+	"mistervision/internal/media"
+	"mistervision/internal/serverstate"
 )
 
 func TestConnectorKeepsAccountsSeparate(t *testing.T) {

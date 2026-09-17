@@ -1,6 +1,6 @@
 package browser
 
-import "misterfin-crt/internal/connection"
+import "mistervision/internal/connection"
 
 // setupPresentation requests safe progress or recovery instructions. A missing
 // connector is an assembly error, not a choice of default provider.

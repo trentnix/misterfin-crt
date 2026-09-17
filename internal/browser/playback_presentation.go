@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
 
 // presentation copies the controller values needed to draw controls and seek

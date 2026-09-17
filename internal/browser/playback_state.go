@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
 )
 
 // playbackState belongs exclusively to PlaybackController. Decoder events and

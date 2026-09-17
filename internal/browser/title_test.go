@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/platform"
+	"mistervision/internal/rendering"
+	"mistervision/internal/videoout"
 )
 
 func TestStartupNoticeWaitsForBrowsingAndExpires(t *testing.T) {

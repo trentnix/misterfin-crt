@@ -2,7 +2,7 @@ package playback
 
 import (
 	"context"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 	"testing"
 )
 

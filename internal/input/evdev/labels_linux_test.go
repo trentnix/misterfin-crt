@@ -5,7 +5,7 @@ package evdev
 import (
 	"testing"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 func advertised(codes ...uint16) [96]byte {
@@ -17,10 +17,10 @@ func advertised(codes ...uint16) [96]byte {
 }
 
 func TestLabelsFollowEffectiveBindings(t *testing.T) {
-	config := Config{Profiles: []Profile{{Match: "Pad", Buttons: map[uint16]control.Action{310: control.SeekBackward, 311: control.SeekForward, 305: "", 307: control.Open}, ButtonLabels: map[uint16]string{310: "L1", 311: "R1", 307: "Square"}}}}
+	config := Config{Profiles: []Profile{{Match: "Pad", Buttons: map[uint16]control.Action{310: control.SeekBackward, 311: control.SeekForward, 304: "", 307: control.Open}, ButtonLabels: map[uint16]string{310: "L1", 311: "R1", 307: "Square"}}}}
 	d := device{name: "Pad", bindings: config.bindings("Pad"), triggers: map[uint16]*triggerAxis{2: {}, 5: {}}}
 	labels := d.labels(advertised(304, 305, 307, 310, 311))
-	if labels.Name(control.SeekBackward) != "L1" || labels.Name(control.SeekForward) != "R1" || labels.Name(control.Open) != "Square" || labels.Name(control.Back) != "A" {
+	if labels.Name(control.SeekBackward) != "L1" || labels.Name(control.SeekForward) != "R1" || labels.Name(control.Open) != "Square" || labels.Name(control.Back) != "B" {
 		t.Fatal(labels)
 	}
 	if labels.Name(control.TrackPrevious) != "" || labels.Name(control.TrackNext) != "" {
@@ -58,7 +58,7 @@ func TestLabelsUseKeyboardAndControllerNames(t *testing.T) {
 	}
 	pad := device{name: "Xbox", triggers: map[uint16]*triggerAxis{2: {}, 5: {}}, hats: [2]bool{true, true}}
 	labels = pad.labels(advertised(304, 305, 310, 311, 314))
-	for action, want := range map[control.Action]string{control.Open: "B", control.Back: "A", control.TrackPrevious: "LB", control.TrackNext: "RB", control.SeekBackward: "LT", control.SeekForward: "RT", control.Up: "Up"} {
+	for action, want := range map[control.Action]string{control.Open: "A", control.Back: "B", control.TrackPrevious: "LB", control.TrackNext: "RB", control.SeekBackward: "LT", control.SeekForward: "RT", control.Up: "Up"} {
 		if labels.Name(action) != want {
 			t.Errorf("%s: %s", action, labels.Name(action))
 		}
@@ -82,5 +82,26 @@ func TestLeftStickLabelsAndExplicitPreference(t *testing.T) {
 	}
 	if labels.Name(control.Next) != "" || labels.Name(control.Previous) != "" {
 		t.Fatal("disabled stick advertised", labels)
+	}
+}
+
+func TestExplicitFaceButtonsKeepTheirActionsAndLabels(t *testing.T) {
+	for _, replace := range []bool{false, true} {
+		config := Config{Profiles: []Profile{{Match: "*Xbox*", Replace: replace, Buttons: map[uint16]control.Action{304: control.Back, 305: control.Open}}}}
+		d := device{name: "Xbox Controller", held: make(map[uint16]control.Action), bindings: config.bindings("Xbox Controller")}
+		labels := d.labels(advertised(304, 305))
+		for _, tc := range []struct {
+			code   uint16
+			action control.Action
+			label  string
+		}{{304, control.Back, "A"}, {305, control.Open, "B"}} {
+			if got := d.accept(event{Type: 1, Code: tc.code, Value: 1}); got != tc.action {
+				t.Fatalf("replace=%v code=%d: action %q, want %q", replace, tc.code, got, tc.action)
+			}
+			if got := labels.Name(tc.action); got != tc.label {
+				t.Fatalf("replace=%v action=%s: label %q, want %q", replace, tc.action, got, tc.label)
+			}
+			d.accept(event{Type: 1, Code: tc.code, Value: 0})
+		}
 	}
 }

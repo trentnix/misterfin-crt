@@ -1,10 +1,10 @@
 package rendering
 
 import (
-	"misterfin-crt/internal/caption"
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/ui"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/caption"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/ui"
+	"mistervision/internal/videoout"
 )
 
 // RasterRenderer draws shared UI and video overlays in memory. The zero value is

@@ -1,7 +1,7 @@
 package rendering
 
 import (
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // photo draws the full-screen image, optional navigation, and image errors.

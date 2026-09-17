@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // Read reports that terminal input currently requires Linux. No reader is started.

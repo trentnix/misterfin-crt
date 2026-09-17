@@ -3,7 +3,7 @@ package rendering
 import (
 	"time"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 // MessagePresentation is a bounded, temporary banner shared by UI and video.

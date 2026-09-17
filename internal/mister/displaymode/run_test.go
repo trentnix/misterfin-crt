@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/update"
+	"mistervision/internal/update"
 )
 
 func TestChildRestartStatus(t *testing.T) {

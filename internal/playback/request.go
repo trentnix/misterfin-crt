@@ -1,6 +1,6 @@
 package playback
 
-import "misterfin-crt/internal/media"
+import "mistervision/internal/media"
 
 // Request describes one playback attempt, including a replacement after a seek
 // or track change. Run reads Request without modifying it. The caller must keep

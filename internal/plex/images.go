@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"misterfin-crt/internal/artwork/bitmap"
-	"misterfin-crt/internal/media"
+	"mistervision/internal/artwork/bitmap"
+	"mistervision/internal/media"
 )
 
 // ImageKind retrieves server-sized artwork without exposing private URLs.

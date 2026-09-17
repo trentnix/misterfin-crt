@@ -4,7 +4,7 @@ package videoout
 import (
 	"time"
 
-	"misterfin-crt/internal/platform"
+	"mistervision/internal/platform"
 )
 
 // Frame describes what the UX wants to display, without choosing an output path.

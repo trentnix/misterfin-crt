@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/settings"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/release"
+	"mistervision/internal/settings"
+	"mistervision/internal/update"
 )
 
 // startupDiagnostics owns the process log through display and input cleanup.

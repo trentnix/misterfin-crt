@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/url"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 // PlayState is Jellyfin's session-report payload. Shared playback supplies

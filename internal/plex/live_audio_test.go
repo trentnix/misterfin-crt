@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 func TestLiveAudioSelectionUsesFreshIDs(t *testing.T) {

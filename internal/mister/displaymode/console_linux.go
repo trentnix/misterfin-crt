@@ -58,7 +58,7 @@ static int console_prepare(void) {
     if (fd < 0) return errno;
     keyboard_fd = fd;
     memset(&dev, 0, sizeof(dev));
-    strcpy(dev.name, "MiSTerFin display setup");
+    strcpy(dev.name, "MiSTerVision display setup");
     dev.id.bustype = BUS_VIRTUAL;
     dev.id.vendor = 0x1;
     dev.id.product = 0x1;

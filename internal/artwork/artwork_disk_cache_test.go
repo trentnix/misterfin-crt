@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 )
 
 func TestArtworkPersistsAcrossLoadersAndRefreshesChangedTags(t *testing.T) {

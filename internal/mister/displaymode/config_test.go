@@ -24,7 +24,7 @@ func TestCoreConfigPreservesOtherModes(t *testing.T) {
 			if !bytes.HasPrefix(got, original) {
 				t.Fatal("existing configuration changed")
 			}
-			if !strings.Contains(string(got), "[MiSTerFinInterlaced]\ndirect_video=1\n"+tc.want) {
+			if !strings.Contains(string(got), "[MiSTerVisionInterlaced]\ndirect_video=1\n"+tc.want) {
 				t.Fatalf("wrong mode block: %s", got)
 			}
 			managed := string(got[len(original):])
@@ -43,7 +43,7 @@ func TestCoreConfigPreservesOtherModes(t *testing.T) {
 }
 
 func TestCoreConfigRefusesUnmanagedOrIncompleteSection(t *testing.T) {
-	for _, text := range []string{"[MiSTerFinInterlaced]\ncustom=1\n", blockStart + "\n[MiSTerFinInterlaced]\n"} {
+	for _, text := range []string{"[MiSTerVisionInterlaced]\ncustom=1\n", blockStart + "\n[MiSTerVisionInterlaced]\n"} {
 		if _, err := CoreConfig([]byte(text)); err == nil {
 			t.Fatal("overwrote existing settings")
 		}
@@ -75,7 +75,7 @@ func TestLoad(t *testing.T) {
 
 func TestOwnedProcessesMatchWholeMarker(t *testing.T) {
 	root := t.TempDir()
-	for pid, value := range map[string]string{"10": "MISTERFIN_CRT_DISPLAY_OWNER=123", "11": "OTHER=MISTERFIN_CRT_DISPLAY_OWNER=123", "12": "MISTERFIN_CRT_DISPLAY_OWNER=1234"} {
+	for pid, value := range map[string]string{"10": "MISTERVISION_DISPLAY_OWNER=123", "11": "OTHER=MISTERVISION_DISPLAY_OWNER=123", "12": "MISTERVISION_DISPLAY_OWNER=1234"} {
 		dir := filepath.Join(root, pid)
 		os.Mkdir(dir, 0700)
 		os.WriteFile(filepath.Join(dir, "environ"), []byte("BEFORE=1\x00"+value+"\x00AFTER=2\x00"), 0600)

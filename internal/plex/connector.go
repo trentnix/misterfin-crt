@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/serverstate"
+	"mistervision/internal/connection"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/media"
+	"mistervision/internal/serverstate"
 )
 
 // Connector signs in to one explicitly configured Plex server. Calls sharing
@@ -45,7 +45,7 @@ func (c Connector) Connect(ctx context.Context, progress func(connection.Present
 	err = client.Authenticate(ctx, dir, func(code string) {
 		if progress != nil {
 			progress(connection.Presentation{Kind: connection.SetupApproval, Title: "Link Plex", Code: code, Recovered: recovered, Retry: "New code",
-				Message: "Open plex.tv/link in a signed-in browser.\nEnter this code to approve MiSTerFin CRT."})
+				Message: "Open plex.tv/link in a signed-in browser.\nEnter this code to approve MiSTerVision."})
 		}
 	})
 	if err != nil {

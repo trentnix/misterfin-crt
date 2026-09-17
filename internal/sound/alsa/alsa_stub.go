@@ -5,7 +5,7 @@ package alsa
 
 import (
 	"errors"
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/sound"
 )
 
 // Open reports unavailable audio on builds without the native ALSA adapter.

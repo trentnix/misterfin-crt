@@ -1,6 +1,6 @@
 # Jellyfin remote control
 
-After sign-in, select **MiSTerFin CRT** as the playback device in another Jellyfin client. Remote control works on MiSTer and in the development harness without an extra listening port or settings section.
+After sign-in, select **MiSTerVision** as the playback device in another Jellyfin client. Remote control works on MiSTer and in the development harness without an extra listening port or settings section.
 
 ## Commands and queues
 

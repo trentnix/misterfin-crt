@@ -4,7 +4,7 @@ import (
 	"image"
 	"strings"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // music draws the current track, elapsed time, and optional controls.

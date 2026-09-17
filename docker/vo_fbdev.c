@@ -680,13 +680,13 @@ static struct fb_cmap *make_directcolor_cmap(struct fb_var_screeninfo *var)
  * construction. Main_MiSTer already reserves three full framebuffer pages
  * at FB_ADDR (it maps FB_SIZE*4*3), so page 1 is ours to use.
  *
- * When /tmp/misterfin_pageflip exists (the MiSTerFin app creates it, and
+ * When /tmp/mistervision_pageflip exists (the MiSTerFin app creates it, and
  * SIGSTOPs Main_MiSTer for the playback so the raw SPI writes below can't
  * race Main's own bus traffic), every frame is rendered into the page NOT
  * being displayed, then a 3-word flip command points the scaler at it.
  * No blocking vsync wait, no racing the beam — full speed AND tear-free,
  * even for frames whose write takes longer than a field. */
-#define PF_FLAG          "/tmp/misterfin_pageflip"
+#define PF_FLAG          "/tmp/mistervision_pageflip"
 #define PF_FPGA_REG_BASE 0xFF000000u
 #define PF_FPGA_REG_SIZE 0x01000000u
 #define PF_GPO_OFF       0x706010u
@@ -1242,7 +1242,7 @@ static void draw_alpha(int x0, int y0, int w, int h, unsigned char *src,
  * THIS driver owns the framebuffer and repaints every pixel each frame —
  * anything the app drew would flicker at the video rate. So the banner is
  * drawn here instead, over each finished frame: the app hands the message
- * over through /tmp/misterfin_banner (same cross-binary flag-file pattern
+ * over through /tmp/mistervision_banner (same cross-binary flag-file pattern
  * as /tmp/misterdvd_vsync above), this code takes ownership of the file
  * (reads + unlinks) and runs the whole rise/scroll/fall animation itself.
  * If no frame ever consumes the file (message landed as playback ended),
@@ -1258,7 +1258,7 @@ static void draw_alpha(int x0, int y0, int w, int h, unsigned char *src,
 #include <sys/stat.h>
 #include "font8x8.h"
 
-#define BANNER_FILE      "/tmp/misterfin_banner"
+#define BANNER_FILE      "/tmp/mistervision_banner"
 #define BANNER_TEXT_MAX  320
 #define BANNER_LH        24      /* container height, logical rows */
 #define BANNER_MARGIN    14      /* bottom overscan margin, logical rows */

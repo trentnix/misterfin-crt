@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/connection"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	jfconnection "misterfin-crt/internal/jellyfin/connection"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/connection"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	jfconnection "mistervision/internal/jellyfin/connection"
+	"mistervision/internal/rendering"
 )
 
 func TestSetupRetryDoesNotRestartAnActiveConnection(t *testing.T) {

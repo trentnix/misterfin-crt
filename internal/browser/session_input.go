@@ -3,10 +3,10 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/rendering"
 )
 
 // dispatchKey routes each action to the active screen. The return value requests

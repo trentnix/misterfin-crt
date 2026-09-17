@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/caption"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/caption"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/ui"
 )
 
 func TestPreviewUsesSharedButtonBadges(t *testing.T) {
@@ -104,10 +104,10 @@ func TestBrowsingUsesConfiguredBadges(t *testing.T) {
 			want                      []controlHint
 		}{
 			{name: "keyboard carousel", root: true, labels: control.KeyboardLabels(), want: []controlHint{{"Left/Right", "Browse"}, {"Enter", "Select"}, {"Tab", "List"}, {"Esc", "Exit"}, {"F1", "About"}}},
-			{name: "controller library", want: []controlHint{{"B", "Select"}, {"A", "Back"}}},
-			{name: "root list", root: true, list: true, want: []controlHint{{"B", "Select"}, {"View", "Carousel"}, {"A", "Exit"}}},
+			{name: "controller library", want: []controlHint{{"A", "Select"}, {"B", "Back"}}},
+			{name: "root list", root: true, list: true, want: []controlHint{{"A", "Select"}, {"View", "Carousel"}, {"B", "Exit"}}},
 			{name: "music shuffle", collection: "music", labels: control.KeyboardLabels(), want: []controlHint{{"Enter", "Select"}, {"Tab", "Shuffle all"}, {"Esc", "Back"}}},
-			{name: "empty library", empty: true, want: []controlHint{{"A", "Back"}}},
+			{name: "empty library", empty: true, want: []controlHint{{"B", "Back"}}},
 			{name: "custom retry", failed: true, labels: control.Labels{"open": "Cross", "back": "Circle", "retry": "Triangle"}, want: []controlHint{{"Cross", "Select"}, {"Triangle", "Retry"}, {"Circle", "Back"}}},
 			{name: "unbound actions", root: true, labels: control.Labels{"next": "Right", "back": "Esc"}, want: []controlHint{{"Right", "Browse"}, {"Esc", "Exit"}}},
 			{name: "wrapped custom labels", collection: "music", failed: true, labels: control.Labels{"open": "First button", "select": "Other button", "retry": "Retry button", "back": "Final button"}, want: []controlHint{{"First button", "Select"}, {"Other button", "Shuffle all"}, {"Retry button", "Retry"}, {"Final button", "Back"}}},

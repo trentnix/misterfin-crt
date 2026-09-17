@@ -12,7 +12,7 @@ func NewPlaySessionID() (string, error) {
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
 	}
-	return "misterfin-crt-" + hex.EncodeToString(b[:]), nil
+	return "mistervision-" + hex.EncodeToString(b[:]), nil
 }
 
 // PlayState is a snapshot of application playback in 100-nanosecond ticks.

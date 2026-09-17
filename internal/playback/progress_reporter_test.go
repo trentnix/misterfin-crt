@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	desktopplayer "misterfin-crt/internal/player/ffplay"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	desktopplayer "mistervision/internal/player/ffplay"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func awaitReportSignal(t *testing.T, signal <-chan struct{}) {

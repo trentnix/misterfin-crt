@@ -166,7 +166,7 @@ class BrowseIntegrationTests(BrowserFixture):
         time.sleep(.2)
         self.key(b"b")
         self.wait_request("/Items/movie-tricky-0")
-        self.assertFalse(any("misterfin-crt%3Acontinue" in request for request in self.requests))
+        self.assertFalse(any("mistervision%3Acontinue" in request for request in self.requests))
 
     def test_combined_continue_watching(self):
         self.start_browser(Scenario(continue_items=True))
@@ -190,7 +190,7 @@ class BrowseIntegrationTests(BrowserFixture):
         time.sleep(0.2)
         self.key(b"\x1b[Bb")
         self.wait_request("/Items/series-001-s1e01")
-        self.assertFalse(any("misterfin-crt%3Acontinue" in request for request in self.requests))
+        self.assertFalse(any("mistervision%3Acontinue" in request for request in self.requests))
         self.assertFalse(any(urlparse(request).path == "/Items/series-000-s1e02" for request in self.requests))
 
     def test_terminal_stdin_without_controlling_terminal(self):

@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
-	inlineplayer "misterfin-crt/internal/player/pythonhelper"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	nativeplayer "mistervision/internal/player/mplayer"
+	inlineplayer "mistervision/internal/player/pythonhelper"
 )
 
 func TestStopReleasesOutputBeforeSlowServerCleanup(t *testing.T) {

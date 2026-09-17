@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/media"
-	playerapi "misterfin-crt/internal/player"
+	"mistervision/internal/media"
+	playerapi "mistervision/internal/player"
 )
 
 // Run prepares a session and stream, waits for the controller's start gate, and

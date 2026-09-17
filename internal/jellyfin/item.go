@@ -1,6 +1,6 @@
 package jellyfin
 
-import "misterfin-crt/internal/media"
+import "mistervision/internal/media"
 
 // Wire-compatible aliases keep Jellyfin JSON decoding on the shared media model.
 type (

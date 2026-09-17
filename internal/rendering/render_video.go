@@ -3,9 +3,9 @@ package rendering
 import (
 	"time"
 
-	"misterfin-crt/internal/caption"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/caption"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 // videoBackdrop draws the cached companion UI while an external player owns video.

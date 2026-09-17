@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/platform"
+	"mistervision/internal/videoout"
 )
 
 type benchmarkPresenter struct{}

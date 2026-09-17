@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/media"
-	"misterfin-crt/internal/subtitles"
+	"mistervision/internal/media"
+	"mistervision/internal/subtitles"
 )
 
 func TestSubtitleSelectionAndBurnIn(t *testing.T) {

@@ -4,7 +4,7 @@ The browser owns navigation and playback UX. The renderer turns a read-only scen
 
 ## Media services
 
-Application assembly selects Jellyfin by default or the experimental [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles four layouts: hidden, connecting, approval, and failure.
+Application assembly selects Jellyfin by default or the [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles four layouts: hidden, connecting, approval, and failure.
 
 ```mermaid
 flowchart LR
@@ -80,7 +80,7 @@ The frame-file backend watches atomic decoder publications with inotify. Notific
 
 ## Application and event-loop ownership
 
-[`target_mister.go`](../cmd/misterfin-crt/target_mister.go) assembles evdev input, MPlayer, native output, and optional MiSTer menu-music suspension. [`target_desktop.go`](../cmd/misterfin-crt/target_desktop.go) assembles terminal input, Python/FFplay, and frame-file/companion output. [`browser.go`](../cmd/misterfin-crt/browser.go) owns input, preferences, sound, and output lifetimes. [`paths.go`](../cmd/misterfin-crt/paths.go) supplies validated settings and storage locations.
+[`target_mister.go`](../cmd/mistervision/target_mister.go) assembles evdev input, MPlayer, native output, and optional MiSTer menu-music suspension. [`target_desktop.go`](../cmd/mistervision/target_desktop.go) assembles terminal input, Python/FFplay, and frame-file/companion output. [`browser.go`](../cmd/mistervision/browser.go) owns input, preferences, sound, and output lifetimes. [`paths.go`](../cmd/mistervision/paths.go) supplies validated settings and storage locations.
 
 Only the browser event loop mutates `browserSession`. Workers capture inputs and return typed results. Connection, list, selection, home, and media requests have cancellation scopes and generation checks. Stale responses cannot replace current state. Published content is immutable. Input arrives as `control.Event` with semantic actions and resolved labels, so rendering never reads controller configuration.
 
@@ -121,7 +121,7 @@ Each process gets its own feedback writer. MPlayer and Python share the ANS pars
 
 ## Native player constraints
 
-The [MPlayer build](GO_BUILD.md#mplayer) is part of the implementation boundary, not an interchangeable stock binary. Its source and patches live under [`docker`](../docker). `vf_misterfin.c` owns fitting, centered zoom, and retained frames. `vo_fbdev.c` with patches owns composition and scanout. [`video_player.py`](../tools/ghostty/video_player.py) provides the Python/libmpv implementation for desktop testing.
+The [MPlayer build](GO_BUILD.md#mplayer) is part of the implementation boundary, not an interchangeable stock binary. Its source and patches live under [`docker`](../docker). `vf_mistervision.c` owns fitting, centered zoom, and retained frames. `vo_fbdev.c` with patches owns composition and scanout. [`video_player.py`](../tools/ghostty/video_player.py) provides the Python/libmpv implementation for desktop testing.
 
 The 480i supervisor clears both consoles and registers its temporary keyboard before loading the interlaced core. The core-specific `log_file_entry=1` setting supplies Main’s menu-ready marker, allowing F9 to activate console output without a missed key and retry delay. The supervisor waits for Main to select VT1 before taking exclusive hardware access and removes the keyboard before application input starts. The CRT still resynchronizes during the core switch. The browser’s shared connection screen supplies the logo and progress indicator.
 

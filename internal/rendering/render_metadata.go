@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 func subtitle(i media.Item) (string, uint32) {

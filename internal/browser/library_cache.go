@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 const libraryCacheLimit = 32

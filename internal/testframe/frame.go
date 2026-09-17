@@ -1,7 +1,7 @@
 // Package testframe draws a deterministic frame in Go through the display interface.
 package testframe
 
-import "misterfin-crt/internal/platform"
+import "mistervision/internal/platform"
 
 // Present draws color bars, a grayscale ramp, and a border in the display's
 // logical geometry. It borrows d and returns its presentation error.

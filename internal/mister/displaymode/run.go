@@ -12,16 +12,16 @@ import (
 	"syscall"
 	"time"
 
-	"misterfin-crt/internal/update"
+	"mistervision/internal/update"
 )
 
 // ActiveEnv is inherited only by the supervised client and its native player.
 // It enables the shared scanout protocol after Main has stopped using SPI.
-const ActiveEnv = "MISTERFIN_CRT_INTERLACED"
+const ActiveEnv = "MISTERVISION_INTERLACED"
 
 // LauncherEnv delegates successful menu restoration to the Scripts launcher.
 // Failures and standalone invocations always restore the menu in the supervisor.
-const LauncherEnv = "MISTERFIN_CRT_LAUNCHER"
+const LauncherEnv = "MISTERVISION_LAUNCHER"
 
 // Run starts a supervised copy of the client under the standalone interlaced
 // core. It owns the core switch, exclusive hardware access, and failure recovery.
@@ -33,7 +33,7 @@ func Run(ctx context.Context, directory string, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	lock, err := os.OpenFile("/tmp/misterfin-crt-display.lock", os.O_CREATE|os.O_RDWR, 0600)
+	lock, err := os.OpenFile("/tmp/mistervision-display.lock", os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
 	}

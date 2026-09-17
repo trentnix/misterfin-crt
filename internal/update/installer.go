@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/release"
+	"mistervision/internal/release"
 )
 
 // ErrManual means the release cannot be installed by this updater protocol.

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/rendering"
+	"mistervision/internal/videoout"
 )
 
 func testSession(t *testing.T) *browserSession {

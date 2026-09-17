@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/media"
+	"mistervision/internal/media"
 )
 
 func TestVideoStreamQueryMatchesC(t *testing.T) {

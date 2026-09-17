@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/media"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func TestPlaybackDiagnosticsRecordMilestonesWithoutMediaSecrets(t *testing.T) {

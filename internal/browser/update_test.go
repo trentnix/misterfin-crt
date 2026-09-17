@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/update"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/input/control"
+	"mistervision/internal/platform"
+	"mistervision/internal/playback"
+	"mistervision/internal/release"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
+	"mistervision/internal/update"
+	"mistervision/internal/videoout"
 )
 
 type testUpdater func(context.Context, release.Status, func(update.Progress)) error

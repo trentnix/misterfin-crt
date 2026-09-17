@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
-func TestControllerMatchesCMapping(t *testing.T) {
+func TestDefaultButtonMapping(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		code uint16
@@ -17,15 +17,22 @@ func TestControllerMatchesCMapping(t *testing.T) {
 	}{
 		{"Microsoft Xbox Controller", 314, control.Select},
 		{"Microsoft Xbox Controller", 307, ""},
-		{"Microsoft Xbox Controller", 305, control.Open},
-		{"Microsoft Xbox Controller", 304, control.Back},
+		{"Microsoft Xbox Controller", 305, control.Back},
+		{"Microsoft Xbox Controller", 304, control.Open},
 		{"Keyboard", 15, control.Select},
 		{"Keyboard", 59, control.About},
 		{"Microsoft Xbox Controller", 315, control.About},
 		{"MiSTer virtual input", 15, ""},
 		{"MiSTer virtual input", 28, ""},
 		{"MiSTer virtual input", 103, control.Up},
-		{"SFC30", 304, control.Open},
+		{"SFC30", 304, control.Back},
+		{"SFC30", 305, control.Open},
+		{"Unknown Controller", 304, control.Open},
+		{"Unknown Controller", 305, control.Back},
+		{"Keyboard", 28, control.Open},
+		{"Keyboard", 48, control.Open},
+		{"Keyboard", 1, control.Back},
+		{"Keyboard", 30, control.Back},
 	} {
 		if got := action(tc.name, 1, tc.code, 1); got != tc.want {
 			t.Errorf("%s code %d: got %q, want %q", tc.name, tc.code, got, tc.want)

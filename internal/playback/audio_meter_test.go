@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/jellyfin"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func TestAudioMeterLifetime(t *testing.T) {
@@ -46,7 +46,7 @@ exit 3
 			allocated := make(chan string, 2)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/Items/song" {
-					files, _ := filepath.Glob(filepath.Join(dir, "misterfin-crt-audio-*"))
+					files, _ := filepath.Glob(filepath.Join(dir, "mistervision-audio-*"))
 					if len(files) != 1 {
 						t.Errorf("preparation found %d meters, want one", len(files))
 					} else {
@@ -81,7 +81,7 @@ exit 3
 				default:
 					t.Fatal("no meter allocated")
 				}
-				files, err := filepath.Glob(filepath.Join(dir, "misterfin-crt-audio-*"))
+				files, err := filepath.Glob(filepath.Join(dir, "mistervision-audio-*"))
 				if err != nil || len(files) != 0 {
 					t.Fatalf("meter files left after Run: %v (%v)", files, err)
 				}

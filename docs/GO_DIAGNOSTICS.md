@@ -10,7 +10,7 @@ Add this section to `settings.json`, restart, reproduce the issue, then exit nor
 {"diagnostics": {"enabled": true, "path": "debug.log", "max_bytes": 1048576}}
 ```
 
-Collect `debug.log` and `debug.log.1` before launching again. Each process clears its log pair at startup. Relative paths resolve beside the settings file. The standard MiSTer log is `/media/fat/misterfin-crt/debug.log`. An absolute path can select other storage, including `/tmp`.
+Collect `debug.log` and `debug.log.1` before launching again. Each process clears its log pair at startup. Relative paths resolve beside the settings file. The standard MiSTer log is `/media/fat/mistervision/debug.log`. An absolute path can select other storage, including `/tmp`.
 
 Without a JSON `server` section, `DEBUGLOG` on a line in legacy `jellyfin.conf` enables the same defaults. With `server` configured, only the diagnostics section controls logging. Explicit `diagnostics.enabled` overrides it. To disable logging, set false, or omit the section and remove `DEBUGLOG`.
 

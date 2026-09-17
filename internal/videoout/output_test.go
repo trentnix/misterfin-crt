@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/videoout"
-	"misterfin-crt/internal/videoout/companion"
-	"misterfin-crt/internal/videoout/framefile"
-	"misterfin-crt/internal/videoout/native"
+	"mistervision/internal/platform"
+	"mistervision/internal/videoout"
+	"mistervision/internal/videoout/companion"
+	"mistervision/internal/videoout/framefile"
+	"mistervision/internal/videoout/native"
 )
 
 type testDisplay struct {
