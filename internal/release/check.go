@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const latestURL = "https://api.github.com/repos/trentnix/misterfin-crt/releases/latest"
+const latestURL = "https://api.github.com/repos/trentnix/mistervision/releases/latest"
 
 // ErrUnavailable means no public latest release is visible. GitHub also returns
 // 404 for private repositories, so callers must not report that as up to date.

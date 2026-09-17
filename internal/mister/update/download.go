@@ -55,7 +55,7 @@ func (i *Installer) response(ctx context.Context, endpoint string) (*http.Respon
 
 func (i *Installer) download(ctx context.Context, stage string, status release.Status, notify func(updateapi.Progress)) (string, error) {
 	name := "mistervision-" + status.Latest + "-mister.zip"
-	base := "https://github.com/trentnix/misterfin-crt/releases/download/" + status.Latest + "/"
+	base := "https://github.com/trentnix/mistervision/releases/download/" + status.Latest + "/"
 	resp, err := i.response(ctx, base+"SHA256SUMS")
 	if err != nil {
 		return "", err

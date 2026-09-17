@@ -53,7 +53,7 @@ The ZIP contains only example configuration files. It contains no active `jellyf
 
 The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release. Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing and repository visibility remain manual decisions. Draft or private releases are unavailable to the application's unauthenticated checker.
 
-The [latest release](https://github.com/trentnix/misterfin-crt/releases/latest) provides both archives and their checksums. Bundles include `mistervision/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
+The [latest release](https://github.com/trentnix/mistervision/releases/latest) provides both archives and their checksums. Bundles include `mistervision/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
 
 ## Install on MiSTer
 
@@ -73,7 +73,7 @@ For manual installation, exit before replacing binaries. Copy replacements to te
 
 ## Moving from MiSTerFin CRT
 
-The rename changes binaries, install directories, launcher names, release assets, and environment variables. Install the new application and its matching MPlayer together. Existing releases cannot install the renamed bundle through About. The repository URL remains `trentnix/misterfin-crt` until its separate rename.
+The rename changes binaries, install directories, launcher names, release assets, and environment variables. Install the new application and its matching MPlayer together. Existing releases cannot install the renamed bundle through About.
 
 On MiSTer, exit the old app and back up `/media/fat/misterfin-crt`. Copy its `settings.json`, optional `jellyfin.conf`, `state`, `covercache`, `gridcache`, `InterlacedMenu.rbf`, and custom assets into `/media/fat/mistervision`. Copy only files that exist. Update absolute paths in settings, including custom backgrounds and music assets. Then install the new binaries and `Scripts/MiSTerVision.sh`. After testing, remove `Scripts/MiSTerFin-CRT.sh` so the menu has one entry. Keep the backup until the new installation is verified.
 

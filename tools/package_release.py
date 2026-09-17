@@ -114,7 +114,7 @@ def write_bundle(root, version, revision, output):
         if "://" in target:
             return match.group(0)
         relative = os.path.normpath("docs/" + target)
-        return f"[{label}](https://github.com/trentnix/misterfin-crt/blob/{revision}/{relative})"
+        return f"[{label}](https://github.com/trentnix/mistervision/blob/{revision}/{relative})"
     payload["mistervision/THIRD_PARTY.md"] = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", source_link, notices).encode()
     metadata = (root / "build/release-manifest.txt").read_bytes()
     payload["mistervision/BUILD.txt"] = f"Version: {version}\nRevision: {revision}\n\n".encode() + metadata
