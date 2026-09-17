@@ -72,8 +72,8 @@ func TestPlexDiscoveryCatalogWithoutServerConfiguration(t *testing.T) {
 		return catalog
 	}
 	catalog := load()
-	if len(catalog.choices) != 2 || catalog.choices[1].ID != "plex-new" || catalog.choices[1].Help != "" {
-		t.Fatal("Plex still requires configuration")
+	if len(catalog.choices) != 2 || catalog.choices[0].ID != "jellyfin-new" || catalog.choices[1].ID != "plex-new" || catalog.choices[1].Help != "" {
+		t.Fatal("fresh setup must offer both providers without an existing connection")
 	}
 	if catalog.connectionID("plex-new") != "plex" || catalog.connectionID("jellyfin-new") != "jellyfin" {
 		t.Fatal("selection does not share remembered navigation")

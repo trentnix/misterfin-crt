@@ -155,11 +155,11 @@ func TestServerPickerScrollAndControlSafety(t *testing.T) {
 
 func TestConnectionMenuLayout(t *testing.T) {
 	for _, height := range []int{240, 288} {
-		choices := []connection.Choice{{ID: "existing", Name: "Use existing connection", Description: "Choose a configured or remembered server"}, {ID: "jellyfin", Name: "Jellyfin", Description: "Find a server on your local network"}, {Name: "Plex", Description: "Add a Plex server in settings.json", Help: "Set up Plex"}}
-		scene := Scene{About: AboutPresentation{Visible: true, ConnectionsVisible: true, Connections: choices, ConnectionSelected: 2, ConnectionMessage: "Add a connection with provider plex and its server URL. Restart MiSTerVision to load the new configuration."}, Controls: control.KeyboardLabels()}
+		choices := []connection.Choice{{ID: "existing", Name: "Use existing connection", Description: "Choose a configured or remembered server", Children: []connection.Choice{{ID: "plex", Name: "Home Plex", Description: "Plex · http://192.168.1.100:32400"}}}, {ID: "jellyfin-new", Name: "Jellyfin", Description: "Find a server on your local network"}, {ID: "plex-new", Name: "Plex", Description: "Link your account and choose a server"}}
+		scene := Scene{About: AboutPresentation{Visible: true, ConnectionsVisible: true, Connections: choices, ConnectionSelected: 2}, Controls: control.KeyboardLabels()}
 		c := ui.New(640, height)
 		pixels := renderScene(c, nil, scene, Animation{})
-		hints := []controlHint{pairedHint(scene.Controls, control.Up, control.Down, "Choose"), hint(scene.Controls, control.Open, "Setup help"), hint(scene.Controls, control.Back, "Back")}
+		hints := []controlHint{pairedHint(scene.Controls, control.Up, control.Down, "Choose"), hint(scene.Controls, control.Open, "Select"), hint(scene.Controls, control.Back, "Back")}
 		rows := controlRows(640, hints)
 		bottom := height - 8 - safeY(640, height)
 		expected := ui.New(640, height)

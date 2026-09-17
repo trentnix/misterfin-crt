@@ -79,7 +79,11 @@ Keep application settings in one `settings.json`. Add named accounts under `conn
 }
 ```
 
-Open About with Start/F1, then press Down for Connections. **Use existing connection** lists configured accounts and remembered servers. Jellyfin starts a fresh discovery scan. Plex links your account and lists reachable servers. Both provider choices leave configured profiles available under Use existing connection. Back closes a submenu without changing the active connection. Back from About returns to browsing. If you start another connection and then cancel setup, Back from the connection chooser restores the previous connection and its browsing position. If no connection has succeeded, Back exits setup.
+Open About with Start/F1, then press Down for Connections. The **Connect to your media** screen offers Jellyfin and Plex. **Use existing connection** appears only when a configured, remembered, or currently connected server is available. A server remembered through discovery needs no configuration entry.
+
+Jellyfin starts a fresh discovery scan. Plex links your account and lists reachable servers. Both provider choices leave configured profiles available under Use existing connection.
+
+Back closes a submenu without changing the active connection. Back from About returns to browsing. If you start another connection and then cancel setup, Back from the connection chooser restores the previous connection and its browsing position. If no connection has succeeded, Back exits setup.
 
 Each profile must have a unique `id`, a display `name`, and validated `server` settings. IDs can contain letters, numbers, underscores, and hyphens, with at most 48 characters. Up to 16 profiles are supported. Invalid profiles stop startup with a configuration error. Changing a name preserves sign-in. Changing the server address or configured account credentials isolates the new sign-in from the old one.
 
