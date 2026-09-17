@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"mistervision/internal/connection"
 	jfconnection "mistervision/internal/jellyfin/connection"
 	"mistervision/internal/plex"
 	"mistervision/internal/settings"
@@ -46,6 +47,9 @@ func TestServerSelection(t *testing.T) {
 			}
 			switch c := connector.(type) {
 			case jfconnection.Connector:
+				if (c.Discovery != nil) != (tc.name == "default") {
+					t.Fatal("discovery must be available only without explicit server settings")
+				}
 				if tc.provider != "jellyfin" || c.StateDir != dir {
 					t.Fatal("wrong Jellyfin selection")
 				}
@@ -182,7 +186,7 @@ func TestUnifiedJellyfinConnectsWithoutLegacyFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := connector.Connect(t.Context(), nil)
+	session, err := connector.Connect(t.Context(), connection.Interaction{})
 	if err != nil {
 		t.Fatal(err)
 	}

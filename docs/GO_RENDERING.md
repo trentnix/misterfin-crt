@@ -4,11 +4,14 @@ The browser owns navigation and playback UX. The renderer turns a read-only scen
 
 ## Media services
 
-Application assembly selects Jellyfin by default or the [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles four layouts: hidden, connecting, approval, and failure.
+Application assembly selects Jellyfin by default or the [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles hidden, connecting, server selection, approval, and failure layouts. `connection.Interaction` supplies progress and a cancellable server-choice callback. The browser sends an immutable candidate snapshot to its event loop and replies through a one-use channel. Generation checks reject stale pickers. Neither the renderer nor the discovery adapter handles physical input.
+
+[`connection.Discoverer`](../internal/connection/discovery.go) returns validated server identities, names, and addresses. [`jellyfin.Discovery`](../internal/jellyfin/discovery.go) owns bounded UDP scanning and deduplication. Automatic Jellyfin startup uses discovery when explicit configuration and a remembered selection are absent. Choosing Jellyfin from About explicitly requests a new discovery scan. [`serverstate.LoadServer` and `SaveServer`](../internal/serverstate/server.go) keep the selection separate from configuration and credentials.
 
 ```mermaid
 flowchart LR
-    App["cmd: serverConnector"] --> Connector["connection.Connector"]
+    App["cmd: connectionCatalog"] --> Retained["connection.Retained"]
+    Retained --> Connector["connection.Connector"]
     JF["jellyfin/connection.Connector"] -. implements .-> Connector
     Plex["plex.Connector"] -. implements .-> Connector
     Connector -->|returns| Session["connection.Session"]
@@ -26,6 +29,8 @@ flowchart LR
 Reusable data processing stays outside server adapters. [`media.MergeContinueWatching`](../internal/media/continue.go) ranks normalized resume and next-episode candidates without changing its inputs. [`bitmap.Decode`](../internal/artwork/bitmap/decode.go) bounds artwork dimensions and scales decoded pixels. Adapters retain endpoint queries, metadata normalization, and artwork selection. Neither helper depends on a server, cache, or display implementation.
 
 Shared item types use the field layout and JSON tags inherited from Jellyfin. Jellyfin aliases those types for decoding. Plex maps its responses into them. Application assembly maps the shared `server` settings into each adapter’s configuration. Both providers use the private `serverstate` store, with Plex credentials in a separate subdirectory. Server selection does not change rendering or target assembly.
+
+The application retains authenticated accounts through `connection.Retained`. About presents immutable `connection.Choice` entries, including nested existing connections. Choosing an account returns `connection.Change` only after `browser.Run` cancels its work and joins its remote listener and player cleanup. Application assembly then opens another browser session with the same input, display, and playback settings. `browser.Navigation` restores the account's browsing position only when its server/user identity matches. Inactive accounts do not run remote-control listeners.
 
 ## Shared UX and output
 

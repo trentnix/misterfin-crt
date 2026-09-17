@@ -57,8 +57,8 @@ func TestLabelsUseKeyboardAndControllerNames(t *testing.T) {
 		}
 	}
 	pad := device{name: "Xbox", triggers: map[uint16]*triggerAxis{2: {}, 5: {}}, hats: [2]bool{true, true}}
-	labels = pad.labels(advertised(304, 305, 310, 311, 314))
-	for action, want := range map[control.Action]string{control.Open: "B", control.Back: "A", control.TrackPrevious: "LB", control.TrackNext: "RB", control.SeekBackward: "LT", control.SeekForward: "RT", control.Up: "Up"} {
+	labels = pad.labels(advertised(304, 305, 310, 311, 314, 315))
+	for action, want := range map[control.Action]string{control.Open: "B", control.Back: "A", control.Select: "Select", control.About: "Start", control.TrackPrevious: "LB", control.TrackNext: "RB", control.SeekBackward: "LT", control.SeekForward: "RT", control.Up: "Up"} {
 		if labels.Name(action) != want {
 			t.Errorf("%s: %s", action, labels.Name(action))
 		}

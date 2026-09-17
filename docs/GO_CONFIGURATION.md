@@ -48,7 +48,46 @@ Without API-key credentials, Jellyfin uses Quick Connect. To use API-key login, 
 
 Keep API-key configuration private. Plex tokens, account identity, and client identifiers remain saved sign-in state rather than configuration. Sign-in files stay in the application state directory.
 
-An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. The legacy file accepts a URL, optional API key and username, `INSECURE_TLS`, `DEBUGLOG`, and `WIDTHxHEIGHT@BITRATE` lines. `PAL` and `NTSC` remain accepted but do not control display or playback timing. The active output geometry determines timing.
+An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. If that file is also absent, the client uses a remembered Jellyfin server or offers [local discovery](GO_BROWSING.md#jellyfin-discovery). The legacy file accepts a URL, optional API key and username, `INSECURE_TLS`, `DEBUGLOG`, and `WIDTHxHEIGHT@BITRATE` lines. `PAL` and `NTSC` remain accepted but do not control display or playback timing. The active output geometry determines timing.
+
+## Multiple connections
+
+Keep application settings in one `settings.json`. Add named accounts under `connections.profiles` to use Jellyfin and Plex without separate application configurations:
+
+```json
+{
+  "connections": {
+    "profiles": [
+      {
+        "id": "home-jellyfin",
+        "name": "Home Jellyfin",
+        "server": {
+          "provider": "jellyfin",
+          "url": "http://your-jellyfin-server:8096"
+        }
+      },
+      {
+        "id": "home-plex",
+        "name": "Home Plex",
+        "server": {
+          "provider": "plex",
+          "url": "http://your-plex-server:32400"
+        }
+      }
+    ]
+  }
+}
+```
+
+Open About with Start/F1, then press Down for Connections. **Use existing connection** lists configured accounts and remembered servers. Jellyfin starts a fresh discovery scan. Plex lists configured Plex accounts or explains how to add one. Back closes a submenu without changing the active connection. Back from About returns to browsing. If you start another connection and then cancel setup, Back from the connection chooser restores the previous connection and its browsing position. If no connection has succeeded, Back exits setup.
+
+Each profile must have a unique `id`, a display `name`, and validated `server` settings. IDs can contain letters, numbers, underscores, and hyphens, with at most 48 characters. Up to 16 profiles are supported. Invalid profiles stop startup with a configuration error. Changing a name preserves sign-in. Changing the server address or configured account credentials isolates the new sign-in from the old one.
+
+The original top-level `server` and legacy configuration still work and appear as an existing connection. On first launch, they take precedence over named profiles. If neither a configured nor remembered default server exists, the first profile is used. The last successful choice is saved in `connection-choice.json` under the state directory and selected automatically on later launches. Editing connection configuration resets that startup choice. A failed sign-in does not replace it.
+
+Accounts retain independent sign-ins and browsing positions during the application run. Switching cancels the old session's work before activating the next connection. Only the active account receives remote commands or plays media. Display mode, controller mappings, navigation sounds, and backgrounds stay loaded. Switching configured accounts does not restart the application. Restart after editing the configuration file to load new or changed profiles.
+
+Named sign-ins live under `state/connections/<id>-<account digest>/`. A Jellyfin server chosen through About uses `state/discovery/jellyfin/`, separate from the default connection. Navigation positions are held in memory, not saved across application restarts.
 
 ## Application settings
 
@@ -75,7 +114,8 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 
 | Section | Default | Failure behavior |
 | --- | --- | --- |
-| `server` | Absent: legacy Jellyfin fallback. Present: Jellyfin provider, verified TLS, default transcode limits. | Invalid section stops startup. |
+| `connections` | Absent: single-server setup. `profiles`: up to 16 named connections. | Invalid profiles stop startup. |
+| `server` | Absent: legacy Jellyfin configuration, then a remembered server or discovery if the legacy file is missing. Present: Jellyfin provider, verified TLS, default transcode limits. | Invalid section stops startup. |
 | `ui.title` | `MiSTerVision`. Empty hides the heading. | Restore default title with a notice. |
 | `ui.show_collections`, `ui.show_playlists` | Both `true`. Empty categories stay hidden. | Restore the invalid option to `true`, with a notice and a diagnostic event. |
 | `ui.navigation_sounds` | `enabled: true`, `volume: 10`. | Disable sounds with a notice. Media volume is unchanged. |
@@ -146,7 +186,7 @@ Use the configuration path of the installation being migrated. Migration preserv
 
 Explicit `diagnostics.enabled` wins over legacy `DEBUGLOG`. Existing server sections, backups, and files edited after loading cause migration to stop. Invalid connection settings fail before writing. Migration opens no display and contacts no server. Archive old configuration and any credential-bearing backup after verifying the new settings.
 
-Saved sign-in, playback preferences, and caches are application state and remain separate. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.
+The remembered discovery selection (`jellyfin-server.json` in the state directory), saved sign-in, playback preferences, and caches are application state and remain separate. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.
 
 ## Saved sign-in recovery
 

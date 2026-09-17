@@ -63,6 +63,9 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 		}
 		return true
 	}
+	if s.about.ConnectionsVisible {
+		return s.handleConnectionKey(key)
+	}
 	if s.about.Installed || !s.update.exitAt.IsZero() {
 		// Keep the completion message visible until its deadline.
 		return false
@@ -90,6 +93,10 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 			s.about.Scroll = max(0, s.about.Scroll-1)
 		}
 	case control.Down:
+		if !s.about.NotesVisible && len(s.about.Connections) > 0 {
+			s.about.ConnectionsVisible = true
+			s.about.ConnectionMessage = ""
+		}
 		if s.about.NotesVisible {
 			s.about.Scroll = min(s.about.ScrollLimit(max(320, s.geometry.Width), max(240, s.geometry.Height), s.controls), s.about.Scroll+1)
 		}

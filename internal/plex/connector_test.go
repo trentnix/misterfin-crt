@@ -39,7 +39,7 @@ func TestConnectorKeepsAccountsSeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := Connector{Config: Config{Server: server.URL + "/"}, StateDir: root, Version: "test"}
-	session, err := c.Connect(t.Context(), func(connection.Presentation) { t.Error("saved sign-in requested approval") })
+	session, err := c.Connect(t.Context(), connection.Interaction{Progress: func(connection.Presentation) { t.Error("saved sign-in requested approval") }})
 	if err != nil {
 		t.Fatal(err)
 	}

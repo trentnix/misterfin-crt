@@ -90,7 +90,7 @@ func (d *device) labels(keys [96]byte) control.Labels {
 }
 
 func buttonLabel(code uint16) string {
-	if label := map[uint16]string{59: "F1", 1: "Esc", 14: "Backspace", 15: "Tab", 16: "Q", 19: "R", 26: "[", 27: "]", 28: "Enter", 30: "A", 36: "J", 38: "L", 44: "Z", 45: "X", 48: "B", 103: "Up", 104: "PgUp", 105: "Left", 106: "Right", 108: "Down", 109: "PgDn", 158: "Back", 304: "A", 305: "B", 307: "X", 308: "Y", 310: "LB", 311: "RB", 312: "LT", 313: "RT", 314: "View", 315: "Menu", 317: "LS", 318: "RS"}[code]; label != "" {
+	if label := map[uint16]string{59: "F1", 1: "Esc", 14: "Backspace", 15: "Tab", 16: "Q", 19: "R", 26: "[", 27: "]", 28: "Enter", 30: "A", 36: "J", 38: "L", 44: "Z", 45: "X", 48: "B", 103: "Up", 104: "PgUp", 105: "Left", 106: "Right", 108: "Down", 109: "PgDn", 158: "Back", 304: "A", 305: "B", 307: "X", 308: "Y", 310: "LB", 311: "RB", 312: "LT", 313: "RT", 314: "Select", 315: "Start", 317: "LS", 318: "RS"}[code]; label != "" {
 		return label
 	}
 	return fmt.Sprintf("Btn %d", code)

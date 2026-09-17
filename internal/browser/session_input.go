@@ -21,7 +21,7 @@ func (s *browserSession) dispatchKey(key control.Action) bool {
 	repeated := key.IsRepeat()
 	key = key.Base()
 	if repeated {
-		if key == control.About || (s.about.Visible && (!s.about.NotesVisible || (key != control.Up && key != control.Down))) {
+		if key == control.About || (s.about.Visible && ((!s.about.NotesVisible && !s.about.ConnectionsVisible) || (key != control.Up && key != control.Down))) {
 			return false
 		}
 		if playing && !s.controller.picker.visible && (menuDirection(key) || key == control.TrackPrevious || key == control.TrackNext) {
@@ -79,16 +79,7 @@ func (s *browserSession) dispatchKey(key control.Action) bool {
 		s.handlePhotoKey(key)
 	}
 	if s.setup.Kind != rendering.SetupHidden {
-		switch key {
-		case control.Back:
-			s.model.Quit = true
-			return false
-		case control.Retry, control.Open:
-			if s.setup.RetryLabel() != "" {
-				s.authenticate()
-			}
-		}
-		return true
+		return s.handleSetupKey(key)
 	}
 	if key == control.Back && s.remoteRequests.resolving {
 		s.remoteRequests.cancelAll()

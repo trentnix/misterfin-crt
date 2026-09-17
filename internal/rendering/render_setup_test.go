@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"mistervision/internal/connection"
 	"mistervision/internal/input/control"
 	"mistervision/internal/ui"
 )
@@ -22,6 +23,7 @@ func TestSetupRenderingAndConfiguredControls(t *testing.T) {
 			for _, labels := range []control.Labels{control.KeyboardLabels(), {"open": "Cross", "back": "Circle"}, {"back": "Back"}} {
 				setup := SetupPresentation{Kind: kind, Title: "Example setup", Message: "Follow the server instructions.", Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/mistervision/interlaced-test/jellyfin.conf"}
 				if kind == SetupApproval {
+					setup.BackToServers = true
 					setup.Code = "123456"
 					setup.Path = ""
 				}
@@ -39,7 +41,11 @@ func TestSetupRenderingAndConfiguredControls(t *testing.T) {
 				if action := setup.RetryLabel(); action != "" {
 					hints = append(hints, hint(labels, "open", action))
 				}
-				hints = append(hints, hint(labels, "back", "Exit"))
+				back := "Exit"
+				if setup.BackToServers {
+					back = "Back"
+				}
+				hints = append(hints, hint(labels, control.About, "About"), hint(labels, "back", back))
 				rows := controlRows(640, hints)
 				bottom := height - 8 - safeY(640, height)
 				expected := ui.New(640, height)
@@ -74,7 +80,7 @@ func TestSetupWaitingAnimationDoesNotMoveTheCode(t *testing.T) {
 func TestLongSetupPathAndLabelsStayAboveControls(t *testing.T) {
 	s := Scene{Setup: SetupPresentation{Kind: SetupFailure, Retry: "Retry", PathLabel: "Configuration file", Path: "/root/" + strings.Repeat("long directory/", 30) + "jellyfin.conf"}, Controls: control.Labels{"open": strings.Repeat("X", 40), "back": strings.Repeat("Y", 40)}}
 	pixels := renderScene(ui.New(640, 240), nil, s, Animation{})
-	rows := controlRows(640, []controlHint{hint(s.Controls, "open", "Retry"), hint(s.Controls, "back", "Exit")})
+	rows := controlRows(640, []controlHint{hint(s.Controls, "open", "Retry"), hint(s.Controls, control.About, "About"), hint(s.Controls, "back", "Exit")})
 	expected := ui.New(640, 240)
 	expected.Rect(0, 0, 640, 240, 0x0b0d13)
 	drawControls(expected, 220, rows)
@@ -109,5 +115,62 @@ func writeSetupPreview(t *testing.T, dir, name string, c *ui.Canvas) {
 	}
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestServerPickerScrollAndControlSafety(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		var servers []connection.Server
+		for i := 0; i < 12; i++ {
+			servers = append(servers, connection.Server{ID: fmt.Sprint(i), Name: fmt.Sprintf("Server %02d %s", i, strings.Repeat("long name ", 20)), URL: "http://server.example/" + strings.Repeat("long-path/", 20)})
+		}
+		scene := Scene{Setup: SetupPresentation{Kind: SetupServers, Title: "Choose a server", Servers: servers}, Controls: control.KeyboardLabels()}
+		first := renderScene(ui.New(640, height), nil, scene, Animation{})
+		scene.Setup.Selected = 11
+		var cache sceneCache
+		last := renderScene(ui.New(640, height), &cache, scene, Animation{})
+		fresh := renderScene(ui.New(640, height), nil, scene, Animation{})
+		if bytes.Equal(first, last) || !bytes.Equal(last, fresh) {
+			t.Fatal("picker did not scroll or cache changed pixels")
+		}
+		hints := []controlHint{pairedHint(scene.Controls, control.Up, control.Down, "Choose"), hint(scene.Controls, control.Open, "Select"), hint(scene.Controls, control.Select, "Scan again"), hint(scene.Controls, control.About, "About"), hint(scene.Controls, control.Back, "Exit")}
+		rows := controlRows(640, hints)
+		bottom := height - 8 - safeY(640, height)
+		expected := ui.New(640, height)
+		expected.Rect(0, 0, 640, height, 0x0b0d13)
+		drawControls(expected, bottom, rows)
+		start := controlsTop(bottom, rows) * 640 * 4
+		if !bytes.Equal(last[start:], expected.Pixels[start:]) {
+			t.Fatal("server content overlapped controls")
+		}
+		if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+			scene.Setup.Servers = []connection.Server{{ID: "a", Name: "Living room", URL: "http://192.168.1.100:8096"}, {ID: "b", Name: "Media archive", URL: "https://media.example/jellyfin"}, {ID: "c", Name: "Upstairs", URL: "http://192.168.1.101:8096"}}
+			scene.Setup.Selected = 1
+			c := ui.New(640, height)
+			renderScene(c, nil, scene, Animation{})
+			writeSetupPreview(t, dir, fmt.Sprintf("servers-%d.png", height), c)
+		}
+	}
+}
+
+func TestConnectionMenuLayout(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		choices := []connection.Choice{{ID: "existing", Name: "Use existing connection", Description: "Choose a configured or remembered server"}, {ID: "jellyfin", Name: "Jellyfin", Description: "Find a server on your local network"}, {Name: "Plex", Description: "Add a Plex server in settings.json", Help: "Set up Plex"}}
+		scene := Scene{About: AboutPresentation{Visible: true, ConnectionsVisible: true, Connections: choices, ConnectionSelected: 2, ConnectionMessage: "Add a connection with provider plex and its server URL. Restart MiSTerVision to load the new configuration."}, Controls: control.KeyboardLabels()}
+		c := ui.New(640, height)
+		pixels := renderScene(c, nil, scene, Animation{})
+		hints := []controlHint{pairedHint(scene.Controls, control.Up, control.Down, "Choose"), hint(scene.Controls, control.Open, "Setup help"), hint(scene.Controls, control.Back, "Back")}
+		rows := controlRows(640, hints)
+		bottom := height - 8 - safeY(640, height)
+		expected := ui.New(640, height)
+		expected.Rect(0, 0, 640, height, 0x0b0d13)
+		drawControls(expected, bottom, rows)
+		start := controlsTop(bottom, rows) * 640 * 4
+		if !bytes.Equal(pixels[start:], expected.Pixels[start:]) {
+			t.Fatal("connection menu content overlaps input hints")
+		}
+		if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+			writeSetupPreview(t, dir, fmt.Sprintf("connections-%d.png", height), c)
+		}
 	}
 }

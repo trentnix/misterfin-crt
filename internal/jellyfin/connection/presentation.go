@@ -16,6 +16,8 @@ const (
 	connectionConfig connectionStage = iota
 	connectionSession
 	connectionAuthentication
+	connectionDiscovery
+	connectionServerStorage
 )
 
 // Describe translates Jellyfin failures into safe, actionable instructions.
@@ -32,6 +34,15 @@ func (c Connector) Describe(err error) connection.Presentation {
 	p := connection.Presentation{Kind: connection.SetupFailure, Retry: "Retry", Path: c.ConfigPath, PathLabel: "Configuration file",
 		Title: "Can't connect to Jellyfin", Message: "Check your server address and network connection.\nMake sure Jellyfin is running, then retry."}
 	switch {
+	case stage == connectionDiscovery:
+		p.Title, p.Message = "Can't find Jellyfin servers", "Check Jellyfin and your local network, then retry.\nOr set server.url in settings.json."
+		if errors.Is(err, errNoServers) {
+			p.Title = "No Jellyfin servers found"
+		}
+		p.Path = c.SettingsPath
+	case stage == connectionServerStorage:
+		p.Title, p.Message = "Check saved server", "Make sure this file is valid and its folder is writable.\nRestore or remove the file, or configure server.url."
+		p.Path, p.PathLabel = filepath.Join(c.StateDir, "jellyfin-server.json"), "Saved server file"
 	case stage == connectionConfig:
 		p.Title, p.Message = "Check your configuration", "Use an HTTP or HTTPS server address on the first line.\nCheck any optional settings, then retry."
 		if errors.Is(err, os.ErrNotExist) {

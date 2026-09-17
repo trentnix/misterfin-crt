@@ -23,7 +23,10 @@ type browserTarget struct {
 	openSound sound.OpenFunc
 	player    playback.Config
 	output    videoout.Output
-	readInput func(context.Context, *diagnostics.Log) (<-chan control.Event, <-chan struct{}, error)
+	// initialControls describes the selected input source before its first event.
+	// Nil keeps the default controller legend until a device publishes bindings.
+	initialControls control.Labels
+	readInput       func(context.Context, *diagnostics.Log) (<-chan control.Event, <-chan struct{}, error)
 }
 
 // selectBrowserTarget chooses the native target unless a headless output was

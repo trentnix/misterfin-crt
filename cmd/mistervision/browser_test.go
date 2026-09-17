@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/control"
 	"mistervision/internal/input/evdev"
 	"mistervision/internal/platform"
 	"mistervision/internal/player"
@@ -46,6 +47,13 @@ func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
 			g := platform.Geometry{Width: 640, Height: 240, OutputWidth: 640, OutputHeight: 480}
 			target := selectBrowserTarget(targetPresenter{geometry: g}, o, evdev.Config{})
 			got := target.player
+			wantOpen, wantBack := "Enter", "Esc"
+			if o.headless == "" {
+				wantOpen, wantBack = "B", "A"
+			}
+			if target.initialControls.Name(control.Open) != wantOpen || target.initialControls.Name(control.Back) != wantBack {
+				t.Fatal("startup hints do not match the target input source")
+			}
 			if (target.activate != nil) != (o.headless == "") {
 				t.Fatal("environment coordination must be limited to MiSTer")
 			}

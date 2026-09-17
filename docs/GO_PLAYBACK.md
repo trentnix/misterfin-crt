@@ -32,7 +32,7 @@ MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% 
 | Previous/next music track | LB / RB | [ / ] or Page Up / Page Down |
 | Pause/resume | B | Enter or B |
 | Stop and return | A | Escape or A |
-| Video options / music background | SELECT/View | Tab |
+| Video options / music background | Select | Tab |
 
 [Input profiles](GO_INPUT.md) control hardware bindings and badge labels. Controls expire after three seconds. Pause/resume hides them. Menu toggles and track changes act once per press.
 
@@ -88,7 +88,7 @@ Plex channels with selectable alternate tracks expose View → Audio. A selectio
 
 ### Closed captions
 
-When caption data is available, press View/Tab and select Subtitles → Closed captions. Off hides them immediately. Changes do not reopen the channel. Captions target the primary EIA-608 compatibility text carried in ATSC A53 video data. Full CEA-708 service selection, caption languages, and broadcast styling are not supported. No guide data is required.
+When caption data is available, press Select/Tab and select Subtitles → Closed captions. Off hides them immediately. Changes do not reopen the channel. Captions target the primary EIA-608 compatibility text carried in ATSC A53 video data. Full CEA-708 service selection, caption languages, and broadcast styling are not supported. No guide data is required.
 
 MPlayer decodes caption side data from the existing video decoder. The libmpv helper exports decoded subtitle text. Both send complete text updates and clears to the shared overlay. FFplay does not export caption text.
 

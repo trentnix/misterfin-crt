@@ -6,7 +6,9 @@ import "mistervision/internal/connection"
 // connector is an assembly error, not a choice of default provider.
 func (s *browserSession) setupPresentation(err error) connection.Presentation {
 	if s.config.Connector != nil {
-		return s.config.Connector.Describe(err)
+		p := s.config.Connector.Describe(err)
+		p.BackToServers = s.setup.BackToServers
+		return p
 	}
 	if err == nil {
 		return connection.Presentation{Kind: connection.SetupConnecting, Title: "Connecting"}

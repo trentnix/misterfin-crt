@@ -10,6 +10,7 @@ const (
 	SetupConnecting                  // A connection attempt is running.
 	SetupApproval                    // A public approval code is awaiting authorization.
 	SetupFailure                     // Connection needs attention before retrying.
+	SetupServers                     // The user chooses from discovered servers.
 )
 
 // Presentation is a copied setup snapshot. Text and Path must be safe to show.
@@ -20,8 +21,15 @@ type Presentation struct {
 	Title, Message, Code string
 	Path, PathLabel      string
 	Retry                string
+	// Servers is an immutable snapshot. Selected is owned by the browser loop.
+	Servers  []Server
+	Selected int
 	// Recovered records damaged sign-in storage that was backed up.
 	Recovered bool
+	// BackToServers offers discovery navigation during sign-in. The connector
+	// enables it for remembered choices. The browser retains it for the attempt.
+	// Otherwise, the browser offers its connection chooser or exits setup.
+	BackToServers bool
 }
 
 // RetryLabel returns the connector's label for the open/retry action.

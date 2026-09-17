@@ -6,6 +6,7 @@ import (
 
 	"mistervision/internal/connection"
 	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/control"
 	"mistervision/internal/musicviz"
 	"mistervision/internal/release"
 	"mistervision/internal/update"
@@ -15,8 +16,23 @@ import (
 // chooses platform defaults. Run does not resolve paths from the display or
 // decoder configuration.
 type Config struct {
+	// InitialControls supplies immutable binding labels before the first input
+	// event. Nil uses the default controller labels. Later events replace them.
+	InitialControls control.Labels
+
 	// Connector supplies authentication and safe setup instructions for the selected backend.
 	Connector connection.Connector
+
+	// Connections lists the immutable choices available through About.
+	// ConnectionID identifies the current route. Empty choices hide the action.
+	Connections  []connection.Choice
+	ConnectionID string
+	// ReturnConnectionID is the last connected route, used when setup is canceled.
+	// Empty means canceling setup exits instead of restoring another browser.
+	ReturnConnectionID string
+	// Navigation optionally retains this connection's location between Run calls.
+	// The caller must give each connection its own value and serialize access.
+	Navigation *Navigation
 
 	// MusicVisuals contains validated immutable presets. Nil disables visuals.
 	// Startup assembly supplies defaults. Selected images load on a worker.

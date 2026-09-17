@@ -13,10 +13,20 @@ import (
 func (p *screenPainter) setup() {
 	s, c := p.scene.Setup, p.canvas
 	hints := []controlHint{}
+	if s.Kind == SetupServers {
+		if len(s.Servers) > 1 {
+			hints = append(hints, pairedHint(p.scene.Controls, control.Up, control.Down, "Choose"))
+		}
+		hints = append(hints, hint(p.scene.Controls, control.Open, "Select"), hint(p.scene.Controls, control.Select, "Scan again"))
+	}
 	if action := s.RetryLabel(); action != "" {
 		hints = append(hints, hint(p.scene.Controls, control.Open, action))
 	}
-	hints = append(hints, hint(p.scene.Controls, control.Back, "Exit"))
+	back := "Exit"
+	if s.BackToServers || len(p.scene.About.Connections) > 0 {
+		back = "Back"
+	}
+	hints = append(hints, hint(p.scene.Controls, control.About, "About"), hint(p.scene.Controls, control.Back, back))
 	rows := controlRows(p.width, hints)
 	bottom := controlsTop(p.bottom, rows) - 12
 	top := p.safeY + 4
@@ -31,6 +41,8 @@ func (p *screenPainter) setup() {
 	center(c, titleY, truncate(heading, p.width-48, scale), titleColor, scale)
 	bodyY := titleY + 28
 	switch s.Kind {
+	case SetupServers:
+		setupServers(c, bodyY, bottom, s)
 	case SetupApproval:
 		setupLines(c, bodyY, message, 2)
 		center(c, bottom-62, truncate(s.Code, p.width-48, 3), 0xffffff, 3)

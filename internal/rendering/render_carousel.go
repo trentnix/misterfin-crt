@@ -71,9 +71,10 @@ func (p *screenPainter) carousel() [][]controlHint {
 	if v.Item() != nil {
 		hints = append(hints, hint(labels, control.Open, "Select"))
 	}
-	hints = append(hints, hint(labels, control.Select, "List"), hint(labels, control.Back, "Exit"), hint(labels, control.About, "About"))
+	hints = append(hints, hint(labels, control.Select, "List"))
 	if v.Error != "" || p.scene.SelectionError != "" {
 		hints = append(hints, hint(labels, control.Retry, "Retry"))
 	}
+	hints = append(hints, hint(labels, control.About, "About"), hint(labels, control.Back, "Exit"))
 	return controlRows(w, hints)
 }

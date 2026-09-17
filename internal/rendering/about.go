@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"mistervision/internal/connection"
 	"mistervision/internal/release"
 	"mistervision/internal/update"
 )
@@ -12,6 +13,15 @@ import (
 // AboutPresentation is a value snapshot of the About page and release check.
 // Notes is immutable after publication. Rendering performs no installation I/O.
 type AboutPresentation struct {
+	// Connections is an immutable menu snapshot supplied by application assembly.
+	Connections        []connection.Choice
+	ConnectionsVisible bool
+	ConnectionSelected int
+	ConnectionMessage  string
+	ConnectionPath     []int
+	// CanReturnToConnection distinguishes canceling setup from exiting the app.
+	CanReturnToConnection           bool
+	CurrentConnection               string
 	Visible                         bool
 	Build                           release.Build
 	Checking, Checked               bool
@@ -103,4 +113,16 @@ func ReleaseNotes(text string, width int) []string {
 		lines = append(lines, line)
 	}
 	return lines
+}
+
+// ConnectionChoices resolves the current submenu without modifying its snapshot.
+func (a AboutPresentation) ConnectionChoices() (string, []connection.Choice) {
+	title, choices := "Connections", a.Connections
+	for _, index := range a.ConnectionPath {
+		if index < 0 || index >= len(choices) {
+			break
+		}
+		title, choices = choices[index].Name, choices[index].Children
+	}
+	return title, choices
 }

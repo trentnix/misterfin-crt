@@ -71,7 +71,7 @@ Copy these files to the SD card and make them executable:
 | `build/mistervision-mplayer-arm` | `/media/fat/mistervision/mplayer-arm` |
 | [`tools/mistervision.sh`](../tools/mistervision.sh) | `/media/fat/Scripts/MiSTerVision.sh` |
 
-Copy `settings.example.json` to `settings.json` beside the binaries and set `server.provider` and `server.url`. See [configuration and migration](GO_CONFIGURATION.md) for existing installations. Launch **MiSTerVision** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. A direct progressive-mode launch over SSH does not enable framebuffer output through Scripts.
+For local Jellyfin discovery, no connection file is needed. For an explicit Jellyfin address or Plex, copy `settings.example.json` to `settings.json` beside the binaries and set `server.provider` and `server.url`. See [configuration and migration](GO_CONFIGURATION.md) for existing installations. Launch **MiSTerVision** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. A direct progressive-mode launch over SSH does not enable framebuffer output through Scripts.
 
 The launcher enables both CPU cores, hides the console cursor, and reloads the normal menu after a successful exit. Failures leave their messages visible. Login and playback choices persist under `/media/fat/mistervision/state`. Caches use separate [artwork directories](GO_BROWSING.md#persistent-artwork-cache). For 480i, follow the [display guide](GO_DISPLAY.md).
 

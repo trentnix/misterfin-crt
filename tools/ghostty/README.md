@@ -2,7 +2,17 @@
 
 This helper presents MiSTerVision's desktop framebuffer inside Ghostty. MiSTerVision reads the terminal directly, so the helper does not translate or intercept input.
 
-Use Linux, Go 1.26.8 or later, a C compiler, and Python 3. Playback dependencies are listed below. See the [build guide](../../docs/GO_BUILD.md) for toolchain setup. From the repository root, run:
+## Requirements and demo
+
+Run these commands in a Ghostty terminal on Linux, from the repository root. Install Go 1.26.8 or later, Make, a C compiler, and Python 3. Music and inline video also need the libmpv shared library. Install FFmpeg for the separate-window FFplay fallback and decoder tests. No Python packages are required. See the [build guide](../../docs/GO_BUILD.md) for build commands.
+
+Check the inline playback dependency:
+
+```bash
+python3 tools/ghostty/video_player.py --check
+```
+
+To try browsing without a media server:
 
 ```bash
 python3 tools/ghostty/ghostty_harness.py --demo --ntsc
@@ -14,15 +24,63 @@ Use `--pal` for the 640x288 layout, which is the default. The terminal preview d
 
 The demo starts a temporary mock Jellyfin server on loopback. It includes more than 500 movies, TV shows, music, Live TV channels, Home Videos, and a Mixed library. Configuration and session files stay in a temporary directory and are removed on exit. No real server or credentials are needed.
 
-To connect to Jellyfin or Plex, create a `settings.json` with a `server` section as shown in the [project README](../../README.md#run-on-mister), then run:
+### Jellyfin discovery
+
+Use a separate profile so old settings in the repository cannot bypass discovery:
 
 ```bash
-python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --settings /path/to/settings.json
+profile="$HOME/.config/mistervision/discovery"
+mkdir -p "$profile"
+python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
+  --config "$profile/jellyfin.conf" \
+  --state-dir "$profile/state"
 ```
 
-Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at `plex.tv/link`. Sessions default to the user configuration directory under `mistervision`. Plex uses its `plex` subdirectory. `--state-dir PATH` selects another state directory. For an existing MiSTerFin CRT development setup, pass its old state directory explicitly or follow the [rename instructions](../../docs/GO_BUILD.md#moving-from-misterfin-crt).
+Do not create `jellyfin.conf` or add a `server` section to this profile's `settings.json`. The `--config` argument selects a legacy configuration path that is deliberately absent. Other application settings can go in `settings.json` beside it, which the client loads automatically.
 
-Legacy Jellyfin configurations still work with `--config jellyfin.conf`. Application options default to `settings.json` beside that file. `--settings PATH` overrides `MISTERVISION_SETTINGS`. See [configuration](../../docs/GO_CONFIGURATION.md).
+Select a server, then approve Quick Connect in an already signed-in Jellyfin client. Before sign-in completes, Escape/Back returns to discovery so you can choose another server. Back remains available if you exit without approving and launch again. Escape on the server picker exits. Close and reopen with the same command to verify that the server and sign-in are remembered. If no server appears, see [discovery and troubleshooting](../../docs/GO_BROWSING.md#jellyfin-discovery).
+
+### Explicit Jellyfin or Plex connection
+
+Use separate profiles when testing both providers. For Jellyfin, create `~/.config/mistervision/jellyfin/settings.json` with:
+
+```json
+{
+  "server": {
+    "provider": "jellyfin",
+    "url": "http://your-jellyfin-server:8096"
+  }
+}
+```
+
+For Plex, create `~/.config/mistervision/plex/settings.json` with:
+
+```json
+{
+  "server": {
+    "provider": "plex",
+    "url": "http://your-plex-server:32400"
+  }
+}
+```
+
+Replace the example address with your server's address. Create the parent directory if needed. If the file already exists, preserve its other settings. Launch Jellyfin with:
+
+```bash
+profile="$HOME/.config/mistervision/jellyfin"
+python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
+  --config "$profile/jellyfin.conf" \
+  --settings "$profile/settings.json" \
+  --state-dir "$profile/state"
+```
+
+For Plex, change the first line to `profile="$HOME/.config/mistervision/plex"` and run the same command. Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at [plex.tv/link](https://plex.tv/link). Plex account linking requires internet access.
+
+To switch accounts inside one running client, use [named connections in one settings file](../../docs/GO_CONFIGURATION.md#multiple-connections), then open F1 → Down for Connections. The separate folders above remain useful for isolated testing. These profile names are examples, not built-in modes. The arguments select configuration and state paths. Each profile keeps its sign-in and playback preferences under `state`; Plex sign-in uses `state/plex`. Without `--state-dir`, sessions use the user configuration directory under `mistervision`. For an existing MiSTerFin CRT setup, follow the [rename instructions](../../docs/GO_BUILD.md#moving-from-misterfin-crt).
+
+Legacy Jellyfin configurations still work with `--config jellyfin.conf`. Application options default to `settings.json` beside that file. `--settings PATH` overrides `MISTERVISION_SETTINGS`. See [configuration](../../docs/GO_CONFIGURATION.md) for additional options.
+
+## Controls and troubleshooting
 
 Keyboard controls:
 
@@ -59,7 +117,7 @@ The presentation cap defaults to 20 FPS, or 60 FPS with `--inline-video`. Change
 
 Press F1 while browsing to open About. Esc or F1 returns to the preceding screen. Tab or R checks for updates, and Enter opens release notes when a release is available. Up/Down scrolls the notes. Desktop installations show a manual-installation message. Automatic installation is limited to the standard MiSTer installation.
 
-Add `--inline-video` to a real-server browsing command to play video inside Ghostty. Inline playback requires libmpv and FFmpeg. Without that flag, video opens in a separate FFplay window. See [desktop playback setup](../../docs/GO_PLAYBACK.md).
+Add `--inline-video` to a real-server browsing command to play video inside Ghostty. Inline playback requires libmpv. Without that flag, video opens in a separate FFplay window. See [desktop playback setup](../../docs/GO_PLAYBACK.md).
 
 Run the helper tests with:
 
