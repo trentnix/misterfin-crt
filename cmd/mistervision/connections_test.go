@@ -4,6 +4,7 @@ import (
 	"mistervision/internal/connection"
 	jfconnection "mistervision/internal/jellyfin/connection"
 	"mistervision/internal/plex"
+	"mistervision/internal/serverstate"
 	"mistervision/internal/settings"
 	"os"
 	"path/filepath"
@@ -53,5 +54,48 @@ func TestConnectionCatalogProfilesAndRememberedStartup(t *testing.T) {
 	}
 	if c = load(); c.selected != "default" {
 		t.Fatal("changed configuration did not reset startup choice")
+	}
+}
+
+func TestPlexDiscoveryCatalogWithoutServerConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	source, err := settings.Load(filepath.Join(dir, "settings.json"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	load := func() *connectionCatalog {
+		t.Helper()
+		catalog, err := newConnectionCatalog(source, filepath.Join(dir, "missing.conf"), dir, "test", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return catalog
+	}
+	catalog := load()
+	if len(catalog.choices) != 2 || catalog.choices[1].ID != "plex-new" || catalog.choices[1].Help != "" {
+		t.Fatal("Plex still requires configuration")
+	}
+	if catalog.connectionID("plex-new") != "plex" || catalog.connectionID("jellyfin-new") != "jellyfin" {
+		t.Fatal("selection does not share remembered navigation")
+	}
+	first := catalog.connectors["plex-new"]
+	catalog.startSelection("plex-new")
+	if first == catalog.connectors["plex-new"] {
+		t.Fatal("new selection reused old tentative connector")
+	}
+	px := catalog.discoveries["plex"].Connector.(plex.Connector)
+	if px.Config.Server != "" {
+		t.Fatal("discovery inherited explicit configuration")
+	}
+	server := connection.Server{ID: "server", Name: "My Plex", URL: "http://plex:32400"}
+	if err := serverstate.SaveServer(filepath.Join(plex.StateDir(px.StateDir), "server.json"), server); err != nil {
+		t.Fatal(err)
+	}
+	if err := catalog.discoveries["plex"].Remember(); err != nil {
+		t.Fatal(err)
+	}
+	catalog = load()
+	if catalog.selected != "plex" || catalog.choices[0].Children[0].ID != "plex" || catalog.choices[0].Children[0].Name != "My Plex" {
+		t.Fatal("remembered Plex missing from startup or existing connections")
 	}
 }

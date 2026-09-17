@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"mistervision/internal/connection"
 	"mistervision/internal/diagnostics"
 	"mistervision/internal/jellyfin"
 	jfconnection "mistervision/internal/jellyfin/connection"
+	"mistervision/internal/plex"
 	"mistervision/internal/serverstate"
 	"mistervision/internal/settings"
 )
@@ -19,11 +21,11 @@ import (
 // connectionCatalog owns provider assembly and the retained accounts for one
 // application run. Browser sessions borrow a connector, never configuration files.
 type connectionCatalog struct {
-	choices    []connection.Choice
-	connectors map[string]connection.Connector
-	selected   string
-	discovery  *connection.Retained
-	notice     string
+	choices     []connection.Choice
+	connectors  map[string]connection.Connector
+	selected    string
+	discoveries map[string]*connection.Retained
+	notice      string
 }
 
 // newConnectionCatalog preserves automatic single-server startup and adds named
@@ -38,7 +40,7 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 	if err != nil {
 		return nil, err
 	}
-	catalog := &connectionCatalog{connectors: make(map[string]connection.Connector), selected: "default"}
+	catalog := &connectionCatalog{connectors: make(map[string]connection.Connector), discoveries: make(map[string]*connection.Retained), selected: "default"}
 	fingerprint := sha256.New()
 	fingerprint.Write(source.Section("server").Data)
 	fingerprint.Write([]byte{0})
@@ -59,7 +61,7 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 		return retained
 	}
 	add("default", defaultConnector)
-	var existing, plexChoices []connection.Choice
+	var existing []connection.Choice
 	_, legacyErr := os.Stat(configPath)
 	_, savedErr := os.Stat(filepath.Join(stateDir, "jellyfin-server.json"))
 	if source.Section("server").Data != nil || legacyErr == nil || savedErr == nil {
@@ -73,9 +75,6 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 		}
 		choice := connection.Choice{ID: "default", Name: name, Description: provider}
 		existing = append(existing, choice)
-		if provider == "Plex" {
-			plexChoices = append(plexChoices, choice)
-		}
 	}
 	for _, profile := range profiles {
 		// A renamed label keeps the same account. A changed server gets isolated state.
@@ -93,33 +92,31 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 		}
 		choice := connection.Choice{ID: id, Name: profile.Name, Description: provider + " · " + profile.Server.URL}
 		existing = append(existing, choice)
-		if provider == "Plex" {
-			plexChoices = append(plexChoices, choice)
-		}
 	}
 	if source.Section("server").Data == nil && legacyErr != nil && savedErr != nil && len(profiles) > 0 {
 		catalog.selected = "profile/" + profiles[0].ID
 	}
-	// Discovery uses a separate account folder so selecting another Jellyfin
-	// server does not replace credentials for the configured connection.
-	discoveryDir := filepath.Join(stateDir, "discovery", "jellyfin")
-	discovery := jfconnection.Connector{Discovery: jellyfin.Discovery{}, DiscoveryOnly: true, SettingsPath: source.Path, ConfigPath: configPath, StateDir: discoveryDir, Version: version, Diagnostics: log}
-	catalog.discovery = add("jellyfin", discovery)
-	if _, err := os.Stat(filepath.Join(discoveryDir, "jellyfin-server.json")); err == nil {
-		existing = append(existing, connection.Choice{ID: "jellyfin", Name: "Discovered Jellyfin server", Description: "Use the remembered server and sign-in"})
+	// Each provider's discovered account stays separate from explicitly
+	// configured profiles. The new route is tentative until connection succeeds.
+	var providers []connection.Choice
+	addDiscovery := func(id, name, description, path string, connector connection.Connector) {
+		catalog.discoveries[id] = add(id, connector)
+		catalog.startSelection(id + "-new")
+		if server, err := serverstate.LoadServer(path); err == nil {
+			existing = append(existing, connection.Choice{ID: id, Name: server.Name, Description: name + " · " + server.URL})
+		}
+		providers = append(providers, connection.Choice{ID: id + "-new", Name: name, Description: description})
 	}
+	discoveryDir := filepath.Join(stateDir, "discovery")
+	jellyfinDir := filepath.Join(discoveryDir, "jellyfin")
+	addDiscovery("jellyfin", "Jellyfin", "Find a server on your local network", filepath.Join(jellyfinDir, "jellyfin-server.json"),
+		jfconnection.Connector{Discovery: jellyfin.Discovery{}, DiscoveryOnly: true, SettingsPath: source.Path, ConfigPath: configPath, StateDir: jellyfinDir, Version: version, Diagnostics: log})
+	addDiscovery("plex", "Plex", "Link your account and choose a server", filepath.Join(plex.StateDir(discoveryDir), "server.json"),
+		plex.Connector{StateDir: discoveryDir, Version: version, Diagnostics: log})
 	if len(existing) > 0 {
 		catalog.choices = append(catalog.choices, connection.Choice{ID: "existing", Name: "Use existing connection", Description: "Choose a configured or remembered server", Children: existing})
 	}
-	catalog.choices = append(catalog.choices, connection.Choice{ID: "jellyfin-new", Name: "Jellyfin", Description: "Find a server on your local network"})
-	// The new-server route forces discovery once, then becomes the remembered route.
-	catalog.connectors["jellyfin-new"] = &discoverConnection{connector: catalog.discovery.NewSelection()}
-	plex := connection.Choice{Name: "Plex", Description: "Choose a configured Plex server", Children: plexChoices}
-	if len(plexChoices) == 0 {
-		plex.Description = "Add a Plex server in settings.json"
-		plex.Help = "Add a connection with provider plex and its server URL. Restart MiSTerVision to load the new configuration."
-	}
-	catalog.choices = append(catalog.choices, plex)
+	catalog.choices = append(catalog.choices, providers...)
 	saved, err := serverstate.LoadChoice(choicePath)
 	if err == nil && saved.Configuration == digest {
 		if _, ok := catalog.connectors[saved.ID]; ok {
@@ -160,7 +157,25 @@ func (c *discoverConnection) Connect(ctx context.Context, i connection.Interacti
 	return c.connector.Connect(ctx, i)
 }
 
-// Describe delegates safe progress and recovery text to Jellyfin.
+// Describe delegates safe progress and recovery text to the selected provider.
 func (c *discoverConnection) Describe(err error) connection.Presentation {
 	return c.connector.Describe(err)
+}
+
+// connectionID makes fresh selection and remembered startup share browser state.
+func (c *connectionCatalog) connectionID(id string) string {
+	base := strings.TrimSuffix(id, "-new")
+	if c.discoveries[base] != nil {
+		return base
+	}
+	return id
+}
+
+// startSelection gives each new setup attempt an independent tentative cache.
+// Failed or canceled setup leaves the previous retained connection available.
+func (c *connectionCatalog) startSelection(id string) {
+	base := c.connectionID(id)
+	if base != id {
+		c.connectors[id] = &discoverConnection{connector: c.discoveries[base].NewSelection()}
+	}
 }
