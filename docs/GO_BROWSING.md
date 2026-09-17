@@ -12,7 +12,7 @@ Jellyfin Quick Connect displays a public approval code. Enter it in an already s
 
 Plex uses an account-link code at `plex.tv/link`. The linked account determines server access. Choose Plex under About → Connections to link an account and select a server without editing configuration. [Plex support](GO_PLEX.md) describes sign-in and provider-specific limits.
 
-The standard MiSTer state directory is `/media/fat/mistervision/state`. Desktop defaults to `~/.config/mistervision`, or `mistervision` under `XDG_CONFIG_HOME` when set. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Jellyfin stores identity and sign-in in `session.json`. Explicit Plex connections use `plex/session.json`. [Discovered Plex connections](GO_PLEX.md#server-discovery) keep account and server credentials separately under `discovery/plex/`.
+The standard MiSTer state directory is `/media/fat/mistervision/state`. Desktop defaults to `~/.config/mistervision`, or `mistervision` under `XDG_CONFIG_HOME` when set. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Jellyfin stores identity and sign-in in `session.json`. Plex keeps its linking account, viewing profile, and server grant together in `plex/server.json`. [Discovered Plex connections](GO_PLEX.md#server-discovery) use `discovery/plex/server.json`. Older Plex sign-in files remain readable during migration.
 
 Saved sessions are bound to the server URL. C `token.conf` and `device.conf` files are not imported.
 

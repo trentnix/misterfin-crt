@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"image"
 
 	"mistervision/internal/connection"
 	"mistervision/internal/media"
@@ -12,10 +13,12 @@ import (
 // authenticatedConnection groups the client and loaders that become valid
 // together after authentication. The browser loop owns the returned values.
 type authenticatedConnection struct {
-	client    media.Server
-	remote    remote.Source
-	selection *selectionLoader
-	recovered bool
+	client        media.Server
+	remote        remote.Source
+	selection     *selectionLoader
+	recovered     bool
+	profile       *connection.Profile
+	switchProfile bool
 }
 
 // serverChoice carries a selected server or an explicit rescan request.
@@ -34,8 +37,13 @@ type connectionManager struct {
 	generation     int
 	reauthenticate bool
 	newAccount     bool // Retained while requesting another approval code.
+	selectProfile  bool // Reopen the profile picker after canceling PIN verification.
 	selectServer   bool // Keep discovery active across retries until a server is chosen.
 	choice         chan serverChoice
+	profileChoice  chan connection.ProfileSelection
+	profilePIN     string // Private, transient keypad input. Never copied into a scene.
+	profileFlow    bool
+	profileAvatars map[string]image.Image
 	done           <-chan struct{} // Closes after this attempt and all preceding attempts exit.
 }
 
@@ -49,12 +57,15 @@ func newConnectionManager(config Config, width, height int) connectionManager {
 func (m *connectionManager) connect(ctx context.Context, send func(context.Context, workerResult)) {
 	m.cancel()
 	m.choice = nil
+	m.profileChoice = nil
+	m.profilePIN = ""
+	m.profileAvatars = make(map[string]image.Image)
 	m.generation++
 	generation := m.generation
 	work, cancel := context.WithCancel(ctx)
 	m.cancel = cancel
 	config, width, height, selectServer, reauthenticate := m.config, m.width, m.height, m.selectServer, m.reauthenticate
-	newAccount := m.newAccount
+	newAccount, selectProfile := m.newAccount, m.selectProfile
 	previous := m.done
 	done := make(chan struct{})
 	m.done = done
@@ -66,6 +77,8 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 		if work.Err() != nil {
 			return
 		}
+		artwork := profileArtworkWork{ctx: work, generation: generation, send: send, requested: make(map[string]bool)}
+		defer artwork.wait()
 		var session connection.Session
 		var err error
 		if config.Connector == nil {
@@ -73,8 +86,20 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 		} else {
 			session, err = config.Connector.Connect(work, connection.Interaction{
 				SelectServer:   selectServer,
+				SelectProfile:  selectProfile,
 				NewAccount:     newAccount,
 				Reauthenticate: reauthenticate,
+				ChooseProfile: func(ctx context.Context, prompt connection.ProfilePrompt) (connection.ProfileSelection, error) {
+					choice := make(chan connection.ProfileSelection, 1)
+					send(ctx, profileChoicesResult{generation: generation, prompt: prompt, choice: choice})
+					artwork.start(prompt.Profiles, prompt.Avatars)
+					select {
+					case selected := <-choice:
+						return selected, nil
+					case <-ctx.Done():
+						return connection.ProfileSelection{}, ctx.Err()
+					}
+				},
 				Progress: func(p connection.Presentation) {
 					send(work, authCodeResult{generation: generation, presentation: p})
 				},
@@ -90,14 +115,17 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 				},
 			})
 		}
-		var connection *authenticatedConnection
+		var connected *authenticatedConnection
 		if err == nil {
+			if session.Profile != nil {
+				artwork.start([]connection.Profile{*session.Profile}, session.Avatars)
+			}
 			caches := newSelectionCaches(config, session.Server.Identity())
 			selection := newSelectionLoader(session.Server, width, height, caches)
 			selection.customBackground = config.Background != nil
-			connection = &authenticatedConnection{client: session.Server, remote: session.Remote, recovered: session.Recovered, selection: selection}
+			connected = &authenticatedConnection{client: session.Server, remote: session.Remote, recovered: session.Recovered, selection: selection, profile: session.Profile, switchProfile: session.SwitchProfile}
 		}
-		send(work, authResult{generation: generation, connection: connection, err: err})
+		send(work, authResult{generation: generation, connection: connected, err: err})
 	}()
 }
 
@@ -106,6 +134,7 @@ func (m *connectionManager) current(generation int) bool {
 }
 
 func (m *connectionManager) close() {
+	m.profilePIN = ""
 	m.cancel()
 	if m.done != nil {
 		<-m.done

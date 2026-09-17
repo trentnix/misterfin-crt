@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"mistervision/internal/connection"
 	"mistervision/internal/input/control"
 	"mistervision/internal/release"
 	"mistervision/internal/rendering"
@@ -89,6 +90,10 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 			}
 		}
 	case control.Up:
+		if !s.about.NotesVisible && s.about.SwitchProfile && s.client != nil && s.setup.Kind == rendering.SetupHidden {
+			s.connectionChange = &connection.Change{ID: s.config.ConnectionID, ReturnID: s.config.ConnectionID, SelectProfile: true}
+			s.model.Quit = true
+		}
 		if s.about.NotesVisible {
 			s.about.Scroll = max(0, s.about.Scroll-1)
 		}

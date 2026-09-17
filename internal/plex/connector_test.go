@@ -17,6 +17,10 @@ import (
 
 func TestConnectorKeepsAccountsSeparate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/identity" {
+			fmt.Fprint(w, `{"MediaContainer":{"machineIdentifier":"server-id"}}`)
+			return
+		}
 		if r.Header.Get("X-Plex-Token") != "plex-private" {
 			t.Error("wrong account credential")
 			w.WriteHeader(401)
@@ -34,12 +38,22 @@ func TestConnectorKeepsAccountsSeparate(t *testing.T) {
 	if err := serverstate.SaveSession(StateDir(root), plex); err != nil {
 		t.Fatal(err)
 	}
+	account := plex
+	account.Server = "https://plex.tv"
+	plex.ServerID = "server-id"
+	if err := saveDiscoveryState(StateDir(root), discoveryState{Server: connection.Server{ID: "server-id", Name: "Test", URL: server.URL}, Account: &account, Credentials: &plex, HomeChecked: true}); err != nil {
+		t.Fatal(err)
+	}
 	before, err := os.ReadFile(filepath.Join(root, "session.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := Connector{Config: Config{Server: server.URL + "/"}, StateDir: root, Version: "test"}
-	session, err := c.Connect(t.Context(), connection.Interaction{Progress: func(connection.Presentation) { t.Error("saved sign-in requested approval") }})
+	session, err := c.Connect(t.Context(), connection.Interaction{Progress: func(p connection.Presentation) {
+		if p.Kind == connection.SetupApproval {
+			t.Error("saved sign-in requested approval")
+		}
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}

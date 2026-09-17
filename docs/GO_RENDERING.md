@@ -30,6 +30,10 @@ Reusable data processing stays outside server adapters. [`media.MergeContinueWat
 
 Shared item types use the field layout and JSON tags inherited from Jellyfin. Jellyfin aliases those types for decoding. Plex maps its responses into them. Application assembly maps the shared `server` settings into each adapter’s configuration. Both providers use the private `serverstate` store, with Plex credentials in a separate subdirectory. Server selection does not change rendering or target assembly.
 
+The same boundary handles viewing profiles: `connection.ProfilePrompt` supplies public names and protection flags. Its optional `connection.ProfileAvatars` service loads images on background workers. The browser copies completed artwork into profile snapshots without resetting input. Only decoded images reach the renderer.
+
+The browser owns selection and masked keypad state. PIN replies travel privately to the connector and never enter `rendering.Scene`. Profile cards and PIN entry use the shared renderer on both outputs.
+
 The application retains authenticated accounts through `connection.Retained`. About presents immutable `connection.Choice` entries, including nested existing connections. Choosing an account returns `connection.Change` only after `browser.Run` cancels its work and joins its remote listener and player cleanup. Application assembly then opens another browser session with the same input, display, and playback settings. `browser.Navigation` restores the account's browsing position only when its server/user identity matches. Inactive accounts do not run remote-control listeners.
 
 ## Shared UX and output

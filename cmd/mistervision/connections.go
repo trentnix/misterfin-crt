@@ -25,6 +25,7 @@ type connectionCatalog struct {
 	connectors  map[string]connection.Connector
 	selected    string
 	discoveries map[string]*connection.Retained
+	retained    map[string]*connection.Retained
 	notice      string
 }
 
@@ -40,7 +41,7 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 	if err != nil {
 		return nil, err
 	}
-	catalog := &connectionCatalog{connectors: make(map[string]connection.Connector), discoveries: make(map[string]*connection.Retained), selected: "default"}
+	catalog := &connectionCatalog{connectors: make(map[string]connection.Connector), discoveries: make(map[string]*connection.Retained), retained: make(map[string]*connection.Retained), selected: "default"}
 	fingerprint := sha256.New()
 	fingerprint.Write(source.Section("server").Data)
 	fingerprint.Write([]byte{0})
@@ -58,6 +59,7 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 			return serverstate.SaveChoice(choicePath, serverstate.Choice{ID: id, Configuration: digest})
 		}}
 		catalog.connectors[id] = retained
+		catalog.retained[id] = retained
 		return retained
 	}
 	add("default", defaultConnector)
@@ -164,6 +166,7 @@ func (c *discoverConnection) Describe(err error) connection.Presentation {
 
 // connectionID makes fresh selection and remembered startup share browser state.
 func (c *connectionCatalog) connectionID(id string) string {
+	id = strings.TrimPrefix(id, "viewer/")
 	base := strings.TrimSuffix(id, "-new")
 	if c.discoveries[base] != nil {
 		return base
@@ -175,7 +178,36 @@ func (c *connectionCatalog) connectionID(id string) string {
 // Failed or canceled setup leaves the previous retained connection available.
 func (c *connectionCatalog) startSelection(id string) {
 	base := c.connectionID(id)
-	if base != id {
+	if base != id && c.discoveries[base] != nil {
 		c.connectors[id] = &discoverConnection{connector: c.discoveries[base].NewSelection()}
 	}
+}
+
+// startProfileSelection borrows a tentative cache for the active connection.
+// Canceling returns to its retained session. Success promotes the new viewer.
+func (c *connectionCatalog) startProfileSelection(id string) string {
+	route := "viewer/" + id
+	c.connectors[route] = &profileConnection{connector: c.retained[id].NewSelection()}
+	return route
+}
+
+// profileConnection requests a viewer only until this attempt connects.
+type profileConnection struct {
+	connector connection.Connector
+	connected bool
+}
+
+// Connect requests a fresh profile until the tentative session succeeds.
+func (c *profileConnection) Connect(ctx context.Context, i connection.Interaction) (connection.Session, error) {
+	i.SelectProfile = i.SelectProfile || !c.connected
+	session, err := c.connector.Connect(ctx, i)
+	if err == nil {
+		c.connected = true
+	}
+	return session, err
+}
+
+// Describe delegates safe setup instructions to the provider.
+func (c *profileConnection) Describe(err error) connection.Presentation {
+	return c.connector.Describe(err)
 }

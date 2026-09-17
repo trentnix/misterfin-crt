@@ -115,6 +115,8 @@ type accountIdentity struct {
 	ID           int    `json:"id"`
 	Username     string `json:"username"`
 	FriendlyName string `json:"friendlyName"`
+	Home         bool   `json:"home"`
+	Protected    bool   `json:"protected"`
 }
 
 // name supplies a bounded, single-line label even for unusual account names.

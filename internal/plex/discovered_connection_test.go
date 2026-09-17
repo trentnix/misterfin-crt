@@ -27,6 +27,8 @@ type discoveryFixture struct {
 	denyMedia                          atomic.Bool
 	newAccount                         atomic.Bool
 	noServers                          atomic.Bool
+	home                               atomic.Bool
+	switchCalls                        atomic.Int32
 }
 
 func newDiscoveryFixture(t *testing.T, linked bool) *discoveryFixture {
@@ -41,7 +43,11 @@ func newDiscoveryFixture(t *testing.T, linked bool) *discoveryFixture {
 			fmt.Fprint(w, `{"MediaContainer":{"machineIdentifier":"server-id"}}`)
 		case "/library/sections":
 			f.mediaCalls.Add(1)
-			if token := r.Header.Get("X-Plex-Token"); token != "server-token" && token != "new-server-token" {
+			if r.Header.Get("X-Plex-Token") == "expired" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if token := r.Header.Get("X-Plex-Token"); token != "server-token" && token != "new-server-token" && token != "child-server-token" {
 				t.Error("media received account token or wrong grant")
 				w.WriteHeader(401)
 				return
@@ -86,11 +92,39 @@ func newDiscoveryFixture(t *testing.T, linked bool) *discoveryFixture {
 			if r.Header.Get("X-Plex-Token") != "account-token" {
 				t.Error("wrong account credential")
 			}
-			fmt.Fprint(w, `{"id":7,"username":"tester","friendlyName":"Test Viewer"}`)
+			fmt.Fprintf(w, `{"id":7,"username":"tester","friendlyName":"Test Viewer","home":%t,"protected":%t}`, f.home.Load(), f.home.Load())
+		case "/api/home/users":
+			fmt.Fprint(w, `<MediaContainer><User id="7" title="Parent" protected="1"/><User id="8" title="Child" protected="0"/><User id="9" title="Guest" protected="0"/></MediaContainer>`)
+		case "/api/home/users/7/switch", "/api/home/users/8/switch", "/api/home/users/9/switch":
+			f.switchCalls.Add(1)
+			if r.Method != "POST" || r.URL.RawQuery != "" || r.Header.Get("X-Plex-Token") != "account-token" {
+				t.Error("unsafe Home switch request")
+			}
+			if err := r.ParseForm(); err != nil {
+				t.Error(err)
+			}
+			id := strings.Split(r.URL.Path, "/")[4]
+			if id == "7" && r.PostForm.Get("pin") != "1234" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			token := "account-token"
+			if id == "8" {
+				token = "child-account-token"
+			}
+			if id == "9" {
+				token = "guest-account-token"
+			}
+			fmt.Fprintf(w, `<user id="%s" authenticationToken="%s"/>`, id, token)
 		case "/api/v2/resources":
 			token := "server-token"
 			if r.Header.Get("X-Plex-Token") == "new-account-token" {
 				token = "new-server-token"
+			} else if r.Header.Get("X-Plex-Token") == "child-account-token" {
+				token = "child-server-token"
+			} else if r.Header.Get("X-Plex-Token") == "guest-account-token" {
+				fmt.Fprint(w, `[]`)
+				return
 			} else if r.Header.Get("X-Plex-Token") != "account-token" {
 				t.Error("wrong resource credential")
 			}

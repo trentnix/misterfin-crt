@@ -25,37 +25,18 @@ type Connector struct {
 var _ connection.Connector = Connector{}
 
 // Connect validates saved credentials or requests approval at plex.tv/link.
-// A connected session has no remote-control source in this initial adapter.
+// Plex sessions do not provide a remote-control source.
 func (c Connector) Connect(ctx context.Context, interaction connection.Interaction) (connection.Session, error) {
-	if c.Config.Server == "" {
-		account := NewClient(Config{}, serverstate.Session{})
-		account.Version, account.Diagnostics = c.Version, c.Diagnostics
-		return c.connectDiscovered(ctx, interaction, &serverDiscovery{account: account, lan: gdmDiscovery{}})
+	if c.Config.Server != "" {
+		server, err := serverURL(c.Config.Server)
+		if err != nil {
+			return connection.Session{}, err
+		}
+		c.Config.Server = server
 	}
-	server, err := serverURL(c.Config.Server)
-	if err != nil {
-		return connection.Session{}, err
-	}
-	dir := StateDir(c.StateDir)
-	saved, recovered, err := serverstate.LoadSession(dir, server)
-	if err != nil {
-		return connection.Session{}, ErrSessionSave
-	}
-	config := c.Config
-	config.Server = server
-	client := NewClient(config, saved)
-	client.Version, client.Diagnostics = c.Version, c.Diagnostics
-	if recovered {
-		c.Diagnostics.Record("authentication.session-recovered")
-	}
-	err = client.Authenticate(ctx, dir, func(code string) {
-		interaction.Show(connection.Presentation{Kind: connection.SetupApproval, Title: "Link Plex", Code: code, Recovered: recovered, Retry: "New code",
-			Message: "Open plex.tv/link in a signed-in browser.\nEnter this code to approve MiSTerVision."})
-	})
-	if err != nil {
-		return connection.Session{}, err
-	}
-	return connection.Session{Server: client, Recovered: recovered}, nil
+	account := NewClient(Config{}, serverstate.Session{})
+	account.Version, account.Diagnostics = c.Version, c.Diagnostics
+	return c.connectDiscovered(ctx, interaction, &serverDiscovery{account: account, lan: gdmDiscovery{}})
 }
 
 var errServerURL = errors.New("Plex requires an HTTP or HTTPS server address without credentials, query, or fragment")
@@ -85,6 +66,8 @@ func (c Connector) Describe(err error) connection.Presentation {
 		if absolute, e := filepath.Abs(p.Path); e == nil {
 			p.Path = absolute
 		}
+	case errors.Is(err, errHome):
+		p.Title, p.Message = "Can’t open profile", "Check your internet connection and Plex Home settings, then retry.\nYour previous connection has been kept."
 	case errors.Is(err, ErrCodeExpired):
 		p.Title, p.Message, p.Retry = "Code expired", "Request a new code, then approve it at plex.tv/link.", "New code"
 	case errors.Is(err, media.ErrUnauthorized):

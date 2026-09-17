@@ -227,3 +227,102 @@ func TestAccountPickerLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestProfilePickerAndPINLayout(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		for _, state := range []SetupPresentation{{Kind: SetupProfiles}, {Kind: SetupPIN}, {Kind: SetupPIN, PINChecking: true}} {
+			kind := state.Kind
+			scene := Scene{Setup: SetupPresentation{Kind: kind, PINChecking: state.PINChecking, Profiles: []connection.Profile{{ID: "one", Name: "Parent", Protected: true}, {ID: "two", Name: "Child"}, {ID: "three", Name: "Guest"}}, Selected: 0, PINLength: 2, PINKey: 4}}
+			if kind == SetupPIN {
+				scene.Setup.Message = "Incorrect PIN. Try again."
+				if state.PINChecking {
+					scene.Setup.PINLength = 4
+					scene.Setup.Message = "Checking PIN..."
+				}
+			}
+			c := ui.New(640, height)
+			pixels := renderScene(c, nil, scene, Animation{})
+			hints := []controlHint{pairedHint(scene.Controls, control.Previous, control.Next, "Choose")}
+			if kind == SetupPIN {
+				hints = []controlHint{pairedHint(scene.Controls, control.Up, control.Down, "Move"), pairedHint(scene.Controls, control.Previous, control.Next, "Move")}
+			}
+			hints = append(hints, hint(scene.Controls, control.Open, "Select"), hint(scene.Controls, control.Back, "Back"))
+			if state.PINChecking {
+				hints = []controlHint{hint(scene.Controls, control.Back, "Back")}
+			}
+			rows := controlRows(640, hints)
+			bottom := height - 8 - safeY(640, height)
+			expected := ui.New(640, height)
+			expected.Rect(0, 0, 640, height, 0x0b0d13)
+			drawControls(expected, bottom, rows)
+			start := controlsTop(bottom, rows) * 640 * 4
+			if !bytes.Equal(pixels[start:], expected.Pixels[start:]) {
+				t.Fatal("profile content overlaps input hints")
+			}
+			if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+				writeSetupPreview(t, dir, fmt.Sprintf("profiles-%d-%d-checking-%t.png", kind, height, state.PINChecking), c)
+			}
+		}
+	}
+}
+
+func TestAboutWithActiveProfileAndUpdate(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		scene := Scene{About: AboutPresentation{Visible: true, Profile: &connection.Profile{ID: "viewer", Name: "Test Viewer"}, SwitchProfile: true, Connections: []connection.Choice{{Name: "Plex"}}}}
+		scene.About.Release.Available = true
+		scene.About.Release.Latest = "v1.2.0"
+		c := ui.New(640, height)
+		pixels := renderScene(c, nil, scene, Animation{})
+		hints := []controlHint{hint(scene.Controls, control.Up, "Switch profile"), hint(scene.Controls, control.Down, "Connections"), hint(scene.Controls, control.Open, "View release"), hint(scene.Controls, control.Select, "Check updates"), hint(scene.Controls, control.Back, "Back")}
+		rows := controlRows(640, hints)
+		bottom := height - 8 - safeY(640, height)
+		expected := ui.New(640, height)
+		expected.Rect(0, 0, 640, height, 0x0b0d13)
+		drawControls(expected, bottom, rows)
+		start := controlsTop(bottom, rows) * 640 * 4
+		if !bytes.Equal(pixels[start:], expected.Pixels[start:]) {
+			t.Fatal("profile and update content overlap controls")
+		}
+		if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+			writeSetupPreview(t, dir, fmt.Sprintf("profile-about-%d.png", height), c)
+		}
+	}
+}
+
+func TestProfilePickerScrollsBeyondThreeCards(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		for _, count := range []int{4, 8} {
+			t.Run(fmt.Sprintf("%d-%d", height, count), func(t *testing.T) {
+				profiles := make([]connection.Profile, count)
+				for i := range profiles {
+					profiles[i] = connection.Profile{ID: fmt.Sprint(i), Name: fmt.Sprintf("Viewer %d", i+1)}
+				}
+				scene := Scene{Setup: SetupPresentation{Kind: SetupProfiles, Profiles: profiles}, Controls: control.KeyboardLabels()}
+				first := renderScene(ui.New(640, height), nil, scene, Animation{})
+				// The final profile must be off screen initially and visible when selected.
+				profiles[count-1].Name = "Last viewer"
+				changed := renderScene(ui.New(640, height), nil, scene, Animation{})
+				if !bytes.Equal(first, changed) {
+					t.Fatal("off-screen profile changed the first window")
+				}
+				scene.Setup.Selected = count - 1
+				var cache sceneCache
+				last := renderScene(ui.New(640, height), &cache, scene, Animation{})
+				profiles[count-1].Name = "Another name"
+				changed = renderScene(ui.New(640, height), &cache, scene, Animation{})
+				if bytes.Equal(last, changed) {
+					t.Fatal("final profile is not visible after scrolling")
+				}
+				fresh := renderScene(ui.New(640, height), nil, scene, Animation{})
+				if !bytes.Equal(changed, fresh) {
+					t.Fatal("cache retained stale profile content")
+				}
+				if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+					c := ui.New(640, height)
+					renderScene(c, nil, scene, Animation{})
+					writeSetupPreview(t, dir, fmt.Sprintf("profiles-scroll-%d-%d.png", count, height), c)
+				}
+			})
+		}
+	}
+}

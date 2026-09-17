@@ -24,7 +24,7 @@ Copy the remaining files from the ZIP’s `mistervision` directory into `/media/
 
 For Jellyfin on your local network, launch without a `server` section or legacy `jellyfin.conf`. MiSTerVision finds nearby servers, shows their names and addresses, and remembers the one you select. Approve Quick Connect to sign in. If the remembered server moves to a new address, MiSTerVision can find it again and ask you to confirm before reconnecting with your saved sign-in. See [discovery and troubleshooting](docs/GO_BROWSING.md#jellyfin-discovery).
 
-For Plex, open **About → Connections → Plex**, approve the code at [plex.tv/link](https://plex.tv/link), and choose a server. The picker shows your linked account and reachable servers. Discovery checks the local network as well as account-provided addresses and prefers a reachable local connection. The successful selection is remembered. If its address stops working, MiSTerVision looks for the same server and asks before reconnecting at a new address. See [Plex discovery](docs/GO_PLEX.md#server-discovery).
+For Plex, open **About → Connections → Plex**, approve the code at [plex.tv/link](https://plex.tv/link), and choose a server. For Plex Home accounts, choose a viewing profile and enter its PIN if required. The server picker shows the active viewer and reachable servers. Discovery checks the local network as well as account-provided addresses and prefers a reachable local connection. The successful selection is remembered. If its address stops working, MiSTerVision looks for the same server and asks before reconnecting at a new address. See [Plex discovery](docs/GO_PLEX.md#server-discovery).
 
 For a remote Jellyfin server or an explicit Jellyfin or Plex address, copy [settings.example.json](settings.example.json) to `/media/fat/mistervision/settings.json` and set your server address. A minimal Jellyfin configuration is:
 
@@ -241,7 +241,7 @@ Jellyfin and Plex share browsing, controls, music visuals, picture modes, and th
 
 Jellyfin supports remote control from other Jellyfin clients and local-network discovery. Plex supports linked-account access, account and GDM discovery, and local DVR live TV with alternate audio when available. Both providers can recover remembered server addresses after confirmation.
 
-Plex Home profile switching, relay connections, Plex remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
+Plex Home profiles are supported, including avatars, PIN entry, remembered viewers, and **Switch profile** in About. See [profile controls and startup behavior](docs/GO_PLEX.md#plex-home-profiles). Relay connections, Plex remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
 
 ## Deferred work
 

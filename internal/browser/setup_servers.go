@@ -27,25 +27,11 @@ func (r serverChoicesResult) apply(s *browserSession) bool {
 
 // handleSetupKey keeps navigation on the event loop while connection work waits.
 func (s *browserSession) handleSetupKey(key control.Action) bool {
+	if s.setup.Kind == connection.SetupProfiles || s.setup.Kind == connection.SetupPIN {
+		return s.handleProfileKey(key)
+	}
 	if key == control.Back {
-		s.connection.newAccount = false
-		if s.setup.BackToServers {
-			s.setup.BackToServers = false
-			s.connection.selectServer = true
-			s.authenticate()
-			return true
-		}
-		if len(s.about.Connections) > 0 {
-			s.about.Visible = true
-			s.about.ConnectionsVisible = true
-			s.about.ConnectionPath = nil
-			s.about.ConnectionSelected = 0
-			s.about.ConnectionMessage = ""
-			return true
-		}
-		s.connection.cancel()
-		s.model.Quit = true
-		return false
+		return s.handleSetupBack()
 	}
 	if s.setup.Kind == connection.SetupServers {
 		switch key {
@@ -81,4 +67,37 @@ func (s *browserSession) handleSetupKey(key control.Action) bool {
 		s.authenticate()
 	}
 	return true
+}
+
+// handleSetupBack opens the preceding setup route without changing a pending
+// prompt. Dismissing Connections can therefore restore the screen beneath it.
+func (s *browserSession) handleSetupBack() bool {
+	if s.setup.Kind == connection.SetupServers && s.setup.BackToProfiles && s.connection.choice != nil {
+		s.connection.choice <- serverChoice{err: connection.ErrChooseProfile}
+		s.connection.choice = nil
+		s.setup = connection.Presentation{Kind: connection.SetupConnecting, Title: "Opening profiles"}
+		return true
+	}
+	if s.connection.profileFlow && s.config.ReturnConnectionID != "" && s.setup.Kind != connection.SetupServers {
+		s.changeConnection(s.config.ReturnConnectionID)
+		return true
+	}
+	s.connection.newAccount = false
+	if s.setup.BackToServers {
+		s.setup.BackToServers = false
+		s.connection.selectServer = true
+		s.authenticate()
+		return true
+	}
+	if len(s.about.Connections) > 0 {
+		s.about.Visible = true
+		s.about.ConnectionsVisible = true
+		s.about.ConnectionPath = nil
+		s.about.ConnectionSelected = 0
+		s.about.ConnectionMessage = ""
+		return true
+	}
+	s.connection.cancel()
+	s.model.Quit = true
+	return false
 }

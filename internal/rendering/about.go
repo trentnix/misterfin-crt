@@ -14,6 +14,8 @@ import (
 // Notes is immutable after publication. Rendering performs no installation I/O.
 type AboutPresentation struct {
 	// Connections is an immutable menu snapshot supplied by application assembly.
+	Profile            *connection.Profile
+	SwitchProfile      bool
 	Connections        []connection.Choice
 	ConnectionsVisible bool
 	ConnectionSelected int

@@ -26,6 +26,10 @@ func (p *screenPainter) carousel() [][]controlHint {
 	if p.scene.About.Release.Available {
 		c.Text(24, sy+24, "Update available", titleColor, w-24)
 	}
+	if profile := p.scene.About.Profile; profile != nil {
+		name := truncate(profile.Name, w/2-32-profileLabelInset, 1)
+		drawProfileLabel(c, w-24-textWidth(name, 1)-profileLabelInset, sy+24, name, profile.Avatar, dimColor)
+	}
 	centers := make([]float64, len(v.Page.Items))
 	names := make([]string, len(centers))
 	for i, item := range v.Page.Items {

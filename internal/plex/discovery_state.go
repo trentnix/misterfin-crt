@@ -18,6 +18,8 @@ type discoveryState struct {
 	connection.Server
 	Account     *serverstate.Session `json:"account,omitempty"`
 	Credentials *serverstate.Session `json:"credentials,omitempty"`
+	HomeChecked bool                 `json:"home_checked,omitempty"`
+	Profile     *connection.Profile  `json:"profile,omitempty"`
 }
 
 // loadDiscoveryState accepts the original metadata-only server.json as well as
@@ -53,7 +55,14 @@ func (s discoveryState) validate() error {
 		return ErrSessionSave
 	}
 	a, c := s.Account, s.Credentials
-	if a.Token == "" || a.UserID == "" || a.DeviceID == "" || c.Token == "" || c.Server != s.URL || c.ServerID != s.ID || c.UserID != a.UserID || c.DeviceID != a.DeviceID {
+	viewer := a.UserID
+	if s.Profile != nil {
+		if s.Profile.ID == "" || s.Profile.Name == "" || !s.HomeChecked {
+			return ErrSessionSave
+		}
+		viewer = s.Profile.ID
+	}
+	if a.Token == "" || a.UserID == "" || a.DeviceID == "" || c.Token == "" || c.Server != s.URL || c.ServerID != s.ID || c.UserID != viewer || c.DeviceID != a.DeviceID {
 		return ErrSessionSave
 	}
 	return nil

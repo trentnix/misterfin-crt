@@ -11,6 +11,8 @@ const (
 	SetupApproval                    // A public approval code is awaiting authorization.
 	SetupFailure                     // Connection needs attention before retrying.
 	SetupServers                     // The user chooses from discovered servers.
+	SetupProfiles                    // The user chooses a viewing identity.
+	SetupPIN                         // The user enters a private profile PIN.
 )
 
 // Presentation is a copied setup snapshot. Text and Path must be safe to show.
@@ -26,6 +28,11 @@ type Presentation struct {
 	Selected int
 	// SignIn adds a final picker action for linking another account. Empty hides it.
 	SignIn string
+	// Profiles contains public viewer information. PINLength exposes only masking.
+	Profiles          []Profile
+	PINLength, PINKey int
+	PINChecking       bool // Verification is pending. Only cancellation accepts input.
+	BackToProfiles    bool
 	// Recovered records damaged sign-in storage that was backed up.
 	Recovered bool
 	// BackToServers offers discovery navigation during sign-in. The connector

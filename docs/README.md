@@ -21,7 +21,7 @@ Start with the [project README](../README.md) for installation and everyday use.
 
 Search, automatic photo slideshows, and photo zoom are not implemented. Jellyfin supports first-time local discovery. About provides connection switching and Jellyfin and Plex discovery.
 
-Remembered Jellyfin and Plex servers support confirmed address-change recovery. Plex combines account server listings with local GDM discovery. Plex relay connections are not implemented. Plex Home profile switching and Plex remote control are not implemented.
+Remembered Jellyfin and Plex servers support confirmed address-change recovery. Plex combines account server listings with local GDM discovery. Plex relay connections are not implemented. Plex Home profiles support avatars, PIN entry, remembered viewers, and switching through About. Plex remote control is not implemented.
 
 Jellyfin Live TV audio-track selection is unavailable. Plex exposes alternate live audio when the stream provides it. Live TV has no seeking or timeshift support.
 
