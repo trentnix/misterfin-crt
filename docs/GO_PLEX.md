@@ -26,7 +26,7 @@ Discovery saves the account credentials, selected server, and server credentials
 
 After linking a Plex Home account, **Who’s watching?** shows profile names and avatars. Left/right selects a profile. The selected profile appears larger. Profiles appear immediately after Plex returns the member list. Avatars load in the background. A missing or unsupported avatar shows the profile’s initial.
 
-Ordinary startup skips the picker when only one profile is available.
+Ordinary startup skips the picker when only one profile is available. A protected profile still requires its PIN.
 
 With more than three profiles, Left and Right scroll through three visible cards. A position counter shows the selected profile and total. Navigation stops at either end.
 
@@ -38,9 +38,11 @@ An incorrect PIN shows “Incorrect PIN. Try again.” until you select the firs
 
 The last successful profile is remembered. Unprotected profiles reconnect automatically. Protected profiles require a PIN again after restarting the application. Plex Home startup requires internet access to check current permissions. An unavailable account service does not fall back to the linking account’s access.
 
-Open About and use **Switch profile** to change viewers. Back cancels the switch and restores the current connection. The carousel and About show the active profile’s avatar beside its name. A missing avatar uses a user silhouette. Profiles receive their own server grants, library access, Continue Watching, artwork cache, and playback choices.
+Open About and use **Switch profile** to change viewers. Back cancels the switch and restores the current connection. The carousel and About show the active profile’s avatar beside its name. A missing avatar uses a silhouette there and on the PIN screen. The profile picker uses an initial instead. Profiles receive their own server grants, library access, Continue Watching, artwork cache, and playback choices.
 
 A successful switch keeps the current server when the profile can access it. Otherwise, the server picker offers that profile’s available servers. Back from that picker returns to the profiles.
+
+See the [profile and PIN previews](SCREENSHOTS.md#plex-home) for the shared MiSTer and desktop layouts.
 
 The same profile flow works with discovered servers and configured URLs. Configure Home members, library permissions, avatars, and PINs in Plex. MiSTerVision selects existing profiles and does not edit their settings. See [Plex’s PIN and switching behavior](https://support.plex.tv/articles/204232453-fast-user-switching/).
 
@@ -65,7 +67,7 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
   --state-dir /path/to/development-state
 ```
 
-On first use, open `https://plex.tv/link` in a browser signed in to the account that can access your server. Enter the displayed code. Internet access is required for account linking. Saved sign-in is validated against the configured server on later launches.
+On first use, open `https://plex.tv/link` in a browser signed in to the account that can access your server. Enter the displayed code. Internet access is required for account linking. Later launches reuse the saved sign-in. Plex Home connections also recheck membership through plex.tv, and protected viewers must enter their PIN again.
 
 The server URL can use HTTP or HTTPS and a reverse-proxy base path. TLS certificates are verified unless `server.insecure_tls` is true. That override never applies to Plex account linking. Credentials, queries, and fragments are not allowed in the URL. Do not put a Plex token in settings. Restart after changing the server section.
 
@@ -77,7 +79,7 @@ The adapter requests progressive H.264 video with MP3 audio in Matroska, bounded
 
 Video preparation registers a Plex playback decision before opening the stream. The decision, stream, timeline reports, and cleanup use the same playback identity. A seek creates a new identity so the old stop report cannot terminate its replacement.
 
-Subtitle tracks appear in the View menu. Plex burns image and embedded subtitle tracks into the video. Changing those tracks replaces the stream at the current position. Sidecar text subtitles download as UTF-8 SubRip and use the shared overlay without replacing playback. The adapter marks tracks that require burn-in through `MediaStream.RequiresBurnIn`. Jellyfin selects client rendering or server burn-in by subtitle codec.
+Subtitle tracks appear in the video options opened with Select/Tab. Plex burns image and embedded subtitle tracks into the video. Changing those tracks replaces the stream at the current position. Sidecar text subtitles download as UTF-8 SubRip and use the shared overlay without replacing playback. The adapter marks tracks that require burn-in through `MediaStream.RequiresBurnIn`. Jellyfin selects client rendering or server burn-in by subtitle codec.
 
 Music uses artist → album → track navigation, ordered album queues, and whole-library shuffle. Original audio files pass through the authenticated loopback proxy with byte-range support. Shared controls handle pause, track changes, and music visuals. Album queues are bounded to 10,000 rows. Shuffle requests return up to 64 tracks per batch.
 
@@ -95,7 +97,7 @@ Plex resizes original photos to the viewer dimensions, preserves aspect ratio, a
 
 A Live TV carousel card appears when the linked account can access enabled channels on a Plex DVR. Select the card to open the channel list. Selecting a channel starts playback immediately. Back stops playback and returns to that list. Original/Zoom, buffering feedback, controls, and decoded closed captions use the same UX as Jellyfin. Seeking and timeshift are not supported.
 
-When a tuned channel exposes selectable audio alternatives, View → Audio lists them with Plex’s labels. Changing audio briefly reloads at the live edge while keeping picture mode and the captions setting. Plex resolves each choice against the new session’s stream IDs before conversion. The choice applies to the current playback and is not saved in the client. Plex may remember the per-user selection.
+When a tuned channel exposes selectable audio alternatives, Select/Tab → Audio lists them with Plex’s labels. Changing audio briefly reloads at the live edge while keeping picture mode and the captions setting. Plex resolves each choice against the new session’s stream IDs before conversion. The choice applies to the current playback and is not saved in the client. Plex may remember the per-user selection.
 
 Channels come from enabled DVR mappings, with duplicate tuner mappings removed and channel numbers sorted naturally. Protected channels are omitted when the tuner identifies them. Guide names, logos, and current program titles are optional. Without a guide, the list uses tuner names or channel numbers. A full schedule grid, recording controls, and Plex's free online Live TV service are not included.
 

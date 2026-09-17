@@ -6,13 +6,17 @@
 
 MiSTerVision is a Jellyfin and Plex client for CRT televisions on MiSTer FPGA. It supports movies, TV shows, live TV, music, photos, collections, and playlists through one interface.
 
+Both providers share the same browsing and playback controls. Server discovery, saved connection switching, and Plex Home profiles with avatars and PIN entry are available in v1.2.0.
+
 My goal is a great media experience on CRTs. I test and use MiSTerVision on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. I have tested both server providers, including Jellyfin 12.
 
 ![MiSTerVision library carousel](docs/images/screenshots/home-carousel.png)
 
 ## Run on MiSTer
 
-For a new installation, download `mistervision-vX.Y.Z-mister.zip` from the [latest release](https://github.com/trentnix/mistervision/releases/latest). Extract the ZIP and copy these files to the SD card. Make the launcher and both binaries executable if your filesystem requires it. If upgrading an existing installation manually, exit the application first and keep your configuration and state files.
+These instructions cover v1.2.0. Existing v1.1.0 installations can update through About.
+
+For a new installation, download `mistervision-vX.Y.Z-mister.zip` from the [latest release](https://github.com/trentnix/mistervision/releases/latest). Extract the ZIP and copy these files to the SD card. Keep the launcher filename free of spaces. Make the launcher and both binaries executable if your filesystem requires it. If upgrading an existing installation manually, exit the application first and keep your configuration and state files.
 
 | File | Destination |
 | --- | --- |
@@ -22,9 +26,18 @@ For a new installation, download `mistervision-vX.Y.Z-mister.zip` from the [late
 
 Copy the remaining files from the ZIP’s `mistervision` directory into `/media/fat/mistervision/`. The archive includes examples, notices, and version information but no active configuration or saved state. Its `INSTALL.txt` has detailed instructions. To build from source, follow the [build guide](docs/GO_BUILD.md).
 
-For Jellyfin on your local network, launch without a `server` section or legacy `jellyfin.conf`. MiSTerVision finds nearby servers, shows their names and addresses, and remembers the one you select. Approve Quick Connect to sign in. If the remembered server moves to a new address, MiSTerVision can find it again and ask you to confirm before reconnecting with your saved sign-in. See [discovery and troubleshooting](docs/GO_BROWSING.md#jellyfin-discovery).
+If moving from MiSTerFin CRT, follow the [rename instructions](docs/GO_BUILD.md#moving-from-misterfin-crt) before installing. This rename requires a manual installation.
 
-For Plex, open **About → Connections → Plex**, approve the code at [plex.tv/link](https://plex.tv/link), and choose a server. For Plex Home accounts, choose a viewing profile and enter its PIN if required. The server picker shows the active viewer and reachable servers. Discovery checks the local network as well as account-provided addresses and prefers a reachable local connection. The successful selection is remembered. If its address stops working, MiSTerVision looks for the same server and asks before reconnecting at a new address. See [Plex discovery](docs/GO_PLEX.md#server-discovery).
+## Connect to a server
+
+Launch **MiSTerVision** from the Scripts menu. With no server configured, MiSTerVision starts Jellyfin discovery. An explicit `server` section or legacy `jellyfin.conf` takes precedence.
+
+- **Jellyfin:** Select a discovered server, then approve the displayed Quick Connect code in a signed-in Jellyfin client. See [discovery troubleshooting](docs/GO_BROWSING.md#jellyfin-discovery) if no server appears.
+- **Plex:** Open About with Start, press Down for **Connections**, and choose **Plex**. Approve the code at [plex.tv/link](https://plex.tv/link). If you use Plex Home, choose a viewer and enter their PIN when requested. Choose a server to connect. Plex prefers a reachable local address. Linking and Home profile checks require internet access.
+
+The last successful connection opens automatically on later launches. If a discovered server changes address, the client can find the same server and ask before reconnecting. Explicitly configured addresses stay fixed.
+
+### Specify an address
 
 For a remote Jellyfin server or an explicit Jellyfin or Plex address, copy [settings.example.json](settings.example.json) to `/media/fat/mistervision/settings.json` and set your server address. A minimal Jellyfin configuration is:
 
@@ -48,11 +61,15 @@ For Plex, use:
 }
 ```
 
-Launch **MiSTerVision** from the Scripts menu. For Jellyfin, approve the displayed Quick Connect code in a signed-in Jellyfin client. For Plex, enter the code at [plex.tv/link](https://plex.tv/link) using an account with access to your server. Plex account linking requires internet access.
+Sign-ins, playback choices, and artwork caches stay separate for each provider, server, and viewer. See [configuration](docs/GO_CONFIGURATION.md) and [Plex limits](docs/GO_PLEX.md).
 
-The launcher filename must contain no spaces. Settings select one provider at a time. Sign-ins, playback choices, and artwork caches persist separately for each provider. See [configuration](docs/GO_CONFIGURATION.md) and [Plex limits](docs/GO_PLEX.md).
+### Switch connections or Plex viewers
 
-If moving from MiSTerFin CRT, follow the [rename instructions](docs/GO_BUILD.md#moving-from-misterfin-crt) before installing. This rename requires a manual installation.
+Open **About → Connections → Use existing connection** to return to a configured or remembered server. That option appears only when a connection is available. You can keep Jellyfin and Plex signed in, but only the active connection plays media or accepts remote commands. Back cancels a new connection attempt and lets you return to the previous browser.
+
+For Plex Home, press Up in About for **Switch profile**. The viewer’s avatar and name appear on the carousel and About. Protected viewers must enter their PIN again after an application restart. To change the linked Plex account, choose **Sign in with another account** on **Choose a Plex server**.
+
+Plex Home viewers are different from named server connections in `connections.profiles`. No JSON is needed for Home viewers. See [Plex Home](docs/GO_PLEX.md#plex-home-profiles) and [multiple server connections](docs/GO_CONFIGURATION.md#multiple-connections).
 
 ## Updates
 
@@ -122,7 +139,7 @@ Controller mappings are configurable in the `input` section of `settings.json`. 
 
 The numbers are Linux input event codes. For a standard Xbox mapping, `304` is A (`BTN_SOUTH`) and `305` is B (`BTN_EAST`). Other controllers or drivers can report different codes. Use an input inspector such as `evtest` to read the code when you press a button. See [finding device names and button codes](docs/GO_INPUT.md#finding-device-names-and-button-codes).
 
-The `match` pattern must match the controller's Linux device name and is case-sensitive. Restart MiSTerVision after editing. Unspecified bindings keep their defaults, and on-screen hints follow the configured mappings. The [controller configuration guide](docs/GO_INPUT.md) explains how to find device names and button codes, remap axes, and customize button labels. These profiles configure hardware input on MiSTer. Ghostty uses terminal keyboard controls.
+The case-sensitive `match` pattern must match the controller’s Linux device name. Restart after editing. Unspecified bindings keep their defaults, and on-screen hints follow the mappings. The [input guide](docs/GO_INPUT.md) covers axes and custom labels. These profiles configure MiSTer hardware input. Ghostty uses terminal keyboard controls.
 
 The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. [About](docs/GO_BROWSING.md#about-and-updates) shows the installed version and provides [updates](#updates).
 
@@ -130,17 +147,21 @@ To control playback from another Jellyfin client, select **MiSTerVision** as the
 
 ## Screenshots
 
-The carousel capture shows the shared renderer in the desktop harness. The other browsing and playback captures are from MiSTer. Setup previews use example connection details.
+These images use the current shared renderer. Browsing captures come from the desktop harness. Setup previews use example names, addresses, approval codes, and a sample avatar. Controller and keyboard hints follow the active input device.
 
-| Continue Watching | Video controls |
+| Continue Watching | Movie details |
 | --- | --- |
-| ![Continue Watching with saved playback positions](docs/images/screenshots/continue-watching.png) | ![Video playback with seek, pause, stop, and options controls](docs/images/screenshots/video-controls.png) |
+| ![Continue Watching with saved playback positions](docs/images/screenshots/continue-watching.png) | ![Movie artwork, summary, runtime, and playback controls](docs/images/screenshots/movie-info.png) |
 
-| Jellyfin Quick Connect | Plex account linking |
+| Choose a connection | Discover Jellyfin |
 | --- | --- |
-| ![Jellyfin Quick Connect instructions and an example approval code](docs/images/screenshots/quick-connect.png) | ![Plex account-linking instructions and an example code](docs/images/screenshots/plex-link.png) |
+| ![Saved connections and Jellyfin or Plex setup](docs/images/screenshots/connections.png) | ![A discovered Jellyfin server with its name and address](docs/images/screenshots/jellyfin-discovery.png) |
 
-Also see [setup help](docs/images/screenshots/setup-needed.png), the [movie library](docs/images/screenshots/movies-list.png) and [movie details](docs/images/screenshots/movie-info.png).
+| Plex Home viewers | Protected profile |
+| --- | --- |
+| ![Three visible Plex Home cards and a counter for four viewers](docs/images/screenshots/plex-profiles.png) | ![Viewer avatar and name above the centered PIN keypad](docs/images/screenshots/plex-pin.png) |
+
+The [full gallery](docs/SCREENSHOTS.md) also shows account linking, server selection, the movie list, setup help, and About.
 
 ## Configuration
 
@@ -171,6 +192,7 @@ Connection and application settings live in **`settings.json`**, normally `/medi
 
 | Setting | Defaults and options | Guide |
 | --- | --- | --- |
+| `connections.profiles` | No configured entries. Discovered connections are remembered automatically. Add up to 16 named server connections. | [Connections](docs/GO_CONFIGURATION.md#multiple-connections) |
 | `server` | Provider: `jellyfin`. URL required when the section exists. TLS verified. Transcode limits: 720×576 at 12 Mbps. | [Connection](docs/GO_CONFIGURATION.md#server-connection) |
 | `ui.title` | Heading: `MiSTerVision`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_CONFIGURATION.md#browsing-title) |
 | `ui.show_collections`, `ui.show_playlists` | Both `true`. Show nonempty categories. Set either to `false` to hide its card. | [Carousel](docs/GO_CONFIGURATION.md#carousel-categories) |
@@ -181,13 +203,7 @@ Connection and application settings live in **`settings.json`**, normally `/medi
 | `music_visuals` | Music playback appearance only. `default_background: "Starfield"`, `show_audio_meters: true`. Missing optional Toasty sprites are omitted. | [Music visuals](docs/GO_MUSIC.md) |
 | `diagnostics` | Off. Legacy `DEBUGLOG` applies only without a `server` section. Path: `debug.log`. Limit: 1 MiB per file. | [Diagnostics](docs/GO_DIAGNOSTICS.md) |
 
-Existing installations retain `jellyfin.conf` fallback when `server` is absent. Separate legacy JSON files are read when `settings.json` is absent. To consolidate connection and application settings on MiSTer:
-
-```bash
-/media/fat/mistervision/mistervision -migrate-settings -config /media/fat/mistervision/jellyfin.conf
-```
-
-Migration preserves `jellyfin.conf` and legacy JSON files. If `settings.json` exists, migration adds the connection section after saving a private `settings.json.before-server` backup. Existing server sections, backups, and concurrent edits are never overwritten. Once `server` exists, all connection settings come from JSON. See [configuration paths, migration, and recovery](docs/GO_CONFIGURATION.md).
+Existing installations can retain legacy settings or [migrate them into one file](docs/GO_CONFIGURATION.md#migration). Migration preserves the original files. Invalid connection settings stop startup, while recoverable UI settings use the defaults documented in the [configuration guide](docs/GO_CONFIGURATION.md#application-settings).
 
 ### Browsing background
 
@@ -223,8 +239,6 @@ Sound settings affect browsing feedback only. They do not change music or video 
 
 `MISTERVISION_CACHE_ROOT` changes where artwork and carousel collages are cached. The default root is `/media/fat` on MiSTer, `/tmp/mistervision-cache` in the Ghostty harness, and the user’s cache directory (usually `~/.cache`) for direct desktop runs. To keep the Ghostty cache across reboots, set `MISTERVISION_CACHE_ROOT="$HOME/.cache"` before launching the harness. The client stores caches under `mistervision` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
 
-You can keep multiple Jellyfin and Plex accounts signed in. Add named profiles to `connections.profiles`, then use **About → Connections → Use existing connection** to switch. Only the active connection accepts remote commands. See [multiple connections](docs/GO_CONFIGURATION.md#multiple-connections) for the configuration example and startup behavior.
-
 ## Local development and testing
 
 I use the Ghostty harness on Linux to develop and test the interface without MiSTer hardware. It also helps verify that the architecture supports different display pipelines while reusing the same UI and application logic. From the repository directory, run the browsing demo:
@@ -235,13 +249,11 @@ python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 
 The harness builds the client automatically. The demo uses mock data and does not play media. See the [development harness guide](tools/ghostty/README.md) for dependencies, copyable Jellyfin discovery and Plex connection commands, separate configuration profiles, and playback inside Ghostty.
 
-## Server support
+## Server support and limits
 
-Jellyfin and Plex share browsing, controls, music visuals, picture modes, and the photo viewer. Each adapter handles its own sign-in, media queries, and streaming. Playback requires a server that can supply the supported formats.
+Jellyfin supports remote control from other Jellyfin clients. Plex supports local DVR Live TV with alternate audio when the stream provides it. Both providers share playback controls, music visuals, picture modes, captions, and the photo viewer.
 
-Jellyfin supports remote control from other Jellyfin clients and local-network discovery. Plex supports linked-account access, account and GDM discovery, and local DVR live TV with alternate audio when available. Both providers can recover remembered server addresses after confirmation.
-
-Plex Home profiles are supported, including avatars, PIN entry, remembered viewers, and **Switch profile** in About. See [profile controls and startup behavior](docs/GO_PLEX.md#plex-home-profiles). Relay connections, Plex remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
+Search, automatic photo slideshows, and photo zoom are not implemented. Plex relay connections, remote control, multi-file movies, and free online TV are not supported. See [Plex details](docs/GO_PLEX.md) and [current limits](docs/README.md#current-limits).
 
 ## Deferred work
 

@@ -10,13 +10,13 @@ When no `server` section exists, the client reads legacy `jellyfin.conf` if pres
 
 Jellyfin Quick Connect displays a public approval code. Enter it in an already signed-in Jellyfin client. The waiting indicator animates until approval or the five-minute timeout. New code cancels the previous attempt. The screen does not expose credentials or Quick Connect secrets.
 
-Plex uses an account-link code at `plex.tv/link`. The linked account determines server access. Choose Plex under About → Connections to link an account and select a server without editing configuration. [Plex support](GO_PLEX.md) describes sign-in and provider-specific limits.
+Plex uses an account-link code at `plex.tv/link`. The linked account provides access to its servers. For Plex Home, the selected viewer determines the available libraries and playback history. Choose Plex under About → Connections to link an account and select a server without editing configuration. [Plex support](GO_PLEX.md) describes sign-in and provider-specific limits.
 
 The standard MiSTer state directory is `/media/fat/mistervision/state`. Desktop defaults to `~/.config/mistervision`, or `mistervision` under `XDG_CONFIG_HOME` when set. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Jellyfin stores identity and sign-in in `session.json`. Plex keeps its linking account, viewing profile, and server grant together in `plex/server.json`. [Discovered Plex connections](GO_PLEX.md#server-discovery) use `discovery/plex/server.json`. Older Plex sign-in files remain readable during migration.
 
 Saved sessions are bound to the server URL. C `token.conf` and `device.conf` files are not imported.
 
-For a complete, valid saved session, network and server failures retain its tokens. An explicit HTTP 401 or 403 triggers replacement authentication. Damaged local sign-in data is backed up before a fresh sign-in, with a notice explaining the recovery. Storage failures show setup help instead. See [saved sign-in recovery](GO_CONFIGURATION.md#saved-sign-in-recovery). TLS verification is enabled unless [configured otherwise](GO_CONFIGURATION.md#server-connection).
+Network and server failures retain valid saved credentials. Rejected credentials require authentication again. Damaged Jellyfin or legacy Plex session files are backed up before a fresh sign-in. Current Plex account-and-viewer records remain untouched and show a storage error so recovery cannot silently select another viewer. See [saved sign-in recovery](GO_CONFIGURATION.md#saved-sign-in-recovery). TLS verification is enabled unless [configured otherwise](GO_CONFIGURATION.md#server-connection).
 
 ## Jellyfin discovery
 
@@ -79,7 +79,9 @@ Photos open full screen with preserved proportions. Left/Right moves through pho
 
 ## About and updates
 
-Start or F1 opens and closes About while browsing. Back also closes it. About is unavailable during media playback and loading a media item. It remains available during setup. Press Down for Connections, then choose an existing connection, Jellyfin discovery, or Plex setup. See [multiple connections](GO_CONFIGURATION.md#multiple-connections). It shows the embedded logo, installed version, and credits for Pudding Studio's original material and Trent Nix's changes, with the [license](../LICENSE) and [component notice](THIRD_PARTY.md).
+Start or F1 opens and closes About while browsing. Back also closes it. About is unavailable during media playback and loading a media item. It remains available during setup. Press Down for Connections, then choose an existing connection, Jellyfin discovery, or Plex setup. See [multiple connections](GO_CONFIGURATION.md#multiple-connections).
+
+For Plex Home, Up opens **Switch profile**. The active viewer’s avatar and name appear on About and the carousel. See [profile and PIN behavior](GO_PLEX.md#plex-home-profiles). About also shows the logo, installed version, Trent Nix’s credit, the original MiSTerFin credit to Pudding Studio, and the [license](../LICENSE).
 
 The client checks this repository's latest public stable release once per launch. Select/Tab or R checks again after the preceding request finishes. Stable `vMAJOR.MINOR.PATCH` versions are compared numerically. Development builds can offer a public release without claiming it is newer than the checkout. Builds use the version described in the [build guide](GO_BUILD.md#go-client).
 

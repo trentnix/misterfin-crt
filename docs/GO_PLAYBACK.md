@@ -84,7 +84,7 @@ Selecting a channel tunes it directly. Stop, completion, or failure returns to t
 
 MiSTer and inline Ghostty support Original/Zoom and locally decoded captions. Reopening a channel resets picture mode to Original and captions to Off. Live TV has no seeking or timeshift support.
 
-Plex channels with selectable alternate tracks expose View → Audio. A selection reloads at the live edge and preserves picture mode and captions. The adapter advertises this capability through `PreparedStream.LiveAudio` and validates `LiveRequest.AudioIndex` against fresh tuner metadata. Jellyfin Live TV audio selection is not implemented. The tested Jellyfin transcode exposed only one audio stream, even where another client exposed alternate broadcast audio.
+Plex channels with selectable alternate tracks expose Select/Tab → Audio. A selection reloads at the live edge and preserves picture mode and captions. The adapter advertises this capability through `PreparedStream.LiveAudio` and validates `LiveRequest.AudioIndex` against fresh tuner metadata. Jellyfin Live TV audio selection is not implemented. The tested Jellyfin transcode exposed only one audio stream, even where another client exposed alternate broadcast audio.
 
 ### Closed captions
 

@@ -48,7 +48,9 @@ Without API-key credentials, Jellyfin uses Quick Connect. To use API-key login, 
 
 Keep API-key configuration private. Plex tokens, account identity, and client identifiers remain saved sign-in state rather than configuration. Sign-in files stay in the application state directory.
 
-An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. If that file is also absent, the client uses a remembered Jellyfin server or offers [local discovery](GO_BROWSING.md#jellyfin-discovery). The legacy file accepts a URL, optional API key and username, `INSECURE_TLS`, `DEBUGLOG`, and `WIDTHxHEIGHT@BITRATE` lines. `PAL` and `NTSC` remain accepted but do not control display or playback timing. The active output geometry determines timing.
+An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. If that file is also absent, the default route uses a remembered Jellyfin server or offers [local discovery](GO_BROWSING.md#jellyfin-discovery). A previously selected Plex or named connection can open instead under the [multiple-connection startup rules](#multiple-connections).
+
+The legacy file accepts a URL, optional API key and username, `INSECURE_TLS`, `DEBUGLOG`, and `WIDTHxHEIGHT@BITRATE` lines. `PAL` and `NTSC` remain accepted but do not control display or playback timing. The active output geometry determines timing.
 
 ## Multiple connections
 
@@ -93,7 +95,7 @@ Plex Home viewing profiles are separate from `connections.profiles`. Choose Home
 
 Accounts retain independent sign-ins and browsing positions during the application run. Switching cancels the old session's work before activating the next connection. Only the active account receives remote commands or plays media. Display mode, controller mappings, navigation sounds, and backgrounds stay loaded. Switching configured accounts does not restart the application. Restart after editing the configuration file to load new or changed profiles.
 
-Named sign-ins live under `state/connections/<id>-<account digest>/`. A Jellyfin server chosen through About uses `state/discovery/jellyfin/`, separate from the default connection. Plex discovery uses `state/discovery/plex/` for the linked account, remembered server, and separate server credentials. See [Plex discovery](GO_PLEX.md#server-discovery). Navigation positions are held in memory, not saved across application restarts.
+Named sign-ins live under `state/connections/<id>-<account digest>/`. A Jellyfin server chosen through About uses `state/discovery/jellyfin/`, separate from the default connection. Plex discovery commits the linked account, viewer, and server credentials together in `state/discovery/plex/server.json`. See [Plex discovery](GO_PLEX.md#server-discovery). Navigation positions are held in memory, not saved across application restarts.
 
 ## Application settings
 
@@ -120,7 +122,7 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 
 | Section | Default | Failure behavior |
 | --- | --- | --- |
-| `connections` | Absent: single-server setup. `profiles`: up to 16 named connections. | Invalid profiles stop startup. |
+| `connections` | No configured entries. Discovered connections can still be remembered and switched. `profiles`: up to 16 named connections. | Invalid profiles stop startup. |
 | `server` | Absent: legacy Jellyfin configuration, then a remembered server or discovery if the legacy file is missing. Present: Jellyfin provider, verified TLS, default transcode limits. | Invalid section stops startup. |
 | `ui.title` | `MiSTerVision`. Empty hides the heading. | Restore default title with a notice. |
 | `ui.show_collections`, `ui.show_playlists` | Both `true`. Empty categories stay hidden. | Restore the invalid option to `true`, with a notice and a diagnostic event. |

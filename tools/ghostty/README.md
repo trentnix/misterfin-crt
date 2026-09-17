@@ -52,7 +52,9 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
   --state-dir "$profile/state"
 ```
 
-Leave `jellyfin.conf` absent. During the initial Jellyfin discovery screen, press F1, then Down for Connections, and choose Plex. Approve the code at [plex.tv/link](https://plex.tv/link), then choose a server. Reopen with the same command to connect to the remembered Plex server automatically. About → Connections → Plex opens a fresh server selection. See [discovery behavior and limits](../../docs/GO_PLEX.md#server-discovery).
+Leave `jellyfin.conf` absent. During the initial Jellyfin discovery screen, press F1, then Down for Connections, and choose Plex. Approve the code at [plex.tv/link](https://plex.tv/link). For Plex Home, choose a viewer and enter their PIN if requested, then choose a server. Reopen with the same command to use the remembered server and viewer. Protected viewers must enter their PIN again.
+
+About → Connections → Plex opens a fresh selection. **Sign in with another account** on the Plex server picker starts a new account link. Back cancels that link and returns to the saved account’s picker. See [discovery behavior and limits](../../docs/GO_PLEX.md#server-discovery).
 
 ### Explicit Jellyfin or Plex connection
 
@@ -90,7 +92,9 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
 
 For Plex, change the first line to `profile="$HOME/.config/mistervision/plex"` and run the same command. Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at [plex.tv/link](https://plex.tv/link). Plex account linking requires internet access.
 
-To switch accounts inside one running client, use [named connections in one settings file](../../docs/GO_CONFIGURATION.md#multiple-connections), then open F1 → Down for Connections. The separate folders above remain useful for isolated testing. These profile names are examples, not built-in modes. The arguments select configuration and state paths. Each profile keeps its sign-in and playback preferences under `state`; explicit Plex sign-in uses `state/plex`, while discovery uses `state/discovery/plex`. Without `--state-dir`, sessions use the user configuration directory under `mistervision`. For an existing MiSTerFin CRT setup, follow the [rename instructions](../../docs/GO_BUILD.md#moving-from-misterfin-crt).
+To switch accounts inside one running client, use [named connections in one settings file](../../docs/GO_CONFIGURATION.md#multiple-connections), then open F1 → Down for Connections. The separate folders above remain useful for isolated testing. These directory names are examples, not built-in modes or Plex Home viewers.
+
+The arguments select configuration and state paths. Each profile keeps its sign-in and playback preferences under `state`. Explicit Plex sign-in uses `state/plex`, while discovery uses `state/discovery/plex`. Without `--state-dir`, sessions use the user configuration directory under `mistervision`. For an existing MiSTerFin CRT setup, follow the [rename instructions](../../docs/GO_BUILD.md#moving-from-misterfin-crt).
 
 Legacy Jellyfin configurations still work with `--config jellyfin.conf`. Application options default to `settings.json` beside that file. `--settings PATH` overrides `MISTERVISION_SETTINGS`. See [configuration](../../docs/GO_CONFIGURATION.md) for additional options.
 
@@ -129,7 +133,9 @@ The viewer double-buffers terminal images to avoid flicker. It uploads a complet
 
 The presentation cap defaults to 20 FPS, or 60 FPS with `--inline-video`. Change the cap with `--fps NUMBER`. The presenter wakes when the Go frame file is complete, then uploads changed frames up to the configured cap. Upload time counts toward each interval. If an upload overruns a deadline, the presenter skips expired slots rather than building a backlog. This cap affects the terminal preview and does not change the decoder's playback clock.
 
-Press F1 while browsing to open About. Esc or F1 returns to the preceding screen. Tab or R checks for updates, and Enter opens release notes when a release is available. Up/Down scrolls the notes. Desktop installations show a manual-installation message. Automatic installation is limited to the standard MiSTer installation.
+Press F1 while browsing to open About. Esc or F1 returns to the preceding screen. Down opens Connections. Tab or R checks for updates, and Enter opens release notes when a release is available. Up/Down scrolls the notes. Desktop installations show a manual-installation message.
+
+For Plex Home, Up opens **Switch profile**. Directions and Enter operate the profile picker and numeric keypad. The fourth digit submits the PIN, and Escape returns to the profiles. An incorrect-PIN message clears when you select the first digit of another attempt.
 
 Add `--inline-video` to a real-server browsing command to play video inside Ghostty. Inline playback requires libmpv. Without that flag, video opens in a separate FFplay window. See [desktop playback setup](../../docs/GO_PLAYBACK.md).
 
