@@ -2,7 +2,7 @@
 
 MiSTer uses the patched MPlayer. Local development uses Python/libmpv inside Ghostty. FFplay is an alternate test player with a separate video window. All paths share browsing and playback state. Server adapters own reporting.
 
-The [Plex adapter](GO_PLEX.md) uses the same playback interfaces. The Jellyfin-specific features below do not imply Plex parity.
+Jellyfin and [Plex](GO_PLEX.md) share playback controls and output paths. Each adapter handles stream preparation, progress reporting, and tuner ownership for its server.
 
 ## Players and local use
 
@@ -16,7 +16,7 @@ For video inside Ghostty:
 
 ```sh
 python3 tools/ghostty/video_player.py --check
-python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --config jellyfin.conf
+python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --settings settings.json
 ```
 
 Without `--inline-video`, the harness uses FFplay for video. Keep keyboard focus in Ghostty for client controls. The harness uses the Python/libmpv helper for music in either video mode. Direct headless runs without an audio helper use FFplay for music too. MiSTer needs neither Python nor libmpv. See the [harness guide](../tools/ghostty/README.md) and [MPlayer build](GO_BUILD.md#mplayer).
@@ -27,14 +27,16 @@ MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% 
 
 | Action | Xbox controller | Keyboard |
 | --- | --- | --- |
-| Show/hide controls | Any D-pad direction | Any arrow |
+| Show/hide controls | Any D-pad or left-stick direction | Any arrow |
 | Seek backward/forward | LT / RT | J / L |
 | Previous/next music track | LB / RB | [ / ] or Page Up / Page Down |
 | Pause/resume | B | Enter or B |
 | Stop and return | A | Escape or A |
 | Video options / music background | SELECT/View | Tab |
 
-[Input profiles](GO_INPUT.md) control hardware bindings and badge labels. Controls expire after three seconds. Pause/resume hides them. Menu toggles and track changes act once per press. Held seeks repeat after 350 ms, then every 250 ms. Video steps are 30 seconds and music steps are 10 seconds. Live TV does not seek. Shoulders have no action during video.
+[Input profiles](GO_INPUT.md) control hardware bindings and badge labels. Controls expire after three seconds. Pause/resume hides them. Menu toggles and track changes act once per press.
+
+Held seeks repeat after 350 ms, then every 250 ms. Video steps are 30 seconds and music steps are 10 seconds. Live TV does not seek. Shoulders have no action during video.
 
 On an unwatched resumable video's details screen, Open resumes and SELECT/Tab restarts from zero. Restart is a selection-screen action, not an in-playback control. [Photos](GO_BROWSING.md#photos) retain Left/Right navigation and Up for controls. See [music](GO_MUSIC.md) for album queues and shuffle.
 
@@ -46,7 +48,9 @@ The last frame remains beneath Seeking/Loading until handoff. The replacement us
 
 ## Video options
 
-SELECT/Tab opens Subtitles, Audio, and Picture. Left/Right changes tabs. Up/Down selects a row. Open applies the choice and closes the picker after success. Back or SELECT closes it without showing playback controls. A failed change leaves the previous choice active. The active row has an asterisk.
+SELECT/Tab opens Subtitles, Audio, and Picture. Left/Right changes tabs. Up/Down selects a row. Open applies the choice and closes the picker after success. Back or SELECT closes it without showing playback controls.
+
+A failed change leaves the previous choice active. The active row has an asterisk.
 
 ### Picture modes
 
@@ -72,17 +76,19 @@ Failed writes of picture, audio-track, and subtitle preferences retain the lates
 
 A shared animated overlay covers stream preparation and decoder startup. MPlayer reports its first presented frame immediately. Decoders without that notification use position feedback. Cache-wait feedback shows Buffering over the retained frame. User pause suppresses waiting indicators. FFplay estimates buffering from three seconds without advancing position, and its indicator stays in the companion UI.
 
-Media response headers have a 60-second timeout. Back and replacement seeks cancel pending stream requests. Stop returns to browsing after local decoder cleanup while final server reporting can finish asynchronously.
+Video response headers have a 60-second timeout. Back and replacement seeks cancel pending stream requests. Stop returns to browsing after local decoder cleanup while final server reporting can finish asynchronously.
 
 ## Live TV
 
 Selecting a channel tunes it directly. Stop, completion, or failure returns to that channel in the list. Jellyfin negotiates the tuner and transcode through `PlaybackInfo`. Plex discovers enabled DVR channels and tunes a separate consumer through its [Live TV adapter](GO_PLEX.md#live-tv). The client releases the tuner after stop or failure, including cancellation during negotiation. Live channels do not write movie resume or watched state.
 
-MiSTer and inline Ghostty support Original/Zoom and locally decoded captions. Reopening a channel resets picture mode to Original and captions to Off. Live TV has no seeking or timeshift support. Plex channels with selectable alternate tracks expose View → Audio. A selection reloads at the live edge and preserves picture mode and captions. The adapter advertises this capability through `PreparedStream.LiveAudio` and validates `LiveRequest.AudioIndex` against fresh tuner metadata. Jellyfin audio selection remains unavailable. The tested Jellyfin transcode exposed only one audio stream, even where another client exposed alternate broadcast audio.
+MiSTer and inline Ghostty support Original/Zoom and locally decoded captions. Reopening a channel resets picture mode to Original and captions to Off. Live TV has no seeking or timeshift support.
+
+Plex channels with selectable alternate tracks expose View → Audio. A selection reloads at the live edge and preserves picture mode and captions. The adapter advertises this capability through `PreparedStream.LiveAudio` and validates `LiveRequest.AudioIndex` against fresh tuner metadata. Jellyfin Live TV audio selection is not implemented. The tested Jellyfin transcode exposed only one audio stream, even where another client exposed alternate broadcast audio.
 
 ### Closed captions
 
-Open Options → Subtitles → Closed captions when caption data is available. Off hides them immediately. Changes do not reopen the channel. Captions target the primary EIA-608 compatibility text carried in ATSC A53 video data. Full CEA-708 service selection, caption languages, and broadcast styling are not supported. No guide data is required.
+When caption data is available, press View/Tab and select Subtitles → Closed captions. Off hides them immediately. Changes do not reopen the channel. Captions target the primary EIA-608 compatibility text carried in ATSC A53 video data. Full CEA-708 service selection, caption languages, and broadcast styling are not supported. No guide data is required.
 
 MPlayer decodes caption side data from the existing video decoder. The libmpv helper exports decoded subtitle text. Both send complete text updates and clears to the shared overlay. FFplay does not export caption text.
 
@@ -110,7 +116,9 @@ Set conversion limits under `server.transcode` in `settings.json` and restart. T
 | Maximum height | 576 | 120–1080 pixels |
 | Video bitrate | 12,000,000 | 100,000–50,000,000 bits/sec |
 
-Invalid JSON limits stop startup. Limits apply to recorded video and Live TV for both providers, not original music, photos, or UI dimensions. When `server` is absent, legacy Jellyfin `WIDTHxHEIGHT[@BITRATE]` lines remain supported. Live TV treats bitrate as a streaming budget, so negotiated video bitrate can be lower after audio overhead. Dimensions preserve source proportions. Lower dimensions can reduce decoding work. Larger accepted values do not guarantee smooth MiSTer playback.
+Invalid JSON limits stop startup. Limits apply to recorded video and Live TV for both providers, not original music, photos, or UI dimensions. When `server` is absent, legacy Jellyfin `WIDTHxHEIGHT[@BITRATE]` lines remain supported. Live TV treats bitrate as a streaming budget, so negotiated video bitrate can be lower after audio overhead.
+
+Dimensions preserve source proportions. Lower dimensions can reduce decoding work. Larger accepted values do not guarantee smooth MiSTer playback.
 
 Jellyfin video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Recorded video caps at 30 fps for NTSC or 25 fps for PAL. 480i Live TV uses 30000/1001 fps. The player does not force source speed. [Diagnostics](GO_DIAGNOSTICS.md) records requested transcode limits, not measured stream properties.
 
@@ -118,7 +126,7 @@ Jellyfin video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Rec
 
 Go owns authenticated HTTP/TLS. Video reaches decoders through descriptor 3. Controllable music uses a private loopback proxy that forwards byte-range requests for the selected audio stream. Player arguments contain no server URL or credentials. Raw decoder diagnostics are discarded.
 
-Shared playback uses `media.Playback` to prepare and open streams. The Jellyfin adapter retains transcode queries, reporting payloads, and tuner release. `media.PreparedStream` binds reporting and cleanup to one attempt. The extraction preserves the existing MPEG-2 video profile, original audio streams, and saved playback choices. See the [media service boundaries](GO_RENDERING.md#media-services).
+Shared playback uses `media.Playback` to prepare and open streams. Each server adapter owns transcode queries, reporting payloads, and tuner release. `media.PreparedStream` binds reporting and cleanup to one attempt. Both adapters pass original audio streams through for music and use shared saved playback choices. See the [media service boundaries](GO_RENDERING.md#media-services).
 
 The Jellyfin implementation groups [preparation and subtitles](../internal/jellyfin/playback.go), [HTTP streaming](../internal/jellyfin/stream.go), [progress reporting](../internal/jellyfin/reporting.go), and [Live TV ownership](../internal/jellyfin/live.go) by responsibility. Both streaming operations validate same-origin URLs. Video allows 60 seconds for response headers and uses a dedicated connection. Audio reuses pooled connections with a 15-second header timeout. Neither imposes a total timeout on the media body.
 
@@ -128,6 +136,6 @@ Session start follows position feedback. Progress and resume updates run every t
 
 The optional MiSTer BGM service is separate from music played through Jellyfin or Plex. At startup, the native target contacts `/tmp/bgm.sock` and stops an enabled random/loop playlist. After cleanup, it sends Play only if its earlier Stop was delivered. Restoration does not retain an exact track position. Missing services and command failures leave the client usable.
 
-This behavior has automated socket tests. Hardware validation is deferred because I do not use the add-on. Ghostty does not contact BGM. [Navigation sounds](GO_CONFIGURATION.md#navigation-sounds) release the audio device before all media playback.
+This behavior has automated socket tests. I do not use the add-on, so restoration still needs testing on hardware that runs it. Ghostty does not contact BGM. [Navigation sounds](GO_CONFIGURATION.md#navigation-sounds) release the audio device before all media playback.
 
 For implementation ownership and native timing constraints, see [architecture](GO_RENDERING.md#external-player-ownership). For remote queues and repeat modes, see [remote control](GO_REMOTE.md).

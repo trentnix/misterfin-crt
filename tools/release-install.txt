@@ -5,15 +5,15 @@ Install on MiSTer
 1. Exit MiSTerVision. Keep a copy of the installed binaries before upgrading.
 2. Extract the ZIP on your computer. Copy Scripts/MiSTerVision.sh to /media/fat/Scripts/ and the contents of mistervision/ to /media/fat/mistervision/ on the SD card.
 3. For a new installation, copy settings.example.json to settings.json in /media/fat/mistervision/. Set server.provider and server.url. Use provider "jellyfin" with port 8096 or "plex" with port 32400, unless your server uses another port.
-4. Keep existing settings and saved state when upgrading. Existing jellyfin.conf remains supported when settings.json has no server section. See docs/GO_CONFIGURATION.md to migrate connection settings into settings.json.
+4. Keep existing settings and saved state when upgrading. Existing jellyfin.conf remains supported when settings.json has no server section. See the configuration guide in the source bundle or online: https://github.com/trentnix/mistervision/blob/main/docs/GO_CONFIGURATION.md
 5. Make the launcher and both binaries executable if the filesystem requires it.
 6. Launch MiSTerVision from MiSTer's Scripts menu. Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at plex.tv/link.
 
-When moving from MiSTerFin CRT, exit the old application and back up its directory. Copy its settings, state, caches, optional InterlacedMenu.rbf, and custom assets into /media/fat/mistervision before installing this bundle. Update absolute paths in settings and remove the old Scripts entry after verification. Do not copy old binaries over the new pair. Old releases cannot install this renamed bundle through About.
+When moving from MiSTerFin CRT, exit the old application and back up its directory. Copy its settings, state, caches, optional InterlacedMenu.rbf, and custom assets into /media/fat/mistervision before installing this bundle. Update absolute paths in settings and remove the old Scripts entry after verification. Do not copy old binaries over the new pair. MiSTerFin CRT v1.0.x cannot install this renamed bundle through About.
 
 The archive contains no active settings, credentials, saved state, or caches. Copying its files preserves those files in an existing installation. Stop the application before replacing either binary, and always replace the pair.
 
-First installation is manual. Subsequent compatible releases can be installed from About in a standard MiSTer installation. Review the release notes and select Install. The app restarts automatically after installation. Older clients or launchers may require reopening the app once after an update. Interrupted replacements recover at startup. Keep .update-pending if recovery is needed.
+First installation is manual. Subsequent compatible releases can be installed from About in a standard MiSTer installation. Review the release notes and select Install. The app restarts automatically after installation. Custom launchers without restart support require reopening the app after an update. Interrupted replacements recover at startup. Keep .update-pending if recovery is needed.
 
 The default is progressive output, normally 240p on NTSC. The same binaries support optional 480i. The interlaced Menu core is a separate download. Follow docs/GO_DISPLAY.md in the source bundle, or the online display guide: https://github.com/trentnix/mistervision/blob/main/docs/GO_DISPLAY.md
 

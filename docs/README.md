@@ -19,8 +19,10 @@ Start with the [project README](../README.md) for installation and everyday use.
 
 ## Current limits
 
-About can install verified release bundles on a standard MiSTer installation. Custom and desktop installations remain manual. Search, automatic photo slideshows, and photo zoom are not implemented. Plex Live TV exposes alternate audio when available. Jellyfin Live TV audio-track selection remains unavailable. Live TV has no seeking or timeshift support. The separate-window FFplay fallback has fewer controls than MiSTer and inline Ghostty. See the [playback guide](GO_PLAYBACK.md).
+Search, server discovery, automatic photo slideshows, and photo zoom are not implemented. Plex Home profile switching and Plex remote control are not implemented. Jellyfin Live TV audio-track selection is unavailable. Plex exposes alternate live audio when the stream provides it. Live TV has no seeking or timeshift support.
 
-PAL/576i, direct MiSTer YPbPr output, Zaparoo DDR integration, and hardware validation of optional MiSTer background-music restoration are deferred. See [tested display scope](GO_DISPLAY.md#tested-scope) and [menu music](GO_PLAYBACK.md#mister-menu-music). Screenshot capture and exact reproduction of C music visualizers are outside the current scope.
+The separate-window FFplay fallback has fewer controls than MiSTer and inline Ghostty. See [Plex limits](GO_PLEX.md#playback-and-limits) and the [playback guide](GO_PLAYBACK.md).
+
+PAL 288p/576i, direct MiSTer YPbPr output, and optional MiSTer background-music restoration need testing by someone with suitable hardware. Zaparoo DDR integration is not implemented. See [tested display scope](GO_DISPLAY.md#tested-scope) and [menu music](GO_PLAYBACK.md#mister-menu-music). Screenshot capture and exact reproduction of C music visualizers are outside the current scope.
 
 The original port plan and C hardware notes are preserved in Git history. They are not installation instructions for this client. The C reference is the [MiSTerFin integration repository](https://github.com/trentnix/MiSTerFin), branch `local-all-features`, starting at `19d99fa5f479692e45ea7b5dddc42e42fb1782a9`.

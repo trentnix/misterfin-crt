@@ -1,12 +1,12 @@
 # Music and visual backgrounds
 
-Selecting a track starts album playback and advances in order, including across pages. Shoulders or brackets change tracks immediately. Triggers or J/L seek ten seconds. Any direction toggles controls. Open pauses/resumes without instructions, and Back returns to the track list. See [playback controls](GO_PLAYBACK.md#playback-controls).
+Selecting a track within an album starts album playback and advances in order, including across pages. Shoulders or brackets change tracks immediately. Triggers or J/L seek ten seconds. Any direction toggles controls. Open pauses/resumes without instructions, and Back returns to the track list. See [playback controls](GO_PLAYBACK.md#playback-controls).
 
 ## Whole-library shuffle
 
-On a music library's artist list, SELECT/Tab starts shuffle. Jellyfin supplies batches of up to 64 random tracks. A new batch loads when needed. Tracks can repeat between batches, but immediate repetition is avoided when another track is available. The client retains at most two batches of history. Back cancels pending loading and restores the artist selection.
+On a music library's artist list, SELECT/Tab starts shuffle. The selected server supplies batches of up to 64 random tracks. A new batch loads when needed. Tracks can repeat between batches, but immediate repetition is avoided when another track is available. The client retains at most two batches of history. Back cancels pending loading and restores the artist selection.
 
-Remote queues also support shuffle and repeat. See [remote control](GO_REMOTE.md). These queue states are separate from visual settings.
+Jellyfin remote queues also support shuffle and repeat. See [remote control](GO_REMOTE.md). These queue states are separate from visual settings.
 
 ## Built-in backgrounds
 
@@ -48,9 +48,25 @@ Effects use the shared Go renderer and do not reproduce every detail of the C vi
     "default_background": "Night",
     "show_audio_meters": true,
     "backgrounds": [
-      {"name": "Night", "type": "image", "files": ["music/night.gif"], "intensity": 0.5},
-      {"name": "Green stars", "type": "starfield", "color": "#70dd90", "speed": 0.5, "density": 24},
-      {"name": "Off", "type": "none"}
+      {
+        "name": "Night",
+        "type": "image",
+        "files": [
+          "music/night.gif"
+        ],
+        "intensity": 0.5
+      },
+      {
+        "name": "Green stars",
+        "type": "starfield",
+        "color": "#70dd90",
+        "speed": 0.5,
+        "density": 24
+      },
+      {
+        "name": "Off",
+        "type": "none"
+      }
     ]
   }
 }

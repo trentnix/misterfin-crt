@@ -1,6 +1,6 @@
 # Build and install
 
-Use Go 1.26.8 or later, a C compiler, and Python 3 on Linux. The Go module dependency is pinned in [go.mod](../go.mod). MiSTer builds also need an ARM cross-compiler. Docker builds the separate MPlayer executable on the development machine, not on MiSTer.
+Use Go 1.26.8 or later, a C compiler, and Python 3 on Linux. Go module dependencies are pinned in [go.mod](../go.mod). MiSTer builds also need an ARM cross-compiler. Docker builds the separate MPlayer executable on the development machine, not on MiSTer.
 
 ## Go client
 
@@ -13,10 +13,10 @@ ZIG=/absolute/path/to/zig make arm
 
 The outputs are `build/mistervision` and `build/mistervision-arm`. The ARM target enables cgo and uses `GOOS=linux GOARCH=arm GOARM=7`. The [compiler wrapper](../tools/zig-cc-go.sh) targets `arm-linux-gnueabihf.2.31` and Cortex-A9. Zig 0.14.1 has been tested. `GO_ARM_CC` can select another compatible compiler. Set `GOCACHE` and `ZIG_GLOBAL_CACHE_DIR` if their default directories are unwritable.
 
-Development builds show `dev`, the Git revision, and a modified marker when available. Jellyfin HTTP and WebSocket requests report the same version label, without the revision suffix. Set `VERSION` for a stable release label:
+Development builds show `dev`, the Git revision, and a modified marker when available. Jellyfin and Plex requests report the same version label, without the revision suffix. Set `VERSION` for a stable release label:
 
 ```sh
-make arm VERSION=v1.0.0
+make arm VERSION=v1.1.0
 ```
 
 ## MPlayer
@@ -27,7 +27,9 @@ Build the matching patched player from [Dockerfile.mistervision](../docker/Docke
 make native-player
 ```
 
-The outputs are `build/mistervision-mplayer-arm` and its source/compiler record, `build/mistervision-mplayer-build.txt`. The base image is pinned by digest, and the build verifies the MPlayer source archive with SHA-256. The Bullseye toolchain targets MiSTer's glibc 2.31. The patches provide shared overlays, picture changes, captions, interlaced presentation, and playback timing fixes. The original C client's player cannot substitute for this build. Update both binaries together when their protocol changes. See [third-party notices](THIRD_PARTY.md) for corresponding source and licenses.
+The outputs are `build/mistervision-mplayer-arm` and its source/compiler record, `build/mistervision-mplayer-build.txt`. The base image is pinned by digest, and the build verifies the MPlayer source archive with SHA-256. The Bullseye toolchain targets MiSTer's glibc 2.31. The patches provide shared overlays, picture changes, captions, interlaced presentation, and playback timing fixes.
+
+The original C client's player cannot substitute for this build. Update both binaries together when their protocol changes. See [third-party notices](THIRD_PARTY.md) for corresponding source and licenses.
 
 The native build also exports `build/mistervision-mplayer-source.tar.xz`, the verified upstream source used by that build. The source archive includes MPlayer's bundled FFmpeg. The Go vulnerability scan does not audit these native dependencies.
 
@@ -36,22 +38,26 @@ The native build also exports `build/mistervision-mplayer-source.tar.xz`, the ve
 From a clean Git checkout, build a release with:
 
 ```sh
-make release VERSION=v1.0.0
+make release VERSION=v1.1.0
 ```
 
-This command rebuilds both ARM executables, records their metadata and checksums, and packages them under `build/releases/v1.0.0/`. It requires the same Go, Zig, Python, and Docker tools as the individual builds. Stable `vMAJOR.MINOR.PATCH` versions are required. Dirty checkouts, untracked source files, invalid binaries, source checksum mismatches, and existing output directories stop the build. Failed builds do not publish a partial bundle.
+This command rebuilds both ARM executables, records their metadata and checksums, and packages them under `build/releases/v1.1.0/`. It requires the same Go, Zig, Python, and Docker tools as the individual builds. Stable `vMAJOR.MINOR.PATCH` versions are required. Dirty checkouts, untracked source files, invalid binaries, source checksum mismatches, and existing output directories stop the build. Failed builds do not publish a partial bundle.
 
 | Artifact | Contents |
 | --- | --- |
-| `mistervision-v1.0.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
-| `mistervision-v1.0.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
+| `mistervision-v1.1.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
+| `mistervision-v1.1.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
 | `SHA256SUMS` | Checksums for both downloadable archives. |
 
-The ZIP contains only example configuration files. It contains no active `jellyfin.conf`, `settings.json`, sign-in, preferences, or caches. Read its `INSTALL.txt` before copying files. The optional interlaced core remains a separate download. To rebuild MPlayer from the source bundle, run `make native-player` in its extracted project directory. Docker uses the included upstream archive and still verifies its checksum. The base image and compiler packages need network access or a local Docker cache.
+The ZIP contains only example configuration files. It contains no active `jellyfin.conf`, `settings.json`, sign-in, preferences, or caches. Read its `INSTALL.txt` before copying files. The optional interlaced core remains a separate download.
 
-`make release-manifest` remains available after separate `make arm` and `make native-player` builds. It writes `build/release-manifest.txt`, which records Go metadata, MPlayer source/compiler details, and both executable checksums. Packaging includes that record as `mistervision/BUILD.txt`, with the release version and source revision. Packaging the same inputs produces identical archives. This does not promise identical compiler output across toolchain or environment changes.
+To rebuild MPlayer from the source bundle, run `make native-player` in its extracted project directory. Docker uses the included upstream archive and still verifies its checksum. The base image and compiler packages need network access or a local Docker cache.
 
-The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release. Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing and repository visibility remain manual decisions. Draft or private releases are unavailable to the application's unauthenticated checker.
+`make release-manifest` can run after separate `make arm` and `make native-player` builds. It writes `build/release-manifest.txt`, which records Go metadata, MPlayer source/compiler details, and both executable checksums. Packaging includes that record as `mistervision/BUILD.txt`, with the release version and source revision. Packaging the same inputs produces identical archives. This does not promise identical compiler output across toolchain or environment changes.
+
+The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release.
+
+Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing requires a manual action on GitHub. Draft or private releases are unavailable to the application's unauthenticated checker.
 
 The [latest release](https://github.com/trentnix/mistervision/releases/latest) provides both archives and their checksums. Bundles include `mistervision/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
 
@@ -65,7 +71,7 @@ Copy these files to the SD card and make them executable:
 | `build/mistervision-mplayer-arm` | `/media/fat/mistervision/mplayer-arm` |
 | [`tools/mistervision.sh`](../tools/mistervision.sh) | `/media/fat/Scripts/MiSTerVision.sh` |
 
-Copy `settings.example.json` to `settings.json` beside the binaries and set `server.provider` and `server.url`. See [configuration and migration](GO_CONFIGURATION.md) for existing installations. Launch **MiSTerVision** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. An SSH launch alone does not perform the Scripts display setup.
+Copy `settings.example.json` to `settings.json` beside the binaries and set `server.provider` and `server.url`. See [configuration and migration](GO_CONFIGURATION.md) for existing installations. Launch **MiSTerVision** from Scripts so Main_MiSTer enables framebuffer output. Launcher filenames must contain no spaces. A direct progressive-mode launch over SSH does not enable framebuffer output through Scripts.
 
 The launcher enables both CPU cores, hides the console cursor, and reloads the normal menu after a successful exit. Failures leave their messages visible. Login and playback choices persist under `/media/fat/mistervision/state`. Caches use separate [artwork directories](GO_BROWSING.md#persistent-artwork-cache). For 480i, follow the [display guide](GO_DISPLAY.md).
 
@@ -73,9 +79,11 @@ For manual installation, exit before replacing binaries. Copy replacements to te
 
 ## Moving from MiSTerFin CRT
 
-The rename changes binaries, install directories, launcher names, release assets, and environment variables. Install the new application and its matching MPlayer together. Existing releases cannot install the renamed bundle through About.
+The rename changes binaries, install directories, launcher names, release assets, and environment variables. Install the new application and its matching MPlayer together. MiSTerFin CRT v1.0.x cannot install the renamed bundle through About. MiSTerVision releases support subsequent updates from About.
 
-On MiSTer, exit the old app and back up `/media/fat/misterfin-crt`. Copy its `settings.json`, optional `jellyfin.conf`, `state`, `covercache`, `gridcache`, `InterlacedMenu.rbf`, and custom assets into `/media/fat/mistervision`. Copy only files that exist. Update absolute paths in settings, including custom backgrounds and music assets. Then install the new binaries and `Scripts/MiSTerVision.sh`. After testing, remove `Scripts/MiSTerFin-CRT.sh` so the menu has one entry. Keep the backup until the new installation is verified.
+On MiSTer, exit the old app and back up `/media/fat/misterfin-crt`. Copy its `settings.json`, optional `jellyfin.conf`, `state`, `covercache`, `gridcache`, `InterlacedMenu.rbf`, and custom assets into `/media/fat/mistervision`. Copy only files that exist. Update absolute paths in settings, including custom backgrounds and music assets.
+
+Then install the new binaries and `Scripts/MiSTerVision.sh`. After testing, remove `Scripts/MiSTerFin-CRT.sh` so the menu has one entry. Keep the backup until the new installation is verified.
 
 On desktop, move or copy `$XDG_CONFIG_HOME/misterfin-crt` to `$XDG_CONFIG_HOME/mistervision`, using `~/.config` when `XDG_CONFIG_HOME` is unset. Preserve both providers’ sessions and playback preferences. The same directory rename applies beneath the user cache root. Do not overwrite an existing destination without reconciling its contents. Explicit `--state-dir` paths remain supported, so development commands can continue using an old directory intentionally.
 
@@ -93,7 +101,7 @@ Downloads use verified HTTPS from this repository's GitHub release assets withou
 
 The SD card must have room for the download, staged files, rollback copies, and a temporary replacement file. The installer downloads, validates, and backs up everything before changing installed files. Storage or validation failures leave the installation intact. Settings, credentials, preferences, artwork caches, and the separately installed 480i core are excluded from replacement.
 
-A successful update shows “Update installed. Restarting...” for two seconds, closes the client, and starts the installed launcher again. In 480i, the supervisor restores the normal core before restart. Cleanup or startup failures stop with an error instead of retrying. Cancellation or a replacement failure restores the old files. Older clients or launchers may require reopening the app once after an update.
+A successful update shows “Update installed. Restarting...” for two seconds, closes the client, and starts the installed launcher again. In 480i, the supervisor restores the normal core before restart. Cleanup or startup failures stop with an error instead of retrying. Cancellation or a replacement failure restores the old files. Custom launchers without restart support require reopening the app after an update.
 
 If interrupted, startup uses `.update-pending` to finish rollback, then re-executes the restored client before opening the display. A committed transaction only needs backup cleanup. Do not delete pending recovery files. If recovery cannot finish, the app stops before playback. Correct the storage problem and relaunch, or manually reinstall the matching pair while preserving settings and state.
 

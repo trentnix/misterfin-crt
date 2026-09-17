@@ -22,7 +22,7 @@ Queues are limited to 10,000 entries, with a 30-second lookup limit. Queue and r
 
 ## Connection and recovery
 
-The adapter uses the authenticated Jellyfin WebSocket and the configured HTTP/HTTPS base path. It sends the normal authorization header, verifies TLS unless `INSECURE_TLS` is configured, and refuses socket redirects. Capabilities register on every connection. Heartbeats check liveness, and disconnected sockets retry after five seconds while browsing stays usable.
+The adapter uses the authenticated Jellyfin WebSocket and the configured HTTP/HTTPS base path. It sends the normal authorization header, verifies TLS unless `server.insecure_tls` is true (or legacy `INSECURE_TLS` applies), and refuses socket redirects. Capabilities register on every connection. Heartbeats check liveness, and disconnected sockets retry after five seconds while browsing stays usable.
 
 A new sign-in cancels the old source and rejects stale account commands. Exit cancels and joins the source. Frames, queued commands, and messages are bounded. [Diagnostics](GO_DIAGNOSTICS.md) records connection status as `remote.socket`, excluding credentials and socket URLs. If no cast target appears, check that sign-in succeeded and registration reached the server.
 
@@ -30,6 +30,8 @@ A new sign-in cancels the old source and rejects stale account commands. Exit ca
 
 [`remote.Source`](../internal/remote/source.go) emits owned commands and accepts queue snapshots without network work on the browser loop. [`jellyfin/remote.Source`](../internal/jellyfin/remote/source.go) owns protocol translation, capability registration, and reconnection. [`remote.Queue`](../internal/remote/queue.go) owns occurrence IDs, ordering, shuffle, and repeat. A different control mechanism can implement `remote.Source`.
 
-The browser owns catalog requests and playback transitions. `PlaybackController` owns the decoder handoff. Remote sources never render or call players directly. `browser.Config.Remote` supplies the authenticated source factory. Nil disables it for an embedding application or test.
+The browser owns catalog requests and playback transitions. `PlaybackController` owns the decoder handoff. Remote sources never render or call players directly.
+
+`browser.Config.Connector` supplies sign-in and returns a `connection.Session`. Its `Remote` field holds the authenticated source. A nil source disables remote control, as in the Plex adapter. The browser starts and stops the source with that session.
 
 This implements the applicable queue/control behavior requested in [MiSTerFin issue #39](https://github.com/puddingstudio/MiSTerFin/issues/39). Automated tests cover protocol validation, reconnects, cancellation, queue ordering, stale results, and the built-client path. Remote movie and episode playback and controls have also been tested on the CRT.

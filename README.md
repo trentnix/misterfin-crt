@@ -60,11 +60,11 @@ The client checks for the latest public release at startup. An available update 
 
 Updates replace the application, matching MPlayer, and standard launcher together. Your settings, sign-in, playback preferences, cached artwork, and optional interlaced core are preserved. Back cancels during download or validation. During installation, wait for completion. Failed replacements restore the previous files. Interrupted replacements recover at the next startup.
 
-Automatic updates require the standard installation paths above. Older clients or launchers may require reopening the app once after an update. Desktop and custom installations use manual installation. See [manual installation and recovery](docs/GO_BUILD.md#application-updates) for details.
+Automatic updates require the standard installation paths above. Desktop and custom installations use manual installation. See [manual installation and recovery](docs/GO_BUILD.md#application-updates) for details.
 
 ## Progressive and interlaced output
 
-The default uses MiSTer’s current display mode, normally 240p for NTSC or 288p for PAL. Interlaced output is optional: 480i for NTSC or 576i for PAL. I have tested 240p and 480i. PAL validation remains deferred.
+The default uses MiSTer’s current display mode, normally 240p for NTSC or 288p for PAL. Interlaced output is optional: 480i for NTSC or 576i for PAL. I have tested 240p and 480i. Someone with PAL hardware will need to validate 288p and 576i output.
 
 To enable interlaced output:
 
@@ -96,7 +96,29 @@ Omitting the `display` section also restores the default on the next launch. Pre
 
 ## Controls
 
-Use the D-pad or left analog stick to navigate and follow the on-screen button hints to select or go back. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
+I test with an Xbox controller. The default layout follows MiSTer: B selects, plays, or pauses, and A goes back, cancels, or stops. Use the D-pad or left analog stick to navigate. During video or music playback, any direction shows or hides controls. Triggers seek, and shoulder buttons change music tracks.
+
+Controller mappings are configurable in the `input` section of `settings.json`. For example, if you prefer A to select and B to go back, add this section while preserving your other settings:
+
+```json
+{
+  "input": {
+    "profiles": [
+      {
+        "match": "*Xbox*",
+        "buttons": {
+          "304": "open",
+          "305": "back"
+        }
+      }
+    ]
+  }
+}
+```
+
+The numbers are Linux input event codes. For a standard Xbox mapping, `304` is A (`BTN_SOUTH`) and `305` is B (`BTN_EAST`). Other controllers or drivers can report different codes. Use an input inspector such as `evtest` to read the code when you press a button. See [finding device names and button codes](docs/GO_INPUT.md#finding-device-names-and-button-codes).
+
+The `match` pattern must match the controller's Linux device name and is case-sensitive. Restart MiSTerVision after editing. Unspecified bindings keep their defaults, and on-screen hints follow the configured mappings. The [controller configuration guide](docs/GO_INPUT.md) explains how to find device names and button codes, remap axes, and customize button labels. These profiles configure hardware input on MiSTer. Ghostty uses terminal keyboard controls.
 
 The [playback guide](docs/GO_PLAYBACK.md#playback-controls) lists controller and keyboard controls. [About](docs/GO_BROWSING.md#about-and-updates) shows the installed version and provides [updates](#updates).
 
@@ -195,7 +217,7 @@ To turn off navigation sounds, set `ui.navigation_sounds`:
 
 Sound settings affect browsing feedback only. They do not change music or video volume.
 
-`MISTERVISION_CACHE_ROOT` changes where artwork and carousel collages are cached. The default root is `/media/fat` on MiSTer and the user’s cache directory, usually `~/.cache`, for local testing. The client stores caches under `mistervision` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
+`MISTERVISION_CACHE_ROOT` changes where artwork and carousel collages are cached. The default root is `/media/fat` on MiSTer, `/tmp/mistervision-cache` in the Ghostty harness, and the user’s cache directory (usually `~/.cache`) for direct desktop runs. To keep the Ghostty cache across reboots, set `MISTERVISION_CACHE_ROOT="$HOME/.cache"` before launching the harness. The client stores caches under `mistervision` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
 
 ## Local development and testing
 
@@ -211,11 +233,12 @@ The harness builds the client automatically. See the [development harness guide]
 
 Jellyfin and Plex share browsing, controls, music visuals, picture modes, and the photo viewer. Each adapter handles its own sign-in, media queries, and streaming. Playback requires a server that can supply the supported formats.
 
-Jellyfin supports remote control from other Jellyfin clients. Plex supports linked-account access and local DVR live TV, including alternate audio when the stream exposes it. Plex Home profile switching, server discovery, remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
+Jellyfin supports remote control from other Jellyfin clients. Plex supports linked-account access and local DVR live TV, including alternate audio when the stream exposes it. Neither provider supports server discovery yet. Plex Home profile switching, Plex remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
 
 ## Deferred work
 
-- **PAL/576i and direct MiSTer YPbPr validation:** I do not have suitable hardware to test these output paths. My tested setup uses MiSTer configured for RGB through its 9-pin output and a Retrovision YPbPr cable to a consumer 4:3 CRT.
+- **Broader controller support:** Testing more controllers, recognizing controller families, and showing their button labels automatically are potential future improvements. Other controllers may need a custom input profile today.
+- **PAL 288p/576i and direct MiSTer YPbPr validation:** Someone with suitable hardware will need to test these output paths. I do not have that hardware. My tested setup uses MiSTer configured for RGB through its 9-pin output and a Retrovision YPbPr cable to a consumer 4:3 CRT.
 - **Zaparoo DDR integration:** Deferred until I have a way to test it. Zaparoo is not required for the supported interlaced output.
 - **MiSTer background-music hardware validation:** Suspension and restoration are implemented and covered by automated tests. Testing with the actual add-on is deferred because I do not use it. This is separate from music played through Jellyfin or Plex.
 
