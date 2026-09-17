@@ -21,7 +21,7 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --settin
 
 Without `--inline-video`, the harness uses FFplay for video. Keep keyboard focus in Ghostty for client controls. The harness uses the Python/libmpv helper for music in either video mode. Direct headless runs without an audio helper use FFplay for music too. MiSTer needs neither Python nor libmpv. See the [harness guide](../tools/ghostty/README.md) and [MPlayer build](GO_BUILD.md#mplayer).
 
-MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% before decoding. Live TV begins demuxing without a cache prefill because a low-bitrate broadcast may not supply 1.6 MiB before the 30-second startup deadline.
+MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% before decoding. Live TV begins demuxing without a cache prefill because a low-bitrate broadcast may not supply 1.6 MiB before the 30-second startup deadline. The frame timer starts when the first decoded image is ready, so opening and buffering do not cause a catch-up burst after loading or seeking.
 
 ## Playback controls
 

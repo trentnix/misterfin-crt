@@ -19,3 +19,14 @@
          ((vf_instance_t *)sh_video->vfilter)->control(sh_video->vfilter,
                                                        VFCTRL_GET_PTS, &sh_video->pts);
          ((vf_instance_t *)sh_video->vfilter)->control(sh_video->vfilter,
+@@ -3879,2 +3891,9 @@
+-                if (!skip_timing)
++                if (skip_timing) {
++                    /* Opening, probing, and buffering are not playback time.
++                     * Start the frame timer with the first decoded image,
++                     * including after a seek. Otherwise autosync treats the
++                     * startup wait as video debt and rushes frames to catch up. */
++                    (void)GetRelativeTime();
++                    mpctx->time_frame = 0;
++                } else
+                     frame_time_remaining = sleep_until_update(&mpctx->time_frame, &aq_sleep_time);

@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class MPlayerTimingTest(unittest.TestCase):
-    def test_dropped_frames_advance_the_timeline_only_once(self):
+    def test_startup_and_dropped_frame_timing(self):
         with tempfile.TemporaryDirectory() as directory:
             work = pathlib.Path(directory)
             source = work / "mplayer.c"
@@ -37,6 +37,7 @@ static struct {
     sh_video_t *sh_video;
     void *d_video;
     int startup_decode_retry;
+    float time_frame;
 } context, *mpctx = &context;
 static int result, filter_reads;
 static double filter_pts, elapsed;
@@ -45,6 +46,20 @@ static void advance_timer(double dt) { elapsed += dt; }
 static void filter_control(void *vf, int request, double *pts) {
     filter_reads++;
     *pts = request == VFCTRL_GET_PTS ? filter_pts : MP_NOPTS_VALUE;
+}
+/* Model elapsed wall time and the normal-frame scheduling call. The
+ * patched startup branch must discard only the pre-playback interval. */
+static float clock_elapsed, scheduled_elapsed;
+static int sleep_calls;
+static float GetRelativeTime(void) {
+    float elapsed = clock_elapsed;
+    clock_elapsed = 0;
+    return elapsed;
+}
+static int sleep_until_update(float *time_frame, float *aq_sleep_time) {
+    sleep_calls++;
+    scheduled_elapsed = GetRelativeTime();
+    return 1;
 }
 #include "mplayer.c"
 static void close_to(double actual, double expected) {
@@ -99,6 +114,24 @@ int main(void) {
     assert(!blit && video.last_pts == MP_NOPTS_VALUE);
     result = 0;
     close_to(update_video(&blit), -1);
+    /* Startup and each seek discard opening/probing/buffering time. Normal
+     * frames still reach the existing audio-clock scheduler unchanged. */
+    for (int start = 0; start < 3; start++) {
+        clock_elapsed = 2 + start;
+        mpctx->time_frame = -3;
+        sleep_calls = 0;
+        assert(schedule_video(1) == 0);
+        assert(sleep_calls == 0 && clock_elapsed == 0);
+        close_to(mpctx->time_frame, 0);
+        for (int frame = 0; frame < 120; frame++) {
+            clock_elapsed = 0.01f;
+            mpctx->time_frame = 0.04f;
+            assert(schedule_video(0) == 1);
+            assert(sleep_calls == frame + 1);
+            close_to(scheduled_elapsed, 0.01f);
+            close_to(mpctx->time_frame, 0.04f);
+        }
+    }
     return 0;
 }
 '''
