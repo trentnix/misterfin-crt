@@ -79,14 +79,6 @@ func (c Connector) Describe(err error) connection.Presentation {
 		p.Message = "Check your server and internet connection, then retry.\nPress Back to choose a server again."
 	}
 	switch {
-	case errors.Is(err, errNoServers):
-		p.Title, p.Message = "No Plex servers", "This account has no available media servers.\nCheck server sharing and your Plex account, then retry."
-	case errors.Is(err, errServersUnreachable):
-		p.Title, p.Message = "Plex servers unavailable", "Check that your server is running and its network addresses are correct.\nRetry, or configure its address in settings.json."
-	case errors.Is(err, errDiscovery):
-		p.Title, p.Message = "Can't find Plex servers", "Check your internet connection and Plex account, then retry.\nYour saved connection has not been cleared."
-	case errors.Is(err, errServerURL):
-		p.Title, p.Message = "Check your configuration", "Set server.url to your Plex server's HTTP or HTTPS address.\nFor example: http://192.168.1.10:32400"
 	case errors.Is(err, ErrSessionSave):
 		p.Title, p.Message = "Can't save or read sign-in", "Make sure this folder is writable, then retry.\nYour saved sign-in has not been cleared."
 		p.Path, p.PathLabel = StateDir(c.StateDir), "Sign-in folder"
@@ -97,6 +89,16 @@ func (c Connector) Describe(err error) connection.Presentation {
 		p.Title, p.Message, p.Retry = "Code expired", "Request a new code, then approve it at plex.tv/link.", "New code"
 	case errors.Is(err, media.ErrUnauthorized):
 		p.Title, p.Message, p.Retry = "Sign-in required", "Plex rejected your sign-in. Link your account again.\nThe account must have access to this server.", "Sign in"
+	case errors.Is(err, errRecovery):
+		p.Title, p.Message = "Plex server unavailable", "Check your server and network, then retry.\nYour saved connection and sign-in have been kept.\nPress Back to choose a server."
+	case errors.Is(err, errNoServers):
+		p.Title, p.Message = "No Plex servers", "This account has no available media servers.\nCheck server sharing and your Plex account, then retry."
+	case errors.Is(err, errServersUnreachable):
+		p.Title, p.Message = "Plex servers unavailable", "Check that your server is running and its network addresses are correct.\nRetry, or configure its address in settings.json."
+	case errors.Is(err, errDiscovery):
+		p.Title, p.Message = "Can't find Plex servers", "Check your internet connection and Plex account, then retry.\nYour saved connection has not been cleared."
+	case errors.Is(err, errServerURL):
+		p.Title, p.Message = "Check your configuration", "Set server.url to your Plex server's HTTP or HTTPS address.\nFor example: http://192.168.1.10:32400"
 	}
 	return p
 }

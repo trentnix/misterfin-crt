@@ -19,32 +19,51 @@ import (
 // A saved server reconnects directly. Fresh selection is committed only after
 // authenticated access succeeds, so cancellation leaves the working choice intact.
 func (c Connector) connectDiscovered(ctx context.Context, interaction connection.Interaction, discovery *serverDiscovery) (connection.Session, error) {
-	account := discovery.account
-	dir := StateDir(c.StateDir)
-	path := filepath.Join(dir, "server.json")
+	path := filepath.Join(StateDir(c.StateDir), "server.json")
 	if !interaction.SelectServer {
 		server, err := serverstate.LoadServer(path)
 		if err == nil {
 			result, err := c.connectRemembered(ctx, interaction, server)
-			if err == nil || !errors.Is(err, media.ErrUnauthorized) && !errors.Is(err, errDiscovery) {
+			if err == nil || errors.Is(err, ErrSessionSave) || ctx.Err() != nil {
 				return result, err
 			}
+			if !errors.Is(err, media.ErrUnauthorized) && !errors.Is(err, errDiscovery) {
+				return c.recoverDiscovered(ctx, interaction, discovery, server)
+			}
 			// Missing or rejected server credentials require a fresh grant.
-			// A network failure leaves the saved connection intact for Retry.
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return connection.Session{}, ErrSessionSave
 		}
 	}
+	servers, recovered, err := c.discoverServers(ctx, interaction, discovery)
+	if err != nil {
+		return connection.Session{}, err
+	}
+	if interaction.ChooseServer == nil {
+		return connection.Session{}, errDiscovery
+	}
+	server, err := interaction.ChooseServer(ctx, servers)
+	if err != nil {
+		return connection.Session{}, err
+	}
+	return c.connectSelected(ctx, discovery, server, recovered)
+}
+
+// discoverServers validates the linked account and obtains fresh server grants.
+// Account or network failures leave the remembered server and its token intact.
+func (c Connector) discoverServers(ctx context.Context, interaction connection.Interaction, discovery *serverDiscovery) ([]connection.Server, bool, error) {
+	account := discovery.account
+	dir := StateDir(c.StateDir)
 	saved, recovered, err := serverstate.LoadSession(filepath.Join(dir, "account"), account.accountURL)
 	if err != nil {
-		return connection.Session{}, ErrSessionSave
+		return nil, false, ErrSessionSave
 	}
 	account.Session = saved
 	var user accountIdentity
 	if saved.Token != "" {
 		user, err = account.accountUser(ctx)
 		if err != nil && !Rejected(err) {
-			return connection.Session{}, err
+			return nil, false, err
 		}
 	}
 	if saved.Token == "" || Rejected(err) {
@@ -52,34 +71,36 @@ func (c Connector) connectDiscovered(ctx context.Context, interaction connection
 			interaction.Show(connection.Presentation{Kind: connection.SetupApproval, Title: "Link Plex", Code: code, Recovered: recovered, Retry: "New code", Message: "Open plex.tv/link in a signed-in browser.\nEnter this code to approve MiSTerVision."})
 		})
 		if err != nil {
-			return connection.Session{}, err
+			return nil, false, err
 		}
 		user, err = account.accountUser(ctx)
 		if err != nil {
-			return connection.Session{}, err
+			return nil, false, err
 		}
 	}
 	account.Session.UserID = strconv.Itoa(user.ID)
 	if err := ctx.Err(); err != nil {
-		return connection.Session{}, err
+		return nil, false, err
 	}
 	if err := account.save(filepath.Join(dir, "account")); err != nil {
-		return connection.Session{}, err
+		return nil, false, err
 	}
 	interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Finding Plex servers", Message: "Signed in as " + user.name() + ".\nChecking available server connections."})
 	servers, err := discovery.Discover(ctx)
 	c.Diagnostics.Record("connection.discovery", slog.String("provider", "plex"), slog.Int("servers", len(servers)), slog.Bool("failed", err != nil))
 	if err != nil {
-		return connection.Session{}, errors.Join(errDiscovery, err)
-	}
-	if interaction.ChooseServer == nil {
-		return connection.Session{}, errDiscovery
+		return nil, false, errors.Join(errDiscovery, err)
 	}
 	interaction.Show(connection.Presentation{Kind: connection.SetupServers, Title: "Choose a Plex server", Message: "Signed in as " + user.name() + ".", Recovered: recovered})
-	server, err := interaction.ChooseServer(ctx, servers)
-	if err != nil {
-		return connection.Session{}, err
-	}
+	return servers, recovered, nil
+}
+
+// connectSelected rechecks identity after confirmation and publishes the saved
+// address only after authenticated access and credential storage both succeed.
+func (c Connector) connectSelected(ctx context.Context, discovery *serverDiscovery, server connection.Server, recovered bool) (connection.Session, error) {
+	account := discovery.account
+	dir := StateDir(c.StateDir)
+	path := filepath.Join(dir, "server.json")
 	token, ok := discovery.grants[server]
 	if !ok {
 		return connection.Session{}, errDiscovery
@@ -91,7 +112,7 @@ func (c Connector) connectDiscovered(ctx context.Context, interaction connection
 	}
 	config := c.Config
 	config.Server, config.InsecureTLS = server.URL, false
-	session := serverstate.Session{Server: server.URL, ServerID: server.ID, DeviceID: saved.DeviceID, Token: token, UserID: account.Session.UserID}
+	session := serverstate.Session{Server: server.URL, ServerID: server.ID, DeviceID: account.Session.DeviceID, Token: token, UserID: account.Session.UserID}
 	client := NewClient(config, session)
 	client.Version, client.Diagnostics = c.Version, c.Diagnostics
 	if err := client.validate(ctx); err != nil {
@@ -110,7 +131,7 @@ func (c Connector) connectDiscovered(ctx context.Context, interaction connection
 }
 
 // connectRemembered validates the saved media-server token without requiring
-// plex.tv. Address recovery and automatic endpoint refresh are separate work.
+// plex.tv. A failed network or identity check triggers one recovery attempt.
 func (c Connector) connectRemembered(ctx context.Context, interaction connection.Interaction, server connection.Server) (connection.Session, error) {
 	interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Connecting to Plex", Message: "Opening the remembered server.", BackToServers: true})
 	saved, recovered, err := serverstate.LoadSession(discoveredSessionDir(StateDir(c.StateDir), server), server.URL)

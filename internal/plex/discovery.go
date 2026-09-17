@@ -26,6 +26,9 @@ type serverDiscovery struct {
 	account *Client
 	lan     connection.Discoverer
 	grants  map[connection.Server]string
+	// previous limits recovery to one identity, excludes its failed address,
+	// and preserves HTTPS. Nil permits ordinary account-wide selection.
+	previous *connection.Server
 }
 
 var _ connection.Discoverer = (*serverDiscovery)(nil)
@@ -84,6 +87,12 @@ func (d *serverDiscovery) Discover(ctx context.Context) ([]connection.Server, er
 		}
 		if !isServer || resource.Token == "" || resource.ID == "" || seen[resource.ID] {
 			continue
+		}
+		if d.previous != nil {
+			if resource.ID != d.previous.ID {
+				continue
+			}
+			resource.HTTPSRequired = resource.HTTPSRequired || strings.HasPrefix(d.previous.URL, "https://")
 		}
 		seen[resource.ID] = true
 		servers = append(servers, resource)
@@ -160,7 +169,7 @@ func (d *serverDiscovery) reachable(ctx context.Context, resource accountResourc
 	seen := make(map[string]bool)
 	for _, endpoint := range resource.Connections {
 		candidate := connection.Server{ID: resource.ID, Name: resource.Name, URL: strings.TrimRight(endpoint.URI, "/")}
-		if endpoint.Relay || seen[candidate.URL] || candidate.Validate() != nil {
+		if endpoint.Relay || seen[candidate.URL] || candidate.Validate() != nil || (d.previous != nil && candidate.URL == d.previous.URL) {
 			continue
 		}
 		seen[candidate.URL] = true
