@@ -30,8 +30,8 @@ MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% 
 | Show/hide controls | Any D-pad direction | Any arrow |
 | Seek backward/forward | LT / RT | J / L |
 | Previous/next music track | LB / RB | [ / ] or Page Up / Page Down |
-| Pause/resume | A | Enter or B |
-| Stop and return | B | Escape or A |
+| Pause/resume | B | Enter or B |
+| Stop and return | A | Escape or A |
 | Video options / music background | SELECT/View | Tab |
 
 [Input profiles](GO_INPUT.md) control hardware bindings and badge labels. Controls expire after three seconds. Pause/resume hides them. Menu toggles and track changes act once per press. Held seeks repeat after 350 ms, then every 250 ms. Video steps are 30 seconds and music steps are 10 seconds. Live TV does not seek. Shoulders have no action during video.

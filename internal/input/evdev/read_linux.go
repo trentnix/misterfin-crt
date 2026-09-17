@@ -91,10 +91,10 @@ func action(name string, kind, code uint16, value int32) control.Action {
 		return control.SeekBackward // Digital LT, J
 	case 313, 38:
 		return control.SeekForward // Digital RT, L
-	case 304, 28, 45, 48:
-		return control.Open // Xbox A (BTN_SOUTH), Enter, X, B
-	case 305, 1, 158, 14, 44, 30:
-		return control.Back // Xbox B (BTN_EAST), Escape, Back, Backspace, Z, A
+	case 305, 28, 45, 48:
+		return control.Open // Xbox B (BTN_EAST), Enter, X, B
+	case 304, 1, 158, 14, 44, 30:
+		return control.Back // Xbox A (BTN_SOUTH), Escape, Back, Backspace, Z, A
 	case 315, 59:
 		return control.About // BTN_START (Xbox Menu), F1
 	case 314, 15:

@@ -12,8 +12,6 @@ My goal is a great media experience on CRTs. I test and use MiSTerVision on a Mi
 
 ## Run on MiSTer
 
-The MiSTerVision release is not published yet. For now, [build from source](docs/GO_BUILD.md).
-
 For a new installation, download `mistervision-vX.Y.Z-mister.zip` from the [latest release](https://github.com/trentnix/mistervision/releases/latest). Extract the ZIP and copy these files to the SD card. Make the launcher and both binaries executable if your filesystem requires it. If upgrading an existing installation manually, exit the application first and keep your configuration and state files.
 
 | File | Destination |
