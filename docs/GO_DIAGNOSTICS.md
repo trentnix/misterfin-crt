@@ -7,7 +7,13 @@ Diagnostics records startup, requests, and playback milestones. It is off by def
 Add this section to `settings.json`, restart, reproduce the issue, then exit normally:
 
 ```json
-{"diagnostics": {"enabled": true, "path": "debug.log", "max_bytes": 1048576}}
+{
+  "diagnostics": {
+    "enabled": true,
+    "path": "debug.log",
+    "max_bytes": 1048576
+  }
+}
 ```
 
 Collect `debug.log` and `debug.log.1` before launching again. Each process clears its log pair at startup. Relative paths resolve beside the settings file. The standard MiSTer log is `/media/fat/mistervision/debug.log`. An absolute path can select other storage, including `/tmp`.
@@ -46,7 +52,7 @@ For slow startup, compare request timing, `stream-open`, `decoder-start`, and fi
 
 If picture or track choices disappear after restart, look for `playback.preferences-write` and check that the state directory is writable. A later save retries failed writes, and shutdown makes a final attempt. An unexpected sign-in prompt with `authentication.session-recovered` indicates [damaged saved sign-in](GO_CONFIGURATION.md#saved-sign-in-recovery). Do not share the backup file.
 
-Metadata/artwork timings include buffered body reads. `/media-stream` measures opening through response headers, not the whole stream. `/audio-stream` includes one proxy request through completion. GitHub release checks are outside the Jellyfin request log.
+Jellyfin metadata/artwork timings include buffered body reads. Its `/media-stream` event measures opening through response headers, not the whole stream. Its `/audio-stream` event includes one proxy request through completion. Plex labels ordinary API requests `/plex-request` and tune requests `/livetv/dvrs/:dvr/channels/:channel/tune`. Both omit private identifiers, and timing includes the buffered response body. GitHub release checks are outside the media-server request log.
 
 The MiSTer inventory reads numeric display settings from `/media/fat/MiSTer.ini`, preserving section identity. It does not resolve alternate INI files or prove active signal timing. Reads are bounded to 128 KiB and 64 setting events.
 
@@ -55,7 +61,12 @@ The MiSTer inventory reads numeric display settings from `/media/fat/MiSTer.ini`
 Handled invalid title, background, sound, and music settings record one event when recovery occurs. Missing custom assets also record their fallback. Intentional omissions, empty values, and disabled settings are not failures.
 
 ```json
-{"msg":"configuration.fallback","configuration":"ui","error_kind":"invalid","fallback":"default-title"}
+{
+  "msg": "configuration.fallback",
+  "configuration": "ui",
+  "error_kind": "invalid",
+  "fallback": "default-title"
+}
 ```
 
 Invalid diagnostics settings or file-open failures disable logging, write a short stderr message, and queue a settings notice. No alternate log file is opened. Malformed `settings.json` can stop startup before its diagnostics section is usable. Invalid command-line arguments use stderr. Preview commands do not enable logging.

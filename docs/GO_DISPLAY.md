@@ -13,12 +13,16 @@ Install the matching [Go client and MPlayer](GO_BUILD.md), then place [Interlace
 Set the `display` section in `settings.json`:
 
 ```json
-{"display": {"interlaced": true}}
+{
+  "display": {
+    "interlaced": true
+  }
+}
 ```
 
 Launch **MiSTerVision** from the normal Scripts menu using the main `MiSTer.ini`. The client verifies and loads the core, then restores the normal menu on exit. No replacement of `MiSTer`, `menu.rbf`, or the kernel is part of this setup. Zaparoo is not required.
 
-To return to progressive output, set `interlaced` to `false` or omit the section. Preserve other settings when editing. The same launcher supports both modes. Separate launchers such as **MiSTerVision-480i** simply select a different configuration directory.
+To return to progressive output, set `interlaced` to `false` or omit the section. Preserve other settings when editing. The same launcher supports both modes.
 
 ## Configuration changes and recovery
 
@@ -26,7 +30,9 @@ The application writes `Interlaced.mgl` beside `settings.json` and a marked `[Mi
 
 The scoped section inherits RGB/component and PAL/NTSC settings. RGB enables `direct_video` and `forced_scandoubler`. Component enables `direct_video` without forcing the scandoubler. These rules do not establish compatibility with every cable or DAC.
 
-The supervisor waits for the expected framebuffer, manages console modes, and pauses Main while the child owns hardware. It stops orphaned decoders, restores consoles, and resumes Main. The Scripts launcher reloads the menu after successful exit in either mode. The supervisor reloads the menu after a failure, before an update restart, or when run without the launcher. A display lock prevents two supervisors. SIGKILL of the supervisor bypasses cleanup and can require restarting MiSTer. [Supervisor logs](GO_DIAGNOSTICS.md) help diagnose failed handoffs.
+The supervisor waits for the expected framebuffer, manages console modes, and pauses Main while the child owns hardware. It stops orphaned decoders, restores consoles, and resumes Main. The Scripts launcher reloads the menu after successful exit in either mode. The supervisor reloads the menu after a failure, before an update restart, or when run without the launcher.
+
+A display lock prevents two supervisors. SIGKILL of the supervisor bypasses cleanup and can require restarting MiSTer. [Supervisor logs](GO_DIAGNOSTICS.md) help diagnose failed handoffs.
 
 Native output requires a kernel with working framebuffer mapping and VSync support. Early MiSTer Linux 6.18 builds omitted framebuffer callbacks and failed with `mmap framebuffer: No such device`. That failure requires the [kernel callback fix](https://github.com/MiSTer-devel/Linux-Kernel_MiSTer/commit/ea2212221ad137cf26bf5caa7ad3dab7216435a6), not an application setting.
 
@@ -36,7 +42,7 @@ The UI layout remains 640×240 or 640×288. Interlaced video uses all 640×480 o
 
 MPlayer prepares a back page before its presentation deadline, then submits the flip at that deadline. A kernel field counter prevents reuse while a flip is pending. Paused redraws use the same ownership rules. The loading indicator clears on the first presented frame, not while a frame is merely being prepared.
 
-For 480i Live TV, Jellyfin conversion is capped at 30000/1001 fps. Progressive NTSC uses 30 fps and PAL uses 25 fps. Slower sources are not forced to those rates. The player retains audio-clock correction and does not force playback speed. Interlaced output does not recover source fields lost during conversion or add 50/60 fps transcoding. Film-rate material can retain normal 3:2 cadence, and thin detail can show interline flicker.
+For 480i Live TV, Jellyfin and Plex conversion is capped at 30000/1001 fps. Progressive NTSC uses 30 fps and PAL uses 25 fps. Slower sources are not forced to those rates. The player retains audio-clock correction and does not force playback speed. Interlaced output does not recover source fields lost during conversion or add 50/60 fps transcoding. Film-rate material can retain normal 3:2 cadence, and thin detail can show interline flicker.
 
 ## Tested scope
 
@@ -44,4 +50,4 @@ I test 240p and 480i on a consumer 4:3 CRT, using a MiSTer configured for RGB th
 
 Generated patterns and matched media comparisons found no sustained decoder drops after the timing fixes. Field-counter measurements describe presentation requests, not light emitted by the CRT. Perceived judder still depends on source cadence and display mode. Preserve the current timing unless a reproducible case supports a change.
 
-PAL/576i and direct YPbPr validation remain deferred because suitable hardware is unavailable. Zaparoo DDR integration is also deferred. The original C project's reports for SCART, professional monitors, VGA, and HDMI do not establish support in this client.
+Someone with suitable hardware will need to validate PAL 288p/576i and direct MiSTer YPbPr output. I do not have that hardware. Zaparoo DDR integration is not implemented. The original C project's reports for SCART, professional monitors, VGA, and HDMI do not establish support in this client.

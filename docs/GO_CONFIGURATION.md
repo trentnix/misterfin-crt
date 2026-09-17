@@ -1,6 +1,6 @@
 # Configuration
 
-Connection and application options belong in `settings.json`, normally under `/media/fat/mistervision`. Restart after changing JSON settings. Legacy Jellyfin Setup Retry still reloads `jellyfin.conf` when no `server` section exists.
+Connection and application options belong in `settings.json`, normally under `/media/fat/mistervision`. Restart after changing JSON settings. If no `server` section exists, Retry on the setup screen reloads legacy `jellyfin.conf`.
 
 ## Server connection
 
@@ -56,9 +56,18 @@ Copy [settings.example.json](../settings.example.json), or include only the sect
 
 ```json
 {
-  "ui": {"title": "MiSTerVision", "navigation_sounds": {"enabled": false}},
-  "background": {"image": "background.png"},
-  "display": {"interlaced": false}
+  "ui": {
+    "title": "MiSTerVision",
+    "navigation_sounds": {
+      "enabled": false
+    }
+  },
+  "background": {
+    "image": "background.png"
+  },
+  "display": {
+    "interlaced": false
+  }
 }
 ```
 
@@ -76,7 +85,9 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 | [`music_visuals`](GO_MUSIC.md) | Starfield, stereo meters enabled. | Invalid settings disable backgrounds. Missing custom assets leave music playable. |
 | [`diagnostics`](GO_DIAGNOSTICS.md) | Off. Legacy `DEBUGLOG` applies only without `server`. `debug.log`, 1 MiB per file. | Disable logging and report the failure. |
 
-Title, carousel option, and sound failures recover independently. An invalid entire `ui` object restores the title, enables nonempty collections and playlists, and disables sounds. Notices display for four seconds once browsing is ready. Quick Connect does not consume their display time. Enabled diagnostics records handled failures as `configuration.fallback`. Intentional defaults do not produce failure events. Recovery never rewrites settings.
+Title, carousel option, and sound failures recover independently. An invalid entire `ui` object restores the title, enables nonempty collections and playlists, and disables sounds.
+
+Notices display for four seconds once browsing is ready. Quick Connect does not consume their display time. Enabled diagnostics records handled failures as `configuration.fallback`. Intentional defaults do not produce failure events. Recovery never rewrites settings.
 
 The file must be one JSON object, at most 256 KiB, with known sections. `input` and `music_visuals` allow 64 KiB each. Other sections allow 4 KiB each, excluding formatting whitespace. A malformed document, unknown top-level section, unreadable file, or missing explicit settings file stops startup because display and input intent cannot be recovered safely.
 
@@ -115,7 +126,9 @@ Only visible browsing actions produce cues. Boundaries, redraws, and media contr
 
 ## Paths and precedence
 
-The executable accepts `-settings PATH`. `MISTERVISION_SETTINGS` supplies its default. The harness accepts `--settings PATH`. Flags override the environment. Relative image, music-asset, and log paths resolve beside the file that supplied them. The interlaced core lives beside `settings.json`.
+The executable accepts `-settings PATH`. `MISTERVISION_SETTINGS` supplies its default. The harness accepts `--settings PATH`. Flags override the environment. Without either override, settings load beside the `-config` path, which defaults to `jellyfin.conf` in the working directory.
+
+Relative image, music-asset, and log paths resolve beside the file that supplied them. The interlaced core lives beside `settings.json`.
 
 When `settings.json` exists, omitted application sections use defaults rather than legacy JSON files. The absent `server` section is the compatibility exception: it permits `jellyfin.conf`. Legacy `-input-config`, `-sound-config`, `MISTERVISION_INPUT_CONFIG`, `MISTERVISION_SOUND_CONFIG`, and `MISTERVISION_MUSIC_CONFIG` overrides still replace their sections. Remove those overrides when adopting the shared file.
 
@@ -129,10 +142,14 @@ If the default `settings.json` is absent, the client reads legacy `ui.json`, `ba
 /media/fat/mistervision/mistervision -migrate-settings -config /media/fat/mistervision/jellyfin.conf
 ```
 
-Use the configuration path of the installation being migrated. Separate 480i test installations can have their configuration under `interlaced-test`. Migration preserves originals and relative asset paths. If `settings.json` already exists without `server`, migration first saves its exact bytes in a private `settings.json.before-server` backup, then adds connection settings atomically. Explicit `diagnostics.enabled` wins over legacy `DEBUGLOG`. Existing server sections, backups, and files edited after loading cause migration to stop. Invalid connection settings fail before writing. Migration opens no display and contacts no server. Archive old configuration and any credential-bearing backup after verifying the new settings.
+Use the configuration path of the installation being migrated. Migration preserves originals and relative asset paths. If `settings.json` already exists without `server`, migration first saves its exact bytes in a private `settings.json.before-server` backup, then adds connection settings atomically.
+
+Explicit `diagnostics.enabled` wins over legacy `DEBUGLOG`. Existing server sections, backups, and files edited after loading cause migration to stop. Invalid connection settings fail before writing. Migration opens no display and contacts no server. Archive old configuration and any credential-bearing backup after verifying the new settings.
 
 Saved sign-in, playback preferences, and caches are application state and remain separate. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.
 
 ## Saved sign-in recovery
 
-If `session.json` in the selected [state directory](GO_BROWSING.md#setup-and-sign-in) is malformed or exceeds 64 KiB, the client preserves the original as `session-damaged-*` in that directory and starts a fresh sign-in. Quick Connect or the connected notice explains the recovery. Storage permission and read errors preserve the original file and show a setup error. Valid credentials survive temporary server failures. Backups request owner-only permissions where supported, contain private sign-in data, and must not be shared.
+Jellyfin uses `session.json` in the selected [state directory](GO_BROWSING.md#setup-and-sign-in). Plex uses `plex/session.json`. If either file is malformed or exceeds 64 KiB, the client preserves it as `session-damaged-*` beside the original and starts a fresh sign-in. A notice explains the recovery.
+
+Storage permission and read errors preserve the original file and show a setup error. Valid credentials survive temporary server failures. Backups request owner-only permissions where supported, contain private sign-in data, and must not be shared.

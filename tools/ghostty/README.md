@@ -8,15 +8,9 @@ Use Linux, Go 1.26.8 or later, a C compiler, and Python 3. Playback dependencies
 python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
-Use `--pal` for the 640x288 layout. PAL is the default. The helper builds the host binary before launch. Pass `--no-build` to use the existing binary.
+Use `--pal` for the 640x288 layout, which is the default. The terminal preview does not validate PAL signal timing on a CRT. The helper builds the host binary before launch. Pass `--no-build` to use the existing binary.
 
 ## Browsing
-
-To browse the local demo, run:
-
-```bash
-python3 tools/ghostty/ghostty_harness.py --demo --ntsc
-```
 
 The demo starts a temporary mock Jellyfin server on loopback. It includes more than 500 movies, TV shows, music, Live TV channels, Home Videos, and a Mixed library. Configuration and session files stay in a temporary directory and are removed on exit. No real server or credentials are needed.
 
@@ -30,7 +24,7 @@ Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex
 
 Legacy Jellyfin configurations still work with `--config jellyfin.conf`. Application options default to `settings.json` beside that file. `--settings PATH` overrides `MISTERVISION_SETTINGS`. See [configuration](../../docs/GO_CONFIGURATION.md).
 
-Go browser controls:
+Keyboard controls:
 
 - Up and Down select an item.
 - B, Enter, or X opens a library, folder, or item summary. On a video details screen, B starts or resumes playback.
@@ -43,21 +37,19 @@ Go browser controls:
 - R retries a failed request or sign-in.
 - Q or Ctrl+C exits.
 
-Use `--pal` for PAL. The Go browser draws lists, artwork, and item summaries. The Go client also supports video, music, and photos. See the playback guide for controls and remaining limits. The preview works without MiSTer hardware.
-
-To view the original Go test frame, run:
+To view a framebuffer test without a server, run:
 
 ```bash
 python3 tools/ghostty/ghostty_harness.py --go --ntsc
 ```
 
-Use `--go --pal` for PAL. The test frame displays color bars, a grayscale ramp, and a white border. Press Ctrl+C to exit. It needs no Jellyfin configuration and uses the same C framebuffer adapter as the browser, with allocated headless memory in place of `/dev/fb0`.
+Use `--go --pal` for the 640x288 test frame. The test frame displays color bars, a grayscale ramp, and a white border. Press Ctrl+C to exit. It needs no server configuration and uses the same C framebuffer adapter as the browser, with allocated headless memory in place of `/dev/fb0`.
 
 Without `--browse` or `--demo`, the helper shows the Go test frame. The `--go` flag remains accepted for existing commands.
 
 The helper writes MiSTerVision's stdout and stderr to `/tmp/mistervision-ghostty.log` so terminal output cannot corrupt the image. Pass `--log PATH` to choose another location.
 
-The artwork cache defaults to `/tmp/mistervision-cache`. Carousel collages use its `mistervision/gridcache` directory. Covers, backdrops, and logos use `mistervision/covercache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERVISION_CACHE_ROOT` before launching the helper to use persistent storage. See [the Go collage cache](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
+The artwork cache defaults to `/tmp/mistervision-cache`. Carousel collages use its `mistervision/gridcache` directory. Covers, backdrops, and logos use `mistervision/covercache`. Both survive application restarts, but `/tmp` does not survive reboot. Set `MISTERVISION_CACHE_ROOT` before launching the helper to use persistent storage. See [collage caching](../../docs/GO_BROWSING.md#persistent-collage-cache) for freshness checks and limits.
 
 Ghostty must report `TERM=xterm-ghostty`. The `--force` option permits another terminal that implements the Kitty graphics protocol.
 
@@ -75,4 +67,6 @@ Run the helper tests with:
 python3 -m unittest tools/ghostty/test_ghostty_harness.py
 ```
 
-Run browser integration tests with `make test-browse`. Each test in [test_go_browse.py](test_go_browse.py) explicitly starts a [Scenario](fixtures/browser.py) with its settings, mock-server behavior, and simulated player. Ordinary tests write `settings.json` directly. One explicit scenario checks legacy files. The standalone player programs in [fixtures](fixtures/) publish controlled frames and playback feedback without opening a media decoder or audio device. These tests need the Go host build and loopback networking, but do not need Ghostty or a Jellyfin server. Before sending input that depends on loaded data, wait for the corresponding `browser.page` or `browser.home` diagnostic event. A completed HTTP response alone does not mean the browser has applied the result.
+Run browser integration tests with `make test-browse`. Each test in [test_go_browse.py](test_go_browse.py) explicitly starts a [Scenario](fixtures/browser.py) with its settings, mock-server behavior, and simulated player. Ordinary tests write `settings.json` directly. One explicit scenario checks legacy files. The standalone player programs in [fixtures](fixtures/) publish controlled frames and playback feedback without opening a media decoder or audio device.
+
+These tests need the Go host build and loopback networking, but do not need Ghostty or a media server. Before sending input that depends on loaded data, wait for the corresponding `browser.page` or `browser.home` diagnostic event. A completed HTTP response alone does not mean the browser has applied the result.
