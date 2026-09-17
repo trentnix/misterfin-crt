@@ -82,7 +82,7 @@ func CoreConfig(data []byte) ([]byte, error) {
 	if component {
 		scandoubler = 0
 	}
-	block := fmt.Sprintf("%s\n[%s]\ndirect_video=1\nforced_scandoubler=%d\nfb_size=1\nfb_terminal=1\n%s\n", blockStart, coreName, scandoubler, blockEnd)
+	block := fmt.Sprintf("%s\n[%s]\ndirect_video=1\nforced_scandoubler=%d\nfb_size=1\nfb_terminal=1\nlog_file_entry=1\n%s\n", blockStart, coreName, scandoubler, blockEnd)
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}

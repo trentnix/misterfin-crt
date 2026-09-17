@@ -27,6 +27,10 @@ func TestCoreConfigPreservesOtherModes(t *testing.T) {
 			if !strings.Contains(string(got), "[MiSTerFinInterlaced]\ndirect_video=1\n"+tc.want) {
 				t.Fatalf("wrong mode block: %s", got)
 			}
+			managed := string(got[len(original):])
+			if !strings.Contains(managed, "\nlog_file_entry=1\n") {
+				t.Fatal("interlaced core does not publish menu readiness")
+			}
 			again, err := CoreConfig(got)
 			if err != nil {
 				t.Fatal(err)

@@ -123,6 +123,8 @@ Each process gets its own feedback writer. MPlayer and Python share the ANS pars
 
 The [MPlayer build](GO_BUILD.md#mplayer) is part of the implementation boundary, not an interchangeable stock binary. Its source and patches live under [`docker`](../docker). `vf_misterfin.c` owns fitting, centered zoom, and retained frames. `vo_fbdev.c` with patches owns composition and scanout. [`video_player.py`](../tools/ghostty/video_player.py) provides the Python/libmpv implementation for desktop testing.
 
+The 480i supervisor clears both consoles and registers its temporary keyboard before loading the interlaced core. The core-specific `log_file_entry=1` setting supplies Main’s menu-ready marker, allowing F9 to activate console output without a missed key and retry delay. The supervisor waits for Main to select VT1 before taking exclusive hardware access and removes the keyboard before application input starts. The CRT still resynchronizes during the core switch. The browser’s shared connection screen supplies the logo and progress indicator.
+
 Keep the launcher's two-core CPU affinity. Preserve MPlayer's dropped-frame timestamp correction, audio-clock policy, and paused-redraw command. Resized interlaced video scales in planar YUV before ARM color conversion. The ARM conversion patch reports converted row counts correctly. These fixes address reproduced frame loss, blank video, or drift and require hardware regression checks when changed.
 
 ## Artwork, settings, and sound

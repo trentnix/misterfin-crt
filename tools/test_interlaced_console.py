@@ -16,7 +16,7 @@ class InterlacedConsoleTest(unittest.TestCase):
 #include <assert.h>
 #include <stdarg.h>
 static int active = 2, modes[2] = {KD_TEXT, KD_GRAPHICS};
-static int key_writes, destroyed, acknowledged, never_ready, short_write;
+static int key_writes, destroyed, acknowledged, never_ready, short_write, create_failure;
 static int mock_open(const char *path, int flags, ...) {
     if (!strcmp(path, "/dev/tty1")) return 10;
     if (!strcmp(path, "/dev/tty2")) return 11;
@@ -35,6 +35,12 @@ static int mock_ioctl(int fd, unsigned long request, ...) {
         int target = va_arg(args, int);
         // A graphics console blocks the switch that Main waits to complete.
         if (modes[active - 1] == KD_TEXT) active = target;
+    } else if (request == UI_DEV_CREATE && create_failure) {
+        va_end(args);
+        errno = EIO;
+        return -1;
+    } else if (request == UI_SET_KEYBIT) {
+        assert(va_arg(args, int) != KEY_F12);
     } else if (request == UI_DEV_DESTROY) destroyed++;
     va_end(args);
     return 0;
@@ -44,8 +50,9 @@ static ssize_t mock_write(int fd, const void *data, size_t size) {
     if (short_write) { errno = 0; return size - 1; }
     const struct input_event *event = data;
     key_writes++;
-    // Drop the entire first F12/F9 sequence, as if Main discovered input late.
-    if (key_writes > 4 && !never_ready && event->code == KEY_F9 && event->value) {
+    assert(event->code == KEY_F9);
+    // Drop the first F9 press, as if Main discovered input late.
+    if (key_writes > 2 && !never_ready && event->code == KEY_F9 && event->value) {
         assert(modes[active - 1] == KD_TEXT);
         active = 1;
         acknowledged++;
@@ -59,25 +66,39 @@ static ssize_t mock_write(int fd, const void *data, size_t size) {
 #define usleep mock_usleep
 ''' + "static int console_fds" + implementation + r'''
 int main(void) {
+    assert(console_prepare() == 0);
+    // Preparation must not toggle the menu or change the active console.
+    assert(active == 2 && key_writes == 0 && keyboard_created);
     assert(console_enable() == 0);
-    assert(active == 1 && acknowledged == 1 && key_writes == 8);
+    assert(active == 1 && acknowledged == 1 && key_writes == 4);
     assert(destroyed == 1 && modes[0] == KD_TEXT && modes[1] == KD_TEXT);
     // Simulate a child crash while the visible console is still in graphics.
     modes[0] = KD_GRAPHICS;
     assert(console_restore() == 0);
     assert(active == 2 && modes[0] == KD_TEXT && modes[1] == KD_GRAPHICS);
     assert(console_restore() == 0);
+    assert(destroyed == 1 && keyboard_fd == -1);
 
     never_ready = 1;
     key_writes = 0;
+    assert(console_prepare() == 0);
     assert(console_enable() == ETIMEDOUT);
-    assert(key_writes == 24 && destroyed == 2);
+    assert(key_writes == 12 && destroyed == 1);
     assert(console_restore() == 0);
     assert(active == 2 && modes[0] == KD_TEXT && modes[1] == KD_GRAPHICS);
 
     short_write = 1;
+    assert(console_prepare() == 0);
     assert(console_enable() == EIO);
     assert(console_restore() == 0);
+    assert(active == 2 && modes[0] == KD_TEXT && modes[1] == KD_GRAPHICS);
+    assert(destroyed == 3);
+
+    // Failed device registration still restores both saved console modes.
+    create_failure = 1;
+    assert(console_prepare() == EIO);
+    assert(console_restore() == 0);
+    assert(destroyed == 3 && keyboard_fd == -1);
     assert(active == 2 && modes[0] == KD_TEXT && modes[1] == KD_GRAPHICS);
     return 0;
 }
