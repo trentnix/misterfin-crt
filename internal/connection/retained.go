@@ -28,7 +28,7 @@ func (c *Retained) Connect(ctx context.Context, i Interaction) (Session, error) 
 	if err := ctx.Err(); err != nil {
 		return Session{}, err
 	}
-	if i.SelectServer || i.Reauthenticate {
+	if i.SelectServer || i.Reauthenticate || i.NewAccount {
 		c.session = Session{}
 	}
 	session := c.session

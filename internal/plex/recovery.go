@@ -17,7 +17,7 @@ func (c Connector) recoverDiscovered(ctx context.Context, interaction connection
 	interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Finding your Plex server", Message: "The saved address is unavailable.\nChecking for a new address.", BackToServers: true})
 	retry := *discovery
 	retry.previous = &old
-	servers, recovered, err := c.discoverServers(ctx, interaction, &retry)
+	servers, presentation, err := c.discoverServers(ctx, interaction, &retry)
 	c.Diagnostics.Record("connection.rediscovery", slog.String("provider", "plex"), slog.Int("servers", len(servers)), slog.Bool("failed", err != nil))
 	if ctx.Err() != nil {
 		return connection.Session{}, ctx.Err()
@@ -28,12 +28,12 @@ func (c Connector) recoverDiscovered(ctx context.Context, interaction connection
 	if len(servers) == 0 || interaction.ChooseServer == nil {
 		return connection.Session{}, errRecovery
 	}
-	interaction.Show(connection.Presentation{Kind: connection.SetupServers, Title: "Server address changed", Message: "Same server found at a new address.\nSelect to reconnect, or go back.", Recovered: recovered})
+	interaction.Show(connection.Presentation{Kind: connection.SetupServers, Title: "Server address changed", Message: "Same server found at a new address.\nSelect to reconnect, or go back.", Recovered: presentation.Recovered})
 	selected, err := interaction.ChooseServer(ctx, servers)
 	if err != nil {
 		return connection.Session{}, err
 	}
-	result, err := c.connectSelected(ctx, &retry, selected, recovered)
+	result, err := c.connectSelected(ctx, &retry, selected, presentation.Recovered)
 	if err != nil {
 		return connection.Session{}, err
 	}

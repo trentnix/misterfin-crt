@@ -14,7 +14,7 @@ func (p *screenPainter) setup() {
 	s, c := p.scene.Setup, p.canvas
 	hints := []controlHint{}
 	if s.Kind == SetupServers {
-		if len(s.Servers) > 1 {
+		if s.ChoiceCount() > 1 {
 			hints = append(hints, pairedHint(p.scene.Controls, control.Up, control.Down, "Choose"))
 		}
 		hints = append(hints, hint(p.scene.Controls, control.Open, "Select"), hint(p.scene.Controls, control.Select, "Scan again"))

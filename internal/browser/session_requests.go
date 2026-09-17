@@ -87,6 +87,7 @@ func (s *browserSession) handleAuth(r authResult) bool {
 	if r.err != nil {
 		s.setup = s.setupPresentation(r.err)
 	} else {
+		s.connection.newAccount = false
 		s.client = r.connection.client
 		s.controlSource = r.connection.remote
 		s.includeCurrentConnection()

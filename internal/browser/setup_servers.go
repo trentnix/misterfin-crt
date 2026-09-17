@@ -10,7 +10,7 @@ import (
 type serverChoicesResult struct {
 	generation int
 	servers    []connection.Server
-	choice     chan connection.Server
+	choice     chan serverChoice
 }
 
 func (r serverChoicesResult) apply(s *browserSession) bool {
@@ -28,6 +28,7 @@ func (r serverChoicesResult) apply(s *browserSession) bool {
 // handleSetupKey keeps navigation on the event loop while connection work waits.
 func (s *browserSession) handleSetupKey(key control.Action) bool {
 	if key == control.Back {
+		s.connection.newAccount = false
 		if s.setup.BackToServers {
 			s.setup.BackToServers = false
 			s.connection.selectServer = true
@@ -51,18 +52,30 @@ func (s *browserSession) handleSetupKey(key control.Action) bool {
 		case control.Up:
 			s.setup.Selected = max(0, s.setup.Selected-1)
 		case control.Down:
-			s.setup.Selected = max(0, min(len(s.setup.Servers)-1, s.setup.Selected+1))
+			s.setup.Selected = max(0, min(s.setup.ChoiceCount()-1, s.setup.Selected+1))
 		case control.Open:
-			if s.connection.choice != nil && len(s.setup.Servers) > 0 {
-				s.connection.choice <- s.setup.Servers[s.setup.Selected]
+			if s.connection.choice != nil && s.setup.SignIn != "" && s.setup.Selected == len(s.setup.Servers) {
+				s.connection.newAccount = true
+				s.connection.selectServer = true
+				s.setup.BackToServers = true
+				s.authenticate()
+			} else if s.connection.choice != nil && s.setup.Selected >= 0 && s.setup.Selected < len(s.setup.Servers) {
+				s.connection.choice <- serverChoice{server: s.setup.Servers[s.setup.Selected]}
 				s.connection.choice = nil
 				s.connection.selectServer = false
 				s.setup = s.setupPresentation(nil)
 				s.setup.BackToServers = true
 			}
 		case control.Retry, control.Select:
-			s.connection.selectServer = true
-			s.authenticate()
+			if s.setup.SignIn != "" {
+				if s.connection.choice != nil {
+					s.connection.choice <- serverChoice{err: connection.ErrRescan}
+					s.connection.choice = nil
+				}
+			} else {
+				s.connection.selectServer = true
+				s.authenticate()
+			}
 		}
 	} else if (key == control.Retry || key == control.Open) && s.setup.RetryLabel() != "" {
 		s.authenticate()

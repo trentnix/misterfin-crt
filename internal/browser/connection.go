@@ -18,6 +18,12 @@ type authenticatedConnection struct {
 	recovered bool
 }
 
+// serverChoice carries a selected server or an explicit rescan request.
+type serverChoice struct {
+	server connection.Server
+	err    error
+}
+
 // connectionManager serializes connector attempts and owns their cancellation.
 // Successful attempts assemble account-scoped loaders. Only the browser loop
 // calls its methods.
@@ -27,8 +33,9 @@ type connectionManager struct {
 	cancel         context.CancelFunc
 	generation     int
 	reauthenticate bool
+	newAccount     bool // Retained while requesting another approval code.
 	selectServer   bool // Keep discovery active across retries until a server is chosen.
-	choice         chan connection.Server
+	choice         chan serverChoice
 	done           <-chan struct{} // Closes after this attempt and all preceding attempts exit.
 }
 
@@ -47,6 +54,7 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 	work, cancel := context.WithCancel(ctx)
 	m.cancel = cancel
 	config, width, height, selectServer, reauthenticate := m.config, m.width, m.height, m.selectServer, m.reauthenticate
+	newAccount := m.newAccount
 	previous := m.done
 	done := make(chan struct{})
 	m.done = done
@@ -65,16 +73,17 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 		} else {
 			session, err = config.Connector.Connect(work, connection.Interaction{
 				SelectServer:   selectServer,
+				NewAccount:     newAccount,
 				Reauthenticate: reauthenticate,
 				Progress: func(p connection.Presentation) {
 					send(work, authCodeResult{generation: generation, presentation: p})
 				},
 				ChooseServer: func(ctx context.Context, servers []connection.Server) (connection.Server, error) {
-					choice := make(chan connection.Server, 1)
+					choice := make(chan serverChoice, 1)
 					send(ctx, serverChoicesResult{generation: generation, servers: append([]connection.Server(nil), servers...), choice: choice})
 					select {
-					case server := <-choice:
-						return server, nil
+					case selected := <-choice:
+						return selected.server, selected.err
 					case <-ctx.Done():
 						return connection.Server{}, ctx.Err()
 					}

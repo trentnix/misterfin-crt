@@ -25,6 +25,8 @@ type discoveryFixture struct {
 	rejectAccount                      atomic.Bool
 	failAccount                        atomic.Bool
 	denyMedia                          atomic.Bool
+	newAccount                         atomic.Bool
+	noServers                          atomic.Bool
 }
 
 func newDiscoveryFixture(t *testing.T, linked bool) *discoveryFixture {
@@ -39,7 +41,7 @@ func newDiscoveryFixture(t *testing.T, linked bool) *discoveryFixture {
 			fmt.Fprint(w, `{"MediaContainer":{"machineIdentifier":"server-id"}}`)
 		case "/library/sections":
 			f.mediaCalls.Add(1)
-			if r.Header.Get("X-Plex-Token") != "server-token" {
+			if token := r.Header.Get("X-Plex-Token"); token != "server-token" && token != "new-server-token" {
 				t.Error("media received account token or wrong grant")
 				w.WriteHeader(401)
 				return
@@ -67,10 +69,18 @@ func newDiscoveryFixture(t *testing.T, linked bool) *discoveryFixture {
 			f.pinCalls.Add(1)
 			fmt.Fprint(w, `{"id":2,"code":"ABCD","expiresIn":30}`)
 		case "/api/v2/pins/2":
-			fmt.Fprint(w, `{"id":2,"code":"ABCD","expiresIn":30,"authToken":"account-token"}`)
+			token := "account-token"
+			if f.newAccount.Load() {
+				token = "new-account-token"
+			}
+			fmt.Fprintf(w, `{"id":2,"code":"ABCD","expiresIn":30,"authToken":%q}`, token)
 		case "/api/v2/user":
 			if f.rejectAccount.Load() && r.Header.Get("X-Plex-Token") == "expired" {
 				w.WriteHeader(401)
+				return
+			}
+			if r.Header.Get("X-Plex-Token") == "new-account-token" {
+				fmt.Fprint(w, `{"id":8,"friendlyName":"Another Viewer"}`)
 				return
 			}
 			if r.Header.Get("X-Plex-Token") != "account-token" {
@@ -78,10 +88,17 @@ func newDiscoveryFixture(t *testing.T, linked bool) *discoveryFixture {
 			}
 			fmt.Fprint(w, `{"id":7,"username":"tester","friendlyName":"Test Viewer"}`)
 		case "/api/v2/resources":
-			if r.Header.Get("X-Plex-Token") != "account-token" {
+			token := "server-token"
+			if r.Header.Get("X-Plex-Token") == "new-account-token" {
+				token = "new-server-token"
+			} else if r.Header.Get("X-Plex-Token") != "account-token" {
 				t.Error("wrong resource credential")
 			}
-			json.NewEncoder(w).Encode([]accountResource{{Name: f.server.Name, ID: f.server.ID, Provides: "server", Token: "server-token", Connections: []resourceConnection{{URI: f.server.URL, Local: true}}}})
+			if f.noServers.Load() {
+				fmt.Fprint(w, `[]`)
+				return
+			}
+			json.NewEncoder(w).Encode([]accountResource{{Name: f.server.Name, ID: f.server.ID, Provides: "server", Token: token, Connections: []resourceConnection{{URI: f.server.URL, Local: true}}}})
 		default:
 			t.Error("unexpected account request")
 			w.WriteHeader(404)
@@ -149,7 +166,7 @@ func TestPlexSelectionCancellationAndFailurePreserveWorkingChoice(t *testing.T) 
 				t.Fatal(err)
 			}
 			dir := StateDir(f.connector.StateDir)
-			paths := []string{filepath.Join(dir, "server.json"), filepath.Join(discoveredSessionDir(dir, f.server), "session.json")}
+			paths := []string{filepath.Join(dir, "server.json")}
 			before := make([][]byte, len(paths))
 			for i, path := range paths {
 				before[i], _ = os.ReadFile(path)
@@ -226,8 +243,10 @@ func TestFailedSelectionSavePreservesPreviousServerCredentials(t *testing.T) {
 	dir := StateDir(f.connector.StateDir)
 	path := filepath.Join(dir, "server.json")
 	selection, _ := os.ReadFile(path)
-	credentials := filepath.Join(discoveredSessionDir(dir, f.server), "session.json")
-	before, _ := os.ReadFile(credentials)
+	before, err := loadDiscoveryState(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/identity" {
 			fmt.Fprint(w, `{"MediaContainer":{"machineIdentifier":"server-id"}}`)
@@ -237,7 +256,8 @@ func TestFailedSelectionSavePreservesPreviousServerCredentials(t *testing.T) {
 	}))
 	defer other.Close()
 	f.server.URL = other.URL
-	_, err = f.connector.connectDiscovered(t.Context(), connection.Interaction{SelectServer: true, ChooseServer: func(ctx context.Context, servers []connection.Server) (connection.Server, error) {
+	f.newAccount.Store(true)
+	_, err = f.connector.connectDiscovered(t.Context(), connection.Interaction{NewAccount: true, ChooseServer: func(ctx context.Context, servers []connection.Server) (connection.Server, error) {
 		// Make atomic publication fail after the new server authenticates.
 		if err := os.Remove(path); err != nil {
 			t.Fatal(err)
@@ -250,17 +270,145 @@ func TestFailedSelectionSavePreservesPreviousServerCredentials(t *testing.T) {
 	if !errors.Is(err, ErrSessionSave) {
 		t.Fatalf("save failure lost: %v", err)
 	}
-	after, _ := os.ReadFile(credentials)
-	if string(before) != string(after) {
-		t.Fatal("failed selection replaced previous credentials")
-	}
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, selection, 0600); err != nil {
 		t.Fatal(err)
 	}
+	after, err := loadDiscoveryState(dir)
+	if err != nil || *before.Account != *after.Account || *before.Credentials != *after.Credentials {
+		t.Fatal("failed selection changed saved credentials")
+	}
 	if _, err := f.connector.connectDiscovered(t.Context(), connection.Interaction{}, &serverDiscovery{account: f.account}); err != nil {
 		t.Fatalf("previous connection could not reopen: %v", err)
+	}
+}
+
+// TestPlexAccountReplacement exercises a different user on the same server.
+// Approval and rescanning must not commit that identity before selection succeeds.
+func TestPlexAccountReplacement(t *testing.T) {
+	for _, outcome := range []string{"success", "cancel code", "cancel selection", "access denied"} {
+		t.Run(outcome, func(t *testing.T) {
+			f := newDiscoveryFixture(t, true)
+			old, err := f.connector.connectDiscovered(t.Context(), connection.Interaction{ChooseServer: chooseFirst}, &serverDiscovery{account: f.account})
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(StateDir(f.connector.StateDir), "server.json")
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.newAccount.Store(true)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			choices, codes := 0, 0
+			result, err := f.connector.connectDiscovered(ctx, connection.Interaction{
+				NewAccount: true,
+				Progress: func(p connection.Presentation) {
+					if p.Kind == connection.SetupApproval {
+						codes++
+						if !p.BackToServers {
+							t.Error("new sign-in cannot return to saved picker")
+						}
+						if outcome == "cancel code" {
+							cancel()
+						}
+					}
+					if p.Kind == connection.SetupServers && (!strings.Contains(p.Message, "Another Viewer") || p.SignIn == "") {
+						t.Error("picker lost replacement account or sign-in action")
+					}
+				},
+				ChooseServer: func(ctx context.Context, servers []connection.Server) (connection.Server, error) {
+					choices++
+					after, e := os.ReadFile(path)
+					if e != nil || string(after) != string(before) {
+						t.Fatal("approval replaced saved account before selection")
+					}
+					if choices == 1 {
+						return connection.Server{}, connection.ErrRescan
+					}
+					if outcome == "cancel selection" {
+						return connection.Server{}, context.Canceled
+					}
+					if outcome == "access denied" {
+						f.denyMedia.Store(true)
+					}
+					return chooseFirst(ctx, servers)
+				},
+			}, &serverDiscovery{account: f.account})
+			if codes != 1 || f.pinCalls.Load() != 1 {
+				t.Fatal("rescan relinked the account")
+			}
+			if outcome == "success" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				client := result.Server.(*Client)
+				if client.Identity() == old.Server.Identity() || client.Session.UserID != "8" || client.Session.Token != "new-server-token" {
+					t.Fatal("replacement did not change playback identity and grant")
+				}
+				state, e := loadDiscoveryState(filepath.Dir(path))
+				if e != nil || state.Account.Token != "new-account-token" || state.Credentials.Token != "new-server-token" {
+					t.Fatal("account and grant were not committed together")
+				}
+			} else {
+				if err == nil {
+					t.Fatal("canceled or failed replacement succeeded")
+				}
+				after, e := os.ReadFile(path)
+				if e != nil || string(after) != string(before) {
+					t.Fatal("replacement damaged working state")
+				}
+			}
+			f.denyMedia.Store(false)
+			f.failAccount.Store(true)
+			reopened, e := f.connector.Connect(t.Context(), connection.Interaction{})
+			if e != nil {
+				t.Fatal(e)
+			}
+			want := old.Server.Identity()
+			if outcome == "success" {
+				want = result.Server.Identity()
+			}
+			if reopened.Server.Identity() != want {
+				t.Fatal("reopen used the wrong account")
+			}
+		})
+	}
+}
+
+func TestPlexEmptyAccountCanRescanOrSignIn(t *testing.T) {
+	f := newDiscoveryFixture(t, true)
+	f.noServers.Store(true)
+	choices := 0
+	var presentation connection.Presentation
+	_, err := f.connector.connectDiscovered(t.Context(), connection.Interaction{
+		Progress: func(p connection.Presentation) {
+			if p.Kind == connection.SetupServers {
+				presentation = p
+			}
+		},
+		ChooseServer: func(ctx context.Context, servers []connection.Server) (connection.Server, error) {
+			choices++
+			if presentation.SignIn == "" {
+				t.Fatal("empty account cannot sign in again")
+			}
+			if choices == 1 {
+				if len(servers) != 0 || !strings.Contains(presentation.Message, "No reachable servers") {
+					t.Fatal("empty account not explained")
+				}
+				f.noServers.Store(false)
+				return connection.Server{}, connection.ErrRescan
+			}
+			if len(servers) != 1 || strings.Contains(presentation.Message, "No reachable servers") {
+				t.Fatal("rescan retained stale empty message")
+			}
+			return chooseFirst(ctx, servers)
+		},
+	}, &serverDiscovery{account: f.account})
+	if err != nil || choices != 2 || f.pinCalls.Load() != 0 {
+		t.Fatalf("rescan failed: %v", err)
 	}
 }

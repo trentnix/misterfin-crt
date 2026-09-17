@@ -24,6 +24,8 @@ type Presentation struct {
 	// Servers is an immutable snapshot. Selected is owned by the browser loop.
 	Servers  []Server
 	Selected int
+	// SignIn adds a final picker action for linking another account. Empty hides it.
+	SignIn string
 	// Recovered records damaged sign-in storage that was backed up.
 	Recovered bool
 	// BackToServers offers discovery navigation during sign-in. The connector
@@ -34,3 +36,11 @@ type Presentation struct {
 
 // RetryLabel returns the connector's label for the open/retry action.
 func (s Presentation) RetryLabel() string { return s.Retry }
+
+// ChoiceCount includes servers and the optional sign-in action.
+func (s Presentation) ChoiceCount() int {
+	if s.SignIn != "" {
+		return len(s.Servers) + 1
+	}
+	return len(s.Servers)
+}

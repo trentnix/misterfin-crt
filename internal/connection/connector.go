@@ -2,6 +2,7 @@ package connection
 
 import (
 	"context"
+	"errors"
 
 	"mistervision/internal/media"
 	"mistervision/internal/remote"
@@ -27,12 +28,19 @@ type Session struct {
 	Recovered bool
 }
 
+// ErrRescan asks a server picker to refresh within the current sign-in attempt.
+// Providers advertising a SignIn action must handle it without losing that account.
+var ErrRescan = errors.New("refresh server choices")
+
 // Interaction connects a sign-in worker to shared setup UI. Callbacks run on the
 // worker and must honor cancellation. The browser owns selection and rendering.
 type Interaction struct {
 	// SelectServer requests a fresh choice instead of a remembered server.
 	// Explicit connection configuration still takes precedence.
 	SelectServer bool
+	// NewAccount requests a fresh sign-in without replacing saved credentials
+	// until the new account and its selected server connect successfully.
+	NewAccount bool
 	// Reauthenticate discards a retained account after authentication rejection.
 	Reauthenticate bool
 	// Progress publishes public status and approval codes. Nil discards progress.

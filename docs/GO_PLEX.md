@@ -18,7 +18,9 @@ Reopening a saved connection checks the media server directly without contacting
 
 Account linking, refreshing the server list, and address recovery require internet access. Temporary server or account-service outages preserve sign-in and show Retry. Canceling recovery, rejecting a candidate, or failing to save its address preserves the previous connection. Missing or rejected server credentials return to account validation and selection. Use About → Connections → Plex to choose a different server.
 
-Discovery stores account credentials in `state/discovery/plex/account/session.json`, the selected server in `state/discovery/plex/server.json`, and separate server credentials under `state/discovery/plex/servers/`. Tokens never appear in the picker, logs, or configuration. Explicit server profiles keep their existing sign-in locations and remain authoritative for those routes.
+On **Choose a Plex server**, select **Sign in with another account** to get a new code. Open plex.tv/link with the account you want to use. Back cancels linking and returns to the saved account’s server picker. The replacement account is saved only after its selected server connects successfully. Scan again refreshes the server list without discarding the pending sign-in. Accounts with no reachable servers can still choose another sign-in.
+
+Discovery saves the account credentials, selected server, and server credentials together in the private `state/discovery/plex/server.json` file. Older separate account and server credential files remain readable. Tokens never appear in the picker, logs, or configuration. Explicit server profiles keep their existing sign-in locations and remain authoritative for those routes.
 
 ## Run locally
 

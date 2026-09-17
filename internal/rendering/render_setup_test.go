@@ -195,3 +195,35 @@ func TestRecoveryPromptLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestAccountPickerLayout(t *testing.T) {
+	for _, height := range []int{240, 288} {
+		for _, empty := range []bool{false, true} {
+			scene := Scene{Setup: SetupPresentation{Kind: SetupServers, Title: "Choose a Plex server", Message: "Signed in as Test Viewer.", SignIn: "Sign in with another account"}}
+			scene.About.Connections = []connection.Choice{{Name: "Plex"}}
+			hints := []controlHint{}
+			if empty {
+				scene.Setup.Message += "\nNo reachable servers. Scan again or use another account."
+			} else {
+				scene.Setup.Servers = []connection.Server{{ID: "home", Name: "Home Plex", URL: "http://192.168.1.100:32400"}}
+				scene.Setup.Selected = 1
+				hints = append(hints, pairedHint(scene.Controls, control.Up, control.Down, "Choose"))
+			}
+			hints = append(hints, hint(scene.Controls, control.Open, "Select"), hint(scene.Controls, control.Select, "Scan again"), hint(scene.Controls, control.About, "About"), hint(scene.Controls, control.Back, "Back"))
+			c := ui.New(640, height)
+			pixels := renderScene(c, nil, scene, Animation{})
+			rows := controlRows(640, hints)
+			bottom := height - 8 - safeY(640, height)
+			expected := ui.New(640, height)
+			expected.Rect(0, 0, 640, height, 0x0b0d13)
+			drawControls(expected, bottom, rows)
+			start := controlsTop(bottom, rows) * 640 * 4
+			if !bytes.Equal(pixels[start:], expected.Pixels[start:]) {
+				t.Fatal("account action overlaps controls")
+			}
+			if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+				writeSetupPreview(t, dir, fmt.Sprintf("plex-account-%d-empty-%t.png", height, empty), c)
+			}
+		}
+	}
+}
