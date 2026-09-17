@@ -17,6 +17,10 @@ var unicodeFont []byte
 // in the embedded bitmap fallback. Unsupported scripts still use a question mark.
 // Lookup allocates no memory and needs no font engine or mutable glyph cache.
 func glyphForRune(r rune) [8]byte {
+	// Use the existing monochrome heart for the emoji-style heavy heart.
+	if r == '\u2764' {
+		r = '\u2665'
+	}
 	if r < 32 {
 		return font[' ']
 	}
@@ -30,4 +34,10 @@ func glyphForRune(r rune) [8]byte {
 		return [8]byte(unicodeFont[i*recordSize+4 : i*recordSize+recordSize])
 	}
 	return font['?']
+}
+
+// isVariationSelector identifies presentation modifiers that occupy no cell in
+// our fixed bitmap font. The base glyph keeps its monochrome appearance.
+func isVariationSelector(r rune) bool {
+	return r >= 0xfe00 && r <= 0xfe0f || r >= 0xe0100 && r <= 0xe01ef
 }

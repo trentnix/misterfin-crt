@@ -13,7 +13,8 @@ func resumableVideo(item *media.Item) bool {
 }
 
 // Find adjacent media without replacing the visible page until a match arrives.
-// Photos skip other item types. A music queue ends at a non-audio item, as in C.
+// Photos skip other item types. Playlists advance through playable audio/video
+// entries in server order. Ordinary music folders end at a non-audio item.
 func adjacentMedia(ctx context.Context, c itemLister, parent View, kind string, direction, rows int) (View, *media.Item, error) {
 	if direction != 1 && direction != -1 {
 		return parent, nil, nil
@@ -44,7 +45,7 @@ func adjacentMedia(ctx context.Context, c itemLister, parent View, kind string, 
 			}
 		}
 		item := parent.Page.Items[index-parent.Start]
-		if item.Type == kind {
+		if item.Type == kind || (kind == "playlist" && playback.Supported(item) && !media.IsLive(item)) {
 			parent.Selected, parent.Target = index-parent.Start, index
 			parent.centerSelection(rows)
 			return parent, &item, nil

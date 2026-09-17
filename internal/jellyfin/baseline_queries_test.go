@@ -74,6 +74,10 @@ func TestLiveTVQueriesAndLibraryNames(t *testing.T) {
 					}
 					return
 				}
+				if r.URL.Path == "/Items" {
+					fmt.Fprint(w, `{"Items":[],"TotalRecordCount":0}`)
+					return
+				}
 				calls++
 				limit := "64"
 				start := "64"

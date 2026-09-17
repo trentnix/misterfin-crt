@@ -532,26 +532,30 @@ class BrowseIntegrationTests(BrowserFixture):
         self.key(b"a")
 
     def test_video_track_selection(self):
-        self.start_browser(Scenario(player="inline"))
+        self.start_browser(Scenario(player="inline", video_delay=.3))
         self.key(b"b")
         self.wait_request("/Items", ParentId="view-movies", StartIndex=0)
         self.key(b"b")
         self.wait_request("/Items/movie-tricky-0")
         self.key(b"b")
         self.wait_request("/Videos/movie-tricky-0/stream", startTimeTicks=0)
+        self.wait_video_ready()
         self.key(b"\t\x1b[Bb")
         self.wait_request("/Videos/movie-tricky-0/movie-tricky-0/Subtitles/4/Stream.srt")
         deadline = time.monotonic() + 3
         while not any(body.get("SubtitleStreamIndex") == 4 for _, body in self.reports):
             self.assertLess(time.monotonic(), deadline, "text selection did not finish")
             time.sleep(.02)
+        self.wait_event("browser.subtitle", index=4)
         streams = lambda: [parse_qs(urlparse(r).query) for r in self.requests
                            if urlparse(r).path == "/Videos/movie-tricky-0/stream"]
         self.assertEqual(len(streams()), 1, "text subtitle restarted decoding")
         self.key(b"\t\x1b[C\x1b[B\x1b[Bb")
         self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2, startTimeTicks=20000000)
+        self.wait_video_ready(20000000)
         self.key(b"l")
         self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2, startTimeTicks=340000000)
+        self.wait_video_ready(340000000)
         self.assertEqual(sum("/Subtitles/4/" in r for r in self.requests), 1, "seek reloaded cached text")
         self.reports.clear()
         self.key(b"\t\x1b[D\x1b[Ab")
@@ -560,7 +564,7 @@ class BrowseIntegrationTests(BrowserFixture):
                       for path, body in self.reports):
             self.assertLess(time.monotonic(), deadline, "Off did not finish")
             time.sleep(.02)
-        time.sleep(.15)  # Let the subtitle completion event close the picker.
+        self.wait_event("browser.subtitle", index=-1)
         self.assertEqual(len(streams()), 3, "Off restarted client-rendered text")
         self.key(b"\t" + b"\x1b[B" * 4 + b"b")
         self.wait_request("/Videos/movie-tricky-0/stream", audioStreamIndex=2,
@@ -673,7 +677,7 @@ class BrowseIntegrationTests(BrowserFixture):
         self.exercise_playback_stop()
 
     def test_mixed_library_movie_series_and_folder_navigation(self):
-        self.start_browser(Scenario(mixed_library=True))
+        self.start_browser(Scenario(mixed_library=True, page_delay=.3))
         self.key(b"b")
         query = self.wait_request("/Items", ParentId="view-mixed", StartIndex=0, Limit=64)
         self.assertNotIn("IncludeItemTypes", query)
@@ -730,7 +734,7 @@ class BrowseIntegrationTests(BrowserFixture):
         self.key(b"a")
 
     def test_live_tv_playback_releases_tuner(self):
-        self.start_browser()
+        self.start_browser(Scenario(page_delay=.3))
         self.key(b"\x1b[C\x1b[C\x1b[Cb")
         self.wait_request("/LiveTv/Channels", StartIndex=0)
         self.key(b"b")

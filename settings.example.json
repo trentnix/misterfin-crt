@@ -11,6 +11,8 @@
   },
   "ui": {
     "title": "MiSTerFin CRT",
+    "show_collections": true,
+    "show_playlists": true,
     "navigation_sounds": {
       "enabled": true,
       "volume": 10

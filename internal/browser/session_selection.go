@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"misterfin-crt/internal/media"
 )
@@ -68,6 +69,15 @@ func (s *browserSession) handleSelection(r selectionResult) bool {
 	if errors.Is(r.update.err, media.ErrUnauthorized) {
 		s.setup = s.setupPresentation(r.update.err)
 		return false
+	}
+	if r.update.err != nil && r.update.kind == selectionArtwork {
+		// Covers and backdrops are optional. A carousel can request the same
+		// missing image as a child screen, so surfacing every failure makes the
+		// error appear to follow navigation. Keep diagnostics without a banner.
+		s.config.Diagnostics.Record("browser.artwork", slog.String("kind", r.update.art.kind), slog.Bool("failed", true))
+		if r.update.art.kind != "Photo" {
+			return false
+		}
 	}
 	if r.update.err != nil {
 		switch r.update.kind {

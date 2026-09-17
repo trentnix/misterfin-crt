@@ -52,6 +52,9 @@ func (c *Canvas) Text(x, y int, s string, color uint32, maxWidth int) {
 // glyph that exceeds maxWidth or the canvas right edge, and ignores later lines.
 func (c *Canvas) TextScaled(x, y int, s string, color uint32, maxWidth, scale int) {
 	for _, r := range s {
+		if isVariationSelector(r) {
+			continue
+		}
 		if x+8*scale > min(c.Width, maxWidth) {
 			break
 		}
@@ -75,7 +78,7 @@ func (c *Canvas) TextScaled(x, y int, s string, color uint32, maxWidth, scale in
 func (c *Canvas) Wrap(x, y, width, lines int, s string, color uint32) {
 	var line string
 	for _, word := range strings.Fields(s) {
-		if len([]rune(line+word))*8 > width && line != "" {
+		if TextWidth(line+word) > width && line != "" {
 			c.Text(x, y, line, color, x+width)
 			y += 10
 			lines--

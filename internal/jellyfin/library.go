@@ -45,6 +45,23 @@ func (c *Client) List(ctx context.Context, loc Location, start, limit int) (Page
 	case "views":
 		path = "/UserViews"
 		q = url.Values{"userId": {c.Session.UserID}}
+	case "collections", "playlists":
+		q = itemsQuery(c.Session.UserID, "", "", start, limit)
+		q.Del("ParentId")
+		q.Set("Recursive", "true")
+		kind := "BoxSet"
+		if loc.Kind == "playlists" {
+			kind = "Playlist"
+		}
+		q.Set("IncludeItemTypes", kind)
+	case "collection", "playlist":
+		q = itemsQuery(c.Session.UserID, loc.ParentID, "", start, limit)
+		q.Del("SortBy")
+		q.Del("SortOrder")
+		if loc.Kind == "playlist" {
+			path = "/Playlists/" + url.PathEscape(loc.ParentID) + "/Items"
+			q.Del("ParentId")
+		}
 	case "seasons", "episodes":
 		path = "/Shows/" + url.PathEscape(loc.SeriesID) + "/Seasons"
 		q = url.Values{"userId": {c.Session.UserID}, "Fields": {"ChildCount"}, "ImageTypeLimit": {"1"}, "EnableImageTypes": {"Primary,Backdrop"}, "StartIndex": {strconv.Itoa(start)}, "Limit": {strconv.Itoa(limit)}}
@@ -116,6 +133,10 @@ func (c *Client) LibraryCount(ctx context.Context, item Item) (*int, error) {
 	if item.CollectionType == "livetv" {
 		return nil, nil
 	}
+	if loc, ok := organizationLocation(item); ok {
+		page, err := c.List(ctx, loc, 0, 1)
+		return page.TotalRecordCount, err
+	}
 	q := url.Values{"userId": {c.Session.UserID}, "ParentId": {item.ID}, "Recursive": {"true"}, "Limit": {"0"}}
 	if kind := collectionItemType(item.CollectionType); kind != "" {
 		q.Set("IncludeItemTypes", kind)
@@ -137,6 +158,9 @@ func (c *Client) Mosaic(ctx context.Context, item Item) (Page, error) {
 	if item.CollectionType == "livetv" {
 		return Page{}, nil
 	}
+	if loc, ok := organizationLocation(item); ok {
+		return c.List(ctx, loc, 0, 12)
+	}
 	q := url.Values{"userId": {c.Session.UserID}, "ParentId": {item.ID}, "Recursive": {"true"}, "Limit": {"12"}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"}, "Fields": {"ProductionYear,RunTimeTicks"}, "EnableUserData": {"true"}, "ImageTypeLimit": {"1"}, "EnableImageTypes": {"Primary"}}
 	if kind := collectionItemType(item.CollectionType); kind != "" {
 		q.Set("IncludeItemTypes", kind)
@@ -149,23 +173,60 @@ func (c *Client) Mosaic(ctx context.Context, item Item) (Page, error) {
 	return page, err
 }
 
-// Libraries preserves server names and order. Like C, it probes channels only
-// when UserViews does not already contain a Live TV entry.
+// Libraries preserves server names and order, then adds accessible collections,
+// playlists, and Live TV when UserViews does not already contain those cards.
+// Empty or unavailable organizational cards are omitted even when UserViews
+// includes them. Optional catalog failures do not hide ordinary libraries.
 func (c *Client) Libraries(ctx context.Context) (Page, error) {
 	page, err := c.List(ctx, Location{Kind: "views"}, 0, 0)
 	if err != nil {
 		return page, err
 	}
-	for _, item := range page.Items {
-		if item.CollectionType == "livetv" {
-			return page, nil
+	present := make(map[string]bool)
+	views := page.Items
+	page.Items = make([]Item, 0, len(views)+3)
+	for _, item := range views {
+		present[item.CollectionType] = true
+		if loc, ok := organizationLocation(item); ok {
+			children, err := c.List(ctx, loc, 0, 1)
+			if err != nil || len(children.Items) == 0 {
+				continue
+			}
+		}
+		page.Items = append(page.Items, item)
+	}
+	for _, card := range []Item{
+		{ID: "misterfin-crt:collections", Name: "Collections", CollectionType: "boxsets", IsFolder: true},
+		{ID: "misterfin-crt:playlists", Name: "Playlists", CollectionType: "playlists", IsFolder: true},
+		{ID: "misterfin-crt:live-tv", Name: "Live TV", CollectionType: "livetv", IsFolder: true},
+	} {
+		if present[card.CollectionType] {
+			continue
+		}
+		loc, _ := organizationLocation(card)
+		if card.CollectionType == "livetv" {
+			loc.Kind = "livetv"
+		}
+		children, err := c.List(ctx, loc, 0, 1)
+		if err == nil && len(children.Items) > 0 {
+			page.Items = append(page.Items, card)
 		}
 	}
-	channels, err := c.List(ctx, Location{Kind: "livetv"}, 0, 1)
-	if err == nil && (len(channels.Items) > 0 || channels.TotalRecordCount != nil && *channels.TotalRecordCount > 0) {
-		page.Items = append(page.Items, Item{ID: "misterfin-crt:live-tv", Name: "Live TV", CollectionType: "livetv", IsFolder: true})
+	if err := ctx.Err(); err != nil {
+		return Page{}, err
 	}
 	total := len(page.Items)
 	page.TotalRecordCount = &total
 	return page, nil
+}
+
+// organizationLocation keeps synthetic card IDs out of Jellyfin parent filters.
+func organizationLocation(item Item) (Location, bool) {
+	switch item.CollectionType {
+	case "boxsets":
+		return Location{Kind: "collections"}, true
+	case "playlists":
+		return Location{Kind: "playlists"}, true
+	}
+	return Location{}, false
 }

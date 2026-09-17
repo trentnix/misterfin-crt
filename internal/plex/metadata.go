@@ -78,6 +78,7 @@ type metadata struct {
 	ChildCount       int        `json:"childCount"`
 	LeafCount        int        `json:"leafCount"`
 	Rating           float64    `json:"rating"`
+	Composite        string     `json:"composite"`
 	Thumb            string     `json:"thumb"`
 	Art              string     `json:"art"`
 	ParentThumb      string     `json:"parentThumb"`
@@ -122,23 +123,32 @@ type stream struct {
 
 func (m metadata) item() media.Item {
 	item := media.Item{ID: string(m.ID), Name: m.Title, Overview: m.Summary, ProductionYear: m.Year, RunTimeTicks: m.Duration * 10000, IndexNumber: m.Index, ParentIndexNumber: m.ParentIndex, ChildCount: m.ChildCount, RecursiveItemCount: m.LeafCount, CommunityRating: m.Rating, ImageTags: make(map[string]string)}
-	item.Type = map[string]string{"movie": "Movie", "show": "Series", "season": "Season", "episode": "Episode", "clip": "Video", "artist": "MusicArtist", "album": "MusicAlbum", "track": "Audio", "photo": "Photo", "photoalbum": "PhotoAlbum"}[m.Type]
+	item.Type = map[string]string{"movie": "Movie", "show": "Series", "season": "Season", "episode": "Episode", "clip": "Video", "artist": "MusicArtist", "album": "MusicAlbum", "track": "Audio", "photo": "Photo", "photoalbum": "PhotoAlbum", "collection": "BoxSet", "playlist": "Playlist"}[m.Type]
 	// JSON Metadata can also encode albums as photo with a children endpoint.
 	if m.Type == "photo" && strings.HasSuffix(m.Key, "/children") {
 		item.Type = "PhotoAlbum"
 	}
-	item.IsFolder = item.Type == "PhotoAlbum" || m.Type == "show" || m.Type == "season" || m.Type == "artist" || m.Type == "album"
+	item.IsFolder = item.Type == "BoxSet" || item.Type == "Playlist" || item.Type == "PhotoAlbum" || m.Type == "show" || m.Type == "season" || m.Type == "artist" || m.Type == "album"
 	if item.Type == "" {
 		item.Type = "Folder"
 		item.IsFolder = true
 	}
-	item.UserData.PlaybackPositionTicks = max(0, m.ViewOffset) * 10000
-	item.UserData.Played = m.ViewCount > 0 && m.ViewOffset == 0
+	// Opening a Plex container increments viewCount without watching its contents.
+	if !item.IsFolder {
+		item.UserData.PlaybackPositionTicks = max(0, m.ViewOffset) * 10000
+		item.UserData.Played = m.ViewCount > 0 && m.ViewOffset == 0
+	}
+	if item.Type == "Playlist" {
+		item.ChildCount = m.LeafCount
+	}
 	if m.LastViewedAt > 0 {
 		at := time.Unix(m.LastViewedAt, 0)
 		item.UserData.LastPlayedDate = &at
 	}
 	thumb := m.Thumb
+	if thumb == "" {
+		thumb = m.Composite
+	}
 	if item.Type == "Photo" {
 		// Resize the original photo through Plex instead of enlarging a thumbnail
 		// or downloading a full-resolution image into the framebuffer client.

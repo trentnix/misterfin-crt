@@ -1,6 +1,6 @@
 # Browsing and sign-in
 
-Use the [MiSTer launcher](GO_BUILD.md#install-on-mister) or [development harness](../tools/ghostty/README.md). The home carousel shows Jellyfin library names and a combined Continue Watching card. Tab/SELECT switches between the carousel and root library list.
+Use the [MiSTer launcher](GO_BUILD.md#install-on-mister) or [development harness](../tools/ghostty/README.md). The home carousel shows server library names and a combined Continue Watching card. Tab/SELECT switches between the carousel and root library list.
 
 ## Setup and sign-in
 
@@ -38,6 +38,16 @@ The first card, labeled Continue, combines resumable videos and the next unwatch
 The card reserves its position while loading, so startup does not switch away from a briefly selected library. Empty results remove it while preserving library selection. A slow feed does not block other libraries. Opening the card, returning home, and finishing recorded playback refresh the feed. Refreshes preserve the selected item or series. Partial failures keep usable results. R retries.
 
 The client merges `/UserItems/Resume` and `/Shows/NextUp`, with a bounded recent-episode query for ordering. It reads pages before deduplication. Each source has an approximately 10,000-entry safety limit. Continue covers use the ordinary artwork cache. The changing combined collage is not stored as a library collage.
+
+## Collections and playlists
+
+Collections and Playlists appear in the carousel only when nonempty and enabled by [`ui.show_collections` and `ui.show_playlists`](GO_CONFIGURATION.md#carousel-categories). Both settings default to `true`. Jellyfin's existing card names are preserved. Collections retain their hierarchy, so a collection can contain movies, shows, albums, or other folders. Open a playlist to browse its entries in server order. Repeated entries remain separate rows.
+
+Select a music track or video to start playback. Playback advances through the remaining audio/video entries, fetching pages as needed. The first selected video uses its normal resume position. Subsequent entries start at the beginning. Stopping or reaching the end returns to the list with the current entry selected. Music retains previous/next controls. Videos retain their existing pause and seek controls. Photo playlists use the manual photo viewer. Automatic slideshows and playlist editing are not implemented.
+
+Locally started playlists publish the current item to Jellyfin remote controls and support previous/next commands. Sending a playlist from another Jellyfin client uses the existing bounded remote queue.
+
+Books, comics, and audiobook categories are hidden from the carousel. Display names do not determine library type. Plex has no dedicated audiobook category, so audiobooks stored as an ordinary music library remain indistinguishable from music.
 
 ## Photos
 

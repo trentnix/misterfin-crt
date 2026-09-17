@@ -10,8 +10,8 @@ import (
 	"misterfin-crt/internal/media"
 )
 
-// Libraries lists personal-media sections, then Live TV when accessible tuner
-// channels exist. An unavailable optional tuner does not hide personal libraries.
+// Libraries lists personal-media sections, then accessible collections,
+// playlists, and Live TV. Optional catalog failures do not hide personal libraries.
 func (c *Client) Libraries(ctx context.Context) (media.Page, error) {
 	var response containerResponse
 	if err := c.json(ctx, "/library/sections", nil, &response); err != nil {
@@ -30,6 +30,15 @@ func (c *Client) Libraries(ctx context.Context) (media.Page, error) {
 			return media.Page{}, errors.New("invalid Plex library ID")
 		}
 		result.Items = append(result.Items, media.Item{ID: "library:" + section.Key, Name: section.Title, Type: "CollectionFolder", CollectionType: collection, IsFolder: true})
+	}
+	for _, card := range []media.Item{
+		{ID: "plex:collections", Name: "Collections", CollectionType: "boxsets", IsFolder: true},
+		{ID: "plex:playlists", Name: "Playlists", CollectionType: "playlists", IsFolder: true},
+	} {
+		page, err := c.List(ctx, libraryLocation(card), 0, 1)
+		if err == nil && len(page.Items) > 0 {
+			result.Items = append(result.Items, card)
+		}
 	}
 	if channels, err := c.liveChannels(ctx); err == nil && len(channels) > 0 {
 		result.Items = append(result.Items, media.Item{ID: liveLibraryID, Name: "Live TV", CollectionType: "livetv", IsFolder: true})
@@ -52,6 +61,21 @@ func (c *Client) List(ctx context.Context, loc media.Location, start, limit int)
 	}
 	path := ""
 	q := url.Values{}
+	switch loc.Kind {
+	case "collections":
+		return c.page(ctx, "/library/all", url.Values{"type": {"18"}, "sort": {"titleSort:asc"}}, start, limit)
+	case "playlists":
+		return c.page(ctx, "/playlists", url.Values{"type": {"15"}, "playlistType": {"audio,video,photo"}, "sort": {"titleSort:asc"}}, start, limit)
+	case "playlist", "collection":
+		if !validID(loc.ParentID) {
+			return media.Page{}, errors.New("invalid Plex container ID")
+		}
+		path = "/playlists/" + loc.ParentID + "/items"
+		if loc.Kind == "collection" {
+			path = "/library/collections/" + loc.ParentID + "/items"
+		}
+		return c.page(ctx, path, nil, start, limit)
+	}
 	if section, ok := sectionID(loc.ParentID); ok {
 		path = "/library/sections/" + section + "/all"
 		q.Set("sort", "titleSort:asc")
@@ -87,6 +111,10 @@ func (c *Client) page(ctx context.Context, path string, q url.Values, start, lim
 	}
 	result := media.Page{Items: []media.Item{}, TotalRecordCount: container.Total}
 	entries := container.entries()
+	if result.TotalRecordCount == nil && container.Offset == 0 && start == 0 && len(entries) < max(1, min(limit, 200)) {
+		total := len(entries)
+		result.TotalRecordCount = &total
+	}
 	for _, entry := range entries {
 		if !validID(string(entry.ID)) {
 			return media.Page{}, errors.New("invalid Plex item ID")
@@ -142,10 +170,16 @@ func (c *Client) Mosaic(ctx context.Context, item media.Item) (media.Page, error
 	return c.List(ctx, libraryLocation(item), 0, 12)
 }
 
-// libraryLocation keeps synthetic Live TV out of personal-library endpoints.
+// libraryLocation keeps synthetic cards out of personal-library endpoints.
 func libraryLocation(item media.Item) media.Location {
 	if item.CollectionType == "livetv" || item.ID == liveLibraryID {
 		return media.Location{Kind: "livetv"}
+	}
+	switch item.CollectionType {
+	case "boxsets":
+		return media.Location{Kind: "collections"}
+	case "playlists":
+		return media.Location{Kind: "playlists"}
 	}
 	return media.Location{Kind: "items", ParentID: item.ID}
 }

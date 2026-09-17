@@ -42,6 +42,8 @@ func TestLibraryHierarchyAndPagination(t *testing.T) {
 		switch r.URL.Path {
 		case "/livetv/dvrs":
 			fmt.Fprint(w, `{"MediaContainer":{"Dvr":[]}}`)
+		case "/playlists", "/library/all":
+			fmt.Fprint(w, `{"MediaContainer":{"size":0,"totalSize":0}}`)
 		case "/library/sections":
 			fmt.Fprint(w, `{"MediaContainer":{"Directory":[{"key":"1","title":"Nostalgia","type":"movie"},{"key":"2","title":"Series","type":"show"}]}}`)
 		case "/library/sections/1/all":
@@ -221,6 +223,8 @@ func TestLinkSignInAndSavedSession(t *testing.T) {
 			fmt.Fprint(w, `{"id":2,"code":"ABCD","expiresIn":30}`)
 		case "/api/v2/pins/2":
 			fmt.Fprint(w, `{"id":2,"code":"ABCD","expiresIn":30,"authToken":"approved-token"}`)
+		case "/playlists", "/library/all":
+			fmt.Fprint(w, `{"MediaContainer":{"size":0,"totalSize":0}}`)
 		case "/library/sections":
 			if r.Header.Get("X-Plex-Token") != "approved-token" {
 				w.WriteHeader(401)
@@ -324,6 +328,8 @@ func TestRejectedSignInRetainsSavedRecordUntilApproval(t *testing.T) {
 	var pinRequested bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/playlists", "/library/all":
+			fmt.Fprint(w, `{"MediaContainer":{"size":0,"totalSize":0}}`)
 		case "/library/sections":
 			w.WriteHeader(http.StatusUnauthorized)
 		case "/api/v2/pins":
@@ -418,6 +424,8 @@ func TestUnsupportedSourcesFailBeforeRequests(t *testing.T) {
 func TestLibraryAndContinueScope(t *testing.T) {
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/playlists", "/library/all":
+			fmt.Fprint(w, `{"MediaContainer":{"size":0,"totalSize":0}}`)
 		case "/library/sections":
 			fmt.Fprint(w, `{"MediaContainer":{"Directory":[{"key":"1","title":"Movies","type":"movie"},{"key":"2","title":"Music","type":"artist"},{"key":"3","title":"Photos","type":"photo"}]}}`)
 		case "/hubs/continueWatching/items":

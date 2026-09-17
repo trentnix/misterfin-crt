@@ -39,6 +39,7 @@ class Scenario:
     remote_control: bool = False
     slow_seek: bool = False
     page_delay: float = 0
+    video_delay: float = 0
     transcode_profile: str = ""
     player: str = "idle"
     controlling_terminal: bool = True
@@ -161,6 +162,8 @@ class BrowserFixture(unittest.TestCase):
                     self.wfile.write(payload)
                     return
                 if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
+                    if test.scenario.video_delay:
+                        time.sleep(test.scenario.video_delay)
                     if (test.scenario.slow_seek and
                             parse_qs(urlparse(self.path).query).get("startTimeTicks") == ["920000000"]):
                         time.sleep(16)  # Exceed the former media response-header timeout.
@@ -176,7 +179,8 @@ class BrowserFixture(unittest.TestCase):
                         pass
                     return
                 if (test.scenario.page_delay
-                        and (path == "/UserViews" or
+                        and (path == "/UserViews" or path == "/LiveTv/Channels" or
+                             (path.startswith("/Shows/") and path.endswith(("/Seasons", "/Episodes"))) or
                              (path == "/Items" and query.get("StartIndex") == ["0"]
                               and query.get("Limit") == ["64"]))):
                     time.sleep(test.scenario.page_delay)
@@ -281,9 +285,19 @@ class BrowserFixture(unittest.TestCase):
                           and params.get("Limit") == ["64"]):
                         self.wait_event("browser.page", parent=params["ParentId"][0],
                                         start=int(params.get("StartIndex", ["0"])[0]), failed=False)
+                    elif path == "/LiveTv/Channels" and params.get("Limit") == ["64"]:
+                        self.wait_event("browser.page", kind="livetv",
+                                        start=int(params.get("StartIndex", ["0"])[0]), failed=False)
+                    elif path.startswith("/Shows/") and path.endswith("/Seasons"):
+                        self.wait_event("browser.page", kind="seasons", parent=path.split("/")[2],
+                                        start=0, failed=False)
+                    elif path.startswith("/Shows/") and path.endswith("/Episodes"):
+                        self.wait_event("browser.page", kind="episodes", parent=params["seasonId"][0],
+                                        start=int(params.get("StartIndex", ["0"])[0]), failed=False)
                     else:
-                        # Playback assertions also inspect decoder reports or
-                        # rendered frames after observing the request.
+                        # Requests alone do not prove playback or rendering is
+                        # ready. Tests that send dependent input must also wait
+                        # for an applied event or the expected frame.
                         time.sleep(0.15)
                     self.assertIsNone(self.process.poll())
                     return params
@@ -292,6 +306,10 @@ class BrowserFixture(unittest.TestCase):
                 self.fail(self.log.read().decode())
             time.sleep(0.01)
         self.fail(f"request not observed: {path} {query}; got {self.requests}")
+
+    def wait_video_ready(self, start_ticks=0):
+        """Wait for the inline fixture's two-second position to reach the UI loop."""
+        self.wait_event("browser.playback-ready", position_ticks=start_ticks + 20000000)
 
     def wait_event(self, name, **attributes):
         """Wait for an applied browser result in the optional diagnostic log."""

@@ -113,6 +113,8 @@ Connection and application settings live in **`settings.json`**, normally `/medi
   },
   "ui": {
     "title": "MiSTerFin CRT",
+    "show_collections": true,
+    "show_playlists": true,
     "navigation_sounds": {
       "enabled": false
     }
@@ -130,6 +132,7 @@ Connection and application settings live in **`settings.json`**, normally `/medi
 | --- | --- | --- |
 | `server` | Provider: `jellyfin`. URL required when the section exists. TLS verified. Transcode limits: 720×576 at 12 Mbps. | [Connection](docs/GO_CONFIGURATION.md#server-connection) |
 | `ui.title` | Heading: `MiSTerFin CRT`. An explicit empty `title` hides it. Long titles are truncated. | [Title](docs/GO_CONFIGURATION.md#browsing-title) |
+| `ui.show_collections`, `ui.show_playlists` | Both `true`. Show nonempty categories. Set either to `false` to hide its card. | [Carousel](docs/GO_CONFIGURATION.md#carousel-categories) |
 | `ui.navigation_sounds` | `enabled: true`, `volume: 10` out of 100. False or volume zero silences navigation sounds. | [Sounds](docs/GO_CONFIGURATION.md#navigation-sounds) |
 | `background` | Generated carousel mosaics and item artwork on lists. `image` selects one custom background. | [Background](docs/GO_CONFIGURATION.md#browsing-background) |
 | `display` | `interlaced: false`. Keep the current display, normally progressive. | [Display](docs/GO_DISPLAY.md) |

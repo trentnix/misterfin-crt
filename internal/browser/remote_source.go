@@ -45,6 +45,7 @@ func (s *browserSession) stopRemote() {
 	s.remotePlayback.switching = false
 	s.remotePlayback.queue.Replace(nil, 0)
 	s.remotePlayback.items = nil
+	s.remotePlayback.localRows = nil
 }
 
 type remoteCommandResult struct {

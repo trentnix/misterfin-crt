@@ -17,6 +17,8 @@ import (
 func TestPhotoLibraryHierarchy(t *testing.T) {
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/playlists", "/library/all":
+			fmt.Fprint(w, `{"MediaContainer":{"size":0,"totalSize":0}}`)
 		case "/library/sections":
 			fmt.Fprint(w, `{"MediaContainer":{"Directory":[{"key":"4","title":"Family Pictures","type":"photo"}]}}`)
 		case "/livetv/dvrs":

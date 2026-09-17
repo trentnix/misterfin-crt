@@ -2,7 +2,6 @@ package browser
 
 import (
 	"math/rand/v2"
-	"slices"
 	"time"
 
 	"misterfin-crt/internal/media"
@@ -16,6 +15,9 @@ type remotePlayback struct {
 	paused bool
 	queue  remote.Queue
 	items  map[string]media.Item
+	// localRows maps queue occurrence keys to browser rows when adopting a local
+	// queue. Repeated media IDs must not move the highlight to their first row.
+	localRows map[string]int
 	// active gives this queue ownership of track advancement. During switching,
 	// Current already identifies the next item while the old decoder stops.
 	active, switching bool
@@ -28,6 +30,7 @@ type remotePlayback struct {
 // replace installs one catalog snapshot without changing playback or navigation.
 func (q *remotePlayback) replace(items []media.Item, index int) {
 	q.items = nil
+	q.localRows = nil
 	q.queue.Replace(q.remember(items), index)
 }
 
@@ -101,19 +104,39 @@ func (s *browserSession) adoptLocalQueue() {
 	q := &s.remotePlayback
 	items := []media.Item{item}
 	index := 0
+	var rows []int
+	if parent, ok := s.model.Parent(); ok && parent.Item() != nil && parent.Item().ID == item.ID {
+		rows = []int{parent.Start + parent.Selected}
+	}
 	wasShuffle := s.shuffle.library != "" && len(s.shuffle.items) > 0
 	if wasShuffle {
 		items = s.shuffle.items
 		index = s.shuffle.position
+		rows = nil
 	} else if item.Type == "Audio" {
 		if parent, ok := s.model.Parent(); ok && parent.Start == 0 && !parent.More() {
 			tracks := audioItems(parent.Page.Items)
-			if selected := slices.IndexFunc(tracks, func(track media.Item) bool { return track.ID == item.ID }); selected >= 0 {
-				items, index = tracks, selected
+			if selected := parent.Item(); selected != nil && selected.ID == item.ID && selected.Type == "Audio" {
+				items = tracks
+				rows = nil
+				for row, track := range parent.Page.Items {
+					if track.Type == "Audio" {
+						if row == parent.Selected {
+							index = len(rows)
+						}
+						rows = append(rows, row)
+					}
+				}
 			}
 		}
 	}
 	q.replace(items, index)
+	if len(rows) == len(items) {
+		q.localRows = make(map[string]int, len(rows))
+		for i, entry := range q.queue.Snapshot().Entries {
+			q.localRows[entry.Key] = rows[i]
+		}
+	}
 	if wasShuffle {
 		q.queue.SetShuffle(true)
 		s.shuffle = shuffleQueue{}
@@ -150,8 +173,9 @@ func (s *browserSession) startRemoteItem() {
 	// contain items from other libraries, so only update an existing matching row.
 	if len(s.model.Stack) > 1 {
 		parent := &s.model.Stack[len(s.model.Stack)-2]
+		row, local := q.localRows[q.queue.Current().Key]
 		for i, entry := range parent.Page.Items {
-			if entry.ID == item.ID {
+			if entry.ID == item.ID && (!local || parent.Start+i == row) {
 				parent.Selected = i
 				parent.Target = parent.Start + i
 				parent.centerSelection(s.model.Rows)
@@ -212,6 +236,7 @@ func (s *browserSession) endRemoteQueue() {
 	q.switching = false
 	q.queue.Replace(nil, 0)
 	q.items = nil
+	q.localRows = nil
 	s.model.EndMusicQueue()
 	s.shuffle = shuffleQueue{}
 	if depth > 0 && depth < len(s.model.Stack) {

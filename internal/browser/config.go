@@ -27,6 +27,11 @@ type Config struct {
 	// truncates it before the clock. The caller must not modify the value during Run.
 	Title *string
 
+	// ShowCollections and ShowPlaylists control their home cards. Nil shows a
+	// category when nonempty. False hides it even when populated. Callers must
+	// not modify these values during Run.
+	ShowCollections, ShowPlaylists *bool
+
 	// StartupNotices appear in order once browsing is ready, four seconds each.
 	// Use short messages suitable for display. Run copies the slice.
 	StartupNotices []string

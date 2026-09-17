@@ -76,6 +76,6 @@ func (f *File) Section(name string) Section {
 	return Section{Path: f.Path, Err: errors.New("unknown settings section")}
 }
 
-// UI returns decoded title settings and a separate sound source for validation.
-// Callers must not mutate the borrowed title or sound data.
+// UI returns decoded heading and carousel options and a separate sound source.
+// Callers must not mutate borrowed setting values or sound data.
 func (f *File) UI() UI { return f.ui }

@@ -67,7 +67,9 @@ Live validation against the configured HDHomeRun found 29 enabled channels and d
 | Music | Supported, including album queues and shuffle. |
 | Other Videos | Uses Plex's movie/clip types and the existing video path. No separate backend is needed. |
 | Photos | Supported, including album folders and previous/next navigation. |
-| Collections and playlists | Dedicated browsing is deferred. These are organizational features, not library types. |
+| Collections and playlists | Carousel cards, collection hierarchy, and ordered playlist browsing and playback. See [browsing behavior](GO_BROWSING.md#collections-and-playlists). |
+
+Collections use `/library/all?type=18` and `/library/collections/{id}/items`. Playlists use `/playlists` and `/playlists/{id}/items`. Both normal and smart playlists are included. Playlist contents keep the server order and duplicate entries. Local playback stays paged, so large playlists do not inherit the 10,000-item remote queue limit. Editing playlists and collections remains server-side.
 
 ## Code boundaries
 

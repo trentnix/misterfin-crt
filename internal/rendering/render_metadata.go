@@ -32,6 +32,8 @@ func subtitle(i media.Item) (string, uint32) {
 			seasons += " - " + positiveCount(i.RecursiveItemCount, "episode")
 		}
 		return seasons, color
+	case "Playlist", "BoxSet":
+		return positiveCount(i.ChildCount, "item"), color
 	case "Audio":
 		return runtime(i.RunTimeTicks), color
 	}

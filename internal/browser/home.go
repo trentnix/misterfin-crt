@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"misterfin-crt/internal/media"
@@ -102,7 +103,13 @@ func (s *browserSession) homeLibraries(page media.Page) media.Page {
 		items = append(items, media.Item{ID: continueID, Name: "Continue", Type: "Folder", IsFolder: true})
 	}
 	for _, item := range page.Items {
-		if item.ID != continueID {
+		if item.CollectionType == "boxsets" && s.config.ShowCollections != nil && !*s.config.ShowCollections {
+			continue
+		}
+		if item.CollectionType == "playlists" && s.config.ShowPlaylists != nil && !*s.config.ShowPlaylists {
+			continue
+		}
+		if item.ID != continueID && !unsupportedLibrary(item) {
 			items = append(items, item)
 		}
 	}
@@ -160,4 +167,14 @@ func (s *browserSession) loadContinue() {
 	if !s.home.loading {
 		s.refreshHome()
 	}
+}
+
+// unsupportedLibrary excludes reading formats by server category, never by name.
+// Plex has no audiobook category. Audio stored as ordinary music remains music.
+func unsupportedLibrary(item media.Item) bool {
+	switch strings.ToLower(item.CollectionType) {
+	case "books", "book", "comics", "comic", "audiobooks", "audiobook":
+		return true
+	}
+	return item.Type == "Book" || item.Type == "AudioBook"
 }

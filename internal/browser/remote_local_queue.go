@@ -33,6 +33,11 @@ func (s *browserSession) publishLocalQueue() {
 	}
 	s.remote.source.Publish(remote.QueueState{Entries: []remote.Entry{{ID: item.ID, Key: "local"}}, Current: "local", Repeat: remote.RepeatNone})
 	parent, hasParent := s.model.Parent()
+	// Keep playlists paged, even when a remote source is connected. Loading a
+	// complete queue would delay large playlists and impose the remote size cap.
+	if hasParent && parent.Location.Kind == "playlist" {
+		return
+	}
 	if item.Type != "Audio" || !hasParent || (parent.Start == 0 && !parent.More()) {
 		s.adoptLocalQueue()
 		return

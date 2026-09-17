@@ -238,9 +238,16 @@ func (m *Model) Key(key control.Action) *Request {
 			next.Location = media.Location{Kind: "continue"}
 		case v.Location.Kind == "views":
 			next.Location.Collection = item.CollectionType
-			if item.CollectionType == "livetv" {
-				next.Location.Kind = "livetv"
+			switch item.CollectionType {
+			case "livetv", "playlists":
+				next.Location.Kind = item.CollectionType
+			case "boxsets":
+				next.Location.Kind = "collections"
 			}
+		case item.Type == "Playlist":
+			next.Location = media.Location{Kind: "playlist", ParentID: item.ID}
+		case item.Type == "BoxSet":
+			next.Location = media.Location{Kind: "collection", ParentID: item.ID}
 		case item.Type == "Series":
 			next.Location.Kind = "seasons"
 			next.Location.SeriesID = item.ID

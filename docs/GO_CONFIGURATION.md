@@ -68,6 +68,7 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 | --- | --- | --- |
 | `server` | Absent: legacy Jellyfin fallback. Present: Jellyfin provider, verified TLS, default transcode limits. | Invalid section stops startup. |
 | `ui.title` | `MiSTerFin CRT`. Empty hides the heading. | Restore default title with a notice. |
+| `ui.show_collections`, `ui.show_playlists` | Both `true`. Empty categories stay hidden. | Restore the invalid option to `true`, with a notice and a diagnostic event. |
 | `ui.navigation_sounds` | `enabled: true`, `volume: 10`. | Disable sounds with a notice. Media volume is unchanged. |
 | `background` | Carousel mosaics and item artwork. | Restore normal artwork with a notice. |
 | [`display`](GO_DISPLAY.md) | `interlaced: false`. | Invalid settings stop startup. |
@@ -75,9 +76,24 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 | [`music_visuals`](GO_MUSIC.md) | Starfield, stereo meters enabled. | Invalid settings disable backgrounds. Missing custom assets leave music playable. |
 | [`diagnostics`](GO_DIAGNOSTICS.md) | Off. Legacy `DEBUGLOG` applies only without `server`. `debug.log`, 1 MiB per file. | Disable logging and report the failure. |
 
-Title and sound failures recover independently. An invalid entire `ui` object restores the title and disables sounds. Notices display for four seconds once browsing is ready. Quick Connect does not consume their display time. Enabled diagnostics records handled failures as `configuration.fallback`. Intentional defaults do not produce failure events. Recovery never rewrites settings.
+Title, carousel option, and sound failures recover independently. An invalid entire `ui` object restores the title, enables nonempty collections and playlists, and disables sounds. Notices display for four seconds once browsing is ready. Quick Connect does not consume their display time. Enabled diagnostics records handled failures as `configuration.fallback`. Intentional defaults do not produce failure events. Recovery never rewrites settings.
 
 The file must be one JSON object, at most 256 KiB, with known sections. `input` and `music_visuals` allow 64 KiB each. Other sections allow 4 KiB each, excluding formatting whitespace. A malformed document, unknown top-level section, unreadable file, or missing explicit settings file stops startup because display and input intent cannot be recovered safely.
+
+## Carousel categories
+
+`ui.show_collections` and `ui.show_playlists` default to `true`. A card appears only when the server returns at least one accessible collection or playlist. Empty categories remain hidden even when the server supplies a card. Set either option to `false` to hide its card regardless of contents. Normal libraries and Continue Watching are unaffected. Restart after changing these options.
+
+```json
+{
+  "ui": {
+    "show_collections": true,
+    "show_playlists": true
+  }
+}
+```
+
+Values must be booleans. A mistyped value or `null` falls back to `true`, shows a notice, and records a `configuration.fallback` event when diagnostics is enabled. Other valid UI options retain their values.
 
 ## Browsing title
 

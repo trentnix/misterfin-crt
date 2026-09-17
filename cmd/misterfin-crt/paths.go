@@ -33,6 +33,21 @@ func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File)
 	} else {
 		config.Title = ui.Title
 	}
+	config.ShowCollections, config.ShowPlaylists = ui.ShowCollections, ui.ShowPlaylists
+	for _, option := range []struct {
+		name string
+		err  error
+	}{
+		{"ui.show_collections", ui.ShowCollectionsError},
+		{"ui.show_playlists", ui.ShowPlaylistsError},
+	} {
+		if option.err != nil {
+			log.ConfigurationFallback(option.name, "show-when-nonempty", option.err)
+		}
+	}
+	if ui.ShowCollectionsError != nil || ui.ShowPlaylistsError != nil {
+		config.StartupNotices = append(config.StartupNotices, "Invalid carousel options use their defaults.")
+	}
 	background, err := browser.ParseBackground(source.Section("background"))
 	if err != nil {
 		log.ConfigurationFallback("background", "normal-artwork", err)

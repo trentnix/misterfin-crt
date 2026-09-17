@@ -26,6 +26,8 @@ const testDVRs = `{"MediaContainer":{"Dvr":[{"key":"2","lineup":"lineup://test",
 func TestLiveChannelDiscoveryAndPaging(t *testing.T) {
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/playlists", "/library/all":
+			fmt.Fprint(w, `{"MediaContainer":{"size":0,"totalSize":0}}`)
 		case "/library/sections":
 			fmt.Fprint(w, `{"MediaContainer":{"Directory":[{"key":"1","title":"Home Videos","type":"movie","scanner":"Plex Video Files Scanner"},{"key":"9","title":"Photos","type":"photo"}]}}`)
 		case "/livetv/dvrs":
@@ -82,6 +84,8 @@ func TestLiveDiscoveryWithoutGuideOrPermission(t *testing.T) {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
+				case "/playlists", "/library/all":
+					fmt.Fprint(w, `{"MediaContainer":{"size":0,"totalSize":0}}`)
 				case "/library/sections":
 					fmt.Fprint(w, `{"MediaContainer":{"Directory":[{"key":"1","type":"movie","title":"Movies"}]}}`)
 				case "/livetv/dvrs":

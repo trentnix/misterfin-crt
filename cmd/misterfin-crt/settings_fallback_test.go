@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -143,7 +144,7 @@ func TestBrokenUIRestoresTitleAndMutesNavigationSounds(t *testing.T) {
 			t.Fatal(err)
 		}
 		sounds, notice := browsingSounds(o, log, source)
-		if config.Title != nil || len(config.StartupNotices) != 1 || sounds.Enabled || notice == "" {
+		if config.Title != nil || len(config.StartupNotices) != 2 || config.ShowCollections != nil || config.ShowPlaylists != nil || sounds.Enabled || notice == "" {
 			t.Fatal("invalid UI did not recover safely")
 		}
 		if err := log.Close(); err != nil {
@@ -154,10 +155,10 @@ func TestBrokenUIRestoresTitleAndMutesNavigationSounds(t *testing.T) {
 			t.Fatal(err)
 		}
 		events := decodeStartupEvents(t, data)
-		if len(events) != 2 {
+		if len(events) != 4 {
 			t.Fatal("missing UI fallback events", events)
 		}
-		for i, want := range []struct{ section, fallback string }{{"ui", "default-title"}, {"ui.navigation_sounds", "sounds-off"}} {
+		for i, want := range []struct{ section, fallback string }{{"ui", "default-title"}, {"ui.show_collections", "show-when-nonempty"}, {"ui.show_playlists", "show-when-nonempty"}, {"ui.navigation_sounds", "sounds-off"}} {
 			if events[i]["msg"] != "configuration.fallback" || events[i]["configuration"] != want.section || events[i]["fallback"] != want.fallback || events[i]["error_kind"] != "invalid" {
 				t.Fatal(events)
 			}
@@ -262,6 +263,59 @@ func TestMusicSettingsFallbackAtStartup(t *testing.T) {
 		events := decodeStartupEvents(t, data)
 		if len(events) != 1 || events[0]["msg"] != "configuration.fallback" || events[0]["configuration"] != "music_visuals" || events[0]["fallback"] != "music-backgrounds-off" || events[0]["error_kind"] != tc.kind {
 			t.Fatal(events)
+		}
+	}
+}
+
+func TestCarouselOptionFallbacksAreIndependentAndLogged(t *testing.T) {
+	for _, field := range []string{"show_collections", "show_playlists"} {
+		for _, invalid := range []any{"private-invalid-value", 42, nil} {
+			t.Run(field+"/"+fmt.Sprint(invalid), func(t *testing.T) {
+				dir := t.TempDir()
+				values := map[string]any{"ui": map[string]any{"title": "Custom", "show_collections": false, "show_playlists": false, "navigation_sounds": map[string]any{"enabled": false, "volume": 7}}}
+				values["ui"].(map[string]any)[field] = invalid
+				data, err := json.Marshal(values)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "settings.json"), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				logPath := filepath.Join(dir, "events.log")
+				log, err := diagnostics.Open(diagnostics.Config{Enabled: true, Path: logPath, MaxBytes: 65536})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { log.Close() })
+				o := launchOptions{config: filepath.Join(dir, "jellyfin.conf"), stateDir: dir}
+				source := mustSettings(t, o)
+				config, err := browserConfig(o, log, source)
+				if err != nil {
+					t.Fatal(err)
+				}
+				broken, valid := config.ShowCollections, config.ShowPlaylists
+				if field == "show_playlists" {
+					broken, valid = valid, broken
+				}
+				sounds, notice := browsingSounds(o, log, source)
+				if broken != nil || valid == nil || *valid || config.Title == nil || *config.Title != "Custom" || len(config.StartupNotices) != 1 || sounds.Enabled || sounds.Volume != 7 || notice != "" {
+					t.Fatal("fallback changed valid UI settings")
+				}
+				if err := log.Close(); err != nil {
+					t.Fatal(err)
+				}
+				data, err = os.ReadFile(logPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				events := decodeStartupEvents(t, data)
+				if len(events) != 1 || events[0]["configuration"] != "ui."+field || events[0]["fallback"] != "show-when-nonempty" || events[0]["error_kind"] != "invalid" {
+					t.Fatalf("missing fallback: %v", events)
+				}
+				if strings.Contains(string(data), "private-invalid-value") {
+					t.Fatal("logged raw setting value")
+				}
+			})
 		}
 	}
 }
