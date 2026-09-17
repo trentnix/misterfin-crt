@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"mistervision/internal/browser"
+	"mistervision/internal/connection"
 	"mistervision/internal/input"
 	"mistervision/internal/platform"
 	"mistervision/internal/playback"
@@ -34,9 +35,13 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 		return err
 	}
 	config.Build = release.CurrentBuild()
-	config.Connector, err = serverConnector(source, o.config, config.StateDir, config.Build.Version, trace.log)
+	catalog, err := newConnectionCatalog(source, o.config, config.StateDir, config.Build.Version, trace.log)
 	if err != nil {
 		return err
+	}
+	config.Connections = catalog.choices
+	if catalog.notice != "" {
+		config.StartupNotices = append(config.StartupNotices, catalog.notice)
 	}
 	if executable, err := os.Executable(); err == nil {
 		if installer := installedUpdater(o, executable); installer != nil {
@@ -61,6 +66,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 		config.StartupNotices = append(config.StartupNotices, notice)
 	}
 	target := selectBrowserTarget(d, o, bindings)
+	config.InitialControls = target.initialControls
 	if target.activate != nil {
 		restore := target.activate()
 		defer restore()
@@ -94,5 +100,31 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	}
 	defer func() { cancel(); <-done }()
 	trace.phase("browser")
-	return browser.Run(ctx, config, player, video, rendering.NewRenderer(), feedback, keys)
+	navigation := make(map[string]*browser.Navigation)
+	for {
+		id := catalog.selected
+		if id == "jellyfin-new" {
+			id = "jellyfin"
+		}
+		if navigation[id] == nil {
+			navigation[id] = &browser.Navigation{}
+		}
+		config.ConnectionID = id
+		config.Navigation = navigation[id]
+		config.Connector = catalog.connectors[catalog.selected]
+		err := browser.Run(ctx, config, player, video, rendering.NewRenderer(), feedback, keys)
+		var change *connection.Change
+		if !errors.As(err, &change) {
+			return err
+		}
+		if _, ok := catalog.connectors[change.ID]; !ok {
+			return errors.New("unknown connection selection")
+		}
+		if change.ID == "jellyfin-new" {
+			catalog.connectors[change.ID] = &discoverConnection{connector: catalog.discovery.NewSelection()}
+		}
+		config.ReturnConnectionID = change.ReturnID
+		catalog.selected = change.ID
+		config.StartupNotices = nil
+	}
 }

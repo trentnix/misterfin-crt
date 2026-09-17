@@ -38,6 +38,7 @@ func (s *browserSession) authenticate() {
 	s.selection.err = ""
 	s.selection.key = ""
 	s.setup = s.setupPresentation(nil)
+	s.connection.reauthenticate = s.client != nil
 	s.connection.connect(s.ctx, s.send)
 }
 
@@ -72,6 +73,9 @@ func (s *browserSession) handleAuthCode(r authCodeResult) bool {
 	if !s.connection.current(r.generation) {
 		return false
 	}
+	// The connector can restore discovery navigation for a remembered server.
+	// Approval-code updates retain that action until the attempt is replaced.
+	r.presentation.BackToServers = r.presentation.BackToServers || s.setup.BackToServers
 	s.setup = r.presentation
 	return true
 }
@@ -85,16 +89,23 @@ func (s *browserSession) handleAuth(r authResult) bool {
 	} else {
 		s.client = r.connection.client
 		s.controlSource = r.connection.remote
+		s.includeCurrentConnection()
+		s.about.CurrentConnection = s.config.ConnectionID
 		if r.connection.recovered {
 			s.startupNotices = append(s.startupNotices, "Damaged sign-in was backed up. Connected successfully.")
 		}
 		s.model = New()
+		s.restoreNavigation()
 		s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)
 		s.selection.key = ""
 		s.selection.loader = r.connection.selection
 		s.setup = rendering.SetupPresentation{}
 		s.startRemote()
-		s.load(s.model.Load(0))
+		if s.model.Current().Detail == nil {
+			s.load(s.model.Load(s.model.Current().Start))
+		} else {
+			s.loadSelection()
+		}
 		s.refreshHome()
 	}
 

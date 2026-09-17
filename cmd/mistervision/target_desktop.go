@@ -26,7 +26,7 @@ func desktopTarget(d platform.Presenter, o launchOptions) browserTarget {
 	} else {
 		output = companion.New(d)
 	}
-	return browserTarget{openSound: alsa.Open, player: config, output: output, readInput: func(ctx context.Context, _ *diagnostics.Log) (<-chan control.Event, <-chan struct{}, error) {
+	return browserTarget{initialControls: control.KeyboardLabels(), openSound: alsa.Open, player: config, output: output, readInput: func(ctx context.Context, _ *diagnostics.Log) (<-chan control.Event, <-chan struct{}, error) {
 		return input.ReadTerminal(ctx)
 	}}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"mistervision/internal/connection"
 	"mistervision/internal/input/control"
 	"mistervision/internal/media"
 	"mistervision/internal/platform"
@@ -17,13 +18,14 @@ import (
 // browserSession owns one browser run. Only the event loop mutates its state.
 // Workers capture their inputs and return results through channels.
 type browserSession struct {
-	update         updateWork
-	remote         remoteSession
-	controlSource  remote.Source // Supplied by the authenticated connection and reusable after update cancellation.
-	remoteRequests remoteRequests
-	remotePlayback remotePlayback
-	message        rendering.MessagePresentation
-	startupNotices []string // Pending until browsing can show each notice.
+	update           updateWork
+	connectionChange *connection.Change
+	remote           remoteSession
+	controlSource    remote.Source // Supplied by the authenticated connection and reusable after update cancellation.
+	remoteRequests   remoteRequests
+	remotePlayback   remotePlayback
+	message          rendering.MessagePresentation
+	startupNotices   []string // Pending until browsing can show each notice.
 
 	ctx              context.Context
 	config           Config
@@ -58,7 +60,7 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 	geometry := output.Geometry()
 	s := &browserSession{
 		ctx: ctx, config: config, feedback: feedback, startupNotices: append([]string(nil), config.StartupNotices...),
-		model: New(), output: output, renderer: renderer, geometry: geometry,
+		model: New(), output: output, renderer: renderer, geometry: geometry, controls: config.InitialControls,
 		events: make(chan workerResult, 16), frameInterval: time.Second / 60,
 		connection: newConnectionManager(config, geometry.Width, geometry.Height),
 		requests:   requestState{cancel: func() {}},
@@ -72,6 +74,15 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 	s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)
 	s.about.Build = config.Build
 	s.about.CanInstall = config.Updater != nil
+	s.about.Connections = config.Connections
+	s.about.CurrentConnection = config.ReturnConnectionID
+	s.about.CanReturnToConnection = config.ReturnConnectionID != ""
+	for i, option := range config.Connections {
+		if option.ID == config.ConnectionID {
+			s.about.ConnectionSelected = i
+			break
+		}
+	}
 	s.music.library = config.MusicVisuals
 	if s.music.library != nil {
 		s.music.index = s.music.library.Index(s.music.library.Config.Default)

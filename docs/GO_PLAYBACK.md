@@ -21,7 +21,7 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video --settin
 
 Without `--inline-video`, the harness uses FFplay for video. Keep keyboard focus in Ghostty for client controls. The harness uses the Python/libmpv helper for music in either video mode. Direct headless runs without an audio helper use FFplay for music too. MiSTer needs neither Python nor libmpv. See the [harness guide](../tools/ghostty/README.md) and [MPlayer build](GO_BUILD.md#mplayer).
 
-MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% before decoding. Live TV begins demuxing without a cache prefill because a low-bitrate broadcast may not supply 1.6 MiB before the 30-second startup deadline.
+MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% before decoding. Live TV begins demuxing without a cache prefill because a low-bitrate broadcast may not supply 1.6 MiB before the 30-second startup deadline. The frame timer starts when the first decoded image is ready, so opening and buffering do not cause a catch-up burst after loading or seeking.
 
 ## Playback controls
 
@@ -32,7 +32,7 @@ MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% 
 | Previous/next music track | LB / RB | [ / ] or Page Up / Page Down |
 | Pause/resume | B | Enter or B |
 | Stop and return | A | Escape or A |
-| Video options / music background | SELECT/View | Tab |
+| Video options / music background | Select | Tab |
 
 [Input profiles](GO_INPUT.md) control hardware bindings and badge labels. Controls expire after three seconds. Pause/resume hides them. Menu toggles and track changes act once per press.
 
@@ -88,7 +88,7 @@ Plex channels with selectable alternate tracks expose View → Audio. A selectio
 
 ### Closed captions
 
-When caption data is available, press View/Tab and select Subtitles → Closed captions. Off hides them immediately. Changes do not reopen the channel. Captions target the primary EIA-608 compatibility text carried in ATSC A53 video data. Full CEA-708 service selection, caption languages, and broadcast styling are not supported. No guide data is required.
+When caption data is available, press Select/Tab and select Subtitles → Closed captions. Off hides them immediately. Changes do not reopen the channel. Captions target the primary EIA-608 compatibility text carried in ATSC A53 video data. Full CEA-708 service selection, caption languages, and broadcast styling are not supported. No guide data is required.
 
 MPlayer decodes caption side data from the existing video decoder. The libmpv helper exports decoded subtitle text. Both send complete text updates and clears to the shared overlay. FFplay does not export caption text.
 

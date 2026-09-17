@@ -19,7 +19,7 @@ Start with the [project README](../README.md) for installation and everyday use.
 
 ## Current limits
 
-Search, server discovery, automatic photo slideshows, and photo zoom are not implemented. Plex Home profile switching and Plex remote control are not implemented. Jellyfin Live TV audio-track selection is unavailable. Plex exposes alternate live audio when the stream provides it. Live TV has no seeking or timeshift support.
+Search, automatic photo slideshows, and photo zoom are not implemented. Jellyfin supports first-time local discovery. About provides connection switching and Jellyfin discovery. Remembered Jellyfin servers support confirmed address-change recovery. Plex discovery is not implemented. Plex Home profile switching and Plex remote control are not implemented. Jellyfin Live TV audio-track selection is unavailable. Plex exposes alternate live audio when the stream provides it. Live TV has no seeking or timeshift support.
 
 The separate-window FFplay fallback has fewer controls than MiSTer and inline Ghostty. See [Plex limits](GO_PLEX.md#playback-and-limits) and the [playback guide](GO_PLAYBACK.md).
 

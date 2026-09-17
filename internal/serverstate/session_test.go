@@ -55,3 +55,26 @@ func TestSessionStorageFailureDoesNotReplaceRecord(t *testing.T) {
 		t.Fatal("storage error damaged original")
 	}
 }
+
+func TestSessionIdentityAllowsVerifiedAddressMove(t *testing.T) {
+	for _, id := range []string{"same-server", "different-server", ""} {
+		t.Run(id, func(t *testing.T) {
+			dir := t.TempDir()
+			old := Session{Server: "http://old", ServerID: "same-server", DeviceID: "device", Token: "token", UserID: "user"}
+			if err := SaveSession(dir, old); err != nil {
+				t.Fatal(err)
+			}
+			saved, recovered, err := LoadSessionForServer(dir, "http://new", id)
+			if err != nil || recovered {
+				t.Fatal(err)
+			}
+			if id == old.ServerID {
+				if saved != old {
+					t.Fatal("matching identity lost its token or original URL")
+				}
+			} else if saved.Token != "" || saved.Server != "http://new" {
+				t.Fatal("credentials crossed a server identity boundary")
+			}
+		})
+	}
+}

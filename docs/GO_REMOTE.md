@@ -2,6 +2,8 @@
 
 After sign-in, select **MiSTerVision** as the playback device in another Jellyfin client. Remote control works on MiSTer and in the development harness without an extra listening port or settings section.
 
+Only the active connection accepts remote control. Switching to Plex cancels and joins the Jellyfin listener before the Plex browser starts. Pending remote commands belong to the old session and cannot reach the new one. Keeping Jellyfin's saved sign-in does not keep its remote listener active. Switching back to Jellyfin starts the listener again.
+
 ## Commands and queues
 
 | Command | Behavior |

@@ -12,7 +12,7 @@ import (
 
 const maxFileBytes = 256 << 10
 
-var sections = map[string]int{"server": 4096, "ui": 4096, "background": 4096, "display": 4096, "sounds": 4096, "diagnostics": 4096, "input": 64 << 10, "music_visuals": 64 << 10}
+var sections = map[string]int{"server": 4096, "connections": 64 << 10, "ui": 4096, "background": 4096, "display": 4096, "sounds": 4096, "diagnostics": 4096, "input": 64 << 10, "music_visuals": 64 << 10}
 
 // File holds immutable startup snapshots. UI fields are decoded once. Relative
 // asset paths stay attached to their source, including legacy files.
@@ -41,7 +41,7 @@ func Load(path string, required bool) (*File, error) {
 	f := &File{Path: path, original: source.Data, legacy: source.Data == nil, sources: make(map[string]Section)}
 	for name, limit := range sections {
 		s := Section{Path: path, Data: data[name]}
-		if f.legacy && name != "server" {
+		if f.legacy && name != "server" && name != "connections" {
 			file := name
 			if file == "music_visuals" {
 				file = "music"

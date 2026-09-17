@@ -55,3 +55,15 @@ static double update_video(int *blit_frame)
         *blit_frame = res > 0;
     return frame_time;
 }
+
+/* MPlayer 1.5 first-frame scheduling branch from the playback loop. */
+static int schedule_video(int skip_timing)
+{
+    int frame_time_remaining = 0;
+    float aq_sleep_time = 0;
+                if (!skip_timing)
+                    frame_time_remaining = sleep_until_update(&mpctx->time_frame, &aq_sleep_time);
+
+//====================== FLIP PAGE (VIDEO BLT): =========================
+    return frame_time_remaining;
+}

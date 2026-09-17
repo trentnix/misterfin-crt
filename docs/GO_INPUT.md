@@ -2,7 +2,7 @@
 
 Set device profiles in the `input` section of `settings.json`. Omission or `{"profiles": []}` keeps built-in bindings. Invalid input settings stop startup. Restart after editing. See [settings paths and overrides](GO_CONFIGURATION.md#paths-and-precedence) and [default playback controls](GO_PLAYBACK.md#playback-controls).
 
-Profiles configure Linux evdev devices, including MiSTer controllers and physical keyboards. Ghostty uses terminal key sequences instead. Hints follow the last physical device used, while terminal input supplies keyboard labels.
+Profiles configure Linux evdev devices, including MiSTer controllers and physical keyboards. Ghostty uses terminal key sequences instead and shows keyboard labels from the first frame. MiSTer starts with the default controller labels. Input events replace the hints with the active device’s configured bindings.
 
 The default controller layout follows MiSTer: B selects, plays, or pauses and A returns, cancels, or stops. Explicit button bindings override these defaults. Keyboard controls remain Enter to select and Escape to return.
 
@@ -112,7 +112,7 @@ Gamepads use the left stick for navigation by default: axis `0` selects left/rig
 | `seek-backward`, `seek-forward` | Seek music by 10 seconds or recorded video by 30 seconds. Ignored for Live TV. |
 | `open` | Open a selection, apply a choice, or pause/resume. |
 | `back` | Return, dismiss, cancel, or stop playback. |
-| `about` | Toggle About while browsing. Default: START/Menu or F1. |
+| `about` | Toggle About while browsing. Default: Start or F1. |
 | `select` | Switch the home view, restart resumable video from details, open video options, start library shuffle, or cycle music backgrounds. |
 | `retry` | Retry or refresh the current request. |
 | `quit` | Exit the application. |
@@ -122,3 +122,5 @@ Context determines the action. In video options, directions navigate tabs/rows a
 Held navigation starts repeating after 350 ms, uses six 110 ms intervals, then accelerates to 45 ms. Held seeks repeat every 250 ms after 350 ms. Menu toggles and track changes act once per press. Supporting terminals report presses, repeats, and releases through the Kitty keyboard protocol. Legacy terminal input cannot distinguish held repeats from repeated presses.
 
 [`control.Action`](../internal/input/control/action.go) defines and validates semantic actions. The input readers own physical mapping and repeat timing. Renderers receive resolved labels and perform no device or configuration I/O.
+
+Default controller hints call the center buttons **Select** and **Start** (Xbox View and Menu). Explicit `button_labels` overrides still apply. Browsing and setup footers show navigation first, followed by actions, with Back or Exit last.

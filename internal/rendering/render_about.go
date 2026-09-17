@@ -12,17 +12,25 @@ import (
 // Controls use the same binding labels and safe margins as browsing screens.
 func (p *screenPainter) about() {
 	a := p.scene.About
+	if a.ConnectionsVisible {
+		p.connectionChoices()
+		return
+	}
 	if a.NotesVisible {
 		p.releaseNotes()
 		return
 	}
-	hints := []controlHint{hint(p.scene.Controls, control.Back, "Back")}
+	var hints []controlHint
+	if len(a.Connections) > 0 {
+		hints = append(hints, hint(p.scene.Controls, control.Down, "Connections"))
+	}
 	if a.Release.Available && !a.Checking {
 		hints = append(hints, hint(p.scene.Controls, control.Open, "View release"))
 	}
 	if !a.Checking {
 		hints = append(hints, hint(p.scene.Controls, control.Select, "Check updates"))
 	}
+	hints = append(hints, hint(p.scene.Controls, control.Back, "Back"))
 	rows := controlRows(p.width, hints)
 	statusY := controlsTop(p.bottom, rows) - 18
 	p.cache.about(p.canvas, statusY)
@@ -97,10 +105,11 @@ func (a AboutPresentation) notesLayout(width, height int, labels control.Labels)
 			hints = append(hints, hint(labels, control.Back, "Cancel"))
 		}
 	default:
+		hints = append(hints, pairedHint(labels, control.Up, control.Down, "Scroll"))
 		if a.CanInstall && a.Release.HasBundle {
 			hints = append(hints, hint(labels, control.Open, "Install"))
 		}
-		hints = append(hints, pairedHint(labels, control.Up, control.Down, "Scroll"), hint(labels, control.Back, "Back"))
+		hints = append(hints, hint(labels, control.Back, "Back"))
 	}
 	rows := controlRows(width, hints)
 	statusY := controlsTop(height-8-safeY(width, height), rows) - 20

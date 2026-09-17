@@ -7,7 +7,8 @@ import (
 )
 
 // Server selects one media provider and its connection policy. An absent server
-// section selects legacy Jellyfin configuration. Saved sign-in stays separate.
+// section permits legacy Jellyfin configuration or discovery when that file is
+// absent. Saved sign-in stays separate.
 type Server struct {
 	Provider    string         `json:"provider"`
 	URL         string         `json:"url"`

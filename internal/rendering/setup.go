@@ -10,8 +10,9 @@ const (
 	SetupConnecting = connection.SetupConnecting
 	SetupApproval   = connection.SetupApproval
 	SetupFailure    = connection.SetupFailure
+	SetupServers    = connection.SetupServers
 )
 
-// SetupPresentation is safe, resolved content supplied by the connector.
+// SetupPresentation is safe, resolved content from the connection flow.
 // Rendering owns layout, not sign-in policy or provider-specific instructions.
 type SetupPresentation = connection.Presentation

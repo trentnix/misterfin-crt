@@ -22,11 +22,14 @@ type authenticatedConnection struct {
 // Successful attempts assemble account-scoped loaders. Only the browser loop
 // calls its methods.
 type connectionManager struct {
-	config        Config
-	width, height int
-	cancel        context.CancelFunc
-	generation    int
-	done          <-chan struct{} // Closes after this attempt and all preceding attempts exit.
+	config         Config
+	width, height  int
+	cancel         context.CancelFunc
+	generation     int
+	reauthenticate bool
+	selectServer   bool // Keep discovery active across retries until a server is chosen.
+	choice         chan connection.Server
+	done           <-chan struct{} // Closes after this attempt and all preceding attempts exit.
 }
 
 func newConnectionManager(config Config, width, height int) connectionManager {
@@ -38,11 +41,12 @@ func newConnectionManager(config Config, width, height int) connectionManager {
 // before touching session files, without blocking the browser loop.
 func (m *connectionManager) connect(ctx context.Context, send func(context.Context, workerResult)) {
 	m.cancel()
+	m.choice = nil
 	m.generation++
 	generation := m.generation
 	work, cancel := context.WithCancel(ctx)
 	m.cancel = cancel
-	config, width, height := m.config, m.width, m.height
+	config, width, height, selectServer, reauthenticate := m.config, m.width, m.height, m.selectServer, m.reauthenticate
 	previous := m.done
 	done := make(chan struct{})
 	m.done = done
@@ -59,8 +63,22 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 		if config.Connector == nil {
 			err = errors.New("no server connector configured")
 		} else {
-			session, err = config.Connector.Connect(work, func(p connection.Presentation) {
-				send(work, authCodeResult{generation: generation, presentation: p})
+			session, err = config.Connector.Connect(work, connection.Interaction{
+				SelectServer:   selectServer,
+				Reauthenticate: reauthenticate,
+				Progress: func(p connection.Presentation) {
+					send(work, authCodeResult{generation: generation, presentation: p})
+				},
+				ChooseServer: func(ctx context.Context, servers []connection.Server) (connection.Server, error) {
+					choice := make(chan connection.Server, 1)
+					send(ctx, serverChoicesResult{generation: generation, servers: append([]connection.Server(nil), servers...), choice: choice})
+					select {
+					case server := <-choice:
+						return server, nil
+					case <-ctx.Done():
+						return connection.Server{}, ctx.Err()
+					}
+				},
 			})
 		}
 		var connection *authenticatedConnection

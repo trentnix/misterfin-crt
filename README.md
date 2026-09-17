@@ -22,7 +22,9 @@ For a new installation, download `mistervision-vX.Y.Z-mister.zip` from the [late
 
 Copy the remaining files from the ZIP’s `mistervision` directory into `/media/fat/mistervision/`. The archive includes examples, notices, and version information but no active configuration or saved state. Its `INSTALL.txt` has detailed instructions. To build from source, follow the [build guide](docs/GO_BUILD.md).
 
-For a new installation, copy [settings.example.json](settings.example.json) to `/media/fat/mistervision/settings.json` and set your server address. A minimal Jellyfin configuration is:
+For Jellyfin on your local network, launch without a `server` section or legacy `jellyfin.conf`. MiSTerVision finds nearby servers, shows their names and addresses, and remembers the one you select. Approve Quick Connect to sign in. If the remembered server moves to a new address, MiSTerVision can find it again and ask you to confirm before reconnecting with your saved sign-in. See [discovery and troubleshooting](docs/GO_BROWSING.md#jellyfin-discovery).
+
+For Plex, a remote Jellyfin server, or an explicit address, copy [settings.example.json](settings.example.json) to `/media/fat/mistervision/settings.json` and set your server address. A minimal Jellyfin configuration is:
 
 ```json
 {
@@ -54,7 +56,7 @@ If moving from MiSTerFin CRT, follow the [rename instructions](docs/GO_BUILD.md#
 
 The client checks for the latest public release at startup. An available update appears beneath the carousel title. Use **Check updates** in About to check again.
 
-1. While browsing, press START/Menu on a controller or F1 on a keyboard to open **About**.
+1. While browsing, press Start on a controller or F1 on a keyboard to open **About**.
 2. Select **View release** and review the changes.
 3. Select **Install** and wait for completion. The app restarts automatically after a successful update.
 
@@ -219,6 +221,8 @@ Sound settings affect browsing feedback only. They do not change music or video 
 
 `MISTERVISION_CACHE_ROOT` changes where artwork and carousel collages are cached. The default root is `/media/fat` on MiSTer, `/tmp/mistervision-cache` in the Ghostty harness, and the user’s cache directory (usually `~/.cache`) for direct desktop runs. To keep the Ghostty cache across reboots, set `MISTERVISION_CACHE_ROOT="$HOME/.cache"` before launching the harness. The client stores caches under `mistervision` within that directory. See [artwork caching](docs/GO_BROWSING.md#persistent-artwork-cache) for details.
 
+You can keep multiple Jellyfin and Plex accounts signed in. Add named profiles to `connections.profiles`, then use **About → Connections → Use existing connection** to switch. Only the active connection accepts remote commands. See [multiple connections](docs/GO_CONFIGURATION.md#multiple-connections) for the configuration example and startup behavior.
+
 ## Local development and testing
 
 I use the Ghostty harness on Linux to develop and test the interface without MiSTer hardware. It also helps verify that the architecture supports different display pipelines while reusing the same UI and application logic. From the repository directory, run the browsing demo:
@@ -227,13 +231,13 @@ I use the Ghostty harness on Linux to develop and test the interface without MiS
 python3 tools/ghostty/ghostty_harness.py --demo --ntsc
 ```
 
-The harness builds the client automatically. See the [development harness guide](tools/ghostty/README.md) for dependencies, connecting to either server, and testing playback.
+The harness builds the client automatically. The demo uses mock data and does not play media. See the [development harness guide](tools/ghostty/README.md) for dependencies, copyable Jellyfin discovery and Plex connection commands, separate configuration profiles, and playback inside Ghostty.
 
 ## Server support
 
 Jellyfin and Plex share browsing, controls, music visuals, picture modes, and the photo viewer. Each adapter handles its own sign-in, media queries, and streaming. Playback requires a server that can supply the supported formats.
 
-Jellyfin supports remote control from other Jellyfin clients. Plex supports linked-account access and local DVR live TV, including alternate audio when the stream exposes it. Neither provider supports server discovery yet. Plex Home profile switching, Plex remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
+Jellyfin supports remote control from other Jellyfin clients. Plex supports linked-account access and local DVR live TV, including alternate audio when the stream exposes it. Jellyfin supports local-network discovery. Plex server discovery is not implemented. Plex Home profile switching, Plex remote control, multi-file movies, and Plex's free online TV are not implemented. See [Plex playback and limits](docs/GO_PLEX.md).
 
 ## Deferred work
 

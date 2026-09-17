@@ -4,7 +4,7 @@ Install on MiSTer
 
 1. Exit MiSTerVision. Keep a copy of the installed binaries before upgrading.
 2. Extract the ZIP on your computer. Copy Scripts/MiSTerVision.sh to /media/fat/Scripts/ and the contents of mistervision/ to /media/fat/mistervision/ on the SD card.
-3. For a new installation, copy settings.example.json to settings.json in /media/fat/mistervision/. Set server.provider and server.url. Use provider "jellyfin" with port 8096 or "plex" with port 32400, unless your server uses another port.
+3. For local Jellyfin discovery, leave connection settings absent and select a server when the app starts. For Plex or an explicit Jellyfin address, copy settings.example.json to settings.json in /media/fat/mistervision/ and set server.provider and server.url. Use provider "jellyfin" with port 8096 or "plex" with port 32400, unless your server uses another port.
 4. Keep existing settings and saved state when upgrading. Existing jellyfin.conf remains supported when settings.json has no server section. See the configuration guide in the source bundle or online: https://github.com/trentnix/mistervision/blob/main/docs/GO_CONFIGURATION.md
 5. Make the launcher and both binaries executable if the filesystem requires it.
 6. Launch MiSTerVision from MiSTer's Scripts menu. Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at plex.tv/link.

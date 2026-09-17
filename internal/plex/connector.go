@@ -25,7 +25,7 @@ var _ connection.Connector = Connector{}
 
 // Connect validates saved credentials or requests approval at plex.tv/link.
 // A connected session has no remote-control source in this initial adapter.
-func (c Connector) Connect(ctx context.Context, progress func(connection.Presentation)) (connection.Session, error) {
+func (c Connector) Connect(ctx context.Context, interaction connection.Interaction) (connection.Session, error) {
 	server, err := serverURL(c.Config.Server)
 	if err != nil {
 		return connection.Session{}, err
@@ -43,10 +43,8 @@ func (c Connector) Connect(ctx context.Context, progress func(connection.Present
 		c.Diagnostics.Record("authentication.session-recovered")
 	}
 	err = client.Authenticate(ctx, dir, func(code string) {
-		if progress != nil {
-			progress(connection.Presentation{Kind: connection.SetupApproval, Title: "Link Plex", Code: code, Recovered: recovered, Retry: "New code",
-				Message: "Open plex.tv/link in a signed-in browser.\nEnter this code to approve MiSTerVision."})
-		}
+		interaction.Show(connection.Presentation{Kind: connection.SetupApproval, Title: "Link Plex", Code: code, Recovered: recovered, Retry: "New code",
+			Message: "Open plex.tv/link in a signed-in browser.\nEnter this code to approve MiSTerVision."})
 	})
 	if err != nil {
 		return connection.Session{}, err

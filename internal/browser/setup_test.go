@@ -144,6 +144,9 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 		if s.setup.Code != "123456" || s.connection.generation != attempt {
 			t.Fatal("new-code flow did not replace request")
 		}
+		if s.setup.BackToServers {
+			t.Fatal("explicit configuration unexpectedly offers discovery navigation")
+		}
 	}
 }
 
@@ -224,8 +227,8 @@ type scriptedConnector struct {
 	connect func(context.Context, func(connection.Presentation)) (connection.Session, error)
 }
 
-func (c scriptedConnector) Connect(ctx context.Context, progress func(connection.Presentation)) (connection.Session, error) {
-	return c.connect(ctx, progress)
+func (c scriptedConnector) Connect(ctx context.Context, interaction connection.Interaction) (connection.Session, error) {
+	return c.connect(ctx, interaction.Show)
 }
 func (scriptedConnector) Describe(err error) connection.Presentation {
 	if err == nil {

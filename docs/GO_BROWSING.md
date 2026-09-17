@@ -6,7 +6,7 @@ Use the [MiSTer launcher](GO_BUILD.md#install-on-mister) or [development harness
 
 Connection settings normally come from `settings.json`. Invalid JSON connection settings stop startup with a field-level error. Restart after correcting them.
 
-When no `server` section exists, a missing or invalid legacy `jellyfin.conf` opens setup help with the selected path and an example server address. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back exits setup.
+When no `server` section exists, the client reads legacy `jellyfin.conf` if present. A missing legacy file starts Jellyfin discovery. An invalid legacy file opens setup help instead of selecting a different server. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back returns to discovery when sign-in followed a discovery selection. Otherwise, Back opens the connection chooser when connections are available, or exits setup. Start/F1 opens About during discovery, connection attempts, approval, and errors. Choosing another connection cancels the unfinished attempt. Canceling from the connection chooser restores the last connected browser, or exits if none exists.
 
 Jellyfin Quick Connect displays a public approval code. Enter it in an already signed-in Jellyfin client. The waiting indicator animates until approval or the five-minute timeout. New code cancels the previous attempt. The screen does not expose credentials or Quick Connect secrets.
 
@@ -18,6 +18,14 @@ Saved sessions are bound to the server URL. C `token.conf` and `device.conf` fil
 
 For a complete, valid saved session, network and server failures retain its tokens. An explicit HTTP 401 or 403 triggers replacement authentication. Damaged local sign-in data is backed up before a fresh sign-in, with a notice explaining the recovery. Storage failures show setup help instead. See [saved sign-in recovery](GO_CONFIGURATION.md#saved-sign-in-recovery). TLS verification is enabled unless [configured otherwise](GO_CONFIGURATION.md#server-connection).
 
+## Jellyfin discovery
+
+When no server is configured, the client first checks its remembered Jellyfin selection. If none exists, it scans directly connected IPv4 networks for three seconds using UDP port 7359. The picker shows server names and addresses, including when only one server answers. Up/Down selects a row, Open connects, Select/Tab or R scans again, and Back opens connection choices. Quick Connect follows selection. During connection, approval, or a sign-in failure after selection, Back cancels the attempt and scans again so you can choose another server. Back from the connection chooser restores the previous connected browser, or exits if none exists. Back is also available when a later launch reuses the remembered server but still needs sign-in.
+
+The selection is stored in `jellyfin-server.json` under the state directory. Later launches connect to that address and reuse valid sign-in. Discovery does not create or edit configuration files. An explicit JSON server or an existing legacy configuration always takes precedence. Invalid explicit configuration never triggers discovery. An unreadable or damaged saved selection shows recovery instructions and is preserved.
+
+If no servers appear, make sure Jellyfin discovery is enabled and UDP port 7359 can reach the server. Containers must expose that UDP port. Broadcast discovery normally stays on the local subnet. Retry after fixing the network, or set `server.url` in `settings.json` using the [connection example](GO_CONFIGURATION.md#server-connection). If connecting to a remembered address fails, MiSTerVision scans once for the same server ID and checks its public identity without sending credentials. A matching new address opens **Server address changed**. Select it to reconnect with your saved sign-in, or press Back to cancel. The new address is remembered after sign-in succeeds. Failed recovery preserves your sign-in and offers Retry. Explicitly configured addresses never change automatically, and HTTPS connections cannot recover to HTTP. Use About → Connections to choose a different server.
+
 ## Navigation
 
 | Action | Controller | Keyboard |
@@ -26,8 +34,8 @@ For a complete, valid saved session, network and server failures retain its toke
 | Change home card or jump a list screen | Left/Right | Left/Right or Page Up/Page Down |
 | Open | B | Enter, B, or X |
 | Back | A | Escape, Backspace, A, or Z |
-| Switch home view | SELECT/View | Tab |
-| About | START/Menu | F1 |
+| Switch home view | Select | Tab |
+| About | Start | F1 |
 | Retry | Configured retry binding | R |
 | Quit | Configured quit binding | Q or Ctrl+C |
 
@@ -71,9 +79,9 @@ Photos open full screen with preserved proportions. Left/Right moves through pho
 
 ## About and updates
 
-START/Menu or F1 opens and closes About while browsing. Back also closes it. About is unavailable during media playback and startup. It shows the embedded logo, installed version, and credits for Pudding Studio's original material and Trent Nix's changes, with the [license](../LICENSE) and [component notice](THIRD_PARTY.md).
+Start or F1 opens and closes About while browsing. Back also closes it. About is unavailable during media playback and loading a media item. It remains available during setup. Press Down for Connections, then choose an existing connection, Jellyfin discovery, or Plex setup. See [multiple connections](GO_CONFIGURATION.md#multiple-connections). It shows the embedded logo, installed version, and credits for Pudding Studio's original material and Trent Nix's changes, with the [license](../LICENSE) and [component notice](THIRD_PARTY.md).
 
-The client checks this repository's latest public stable release once per launch. View/Tab or R checks again after the preceding request finishes. Stable `vMAJOR.MINOR.PATCH` versions are compared numerically. Development builds can offer a public release without claiming it is newer than the checkout. Builds use the version described in the [build guide](GO_BUILD.md#go-client).
+The client checks this repository's latest public stable release once per launch. Select/Tab or R checks again after the preceding request finishes. Stable `vMAJOR.MINOR.PATCH` versions are compared numerically. Development builds can offer a public release without claiming it is newer than the checkout. Builds use the version described in the [build guide](GO_BUILD.md#go-client).
 
 No GitHub credentials are sent. A missing or inaccessible release displays “No public release available.” Network, rate-limit, and invalid-response failures display “Could not check for updates.” Neither means the installation is current. If an update is offered, Open shows its release notes. Up/Down scrolls the notes. Open again starts installation on a standard MiSTer installation. Desktop and custom installations show a manual-installation message.
 

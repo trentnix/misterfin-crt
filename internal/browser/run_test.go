@@ -68,3 +68,55 @@ func (*runTestOutput) FrameInterval(bool) time.Duration { return time.Second / 6
 func (o *runTestOutput) Present(videoout.Frame) error   { return o.err }
 func (o *runTestOutput) Clear()                         { o.cleared = true }
 func (o *runTestOutput) Close() error                   { o.closed = true; return nil }
+
+// TestRunInitialControlsReachFirstFrame verifies startup hints without a prior
+// input event and confirms that subsequent device bindings still take precedence.
+func TestRunInitialControlsReachFirstFrame(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		labels     control.Labels
+		open, back string
+	}{
+		{"terminal", control.KeyboardLabels(), "Enter", "Esc"},
+		{"controller", nil, "B", "A"},
+		{"custom", control.Labels{control.Open: "Select", control.Back: "Cancel"}, "Select", "Cancel"},
+		{"unbound", control.Labels{}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			keys := make(chan control.Event, 1)
+			first, changed := true, false
+			renderer := &controlCaptureRenderer{Renderer: rendering.NewRenderer(), capture: func(scene rendering.Scene) {
+				if first {
+					first = false
+					if scene.Controls.Name(control.Open) != tc.open || scene.Controls.Name(control.Back) != tc.back {
+						t.Error("first frame ignored initial bindings")
+					}
+					keys <- control.Event{Action: control.Up, Labels: control.Labels{control.Open: "Cross", control.Back: "Circle"}}
+				} else if !changed && scene.Controls.Name(control.Open) == "Cross" {
+					changed = true
+					if scene.Controls.Name(control.Back) != "Circle" {
+						t.Error("device bindings were not replaced together")
+					}
+					keys <- control.Event{Action: control.Quit}
+				}
+			}}
+			err := Run(ctx, Config{InitialControls: tc.labels, StateDir: t.TempDir()}, playback.Config{}, &runTestOutput{}, renderer, nil, keys)
+			if err != nil || first || !changed || ctx.Err() != nil {
+				t.Fatalf("startup/input rendering failed: %v", err)
+			}
+		})
+	}
+}
+
+// controlCaptureRenderer observes the scenes sent through the normal renderer.
+type controlCaptureRenderer struct {
+	rendering.Renderer
+	capture func(rendering.Scene)
+}
+
+func (r *controlCaptureRenderer) Render(width, height int, scene rendering.Scene) videoout.Frame {
+	r.capture(scene)
+	return r.Renderer.Render(width, height, scene)
+}
