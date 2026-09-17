@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	"mistervision/internal/serverstate"
 )
@@ -32,6 +34,18 @@ func (c *Client) Authenticate(ctx context.Context, dir string, showCode func(str
 			return err
 		}
 	}
+	if err := c.linkAccount(ctx, showCode); err != nil {
+		return err
+	}
+	if err := c.validate(ctx); err != nil {
+		return err
+	}
+	return c.save(dir)
+}
+
+// linkAccount obtains an account token without assuming a media server has been
+// selected. The caller validates the account or server before saving credentials.
+func (c *Client) linkAccount(ctx context.Context, showCode func(string)) error {
 	var pin struct {
 		ID        int    `json:"id"`
 		Code      string `json:"code"`
@@ -71,10 +85,7 @@ func (c *Client) Authenticate(ctx context.Context, dir string, showCode func(str
 			}
 			c.Session.Token = pin.AuthToken
 			c.Session.UserID = ""
-			if err = c.validate(ctx); err != nil {
-				return err
-			}
-			return c.save(dir)
+			return nil
 		}
 	}
 }
@@ -91,18 +102,49 @@ func (c *Client) validate(ctx context.Context) error {
 	if c.Session.UserID != "" {
 		return nil
 	}
-	data, _, err := c.fetch(ctx, c.accountHTTP, c.accountURL, c.Session.Token, "GET", "/api/v2/user", nil)
-	if err != nil {
-		return err
+	user, err := c.accountUser(ctx)
+	if err == nil {
+		c.Session.UserID = strconv.Itoa(user.ID)
 	}
-	var user struct {
-		ID int `json:"id"`
+	return err
+}
+
+// accountIdentity contains only the account fields needed for selection and
+// cache isolation. Tokens and other private response fields are never retained.
+type accountIdentity struct {
+	ID           int    `json:"id"`
+	Username     string `json:"username"`
+	FriendlyName string `json:"friendlyName"`
+}
+
+// name supplies a bounded, single-line label even for unusual account names.
+func (u accountIdentity) name() string {
+	name := u.FriendlyName
+	if strings.TrimSpace(name) == "" {
+		name = u.Username
+	}
+	name = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, name))
+	if name == "" {
+		return "Plex account"
+	}
+	return string([]rune(name)[:min(64, len([]rune(name)))])
+}
+
+func (c *Client) accountUser(ctx context.Context) (accountIdentity, error) {
+	data, _, err := c.fetch(ctx, c.accountHTTP, c.accountURL, c.Session.Token, "GET", "/api/v2/user", nil)
+	var user accountIdentity
+	if err != nil {
+		return user, err
 	}
 	if json.Unmarshal(data, &user) != nil || user.ID <= 0 {
-		return errors.New("invalid Plex account response")
+		return user, errors.New("invalid Plex account response")
 	}
-	c.Session.UserID = strconv.Itoa(user.ID)
-	return nil
+	return user, nil
 }
 
 func (c *Client) save(dir string) error {

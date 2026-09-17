@@ -117,7 +117,7 @@ func ReleaseNotes(text string, width int) []string {
 
 // ConnectionChoices resolves the current submenu without modifying its snapshot.
 func (a AboutPresentation) ConnectionChoices() (string, []connection.Choice) {
-	title, choices := "Connections", a.Connections
+	title, choices := "Connect to your media", a.Connections
 	for _, index := range a.ConnectionPath {
 		if index < 0 || index >= len(choices) {
 			break

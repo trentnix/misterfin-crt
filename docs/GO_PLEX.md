@@ -2,9 +2,27 @@
 
 MiSTerVision’s Plex adapter supports account linking, movie, TV, music, and photo libraries, seasons and episodes, Continue Watching, artwork, playback, and tuner-backed Live TV. It shares the browser, controls, picture modes, and output implementations with Jellyfin. Jellyfin is the default provider.
 
+## Server discovery
+
+Open **About → Connections → Plex**. Enter the displayed code at [plex.tv/link](https://plex.tv/link) in a browser signed in to your Plex account. The picker shows the account name and reachable servers. Select a server to connect. No server address is required in configuration.
+
+Discovery combines the servers listed by your account with a short GDM scan of the local IPv4 network. LAN replies only add addresses for servers available to the linked account. Direct local connections take priority, with HTTPS preferred within local and remote groups. Each group probes its addresses concurrently for up to two seconds, so unreachable container interfaces do not prevent fallback to another group.
+
+Each candidate must report the expected server identity before receiving its server token. Discovery respects servers that require HTTPS and verifies TLS certificates. Relay connections are excluded. GDM uses the responding device’s address, so a reachable LAN reply can replace an unreachable container address advertised by the account. GDM currently adds HTTP addresses only. Servers that require HTTPS continue to use verified HTTPS addresses from the account.
+
+For LAN discovery, enable **Settings → Server → Network → Enable local network discovery (GDM)** in Plex and allow UDP port `32414` on the server network. Containers must expose discovery traffic to the LAN. If GDM is unavailable or receives no replies, discovery still checks the account’s advertised addresses. An explicit server address also works. See [Plex network settings](https://support.plex.tv/articles/200430283-network/).
+
+The successful choice reconnects automatically on later launches. About → Connections → Use existing connection returns to it while another provider is active. Selecting Plex again opens a fresh picker. Back cancels selection and lets you return to the previous connection. Failed or canceled selection preserves the working server.
+
+Reopening a saved connection checks the media server directly without contacting plex.tv. If that address fails, MiSTerVision refreshes account and LAN discovery once and offers a verified new address for the same server. When **Server address changed** appears, select the server to confirm or press Back to leave setup. Recovery preserves HTTPS when the saved address used HTTPS and respects servers that require it. Explicitly configured URLs stay fixed.
+
+Account linking, refreshing the server list, and address recovery require internet access. Temporary server or account-service outages preserve sign-in and show Retry. Canceling recovery, rejecting a candidate, or failing to save its address preserves the previous connection. Missing or rejected server credentials return to account validation and selection. Use About → Connections → Plex to choose a different server.
+
+Discovery stores account credentials in `state/discovery/plex/account/session.json`, the selected server in `state/discovery/plex/server.json`, and separate server credentials under `state/discovery/plex/servers/`. Tokens never appear in the picker, logs, or configuration. Explicit server profiles keep their existing sign-in locations and remain authoritative for those routes.
+
 ## Run locally
 
-Add a `server` section to your development `settings.json`. Preserve any other sections:
+For discovery, use the [Ghostty discovery instructions](../tools/ghostty/README.md#plex-discovery). To choose a fixed server address instead, add a `server` section to your development `settings.json`. Preserve any other sections:
 
 ```json
 {
@@ -41,7 +59,7 @@ Music uses artist → album → track navigation, ordered album queues, and whol
 
 Testing on Ghostty and MiSTer covered sign-in, library navigation, Continue Watching, artwork, music and track navigation, photos, video seeking, subtitles, and Live TV. These checks do not establish compatibility with every source format or server setup. The shared transcode limits apply to both providers. Jellyfin's MPEG-2 codec selection does not apply to Plex.
 
-Multi-file videos, Plex Home profile switching, server discovery, and Plex remote control are not implemented. The linked account determines library access. Account avatars and profile selection are not implemented.
+Multi-file videos, Plex Home profile switching, relay connections, and Plex remote control are not implemented. The linked account determines library access. Account avatars and profile selection are not implemented.
 
 ## Photos
 
@@ -77,6 +95,6 @@ Collections use `/library/all?type=18` and `/library/collections/{id}/items`. Pl
 
 ## Code boundaries
 
-[Application assembly](../cmd/mistervision/server.go) selects a [`connection.Connector`](../internal/connection/connector.go). [`plex.Connector`](../internal/plex/connector.go) links the account and returns a [`media.Server`](../internal/media/server.go) implemented by `plex.Client`. Plex endpoints, response types, and transcode policy stay in [`internal/plex`](../internal/plex). Neither the browser nor the renderer imports the adapter.
+[Application assembly](../cmd/mistervision/server.go) selects a [`connection.Connector`](../internal/connection/connector.go). [`plex.Connector`](../internal/plex/connector.go) links the account and returns a [`media.Server`](../internal/media/server.go) implemented by `plex.Client`. Plex endpoints, response types, and transcode policy stay in [`internal/plex`](../internal/plex). Neither the browser nor the renderer imports the adapter. [`serverDiscovery`](../internal/plex/discovery.go) implements the shared `connection.Discoverer` interface. It retains server grants privately while the shared picker receives only names, identities, and addresses. [`gdmDiscovery`](../internal/plex/gdm.go) implements the same discovery interface for LAN addresses. Its anonymous UDP scan runs alongside the account request and stops on cancellation. [`discovered_connection.go`](../internal/plex/discovered_connection.go) coordinates account linking, selection, and saved reconnection. [`recovery.go`](../internal/plex/recovery.go) constrains rediscovery to the remembered identity and asks before committing its new address.
 
 [`serverstate`](../internal/serverstate/session.go) supplies private, atomic session storage to both adapters. The shared catalog and playback contracts cover video and music. `media.Artwork.Photo` supplies images to the shared photo viewer. The optional `media.LiveTV` contract covers tuner negotiation. [`live_channels.go`](../internal/plex/live_channels.go) discovers channels, [`live.go`](../internal/plex/live.go) owns tuner consumers, and [`transcode.go`](../internal/plex/transcode.go) shares conversion policy with recorded video. Provider-specific additions stay in the adapter.

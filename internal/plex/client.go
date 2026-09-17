@@ -1,6 +1,6 @@
 // Package plex translates Plex Media Server libraries and playback into the
-// shared media model. Account sign-in uses plex.tv. Media stays on the explicitly
-// configured server, and private tokens never enter player arguments or errors.
+// shared media model. Account sign-in uses plex.tv. Media stays on the configured
+// or selected server. Private tokens never enter player arguments or errors.
 package plex
 
 import (
@@ -21,6 +21,7 @@ import (
 )
 
 // Config selects the Plex server, TLS policy, and validated conversion limits.
+// Connector treats an empty Server as account-based discovery.
 // Zero limits use 720×576 at 12 Mbps. Codec selection stays in the adapter.
 type Config struct {
 	Server                            string

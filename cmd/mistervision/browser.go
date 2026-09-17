@@ -102,10 +102,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	trace.phase("browser")
 	navigation := make(map[string]*browser.Navigation)
 	for {
-		id := catalog.selected
-		if id == "jellyfin-new" {
-			id = "jellyfin"
-		}
+		id := catalog.connectionID(catalog.selected)
 		if navigation[id] == nil {
 			navigation[id] = &browser.Navigation{}
 		}
@@ -120,9 +117,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 		if _, ok := catalog.connectors[change.ID]; !ok {
 			return errors.New("unknown connection selection")
 		}
-		if change.ID == "jellyfin-new" {
-			catalog.connectors[change.ID] = &discoverConnection{connector: catalog.discovery.NewSelection()}
-		}
+		catalog.startSelection(change.ID)
 		config.ReturnConnectionID = change.ReturnID
 		catalog.selected = change.ID
 		config.StartupNotices = nil

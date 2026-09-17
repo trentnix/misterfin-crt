@@ -38,7 +38,21 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
 
 Do not create `jellyfin.conf` or add a `server` section to this profile's `settings.json`. The `--config` argument selects a legacy configuration path that is deliberately absent. Other application settings can go in `settings.json` beside it, which the client loads automatically.
 
-Select a server, then approve Quick Connect in an already signed-in Jellyfin client. Before sign-in completes, Escape/Back returns to discovery so you can choose another server. Back remains available if you exit without approving and launch again. Escape on the server picker exits. Close and reopen with the same command to verify that the server and sign-in are remembered. If no server appears, see [discovery and troubleshooting](../../docs/GO_BROWSING.md#jellyfin-discovery).
+Select a server, then approve Quick Connect in an already signed-in Jellyfin client. Before sign-in completes, Escape/Back returns to discovery so you can choose another server. Back remains available if you exit without approving and launch again. Escape on the server picker opens connection choices. Back from those choices restores a previous connection or exits if none exists. Close and reopen with the same command to verify that the server and sign-in are remembered. If no server appears, see [discovery and troubleshooting](../../docs/GO_BROWSING.md#jellyfin-discovery).
+
+### Plex discovery
+
+Use a separate profile with no server address:
+
+```bash
+profile="$HOME/.config/mistervision/plex-discovery"
+mkdir -p "$profile"
+python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
+  --config "$profile/jellyfin.conf" \
+  --state-dir "$profile/state"
+```
+
+Leave `jellyfin.conf` absent. During the initial Jellyfin discovery screen, press F1, then Down for Connections, and choose Plex. Approve the code at [plex.tv/link](https://plex.tv/link), then choose a server. Reopen with the same command to connect to the remembered Plex server automatically. About → Connections → Plex opens a fresh server selection. See [discovery behavior and limits](../../docs/GO_PLEX.md#server-discovery).
 
 ### Explicit Jellyfin or Plex connection
 
@@ -76,7 +90,7 @@ python3 tools/ghostty/ghostty_harness.py --browse --ntsc --inline-video \
 
 For Plex, change the first line to `profile="$HOME/.config/mistervision/plex"` and run the same command. Approve Jellyfin Quick Connect in a signed-in Jellyfin client, or enter the Plex code at [plex.tv/link](https://plex.tv/link). Plex account linking requires internet access.
 
-To switch accounts inside one running client, use [named connections in one settings file](../../docs/GO_CONFIGURATION.md#multiple-connections), then open F1 → Down for Connections. The separate folders above remain useful for isolated testing. These profile names are examples, not built-in modes. The arguments select configuration and state paths. Each profile keeps its sign-in and playback preferences under `state`; Plex sign-in uses `state/plex`. Without `--state-dir`, sessions use the user configuration directory under `mistervision`. For an existing MiSTerFin CRT setup, follow the [rename instructions](../../docs/GO_BUILD.md#moving-from-misterfin-crt).
+To switch accounts inside one running client, use [named connections in one settings file](../../docs/GO_CONFIGURATION.md#multiple-connections), then open F1 → Down for Connections. The separate folders above remain useful for isolated testing. These profile names are examples, not built-in modes. The arguments select configuration and state paths. Each profile keeps its sign-in and playback preferences under `state`; explicit Plex sign-in uses `state/plex`, while discovery uses `state/discovery/plex`. Without `--state-dir`, sessions use the user configuration directory under `mistervision`. For an existing MiSTerFin CRT setup, follow the [rename instructions](../../docs/GO_BUILD.md#moving-from-misterfin-crt).
 
 Legacy Jellyfin configurations still work with `--config jellyfin.conf`. Application options default to `settings.json` beside that file. `--settings PATH` overrides `MISTERVISION_SETTINGS`. See [configuration](../../docs/GO_CONFIGURATION.md) for additional options.
 
