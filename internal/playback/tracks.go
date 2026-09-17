@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/subtitles"
+	"mistervision/internal/media"
+	"mistervision/internal/subtitles"
 )
 
 // TrackOptions preserves streams, downloaded text, and picture mode across handoffs.
 // Text is immutable. Without saved or explicit choices, playback uses default
 // audio, no subtitles, and Original.
 type TrackOptions struct {
-	Selection jellyfin.TrackSelection
+	Selection media.TrackSelection
 	Text      *subtitles.Track
 	Picture   PictureMode
 }
@@ -22,23 +22,24 @@ type TrackOptions struct {
 type VideoTracks struct {
 	TrackOptions
 	SourceID        string
-	Streams         []jellyfin.MediaStream
+	Streams         []media.MediaStream
 	ClientSubtitles bool
+	LiveAudio       bool // Server supports selecting another live audio track.
 	LivePicture     bool // Decoder supports changing fit without replacing the stream.
 }
 
-// Stream looks up a Jellyfin index without assuming indexes are contiguous.
-func (t VideoTracks) Stream(kind string, index int) (jellyfin.MediaStream, bool) {
+// Stream looks up a server index without assuming indexes are contiguous.
+func (t VideoTracks) Stream(kind string, index int) (media.MediaStream, bool) {
 	for _, s := range t.Streams {
 		if s.Type == kind && s.Index == index {
 			return s, true
 		}
 	}
-	return jellyfin.MediaStream{}, false
+	return media.MediaStream{}, false
 }
 
-func videoTracks(item jellyfin.Item, choices trackPreparation) (VideoTracks, error) {
-	t := VideoTracks{SourceID: item.ID, Streams: item.MediaStreams, ClientSubtitles: choices.clientSubtitles, TrackOptions: TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
+func videoTracks(item media.Item, choices trackPreparation) (VideoTracks, error) {
+	t := VideoTracks{SourceID: item.ID, Streams: item.MediaStreams, ClientSubtitles: choices.clientSubtitles, TrackOptions: TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
 	if len(item.MediaSources) > 0 {
 		t.SourceID = item.MediaSources[0].ID
 		if len(item.MediaSources[0].MediaStreams) > 0 {
@@ -93,7 +94,13 @@ func (l *subtitleLoader) stop() {
 		l.cancel()
 	}
 }
-func (l *subtitleLoader) start(ctx context.Context, c *jellyfin.Client, item, source string, index int, request int) {
+
+// subtitleSource exports a selected text track without exposing other playback operations.
+type subtitleSource interface {
+	Subtitle(context.Context, string, string, int) ([]byte, error)
+}
+
+func (l *subtitleLoader) start(ctx context.Context, c subtitleSource, item, source string, index int, request int) {
 	l.stop()
 	l.serial++
 	work, cancel := context.WithCancel(ctx)

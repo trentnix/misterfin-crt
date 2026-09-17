@@ -4,8 +4,8 @@ import (
 	"image"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/musicviz"
+	"mistervision/internal/input/control"
+	"mistervision/internal/musicviz"
 )
 
 // Scene is the input to a renderer, separate from the mutable navigation model.
@@ -13,7 +13,7 @@ import (
 // read-only during Render. Renderers may retain immutable artwork for caching,
 // but must not retain or mutate Content slices or detail pointers after Render returns.
 type Scene struct {
-	// Title borrows the immutable root heading. Nil uses MiSTerFin CRT.
+	// Title borrows the immutable root heading. Nil uses MiSTerVision.
 	// An empty value hides the heading.
 	Title *string
 
@@ -62,7 +62,7 @@ func (s Scene) title() string {
 		if s.Title != nil {
 			return *s.Title
 		}
-		return "MiSTerFin CRT"
+		return "MiSTerVision"
 	}
 	return s.Content.Title
 }

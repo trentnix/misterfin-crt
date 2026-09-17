@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/control"
 )
 
 // Read reports that native input is unavailable on this platform.

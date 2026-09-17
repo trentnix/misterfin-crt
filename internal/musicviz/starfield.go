@@ -3,7 +3,7 @@ package musicviz
 import (
 	"math"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 // starfield projects deterministic stars at shrinking depths. Motion uses time,

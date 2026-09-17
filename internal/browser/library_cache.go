@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 const libraryCacheLimit = 32
@@ -13,7 +13,7 @@ const libraryCacheTTL = time.Minute
 type cachedLibrary struct {
 	count         *int
 	countUntil    time.Time
-	items         []jellyfin.Item
+	items         []media.Item
 	itemsUntil    time.Time
 	used          uint64
 	discardMosaic bool // Explicit retry defers disk invalidation to the worker.

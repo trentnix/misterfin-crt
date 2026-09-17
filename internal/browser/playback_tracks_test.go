@@ -5,15 +5,16 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/subtitles"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/subtitles"
 )
 
 func trackFixture(t *testing.T) *controllerFixture {
 	f := newControllerFixture(t)
-	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: playback.VideoTracks{ClientSubtitles: true, SourceID: "source", TrackOptions: playback.TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}, Streams: []jellyfin.MediaStream{{Type: "Audio", Index: 3, DisplayTitle: "Japanese"}, {Type: "Audio", Index: 8, DisplayTitle: "English"}, {Type: "Subtitle", Index: 12, Codec: "ass", DisplayTitle: "English text"}, {Type: "Subtitle", Index: 20, Codec: "pgssub", DisplayTitle: "English PGS"}}}}, f.now)
+	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: playback.VideoTracks{ClientSubtitles: true, SourceID: "source", TrackOptions: playback.TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}, Streams: []jellyfin.MediaStream{{Type: "Audio", Index: 3, DisplayTitle: "Japanese"}, {Type: "Audio", Index: 8, DisplayTitle: "English"}, {Type: "Subtitle", Index: 12, Codec: "ass", DisplayTitle: "English text"}, {Type: "Subtitle", Index: 20, Codec: "pgssub", DisplayTitle: "English PGS"}}}}, f.now)
 	return f
 }
 func TestTextSubtitleSelectionDoesNotRestartVideo(t *testing.T) {
@@ -301,5 +302,76 @@ func TestPictureMenuKeepsZoomWhenSourceMetadataChanges(t *testing.T) {
 	menu := f.c.Snapshot(f.now).Tracks
 	if menu.Selected != 1 || len(menu.Rows) != 2 {
 		t.Fatal("source metadata changed the uniform picture choices")
+	}
+}
+
+func TestServerRenderedTextSubtitleRestartsStream(t *testing.T) {
+	f := trackFixture(t)
+	f.c.tracks.Streams[2].RequiresBurnIn = true
+	f.c.Key(control.Select, f.now)
+	f.c.Key(control.Down, f.now)
+	f.c.Key(control.Open, f.now)
+	if len(f.calls) != 2 || f.calls[1].tracks.Selection.SubtitleIndex != 12 {
+		t.Fatal("embedded server-rendered text attempted a local download")
+	}
+}
+
+func TestLiveAudioReplacementKeepsCaptionsAndPicture(t *testing.T) {
+	f := trackFixture(t)
+	c := f.c
+	c.item.Type = "TvChannel"
+	c.tracks.LiveAudio = true
+	c.tracks.Picture = playback.PictureZoom43
+	c.trackOptions = c.tracks.TrackOptions
+	c.captions.enabled = true
+	c.Key(control.Select, f.now)
+	c.Key(control.Next, f.now)
+	menu := c.Snapshot(f.now).Tracks
+	if menu == nil || len(menu.Rows) != 3 || menu.Rows[2].Label != "English" {
+		t.Fatal("selectable live audio not shown")
+	}
+	c.Key(control.Down, f.now)
+	c.Key(control.Down, f.now)
+	c.Key(control.Open, f.now)
+	if len(f.calls) != 2 || *f.calls[1].offset != 0 || f.calls[1].tracks.Selection.AudioIndex != 8 || f.calls[1].tracks.Picture != playback.PictureZoom43 {
+		t.Fatal("live replacement lost track, picture, or live edge")
+	}
+	if c.Snapshot(f.now).WaitLabel != "Loading..." {
+		t.Fatal("live audio handoff displayed Seeking")
+	}
+	c.Key(control.SeekForward, f.now)
+	if f.calls[1].canceled || !c.state.SwitchingTracks {
+		t.Fatal("live seek interrupted audio handoff")
+	}
+	info := c.tracks
+	info.TrackOptions = f.calls[1].tracks
+	c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 2, Tracks: info}, f.now)
+	c.Handle(PlaybackEvent{Kind: PlaybackPrepared, ID: 2}, f.now)
+	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
+	c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 2, Ticks: 10000000}, f.now)
+	if !c.captions.enabled || c.picker.visible || c.tracks.Selection.AudioIndex != 8 || !c.running {
+		t.Fatal("live handoff lost captions, selection, or menu state")
+	}
+	c.Key(control.SeekForward, f.now)
+	c.Tick(f.now.Add(time.Second))
+	if len(f.calls) != 2 {
+		t.Fatal("audio selection enabled live seeking")
+	}
+}
+
+func TestFailedLiveAudioReplacementKeepsPlaying(t *testing.T) {
+	f := trackFixture(t)
+	c := f.c
+	c.item.Type = "TvChannel"
+	c.tracks.LiveAudio = true
+	c.Key(control.Select, f.now)
+	c.Key(control.Next, f.now)
+	c.Key(control.Down, f.now)
+	c.Key(control.Open, f.now)
+	expectCommand(t, f.calls[0].controls, "pause")
+	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2, Err: errors.New("track disappeared")}, f.now)
+	expectCommand(t, f.calls[0].controls, "pause")
+	if !c.running || f.calls[0].canceled || c.trackOptions.Selection.AudioIndex != -1 {
+		t.Fatal("failed selection lost the previous live stream")
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"misterfin-crt/internal/player"
-	"misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/player"
+	"mistervision/internal/player/mplayer"
 )
 
 func TestFullFeedbackQueuesDoNotBlockAndKeepLatestState(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"image"
 	"time"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 type imageEffect struct {

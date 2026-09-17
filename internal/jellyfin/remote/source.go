@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/remote"
 )
 
 // Source owns a reconnecting Jellyfin socket. It never calls playback or rendering.

@@ -2,12 +2,11 @@ package browser
 
 import (
 	"math/rand/v2"
-	"slices"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 // remotePlayback owns queue entries, their metadata, and decoder handoff state.
@@ -15,7 +14,10 @@ import (
 type remotePlayback struct {
 	paused bool
 	queue  remote.Queue
-	items  map[string]jellyfin.Item
+	items  map[string]media.Item
+	// localRows maps queue occurrence keys to browser rows when adopting a local
+	// queue. Repeated media IDs must not move the highlight to their first row.
+	localRows map[string]int
 	// active gives this queue ownership of track advancement. During switching,
 	// Current already identifies the next item while the old decoder stops.
 	active, switching bool
@@ -26,15 +28,16 @@ type remotePlayback struct {
 }
 
 // replace installs one catalog snapshot without changing playback or navigation.
-func (q *remotePlayback) replace(items []jellyfin.Item, index int) {
+func (q *remotePlayback) replace(items []media.Item, index int) {
 	q.items = nil
+	q.localRows = nil
 	q.queue.Replace(q.remember(items), index)
 }
 
 // remember indexes metadata once while preserving duplicate queue occurrences.
-func (q *remotePlayback) remember(items []jellyfin.Item) []string {
+func (q *remotePlayback) remember(items []media.Item) []string {
 	if q.items == nil {
-		q.items = make(map[string]jellyfin.Item, len(items))
+		q.items = make(map[string]media.Item, len(items))
 	}
 	ids := make([]string, len(items))
 	for i, item := range items {
@@ -44,7 +47,7 @@ func (q *remotePlayback) remember(items []jellyfin.Item) []string {
 	return ids
 }
 
-func (s *browserSession) applyRemoteItems(cmd remote.Command, items []jellyfin.Item) {
+func (s *browserSession) applyRemoteItems(cmd remote.Command, items []media.Item) {
 	q := &s.remotePlayback
 	appendQueue := cmd.PlayMode == remote.PlayNext || cmd.PlayMode == remote.PlayLast
 	if appendQueue && !q.active {
@@ -99,28 +102,48 @@ func (s *browserSession) adoptLocalQueue() {
 	}
 	item := s.controller.item
 	q := &s.remotePlayback
-	items := []jellyfin.Item{item}
+	items := []media.Item{item}
 	index := 0
+	var rows []int
+	if parent, ok := s.model.Parent(); ok && parent.Item() != nil && parent.Item().ID == item.ID {
+		rows = []int{parent.Start + parent.Selected}
+	}
 	wasShuffle := s.shuffle.library != "" && len(s.shuffle.items) > 0
 	if wasShuffle {
 		items = s.shuffle.items
 		index = s.shuffle.position
+		rows = nil
 	} else if item.Type == "Audio" {
 		if parent, ok := s.model.Parent(); ok && parent.Start == 0 && !parent.More() {
 			tracks := audioItems(parent.Page.Items)
-			if selected := slices.IndexFunc(tracks, func(track jellyfin.Item) bool { return track.ID == item.ID }); selected >= 0 {
-				items, index = tracks, selected
+			if selected := parent.Item(); selected != nil && selected.ID == item.ID && selected.Type == "Audio" {
+				items = tracks
+				rows = nil
+				for row, track := range parent.Page.Items {
+					if track.Type == "Audio" {
+						if row == parent.Selected {
+							index = len(rows)
+						}
+						rows = append(rows, row)
+					}
+				}
 			}
 		}
 	}
 	q.replace(items, index)
+	if len(rows) == len(items) {
+		q.localRows = make(map[string]int, len(rows))
+		for i, entry := range q.queue.Snapshot().Entries {
+			q.localRows[entry.Key] = rows[i]
+		}
+	}
 	if wasShuffle {
 		q.queue.SetShuffle(true)
 		s.shuffle = shuffleQueue{}
 	}
 	q.active = true
 	q.returnDepth = len(s.model.Stack)
-	if item.Type == "Audio" || jellyfin.IsLive(item) {
+	if item.Type == "Audio" || media.IsLive(item) {
 		q.returnDepth = max(1, q.returnDepth-1)
 	}
 	s.publishRemoteQueue()
@@ -150,8 +173,9 @@ func (s *browserSession) startRemoteItem() {
 	// contain items from other libraries, so only update an existing matching row.
 	if len(s.model.Stack) > 1 {
 		parent := &s.model.Stack[len(s.model.Stack)-2]
+		row, local := q.localRows[q.queue.Current().Key]
 		for i, entry := range parent.Page.Items {
-			if entry.ID == item.ID {
+			if entry.ID == item.ID && (!local || parent.Start+i == row) {
 				parent.Selected = i
 				parent.Target = parent.Start + i
 				parent.centerSelection(s.model.Rows)
@@ -212,6 +236,7 @@ func (s *browserSession) endRemoteQueue() {
 	q.switching = false
 	q.queue.Replace(nil, 0)
 	q.items = nil
+	q.localRows = nil
 	s.model.EndMusicQueue()
 	s.shuffle = shuffleQueue{}
 	if depth > 0 && depth < len(s.model.Stack) {

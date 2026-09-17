@@ -4,9 +4,9 @@ package companion
 import (
 	"time"
 
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/ui"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/platform"
+	"mistervision/internal/ui"
+	"mistervision/internal/videoout"
 )
 
 // Backend implements videoout.Output.

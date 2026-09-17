@@ -4,7 +4,7 @@ import (
 	"image"
 	"sync"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 const artworkBudget = 16 * 1024 * 1024
@@ -33,7 +33,7 @@ func newArtworkCache() artworkCache {
 // artworkKey includes the image tag so changed server artwork cannot reuse an
 // older image. Parent backdrops share the parent identity. Photos use a distinct
 // kind because their requested dimensions differ from ordinary primary artwork.
-func artworkKey(item jellyfin.Item, kind string) imageKey {
+func artworkKey(item media.Item, kind string) imageKey {
 	key := imageKey{item.ID, kind, item.ImageTags[kind]}
 	if kind == "Photo" {
 		key.tag = item.ImageTags["Primary"]
@@ -99,7 +99,7 @@ func (c *artworkCache) remember(key imageKey, im image.Image) {
 
 // forget invalidates retry targets, including a shared parent backdrop, without
 // evicting unrelated artwork. The caller owns metadata invalidation.
-func (c *artworkCache) forget(item jellyfin.Item) {
+func (c *artworkCache) forget(item media.Item) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for key, value := range c.images {

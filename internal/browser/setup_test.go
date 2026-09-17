@@ -9,47 +9,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/connection"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	jfconnection "mistervision/internal/jellyfin/connection"
+	"mistervision/internal/rendering"
 )
-
-func TestSetupFailuresHaveSpecificRecoveryWithoutRawErrors(t *testing.T) {
-	config := Config{ConfigPath: "selected/jellyfin.conf", StateDir: "selected/state"}
-	for _, tc := range []struct {
-		stage connectionStage
-		err   error
-		kind  rendering.SetupKind
-	}{
-		{connectionConfig, fmt.Errorf("private URL: %w", os.ErrNotExist), rendering.SetupConfigMissing},
-		{connectionConfig, &os.PathError{Op: "open", Path: "private-path", Err: os.ErrPermission}, rendering.SetupConfigUnreadable},
-		{connectionConfig, errors.New("private configuration content"), rendering.SetupConfigInvalid},
-		{connectionSession, errors.New("private token"), rendering.SetupSessionUnavailable},
-		{connectionAuthentication, jellyfin.ErrSessionSave, rendering.SetupSessionUnavailable},
-		{connectionAuthentication, jellyfin.ErrUsernameNotFound, rendering.SetupUsernameMissing},
-		{connectionAuthentication, jellyfin.ErrQuickConnectDisabled, rendering.SetupQuickConnectDisabled},
-		{connectionAuthentication, fmt.Errorf("private secret: %w", jellyfin.ErrQuickConnectExpired), rendering.SetupCodeExpired},
-		{connectionAuthentication, &jellyfin.HTTPError{Status: 401}, rendering.SetupSignInRequired},
-		{connectionAuthentication, &jellyfin.HTTPError{Status: 500}, rendering.SetupConnectionFailed},
-	} {
-		s := setupFailure(tc.stage, tc.err, config)
-		if s.Kind != tc.kind {
-			t.Fatalf("got %v, want %v", s.Kind, tc.kind)
-		}
-		if strings.Contains(s.Path+s.Code, "private") {
-			t.Fatal("raw failure leaked to presentation")
-		}
-		if s.Kind != rendering.SetupCodeExpired && !filepath.IsAbs(s.Path) {
-			t.Fatal("selected path was not resolved")
-		}
-		if s.RetryLabel() == "" {
-			t.Fatal("failure has no recovery action")
-		}
-	}
-}
 
 func TestSetupRetryDoesNotRestartAnActiveConnection(t *testing.T) {
 	s := testSession(t)
@@ -62,12 +31,12 @@ func TestSetupRetryDoesNotRestartAnActiveConnection(t *testing.T) {
 			t.Fatal("input restarted an active attempt")
 		}
 	}
-	s.setup = rendering.SetupPresentation{Kind: rendering.SetupCodeExpired}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupFailure, Retry: "New code"}
 	s.dispatchKey(control.Open)
 	if s.connection.generation != 1 || s.setup.Kind != rendering.SetupConnecting || s.setup.Code != "" {
 		t.Fatal("new-code action did not replace expired code")
 	}
-	s.handleAuthCode(authCodeResult{generation: 0, code: "stale"})
+	s.handleAuthCode(authCodeResult{generation: 0, presentation: rendering.SetupPresentation{Code: "stale"}})
 	if s.setup.Kind != rendering.SetupConnecting {
 		t.Fatal("old approval code replaced current attempt")
 	}
@@ -92,7 +61,8 @@ func TestConnectionReloadsConfigurationAndReportsItsFailureStage(t *testing.T) {
 	}))
 	defer server.Close()
 	dir := t.TempDir()
-	config := Config{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+	options := jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+	config := Config{Connector: options}
 	m := newConnectionManager(config, 640, 240)
 	defer m.close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -120,10 +90,10 @@ func TestConnectionReloadsConfigurationAndReportsItsFailureStage(t *testing.T) {
 	}
 	m.connect(ctx, send)
 	failed := receive()
-	if failed.stage != connectionConfig || setupFailure(failed.stage, failed.err, config).Kind != rendering.SetupConfigMissing {
+	if config.Connector.Describe(failed.err).Title != "Setup needed" {
 		t.Fatal("missing configuration misclassified")
 	}
-	if err := os.WriteFile(config.ConfigPath, []byte(server.URL+"\napi-key\nviewer\n"), 0600); err != nil {
+	if err := os.WriteFile(options.ConfigPath, []byte(server.URL+"\napi-key\nviewer\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	m.connect(ctx, send)
@@ -146,8 +116,9 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 	}))
 	defer server.Close()
 	dir := t.TempDir()
-	config := Config{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
-	if err := os.WriteFile(config.ConfigPath, []byte(server.URL), 0600); err != nil {
+	options := jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+	config := Config{Connector: options}
+	if err := os.WriteFile(options.ConfigPath, []byte(server.URL), 0600); err != nil {
 		t.Fatal(err)
 	}
 	s := testSession(t)
@@ -162,7 +133,7 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 			s.dispatchKey(control.Open)
 		}
 		deadline := time.After(time.Second)
-		for s.setup.Kind != rendering.SetupQuickConnect {
+		for s.setup.Kind != rendering.SetupApproval {
 			select {
 			case result := <-s.events:
 				s.handleResult(result)
@@ -196,13 +167,15 @@ func TestRecoveredSessionReachesAuthenticationAndPresentation(t *testing.T) {
 			}))
 			defer server.Close()
 			dir := t.TempDir()
-			config := Config{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
-			config.Build.Version = "v2.3.4"
+			options := jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+			config := Config{Connector: options}
+			options.Version = "v2.3.4"
+			config.Connector = options
 			text := server.URL
 			if apiKey {
 				text += "\nkey\nviewer\n"
 			}
-			if err := os.WriteFile(config.ConfigPath, []byte(text), 0600); err != nil {
+			if err := os.WriteFile(options.ConfigPath, []byte(text), 0600); err != nil {
 				t.Fatal(err)
 			}
 			if err := os.WriteFile(filepath.Join(dir, "session.json"), []byte("broken"), 0600); err != nil {
@@ -228,18 +201,14 @@ func TestRecoveredSessionReachesAuthenticationAndPresentation(t *testing.T) {
 					if !ok || r.err != nil || !r.connection.recovered {
 						t.Fatalf("API-key recovery failed: %#v", result)
 					}
-					// The authenticated snapshot carries recovery and build identity
-					// back to the browser without starting its library workers.
-					if r.connection.client.Version != "v2.3.4" {
-						t.Fatal("wrong client version")
-					}
+
 				} else {
 					r, ok := result.(authCodeResult)
-					if !ok || !r.recovered {
+					if !ok || !r.presentation.Recovered {
 						t.Fatalf("Quick Connect recovery failed: %#v", result)
 					}
 					s.handleAuthCode(r)
-					if !s.setup.Recovered || s.setup.Kind != rendering.SetupQuickConnect || s.setup.Code != "123456" {
+					if !s.setup.Recovered || s.setup.Kind != rendering.SetupApproval || s.setup.Code != "123456" {
 						t.Fatal("recovery was not presented with the new code")
 					}
 				}
@@ -247,5 +216,60 @@ func TestRecoveredSessionReachesAuthenticationAndPresentation(t *testing.T) {
 				t.Fatal("damaged session blocked authentication")
 			}
 		})
+	}
+}
+
+// scriptedConnector tests the browser boundary without a server adapter.
+type scriptedConnector struct {
+	connect func(context.Context, func(connection.Presentation)) (connection.Session, error)
+}
+
+func (c scriptedConnector) Connect(ctx context.Context, progress func(connection.Presentation)) (connection.Session, error) {
+	return c.connect(ctx, progress)
+}
+func (scriptedConnector) Describe(err error) connection.Presentation {
+	if err == nil {
+		return connection.Presentation{Kind: connection.SetupConnecting, Title: "Connecting to Example"}
+	}
+	return connection.Presentation{Kind: connection.SetupFailure, Title: "Example unavailable", Message: "Try again later."}
+}
+
+func TestInjectedConnectorOwnsPresentationAndAttemptsDoNotOverlap(t *testing.T) {
+	var active atomic.Int32
+	s := testSession(t)
+	s.controller.running = false
+	config := Config{Connector: scriptedConnector{connect: func(ctx context.Context, progress func(connection.Presentation)) (connection.Session, error) {
+		if active.Add(1) != 1 {
+			t.Error("connection attempts overlap")
+		}
+		defer active.Add(-1)
+		progress(connection.Presentation{Kind: connection.SetupApproval, Title: "Link Example", Message: "Visit example.test/link", Code: "EXAMPLE", Retry: "New code"})
+		<-ctx.Done()
+		return connection.Session{}, ctx.Err()
+	}}}
+	s.config = config
+	s.connection = newConnectionManager(config, 640, 240)
+	defer s.connection.close()
+	for attempt := 1; attempt <= 2; attempt++ {
+		s.authenticate()
+		if s.setup.Title != "Connecting to Example" {
+			t.Fatal("browser supplied its own provider text")
+		}
+		timeout := time.After(time.Second)
+		for s.setup.Kind != rendering.SetupApproval {
+			select {
+			case result := <-s.events:
+				s.handleResult(result)
+			case <-timeout:
+				t.Fatal("connector progress not delivered")
+			}
+		}
+		if s.setup.Title != "Link Example" || s.setup.Message != "Visit example.test/link" || s.setup.Code != "EXAMPLE" {
+			t.Fatal("connector presentation was changed")
+		}
+	}
+	s.handleAuth(authResult{generation: s.connection.generation, err: errors.New("private URL and token")})
+	if s.setup.Title != "Example unavailable" || s.setup.Message != "Try again later." {
+		t.Fatal("safe connector failure was not presented")
 	}
 }

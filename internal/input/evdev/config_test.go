@@ -3,7 +3,7 @@ package evdev
 import (
 	"testing"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 func TestProfilesMergeAndReplace(t *testing.T) {

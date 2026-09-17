@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/release"
+	"mistervision/internal/update"
 )
 
 // AboutPresentation is a value snapshot of the About page and release check.
@@ -32,7 +32,7 @@ func (a AboutPresentation) Status() string {
 	case a.Installed && a.Restarting:
 		return "Update installed. Restarting..."
 	case a.Installed:
-		return "Installed. Reopen MiSTerFin CRT."
+		return "Installed. Reopen MiSTerVision."
 	case a.Updating:
 		switch a.Progress.Phase {
 		case update.Validating:

@@ -4,10 +4,10 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/sound"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/sound"
+	"mistervision/internal/videoout"
 )
 
 // playbackDriver connects the controller to external decoding. Launch runs on
@@ -30,7 +30,7 @@ func (d *playbackDriver) send(event PlaybackEvent) {
 	}
 }
 
-func (d *playbackDriver) launch(client *jellyfin.Client, item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
+func (d *playbackDriver) launch(client media.Playback, item media.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
 	d.sequence++
 	id := d.sequence
 	ctx, stop := context.WithCancel(d.ctx)

@@ -3,7 +3,6 @@ package playback
 import (
 	"context"
 	"encoding/json"
-	"misterfin-crt/internal/diagnostics"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,13 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func preferenceTracks() VideoTracks {
 	return VideoTracks{SourceID: "source", TrackOptions: TrackOptions{
-		Picture: PictureZoom43, Selection: jellyfin.TrackSelection{AudioIndex: 4, SubtitleIndex: 12}},
+		Picture: PictureZoom43, Selection: media.TrackSelection{AudioIndex: 4, SubtitleIndex: 12}},
 		Streams: []jellyfin.MediaStream{
 			{Type: "Audio", Index: 4, Codec: "aac", Language: "jpn"},
 			{Type: "Subtitle", Index: 12, Codec: "ass", Language: "eng"},
@@ -93,7 +94,7 @@ func TestPreferencesOffAndDefaultReplacePreviousSelections(t *testing.T) {
 	p := NewPreferences(dir, nil)
 	tracks := preferenceTracks()
 	p.save("item", tracks)
-	tracks.TrackOptions = TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
+	tracks.TrackOptions = TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
 	p.save("item", tracks)
 	if err := p.Close(); err != nil {
 		t.Fatal(err)
@@ -195,7 +196,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	// A prepared replacement canceled behind its start gate must not save
 	// its explicit defaults over the choices used by the preceding decoder.
 	ctx, cancel := context.WithCancel(context.Background())
-	defaults := TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
+	defaults := TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
 	if err := Run(ctx, c, Config{Preferences: p, VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, Height: 240}, Request{Item: item, Tracks: &defaults, Start: make(chan struct{}), Callbacks: Callbacks{Ready: cancel, Position: func(int64) {}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +215,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 			}
 		}
 		data, err := os.ReadFile(args)
-		if err != nil || !strings.Contains(string(data), "misterfin=640:240:1.777777778:1") {
+		if err != nil || !strings.Contains(string(data), "mistervision=640:240:1.777777778:1") {
 			t.Fatal("decoder did not restore Zoom")
 		}
 	}
@@ -292,5 +293,22 @@ func TestPreferencesRetryAfterStorageRecovers(t *testing.T) {
 				t.Fatal("recovered storage did not preserve the latest choice")
 			}
 		})
+	}
+}
+
+func TestServerRenderedSubtitlePreferenceSurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	tracks := preferenceTracks()
+	tracks.Streams[1].RequiresBurnIn = true
+	p := NewPreferences(dir, nil)
+	p.save("plex-subtitle", tracks)
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restored := NewPreferences(dir, nil)
+	defer restored.Close()
+	saved := restored.load("plex-subtitle")
+	if saved == nil || saved.restore(tracks).Selection.SubtitleIndex != 12 {
+		t.Fatal("server-rendered subtitle choice lost after restart")
 	}
 }

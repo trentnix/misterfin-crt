@@ -3,10 +3,11 @@ package rendering
 import (
 	"fmt"
 	"math"
+	"strings"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/ui"
 )
 
 // details draws metadata and reserves space for the preview's button badges.
@@ -43,13 +44,23 @@ func (p *screenPainter) details() [][]controlHint {
 		}
 	})
 	p.clock()
+	overviewBottom := controlsTop(p.bottom, rows) - 4
+	if p.footerMessage() != "" {
+		overviewBottom -= 12
+	}
 	cy := hero - 22 + 3
+	ty := max(hero+4, h-8-sy-34-50-extra)
+	if strings.TrimSpace(v.Detail.Overview) == "" {
+		// Without a synopsis, anchor the title and metadata above the controls
+		// instead of reserving an empty description block.
+		ty = overviewBottom - 12
+		cy = ty - 23
+	}
 	if art.Logo != nil {
 		c.Image(art.Logo, (w-480)/2, cy-22, 480, 44)
 	} else {
 		center(c, cy-4, truncate(itemTitle(*v.Detail), w-48, 1), 0xffffff, 1)
 	}
-	ty := max(hero+4, h-8-sy-34-50-extra)
 	metadataX := 24
 	if v.Detail.ProductionYear > 0 {
 		year := fmt.Sprint(v.Detail.ProductionYear)
@@ -64,14 +75,10 @@ func (p *screenPainter) details() [][]controlHint {
 		c.Text(metadataX+9, ty, fmt.Sprintf("%.1f", v.Detail.CommunityRating), dimColor, w)
 	}
 	s, col := subtitle(*v.Detail)
-	if jellyfin.IsLive(*v.Detail) {
+	if media.IsLive(*v.Detail) {
 		center(c, ty, truncate(s, w-48, 1), col, 1)
 	} else {
 		c.Text(w-24-textWidth(s, 1), ty, s, col, w-24)
-	}
-	overviewBottom := controlsTop(p.bottom, rows) - 4
-	if p.footerMessage() != "" {
-		overviewBottom -= 12
 	}
 	lines := min(3, (overviewBottom-(ty+16))/10)
 	if lines > 0 {

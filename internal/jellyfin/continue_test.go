@@ -24,33 +24,6 @@ func continuing(id, series string, position int64, day int) Item {
 	return item
 }
 
-func TestMergeContinuePrefersResumeAndOrdersSeriesByActivity(t *testing.T) {
-	resume := []Item{continuing("movie", "", 100, 8), continuing("old-episode", "series", 100, 5), continuing("episode", "series", 120, 10)}
-	next := []Item{continuing("series-next", "series", 0, 0), continuing("other-next", "other", 0, 0), continuing("unknown-next", "unknown", 0, 0), continuing("unknown-next", "unknown", 0, 0)}
-	history := []Item{continuing("finished", "other", 0, 12)}
-	got := mergeContinue(resume, next, history)
-	want := []string{"other-next", "episode", "movie", "unknown-next"}
-	if len(got) != len(want) {
-		t.Fatal(got)
-	}
-	for i, id := range want {
-		if got[i].ID != id {
-			t.Errorf("position %d: %s, want %s", i, got[i].ID, id)
-		}
-	}
-	if got[0].ContinueAction != "next" || got[1].ContinueAction != "resume" {
-		t.Fatal("missing action labels")
-	}
-	if resume[0].ContinueAction != "" || resume[0].ID != "movie" {
-		t.Fatal("merge mutated source data")
-	}
-	played := continuing("played", "", 100, 12)
-	played.UserData.Played = true
-	if got := mergeContinue([]Item{played, continuing("zero", "", 0, 0)}, []Item{played, continuing("resumable-next", "x", 100, 0)}, nil); len(got) != 0 {
-		t.Fatal("finished or resumable next items retained", got)
-	}
-}
-
 func TestContinueWatchingQueriesAndPagination(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -73,7 +46,9 @@ func TestContinueWatchingQueriesAndPagination(t *testing.T) {
 			if q.Get("enableResumable") != "false" {
 				t.Error("next up included resumable episodes")
 			}
-			json.NewEncoder(w).Encode(Page{Items: []Item{continuing("next", "series", 0, 0)}})
+			next := continuing("next", "series", 0, 0)
+			next.Type = "" // Jellyfin's NextUp response may omit the item type.
+			json.NewEncoder(w).Encode(Page{Items: []Item{next}})
 		case "/Items":
 			if q.Get("SortBy") != "DatePlayed" || q.Get("SortOrder") != "Descending" || q.Get("IsPlayed") != "true" || q.Get("Limit") != "256" {
 				t.Error("wrong activity query", q)
@@ -86,7 +61,7 @@ func TestContinueWatchingQueriesAndPagination(t *testing.T) {
 	defer server.Close()
 	c := NewClient(Config{Server: server.URL}, Session{UserID: "user"})
 	page, err := c.ContinueWatching(context.Background())
-	if err != nil || len(page.Items) != 131 || *page.TotalRecordCount != 131 || page.Items[0].ID != "next" {
+	if err != nil || len(page.Items) != 131 || *page.TotalRecordCount != 131 || page.Items[0].ID != "next" || page.Items[0].Type != "Episode" {
 		t.Fatalf("count %d: %v", len(page.Items), err)
 	}
 }

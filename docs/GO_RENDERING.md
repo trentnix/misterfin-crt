@@ -2,6 +2,31 @@
 
 The browser owns navigation and playback UX. The renderer turns a read-only scene into shared pixels. Output backends handle presentation. Decoder implementations handle player protocols. Target assembly connects those parts without selecting output behavior inside the renderer.
 
+## Media services
+
+Application assembly selects Jellyfin by default or the [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles four layouts: hidden, connecting, approval, and failure.
+
+```mermaid
+flowchart LR
+    App["cmd: serverConnector"] --> Connector["connection.Connector"]
+    JF["jellyfin/connection.Connector"] -. implements .-> Connector
+    Plex["plex.Connector"] -. implements .-> Connector
+    Connector -->|returns| Session["connection.Session"]
+    Session -->|injected services| Browser["browserSession"]
+    Client["jellyfin.Client or plex.Client"] -. implements .-> Server["media.Server"]
+    Server -->|Session.Server| Session
+    Browser --> Renderer["RasterRenderer.Render"]
+    Browser --> Playback["playback.Run"]
+```
+
+[`media.Server`](../internal/media/server.go) groups catalog, artwork, and playback services for session assembly. Workers use narrower contracts: `media.Artwork` for image loading, `media.Playback` for playback, `media.Progress` for reporting, and local interfaces for selection, sibling navigation, and subtitles. Live TV negotiation and remote queue lookup are optional capabilities. Shared browser, artwork, playback, renderer, and decoder packages import neither server implementation.
+
+`media.PreparedStream` carries a private URL, stream identity, numeric diagnostic limits, a reporting service, and optional resource release. Playback owns when reporting and release happen. The Jellyfin adapter owns request formats and tuner IDs. Release gets its own bounded context after final reporting, including failed playback startup. Diagnostic parsing also stays in the adapter.
+
+Reusable data processing stays outside server adapters. [`media.MergeContinueWatching`](../internal/media/continue.go) ranks normalized resume and next-episode candidates without changing its inputs. [`bitmap.Decode`](../internal/artwork/bitmap/decode.go) bounds artwork dimensions and scales decoded pixels. Adapters retain endpoint queries, metadata normalization, and artwork selection. Neither helper depends on a server, cache, or display implementation.
+
+Shared item types retain their existing field layout and JSON tags. Jellyfin aliases preserve decoding and saved track compatibility. Application assembly maps the shared `server` settings into each adapter’s configuration. Jellyfin retains legacy-file fallback, sign-in paths, cache identities, queries, and MPEG-2 defaults. Both providers use the private `serverstate` store. Plex credentials live in a separate subdirectory. Codec negotiation and a redesigned metadata wire model remain deferred. Plex implements the existing contracts without changing rendering or target assembly.
+
 ## Shared UX and output
 
 ```mermaid
@@ -55,7 +80,7 @@ The frame-file backend watches atomic decoder publications with inotify. Notific
 
 ## Application and event-loop ownership
 
-[`target_mister.go`](../cmd/misterfin-crt/target_mister.go) assembles evdev input, MPlayer, native output, and optional MiSTer menu-music suspension. [`target_desktop.go`](../cmd/misterfin-crt/target_desktop.go) assembles terminal input, Python/FFplay, and frame-file/companion output. [`browser.go`](../cmd/misterfin-crt/browser.go) owns input, preferences, sound, and output lifetimes. [`paths.go`](../cmd/misterfin-crt/paths.go) supplies validated settings and storage locations.
+[`target_mister.go`](../cmd/mistervision/target_mister.go) assembles evdev input, MPlayer, native output, and optional MiSTer menu-music suspension. [`target_desktop.go`](../cmd/mistervision/target_desktop.go) assembles terminal input, Python/FFplay, and frame-file/companion output. [`browser.go`](../cmd/mistervision/browser.go) owns input, preferences, sound, and output lifetimes. [`paths.go`](../cmd/mistervision/paths.go) supplies validated settings and storage locations.
 
 Only the browser event loop mutates `browserSession`. Workers capture inputs and return typed results. Connection, list, selection, home, and media requests have cancellation scopes and generation checks. Stale responses cannot replace current state. Published content is immutable. Input arrives as `control.Event` with semantic actions and resolved labels, so rendering never reads controller configuration.
 
@@ -88,7 +113,7 @@ flowchart LR
 
 Each process gets its own feedback writer. MPlayer and Python share the ANS parser. FFplay parses its clock status. Shared framing bounds incomplete lines to 8192 bytes and serializes stdout/stderr writes. Playback receives normalized positions, levels, buffering, first-frame events, captions, and picture acknowledgments. Measurements can be dropped when queues fill. Picture acknowledgments and full caption snapshots retain the newest queued state. Raw diagnostics never become UI text.
 
-[`playback.Run`](../internal/playback/player.go) retains process lifetime, stream feeding, start gates, cancellation, output callbacks, and Jellyfin reporting. The controller prepares seek replacements before transferring output ownership. First-frame feedback clears Loading immediately, while position feedback remains responsible for resume and seek state. Stale decoder events cannot clear a newer request's loading state.
+[`playback.Run`](../internal/playback/player.go) retains process lifetime, stream feeding, start gates, cancellation, output callbacks, and server reporting through `media.Progress`. The controller prepares seek replacements before transferring output ownership. First-frame feedback clears Loading immediately, while position feedback remains responsible for resume and seek state. Stale decoder events cannot clear a newer request's loading state.
 
 [`playerProcess`](../internal/playback/process.go) stops the whole decoder process group, first resuming a paused process and requesting termination. A two-second wait limit bounds process and output-pipe cleanup. After waiting for the process, it kills any remaining group members before publishing completion and releasing output ownership.
 
@@ -96,7 +121,9 @@ Each process gets its own feedback writer. MPlayer and Python share the ANS pars
 
 ## Native player constraints
 
-The [MPlayer build](GO_BUILD.md#mplayer) is part of the implementation boundary, not an interchangeable stock binary. Its source and patches live under [`docker`](../docker). `vf_misterfin.c` owns fitting, centered zoom, and retained frames. `vo_fbdev.c` with patches owns composition and scanout. [`video_player.py`](../tools/ghostty/video_player.py) provides the Python/libmpv implementation for desktop testing.
+The [MPlayer build](GO_BUILD.md#mplayer) is part of the implementation boundary, not an interchangeable stock binary. Its source and patches live under [`docker`](../docker). `vf_mistervision.c` owns fitting, centered zoom, and retained frames. `vo_fbdev.c` with patches owns composition and scanout. [`video_player.py`](../tools/ghostty/video_player.py) provides the Python/libmpv implementation for desktop testing.
+
+The 480i supervisor clears both consoles and registers its temporary keyboard before loading the interlaced core. The core-specific `log_file_entry=1` setting supplies Main’s menu-ready marker, allowing F9 to activate console output without a missed key and retry delay. The supervisor waits for Main to select VT1 before taking exclusive hardware access and removes the keyboard before application input starts. The CRT still resynchronizes during the core switch. The browser’s shared connection screen supplies the logo and progress indicator.
 
 Keep the launcher's two-core CPU affinity. Preserve MPlayer's dropped-frame timestamp correction, audio-clock policy, and paused-redraw command. Resized interlaced video scales in planar YUV before ARM color conversion. The ARM conversion patch reports converted row counts correctly. These fixes address reproduced frame loss, blank video, or drift and require hardware regression checks when changed.
 
@@ -126,3 +153,13 @@ Renderer tests compare screen hashes, cached/uncached pixels, overlay clearing, 
 go test ./internal/rendering -run '^$' -bench . -benchmem
 go test ./internal/ui -run '^$' -bench BenchmarkBackdrop -benchmem
 ```
+
+## Text coverage
+
+Menus retain the original 8×8 Latin-1 font. `ui.Canvas.Text` uses an embedded bitmap fallback for additional punctuation, music symbols, and supported East Asian characters. Lookup allocates no memory. Unsupported menu characters appear as `?`.
+
+[`caption.Renderer`](../internal/caption/renderer.go) handles plain-text subtitles and closed captions for both Ghostty and MiSTer. `RasterRenderer` owns it. It resolves script-specific Noto fonts, shapes text with go-text, orders bidirectional runs, and wraps at Unicode line breaks. It draws up to three centered, outlined lines with antialiasing and accounts for tall logical CRT pixels. The output adapter still controls physical resolution. Opening playback controls moves the cached cue without reshaping it.
+
+The embedded font set covers Latin, Greek, Cyrillic, Arabic, Hebrew, Devanagari, Bengali, Tamil, Telugu, Malayalam, Kannada, Gujarati, Gurmukhi, Sinhala, Thai, Lao, Khmer, Myanmar, Georgian, Armenian, Ethiopic, Tibetan, Chinese, Japanese, and Korean, plus selected symbols. Han characters use Noto's Japanese glyph forms. Coverage is broad, not universal. Unsupported glyphs use a visible replacement box. Color emoji, vertical text, complex ASS styling, and positioned signs are not reproduced. Image subtitles and server-burned text remain server-rendered pixels.
+
+Fonts load on demand from an embedded, uncompressed archive. Reading the embedded bytes directly avoids first-caption decompression on MiSTer. Release archives compress those bytes for download. The renderer caches one cue image by text and viewport size, so unchanged frames neither shape text nor allocate. Cue input is capped at 2,048 runes. [`tools/build_subtitle_fonts.py`](../tools/build_subtitle_fonts.py) rebuilds the archive from pinned upstream revisions and includes a source/checksum manifest. Adding a font and its script tags extends the fallback set without changing media providers or display adapters. See [font and library licenses](THIRD_PARTY.md).

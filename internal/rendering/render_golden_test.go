@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/release"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/release"
+	"mistervision/internal/ui"
 )
 
 // TestRenderScreenPixels protects screen layout across structural changes.
@@ -41,11 +42,11 @@ func TestRenderScreenPixels(t *testing.T) {
 			item.UserData.PlaybackPositionTicks = 900000000
 			switch name {
 			case "connecting":
-				setup.Kind = SetupConnecting
+				setup = SetupPresentation{Kind: SetupConnecting, Title: "Connecting to Jellyfin", Message: "Checking your connection and saved sign-in."}
 			case "quick-connect":
-				setup = SetupPresentation{Kind: SetupQuickConnect, Code: "123456"}
+				setup = SetupPresentation{Kind: SetupApproval, Retry: "New code", Code: "123456", Title: "Quick Connect", Message: "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerVision."}
 			case "connection-error":
-				setup = SetupPresentation{Kind: SetupConnectionFailed, Path: "/media/fat/misterfin-crt/jellyfin.conf"}
+				setup = SetupPresentation{Kind: SetupFailure, Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/mistervision/jellyfin.conf", Title: "Can't connect to Jellyfin", Message: "Check your server address and network connection.\nMake sure Jellyfin is running, then retry."}
 			case "list":
 				m.ListMode = true
 			case "empty":
@@ -111,7 +112,7 @@ func TestRenderScreenPixels(t *testing.T) {
 			if m.Content.Detail != nil {
 				presentation.Title = m.Content.Detail.Name
 				presentation.DurationTicks = m.Content.Detail.RunTimeTicks
-				presentation.Seekable = !jellyfin.IsLive(*m.Content.Detail)
+				presentation.Seekable = !media.IsLive(*m.Content.Detail)
 				m.Content.CanResume = m.Content.Detail.Type == "Movie"
 			}
 

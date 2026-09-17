@@ -54,7 +54,7 @@ def player_source(root):
     if version_match is None or checksum_match is None:
         raise ValueError("MPlayer build recipe must declare its version and source checksum")
     version, expected = version_match.group(1), checksum_match.group(1)
-    archive = (build / "misterfin-crt-mplayer-source.tar.xz").read_bytes()
+    archive = (build / "mistervision-mplayer-source.tar.xz").read_bytes()
     if sha256(archive) != expected:
         raise ValueError("MPlayer source archive checksum does not match the build recipe")
     licenses = {}
@@ -63,13 +63,13 @@ def player_source(root):
             member = source.getmember(f"MPlayer-{version}/{name}")
             if not member.isfile():
                 raise ValueError(f"MPlayer license is not a regular file: {name}")
-            licenses[f"misterfin-crt/licenses/mplayer/{name}"] = source.extractfile(member).read()
+            licenses[f"mistervision/licenses/mplayer/{name}"] = source.extractfile(member).read()
     return archive, licenses
 
 
 def source_bundle(root, path, version, epoch, upstream):
     """Include committed project source and the exact upstream player archive."""
-    prefix = f"misterfin-crt-{version}/"
+    prefix = f"mistervision-{version}/"
     committed = git(root, "archive", "--format=tar", f"--prefix={prefix}", "HEAD")
     with path.open("wb") as raw, gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=epoch) as compressed:
         with tarfile.open(fileobj=compressed, mode="w") as output:
@@ -88,16 +88,20 @@ def write_bundle(root, version, revision, output):
     epoch = int(git(root, "show", "-s", "--format=%ct", "HEAD"))
     upstream, licenses = player_source(root)
     payload = {
-        "Scripts/MiSTerFin-CRT.sh": (root / "tools/misterfin-crt.sh").read_bytes(),
-        "misterfin-crt/misterfin-crt": arm_executable(root / "build/misterfin-crt-arm"),
-        "misterfin-crt/mplayer-arm": arm_executable(root / "build/misterfin-crt-mplayer-arm"),
-        "misterfin-crt/jellyfin.conf.example": (root / "jellyfin.conf.example").read_bytes(),
-        "misterfin-crt/settings.example.json": (root / "settings.example.json").read_bytes(),
-        "misterfin-crt/LICENSE": (root / "LICENSE").read_bytes(),
-        "misterfin-crt/licenses/go-LICENSE": (root / "build/go-LICENSE").read_bytes(),
-        "misterfin-crt/licenses/coder-websocket.txt": (root / "docs/licenses/coder-websocket.txt").read_bytes(),
-        "misterfin-crt/VERSION": (version + "\n").encode(),
-        "misterfin-crt/UPDATE_FORMAT": b"1\n",
+        "Scripts/MiSTerVision.sh": (root / "tools/mistervision.sh").read_bytes(),
+        "mistervision/mistervision": arm_executable(root / "build/mistervision-arm"),
+        "mistervision/mplayer-arm": arm_executable(root / "build/mistervision-mplayer-arm"),
+        "mistervision/jellyfin.conf.example": (root / "jellyfin.conf.example").read_bytes(),
+        "mistervision/settings.example.json": (root / "settings.example.json").read_bytes(),
+        "mistervision/LICENSE": (root / "LICENSE").read_bytes(),
+        "mistervision/licenses/go-LICENSE": (root / "build/go-LICENSE").read_bytes(),
+        "mistervision/licenses/fusion-pixel.txt": (root / "docs/licenses/fusion-pixel.txt").read_bytes(),
+        "mistervision/licenses/noto.txt": (root / "docs/licenses/noto.txt").read_bytes(),
+        "mistervision/licenses/go-text.txt": (root / "docs/licenses/go-text.txt").read_bytes(),
+        "mistervision/licenses/go-extensions.txt": (root / "docs/licenses/go-extensions.txt").read_bytes(),
+        "mistervision/licenses/coder-websocket.txt": (root / "docs/licenses/coder-websocket.txt").read_bytes(),
+        "mistervision/VERSION": (version + "\n").encode(),
+        "mistervision/UPDATE_FORMAT": b"1\n",
         "INSTALL.txt": (root / "tools/release-install.txt").read_bytes(),
         **licenses,
     }
@@ -110,13 +114,13 @@ def write_bundle(root, version, revision, output):
         if "://" in target:
             return match.group(0)
         relative = os.path.normpath("docs/" + target)
-        return f"[{label}](https://github.com/trentnix/misterfin-crt/blob/{revision}/{relative})"
-    payload["misterfin-crt/THIRD_PARTY.md"] = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", source_link, notices).encode()
+        return f"[{label}](https://github.com/trentnix/mistervision/blob/{revision}/{relative})"
+    payload["mistervision/THIRD_PARTY.md"] = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", source_link, notices).encode()
     metadata = (root / "build/release-manifest.txt").read_bytes()
-    payload["misterfin-crt/BUILD.txt"] = f"Version: {version}\nRevision: {revision}\n\n".encode() + metadata
+    payload["mistervision/BUILD.txt"] = f"Version: {version}\nRevision: {revision}\n\n".encode() + metadata
     payload["SHA256SUMS"] = "".join(f"{sha256(data)}  {name}\n" for name, data in sorted(payload.items())).encode()
-    executable = {"Scripts/MiSTerFin-CRT.sh", "misterfin-crt/misterfin-crt", "misterfin-crt/mplayer-arm"}
-    zip_path = output / f"misterfin-crt-{version}-mister.zip"
+    executable = {"Scripts/MiSTerVision.sh", "mistervision/mistervision", "mistervision/mplayer-arm"}
+    zip_path = output / f"mistervision-{version}-mister.zip"
     # ZIP timestamps begin in 1980. Fix timestamps and modes so packaging the
     # same inputs does not change the archive checksum.
     stamp = time.gmtime(max(epoch, 315532800))[:6]
@@ -127,7 +131,7 @@ def write_bundle(root, version, revision, output):
             info.external_attr = (0o100755 if name in executable else 0o100644) << 16
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, data)
-    source_path = output / f"misterfin-crt-{version}-source.tar.gz"
+    source_path = output / f"mistervision-{version}-source.tar.gz"
     source_bundle(root, source_path, version, epoch, upstream)
     (output / "SHA256SUMS").write_text("".join(f"{sha256(path.read_bytes())}  {path.name}\n" for path in (zip_path, source_path)))
 

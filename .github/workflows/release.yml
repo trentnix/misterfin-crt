@@ -53,7 +53,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ github.ref_name }}
         run: |
-          gh release create "$VERSION" --verify-tag --draft --title "MiSTerFin CRT $VERSION" --generate-notes \
-            "build/releases/$VERSION/misterfin-crt-$VERSION-mister.zip" \
-            "build/releases/$VERSION/misterfin-crt-$VERSION-source.tar.gz" \
+          gh release create "$VERSION" --verify-tag --draft --title "MiSTerVision $VERSION" --generate-notes \
+            "build/releases/$VERSION/mistervision-$VERSION-mister.zip" \
+            "build/releases/$VERSION/mistervision-$VERSION-source.tar.gz" \
             "build/releases/$VERSION/SHA256SUMS"

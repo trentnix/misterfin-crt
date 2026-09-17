@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"misterfin-crt/internal/release"
-	updateapi "misterfin-crt/internal/update"
+	"mistervision/internal/release"
+	updateapi "mistervision/internal/update"
 )
 
 const maxArchive = 96 << 20
@@ -41,7 +41,7 @@ func (i *Installer) response(ctx context.Context, endpoint string) (*http.Respon
 	if !downloadHost(req.URL) {
 		return nil, errors.New("untrusted release URL")
 	}
-	req.Header.Set("User-Agent", "MiSTerFin-CRT")
+	req.Header.Set("User-Agent", "MiSTerVision")
 	resp, err := i.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -54,8 +54,8 @@ func (i *Installer) response(ctx context.Context, endpoint string) (*http.Respon
 }
 
 func (i *Installer) download(ctx context.Context, stage string, status release.Status, notify func(updateapi.Progress)) (string, error) {
-	name := "misterfin-crt-" + status.Latest + "-mister.zip"
-	base := "https://github.com/trentnix/misterfin-crt/releases/download/" + status.Latest + "/"
+	name := "mistervision-" + status.Latest + "-mister.zip"
+	base := "https://github.com/trentnix/mistervision/releases/download/" + status.Latest + "/"
 	resp, err := i.response(ctx, base+"SHA256SUMS")
 	if err != nil {
 		return "", err

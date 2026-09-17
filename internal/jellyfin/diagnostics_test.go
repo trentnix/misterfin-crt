@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/diagnostics"
+	"mistervision/internal/diagnostics"
 )
 
 func TestRequestDiagnosticsKeepAuthenticationPrivate(t *testing.T) {

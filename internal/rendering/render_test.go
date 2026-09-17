@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 )
 
 func TestCRTLayoutAndExitOverlay(t *testing.T) {
@@ -203,6 +203,23 @@ func TestSeekUsesOnlyTheOpenMenu(t *testing.T) {
 			pixels = renderVideoOverlay(640, height, p, time.Unix(100, 0))
 			if pixels[((height/2)*640+320)*4+3] == 0 {
 				t.Fatal("hidden-menu seek lost the centered feedback")
+			}
+		}
+	}
+}
+
+func TestOrganizationMetadataShowsCountsInsteadOfWatched(t *testing.T) {
+	for _, kind := range []string{"Playlist", "BoxSet"} {
+		for _, tc := range []struct {
+			count int
+			want  string
+		}{{0, ""}, {1, "1 item"}, {12, "12 items"}} {
+			item := jellyfin.Item{Type: kind, IsFolder: true, ChildCount: tc.count, RunTimeTicks: 600000000}
+			// Jellyfin may supply aggregate user data even for containers.
+			item.UserData.Played = true
+			item.UserData.PlaybackPositionTicks = 10000000
+			if text, color := subtitle(item); text != tc.want || color != 0x585858 {
+				t.Errorf("%s: got %q color=%x, want %q", kind, text, color, tc.want)
 			}
 		}
 	}

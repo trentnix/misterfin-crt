@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run MiSTerFin's desktop harness as an interactive image in Ghostty."""
+"""Run MiSTerVision's desktop harness as an interactive image in Ghostty."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def bgrx_to_rgb(frame: bytes, width: int, height: int) -> bytes:
-    """Convert MiSTerFin's little-endian BGRX8888 buffer to packed RGB."""
+    """Convert MiSTerVision's little-endian BGRX8888 buffer to packed RGB."""
     expected = width * height * 4
     if len(frame) != expected:
         raise ValueError(f"expected {expected} frame bytes, got {len(frame)}")
@@ -71,7 +71,7 @@ def display_cells(
     pixel_width: int = 0,
     pixel_height: int = 0,
 ) -> tuple[int, int]:
-    """Fit MiSTerFin's non-square pixels into a physical 4:3 rectangle."""
+    """Fit MiSTerVision's non-square pixels into a physical 4:3 rectangle."""
     columns = max(columns, 1)
     rows = max(rows, 1)
 
@@ -250,7 +250,7 @@ def next_frame_deadline(previous: float, now: float, interval: float) -> float:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Navigate MiSTerFin CRT inside Ghostty using the desktop harness."
+        description="Navigate MiSTerVision inside Ghostty using the desktop harness."
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--ntsc", action="store_true", help="use the 640x240 layout")
@@ -267,7 +267,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="compatibility flag (Go is always used)",
     )
     parser.add_argument("--inline-video", action="store_true", help="play video inside Ghostty using libmpv (requires --browse)")
-    parser.add_argument("--browse", action="store_true", help="browse Jellyfin with the Go client")
+    parser.add_argument("--browse", action="store_true", help="browse the configured media server with the Go client")
     parser.add_argument("--demo", action="store_true", help="browse a local mock server with the Go client")
     parser.add_argument("--config", type=Path, help="Go Jellyfin configuration path")
     parser.add_argument("--settings", type=Path, help="sectioned settings.json path")
@@ -281,7 +281,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--log",
         type=Path,
-        default=Path("/tmp/misterfin-ghostty.log"),
+        default=Path("/tmp/mistervision-ghostty.log"),
         help="child stdout and stderr log",
     )
     parser.add_argument(
@@ -293,7 +293,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if args.fps is None:
         args.fps = VIDEO_FPS if args.inline_video else DEFAULT_FPS
     if args.inline_video and (not args.browse or args.demo):
-        parser.error("--inline-video requires --browse with a real Jellyfin server")
+        parser.error("--inline-video requires --browse with a real media server")
     if not math.isfinite(args.fps) or args.fps <= 0:
         parser.error("--fps must be finite and greater than zero")
     if args.demo:
@@ -303,7 +303,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if (args.config or args.state_dir or args.settings) and not args.browse:
         parser.error("--config, --settings, and --state-dir require --browse")
     if args.binary is None:
-        args.binary = REPO_ROOT / "build/misterfin-crt"
+        args.binary = REPO_ROOT / "build/mistervision"
     return args
 
 
@@ -348,12 +348,12 @@ def stop_process(process: subprocess.Popen[bytes], timeout: float = 2) -> None:
 
 def child_environment(width: int, height: int, frame_path: Path) -> dict[str, str]:
     env = os.environ.copy()
-    env["MISTERFIN_FB"] = f"{width}x{height}"
-    env["MISTERFIN_FRAME_OUT"] = str(frame_path)
-    env["MISTERFIN_STDIN"] = "1"
-    env.setdefault("MISTERFIN_CACHE_ROOT", "/tmp/misterfin-cache")
-    env.pop("MISTERFIN_KEYS", None)
-    env.pop("MISTERFIN_KEYS_HOLD", None)
+    env["MISTERVISION_FB"] = f"{width}x{height}"
+    env["MISTERVISION_FRAME_OUT"] = str(frame_path)
+    env["MISTERVISION_STDIN"] = "1"
+    env.setdefault("MISTERVISION_CACHE_ROOT", "/tmp/mistervision-cache")
+    env.pop("MISTERVISION_KEYS", None)
+    env.pop("MISTERVISION_KEYS_HOLD", None)
     return env
 
 
@@ -364,7 +364,7 @@ def run(args: argparse.Namespace) -> int:
         return 2
 
     if not sys.stdin.isatty():
-        print("Interactive MiSTerFin input requires a terminal on stdin.", file=sys.stderr)
+        print("Interactive MiSTerVision input requires a terminal on stdin.", file=sys.stderr)
         return 2
 
     if not args.no_build:
@@ -375,7 +375,7 @@ def run(args: argparse.Namespace) -> int:
 
     binary = args.binary.resolve()
     if not binary.is_file():
-        print(f"MiSTerFin host binary not found: {binary}", file=sys.stderr)
+        print(f"MiSTerVision host binary not found: {binary}", file=sys.stderr)
         return 2
 
     width = 640
@@ -397,7 +397,7 @@ def run(args: argparse.Namespace) -> int:
     }
 
     try:
-        with tempfile.TemporaryDirectory(prefix="misterfin-ghostty-") as temp_dir, ExitStack() as cleanup:
+        with tempfile.TemporaryDirectory(prefix="mistervision-ghostty-") as temp_dir, ExitStack() as cleanup:
             frame_path = Path(temp_dir) / "frame.raw"
             env = child_environment(width, height, frame_path)
             command = [str(binary)]
@@ -461,7 +461,7 @@ def run(args: argparse.Namespace) -> int:
 
     assert process is not None
     if process.returncode not in (0, -signal.SIGTERM):
-        print(f"MiSTerFin exited with status {process.returncode}. See {args.log}.", file=sys.stderr)
+        print(f"MiSTerVision exited with status {process.returncode}. See {args.log}.", file=sys.stderr)
         return process.returncode or 1
     return 0
 

@@ -1,7 +1,7 @@
 package playback
 
 import (
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	nativeplayer "mistervision/internal/player/mplayer"
 	"testing"
 )
 

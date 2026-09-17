@@ -1,14 +1,14 @@
 package playback
 
-import "misterfin-crt/internal/jellyfin"
+import "mistervision/internal/media"
 
 // Request describes one playback attempt, including a replacement after a seek
 // or track change. Run reads Request without modifying it. The caller must keep
 // referenced items, track choices, and callback values unchanged until Run returns.
 type Request struct {
 	// Item identifies the media and selects the initial decoder protocol.
-	// Run refreshes its metadata from Jellyfin before opening the stream.
-	Item jellyfin.Item
+	// Run refreshes its metadata from server before opening the stream.
+	Item media.Item
 	// Tracks carries current choices across replacements. Nil restores saved
 	// choices, or uses defaults when none have been saved. Text is immutable.
 	Tracks *TrackOptions

@@ -3,13 +3,13 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
 
 // presentation copies the controller values needed to draw controls and seek
 // feedback. Decoder resources and mutable control state never enter the snapshot.
-func (m *playbackState) presentation(item *jellyfin.Item, now time.Time) rendering.PlaybackPresentation {
+func (m *playbackState) presentation(item *media.Item, now time.Time) rendering.PlaybackPresentation {
 	p := rendering.PlaybackPresentation{
 		PositionTicks:   m.PositionTicks,
 		Paused:          m.Paused,
@@ -19,7 +19,7 @@ func (m *playbackState) presentation(item *jellyfin.Item, now time.Time) renderi
 	if item != nil {
 		p.Title = item.Name
 		p.DurationTicks = item.RunTimeTicks
-		p.Seekable = !jellyfin.IsLive(*item)
+		p.Seekable = !media.IsLive(*item)
 	}
 	if m.SeekTarget != nil {
 		p.HasDestination = true

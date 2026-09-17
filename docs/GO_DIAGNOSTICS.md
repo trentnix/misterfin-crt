@@ -10,9 +10,9 @@ Add this section to `settings.json`, restart, reproduce the issue, then exit nor
 {"diagnostics": {"enabled": true, "path": "debug.log", "max_bytes": 1048576}}
 ```
 
-Collect `debug.log` and `debug.log.1` before launching again. Each process clears its log pair at startup. Relative paths resolve beside the settings file. The standard MiSTer log is `/media/fat/misterfin-crt/debug.log`. An absolute path can select other storage, including `/tmp`.
+Collect `debug.log` and `debug.log.1` before launching again. Each process clears its log pair at startup. Relative paths resolve beside the settings file. The standard MiSTer log is `/media/fat/mistervision/debug.log`. An absolute path can select other storage, including `/tmp`.
 
-`DEBUGLOG` on a line in `jellyfin.conf` enables the same defaults. Explicit `diagnostics.enabled` overrides it. To disable logging, set false, or omit the section and remove `DEBUGLOG`.
+Without a JSON `server` section, `DEBUGLOG` on a line in legacy `jellyfin.conf` enables the same defaults. With `server` configured, only the diagnostics section controls logging. Explicit `diagnostics.enabled` overrides it. To disable logging, set false, or omit the section and remove `DEBUGLOG`.
 
 `max_bytes` applies to each file and accepts 4,096–67,108,864 bytes. Use a dedicated path because startup truncates it and owns its `.1` companion. Only one application instance can use a log path.
 
@@ -33,6 +33,8 @@ Each line is JSON with a timestamp and event name in `msg`.
 | `authentication.session-recovered` | Damaged saved sign-in was backed up and replaced. No file contents or paths. |
 | `http.request`, `remote.socket` | Endpoint/status/timing or WebSocket connection result. No query strings or credentials. |
 | `browser.page`, `.home` | Accepted page/feed results, bounded identifiers, counts, and failures. |
+| `browser.artwork` | Failed image kind, without URLs or raw errors. Optional cover and background failures stay in diagnostics. Photo and authentication failures remain visible. |
+| `browser.playback-ready`, `.subtitle` | First position and successful subtitle changes applied by the browser. Local decoder generation, position ticks, or selected stream index. |
 | `playback.start`, `.phase`, `.prepared` | Decoder, preparation stages, resume offset, and requested transcode limits. |
 | `playback.first-position`, `.first-frame` | Separate milestones for position feedback and first presented frame feedback. |
 | `playback.pause`, `.buffering`, `.progress` | State transitions and ten-second progress summaries. |

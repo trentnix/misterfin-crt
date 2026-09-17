@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/artwork"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/artwork"
+	"mistervision/internal/jellyfin"
 )
 
 func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {

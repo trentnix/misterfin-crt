@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // preparePlayback resolves metadata, resume position, and Live TV negotiation.
 // A nil session with no error means preparation was canceled.
-func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, request Request, choices trackPreparation) (*playbackSession, error) {
+func preparePlayback(ctx context.Context, c media.Playback, config Config, request Request, choices trackPreparation) (*playbackSession, error) {
 	item := request.Item
-	liveTV := jellyfin.IsLive(item)
+	liveTV := media.IsLive(item)
 	item, err := c.PlaybackDetails(ctx, item.ID)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -22,11 +22,11 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, req
 	if liveTV {
 		item.Type = "TvChannel"
 	}
-	liveTV = jellyfin.IsLive(item)
+	liveTV = media.IsLive(item)
 	if !Supported(item) {
 		return nil, errors.New("playback for this item type is not implemented")
 	}
-	session, err := jellyfin.NewPlaySessionID()
+	session, err := media.NewPlaySessionID()
 	if err != nil {
 		return nil, errors.New("cannot create playback session")
 	}
@@ -40,9 +40,12 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, req
 			start = min(start, max(int64(0), item.RunTimeTicks-10000000))
 		}
 	}
-	streamURL := c.VideoStreamURL(item.ID, session, start, config.Height == 240 || config.Height == 480)
+	var stream media.PreparedStream
 	if item.Type == "Audio" {
-		streamURL = c.AudioStreamURL(item.ID, session)
+		stream, err = c.PrepareAudio(ctx, item, session)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var tracks VideoTracks
 	if !liveTV && item.Type != "Audio" {
@@ -53,13 +56,15 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, req
 		// Decoder geometry must describe the same source as the transcode request.
 		item.MediaStreams = tracks.Streams
 		burn := -1
-		if sub, ok := tracks.Stream("Subtitle", tracks.Selection.SubtitleIndex); ok && (!sub.TextSubtitle() || !tracks.ClientSubtitles) {
+		if sub, ok := tracks.Stream("Subtitle", tracks.Selection.SubtitleIndex); ok && (!sub.ClientSubtitle() || !tracks.ClientSubtitles) {
 			burn = sub.Index
 			tracks.Text = nil
 		}
-		streamURL = c.SelectedVideoURL(item.ID, session, start, config.Height == 240 || config.Height == 480, tracks.SourceID, tracks.Selection, burn)
+		stream, err = c.PrepareVideo(ctx, media.VideoRequest{Item: item, SessionID: session, StartTicks: start, NTSC: config.Height == 240 || config.Height == 480, SourceID: tracks.SourceID, Tracks: tracks.Selection, BurnSubtitle: burn})
+		if err != nil {
+			return nil, err
+		}
 	}
-	var live jellyfin.LivePlayback
 	if liveTV {
 		// Progressive NTSC keeps its 30 fps cap. Interlaced NTSC uses the
 		// broadcast rate so 30 fps conversion does not periodically shorten
@@ -71,25 +76,32 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, req
 		case 480:
 			maxFrameRate = 30000.0 / 1001
 		}
-		live, err = c.OpenLive(ctx, item.ID, maxFrameRate)
+		live, ok := c.(media.LiveTV)
+		if !ok {
+			return nil, errors.New("Live TV is not supported by this server")
+		}
+		audioIndex := -1
+		if choices.explicit != nil {
+			audioIndex = choices.explicit.Selection.AudioIndex
+		}
+		stream, err = live.PrepareLive(ctx, media.LiveRequest{ChannelID: item.ID, MaxFrameRate: maxFrameRate, AudioIndex: audioIndex})
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, nil
 			}
 			return nil, err
 		}
-		// Live tracks describe the negotiated source. Track switching and recorded
-		// subtitle extraction remain unavailable, but picture fitting is local.
+		// Live tracks describe the negotiated source. The adapter advertises audio
+		// selection separately from local picture fitting and decoded captions.
 		tracks = VideoTracks{
-			SourceID: live.MediaSourceID, Streams: live.MediaStreams, LivePicture: choices.livePicture,
-			TrackOptions: TrackOptions{Picture: choices.picture(), Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}},
+			SourceID: stream.SourceID, Streams: stream.Streams, LivePicture: choices.livePicture, LiveAudio: stream.LiveAudio,
+			TrackOptions: TrackOptions{Picture: choices.picture(), Selection: media.TrackSelection{AudioIndex: audioIndex, SubtitleIndex: -1}},
 		}
-		session, streamURL = live.PlaySessionID, live.StreamURL
-		if len(live.MediaStreams) > 0 {
-			item.MediaStreams = live.MediaStreams
+		if len(stream.Streams) > 0 {
+			item.MediaStreams = stream.Streams
 		}
 	}
-	state := jellyfin.PlayState{ItemID: item.ID, PlaySessionID: session, PositionTicks: start}
+	state := media.PlayState{ItemID: item.ID, PlaySessionID: stream.SessionID, PositionTicks: start}
 	if !liveTV && item.Type != "Audio" {
 		state.MediaSourceID = tracks.SourceID
 		selection := tracks.Selection
@@ -99,15 +111,15 @@ func preparePlayback(ctx context.Context, c *jellyfin.Client, config Config, req
 		}
 	}
 	if item.Type == "Audio" {
-		state.PlayMethod = "DirectStream"
+		state.Audio = true
 	}
 	if liveTV {
 		canSeek := false
-		state.MediaSourceID, state.LiveStreamID, state.CanSeek = live.MediaSourceID, live.LiveStreamID, &canSeek
+		state.MediaSourceID, state.CanSeek = stream.SourceID, &canSeek
 	}
 	return &playbackSession{
-		client: c, item: item, start: start, streamURL: streamURL,
-		live: live, liveTV: liveTV, state: state, played: item.UserData.Played, tracks: tracks,
+		client: c, item: item, start: start,
+		stream: stream, liveTV: liveTV, state: state, played: item.UserData.Played, tracks: tracks,
 		preferences: config.Preferences, preferenceKey: preferenceKey(c, item.ID),
 	}, nil
 }

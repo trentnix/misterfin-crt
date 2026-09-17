@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Cue holds absolute source times in Jellyfin ticks and plain display text.
+// Cue holds absolute source times in shared 100-nanosecond ticks and plain display text.
 type Cue struct {
 	Start, End int64
 	Text       string
@@ -26,7 +26,7 @@ var timing = regexp.MustCompile(`^(\d{1,3}):(\d{2}):(\d{2})[,.](\d{3})\s+-->\s+(
 var markup = regexp.MustCompile(`(?i)</?(?:i|b|u)>|</?font(?:\s[^>\n]*)?>|\{\\[^}\n]*\}`)
 var breaks = regexp.MustCompile(`(?i)<br\s*/?>`)
 
-// Parse accepts SubRip exported by Jellyfin, including ASS escapes and markup.
+// Parse accepts UTF-8 SubRip, including ASS escapes and markup.
 // Malformed cue blocks are skipped. Entirely invalid or oversized files fail.
 func Parse(data []byte) (*Track, error) {
 	if len(data) > 4<<20 {

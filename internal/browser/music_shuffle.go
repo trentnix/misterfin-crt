@@ -3,14 +3,14 @@ package browser
 import (
 	"context"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // shuffleQueue leaves the artist view intact. Its bounded history supports
 // previous/next without changing the library's listing or pagination state.
 type shuffleQueue struct {
 	library  string
-	items    []jellyfin.Item
+	items    []media.Item
 	position int
 }
 
@@ -39,7 +39,7 @@ func (s *browserSession) fetchShuffle() {
 	s.model.Notice = "Loading shuffle..."
 	go func() {
 		items, err := client.RandomTracks(ctx, library)
-		s.send(ctx, shuffleResult{generation: generation, page: jellyfin.Page{Items: items}, err: err})
+		s.send(ctx, shuffleResult{generation: generation, page: media.Page{Items: items}, err: err})
 	}()
 }
 
@@ -66,7 +66,7 @@ func (s *browserSession) handleShuffle(r shuffleResult) bool {
 		items[0], items[1] = items[1], items[0]
 	}
 	if len(s.shuffle.items) > 64 {
-		s.shuffle.items = append([]jellyfin.Item(nil), s.shuffle.items[len(s.shuffle.items)-64:]...)
+		s.shuffle.items = append([]media.Item(nil), s.shuffle.items[len(s.shuffle.items)-64:]...)
 	}
 	s.shuffle.position = len(s.shuffle.items)
 	s.shuffle.items = append(s.shuffle.items, items...)

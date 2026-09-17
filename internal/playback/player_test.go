@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	playerapi "misterfin-crt/internal/player"
-	desktopplayer "misterfin-crt/internal/player/ffplay"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
-	inlineplayer "misterfin-crt/internal/player/pythonhelper"
+	"mistervision/internal/jellyfin"
+	playerapi "mistervision/internal/player"
+	desktopplayer "mistervision/internal/player/ffplay"
+	nativeplayer "mistervision/internal/player/mplayer"
+	inlineplayer "mistervision/internal/player/pythonhelper"
 )
 
 func TestProgressParser(t *testing.T) {

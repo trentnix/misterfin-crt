@@ -16,9 +16,10 @@ static int console_fds[2] = {-1, -1};
 static int console_modes[2] = {KD_TEXT, KD_TEXT};
 static int console_saved[2];
 static int previous_vt;
+static int keyboard_fd = -1;
+static int keyboard_created;
 
-// A complete key press lets Main process both make and break events. F12 first
-// leaves its framebuffer disabled, so F9 enables it instead of toggling it off.
+// A complete key press lets Main process both make and break events.
 static int console_key(int fd, int key) {
     struct input_event events[2];
     memset(events, 0, sizeof(events));
@@ -34,70 +35,84 @@ static int console_key(int fd, int key) {
     return 0;
 }
 
-// Main owns framebuffer activation. Keep the temporary keyboard alive until
-// Main acknowledges F9 by selecting VT1. A fixed delay can expire before Main
-// discovers the keyboard, leaving its OSD visible over the running client.
-static int console_enable(void) {
-    int error = 0, created = 0, fd = -1;
+// Prepare input before the core load so Main can discover it while switching
+// modes. Clear both console buffers before the new core can display either one.
+static int console_prepare(void) {
+    int fd = -1;
     struct vt_stat state;
     struct uinput_user_dev dev;
     const char *paths[] = {"/dev/tty1", "/dev/tty2"};
     const char clear[] = "\033[0m\033[40m\033[2J\033[3J\033[H";
-    // Scripts runs on VT2, which may still be in graphics mode. Linux refuses
-    // automatic VT switches from graphics mode and Main waits for that switch.
-    // Save both modes and release graphics before asking Main to select VT1.
     for (int i = 0; i < 2; i++) {
         console_fds[i] = open(paths[i], O_RDWR | O_CLOEXEC);
         if (console_fds[i] < 0) return errno;
         if (ioctl(console_fds[i], KDGETMODE, &console_modes[i]) < 0) return errno;
         console_saved[i] = 1;
         if (write(console_fds[i], clear, sizeof(clear) - 1) != sizeof(clear) - 1) return errno ? errno : EIO;
+        // Scripts may leave VT2 in graphics mode, which blocks Main's VT switch.
         if (ioctl(console_fds[i], KDSETMODE, KD_TEXT) < 0) return errno;
     }
     if (ioctl(console_fds[0], VT_GETSTATE, &state) < 0) return errno;
     previous_vt = state.v_active;
-    // VT2 makes Main's transition to VT1 observable even for SSH launches.
-    if (ioctl(console_fds[0], VT_ACTIVATE, 2) < 0) return errno;
     fd = open("/dev/uinput", O_WRONLY | O_CLOEXEC);
     if (fd < 0) return errno;
+    keyboard_fd = fd;
     memset(&dev, 0, sizeof(dev));
-    strcpy(dev.name, "MiSTerFin display setup");
+    strcpy(dev.name, "MiSTerVision display setup");
     dev.id.bustype = BUS_VIRTUAL;
     dev.id.vendor = 0x1;
     dev.id.product = 0x1;
     if (ioctl(fd, UI_SET_EVBIT, EV_KEY) < 0 || ioctl(fd, UI_SET_EVBIT, EV_SYN) < 0 ||
-        ioctl(fd, UI_SET_KEYBIT, KEY_F9) < 0 || ioctl(fd, UI_SET_KEYBIT, KEY_F12) < 0 ||
+        ioctl(fd, UI_SET_KEYBIT, KEY_F9) < 0 ||
         ioctl(fd, UI_SET_KEYBIT, KEY_A) < 0 || ioctl(fd, UI_SET_KEYBIT, KEY_Q) < 0 ||
         write(fd, &dev, sizeof(dev)) != sizeof(dev) || ioctl(fd, UI_DEV_CREATE) < 0) {
-        error = errno ? errno : EIO;
-        goto done;
+        return errno ? errno : EIO;
     }
-    created = 1;
-    error = ETIMEDOUT;
+    keyboard_created = 1;
+    return 0;
+}
+
+// Remove the temporary keyboard before the application's input reader starts.
+// Restoration also calls this after a partial preparation or failed handoff.
+static int console_close_keyboard(void) {
+    int error = 0;
+    if (keyboard_created && ioctl(keyboard_fd, UI_DEV_DESTROY) < 0) error = errno;
+    if (keyboard_fd >= 0 && close(keyboard_fd) < 0 && !error) error = errno;
+    keyboard_fd = -1;
+    keyboard_created = 0;
+    return error;
+}
+
+// A freshly loaded menu core starts with console output disabled. F9 enables
+// it directly, without F12 exposing the OSD first. Retry only until Main selects
+// VT1. Keeping the keyboard alive and checking the VT handles delayed discovery.
+static int console_enable(void) {
+    struct vt_stat state;
+    if (keyboard_fd < 0 || !keyboard_created) return ENODEV;
+    // VT2 makes the acknowledgment observable even for SSH launches.
+    if (ioctl(console_fds[0], VT_ACTIVATE, 2) < 0) return errno;
     for (int attempt = 0; attempt < 6; attempt++) {
-        usleep(500000);
-        int key_error = console_key(fd, KEY_F12);
-        if (!key_error) key_error = console_key(fd, KEY_F9);
-        if (key_error) { error = key_error; break; }
-        if (ioctl(console_fds[0], VT_GETSTATE, &state) < 0) { error = errno; break; }
-        if (state.v_active == 1) {
-            // Allow Main to finish hiding its OSD before the supervisor stops it.
+        int error = console_key(keyboard_fd, KEY_F9);
+        if (error) return error;
+        // Main selects VT1 before enabling scanout and hiding its OSD. Allow
+        // those operations to finish before the supervisor can stop Main.
+        for (int poll = 0; poll < 5; poll++) {
             usleep(100000);
-            error = 0;
-            break;
+            if (ioctl(console_fds[0], VT_GETSTATE, &state) < 0) return errno;
+            if (state.v_active == 1) {
+                usleep(100000);
+                return console_close_keyboard();
+            }
         }
     }
-done:
-    if (created) ioctl(fd, UI_DEV_DESTROY);
-    close(fd);
-    return error;
+    return ETIMEDOUT;
 }
 
 // Restore the original console even if the client was killed before its
 // framebuffer destructor ran. The supervisor retains this descriptor.
 static int console_restore(void) {
     const char clear[] = "\033[0m\033[40m\033[2J\033[3J\033[H";
-    int error = 0;
+    int error = console_close_keyboard();
     // Release the client's graphics mode even if the child crashed. Restore
     // the original active VT before restoring any saved graphics modes.
     for (int i = 0; i < 2; i++) {
@@ -123,7 +138,16 @@ import (
 	"syscall"
 )
 
-// enableConsole asks the freshly loaded menu core to display the Linux console.
+// prepareConsole clears terminal text and registers the temporary input device
+// before the core switch. The caller must restoreConsole even after an error.
+func prepareConsole() error {
+	if code := C.console_prepare(); code != 0 {
+		return fmt.Errorf("prepare MiSTer framebuffer: %w", syscall.Errno(code))
+	}
+	return nil
+}
+
+// enableConsole asks the ready menu core to display the Linux console.
 func enableConsole() error {
 	if code := C.console_enable(); code != 0 {
 		return fmt.Errorf("enable MiSTer framebuffer: %w", syscall.Errno(code))

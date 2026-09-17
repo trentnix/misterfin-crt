@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // mappedAxis translates a configured axis into held actions. Each device owns

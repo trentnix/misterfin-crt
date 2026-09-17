@@ -28,7 +28,7 @@ func TestCollectionQueries(t *testing.T) {
 	} {
 		t.Run(tc.collection, func(t *testing.T) {
 			want, _ := url.ParseQuery("userId=user-id&ParentId=view&SortBy=SortName&SortOrder=Ascending&Fields=" + tc.fields + "&EnableUserData=" + tc.userData + "&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop&StartIndex=12&Limit=34&" + tc.extra)
-			got := ItemsQuery("user-id", "view", tc.collection, 12, 34)
+			got := itemsQuery("user-id", "view", tc.collection, 12, 34)
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("got %v, want %v", got, want)
 			}
@@ -216,5 +216,20 @@ func TestDetailsAndMosaicRequests(t *testing.T) {
 	page, err := c.Mosaic(context.Background(), Item{ID: "music", CollectionType: "music"})
 	if err != nil || page.TotalRecordCount == nil || *page.TotalRecordCount != 120 {
 		t.Fatalf("mosaic: %+v %v", page, err)
+	}
+}
+
+func TestAuthorizationUsesApplicationBuildVersion(t *testing.T) {
+	c := NewClient(Config{}, Session{DeviceID: "device"})
+	if !strings.Contains(c.Authorization(), `Version="dev"`) {
+		t.Fatal("missing development version")
+	}
+	c.Version = "v1.2.3"
+	if !strings.Contains(c.Authorization(), `Version="v1.2.3"`) {
+		t.Fatal("release version missing")
+	}
+	c.Version = "v1.2.3\", Token=\"injected"
+	if !strings.Contains(c.Authorization(), `Version="v1.2.3\", Token=\"injected"`) {
+		t.Fatal("version was not quoted")
 	}
 }

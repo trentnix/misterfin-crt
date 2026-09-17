@@ -4,8 +4,9 @@ import (
 	"context"
 	"io"
 
-	"misterfin-crt/internal/jellyfin"
-	playerapi "misterfin-crt/internal/player"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/media"
+	playerapi "mistervision/internal/player"
 )
 
 // mediaSource owns either an authenticated stream or a local audio proxy.
@@ -19,11 +20,11 @@ type mediaSource struct {
 // openMedia authenticates upstream access through the requested transport. URL
 // input uses a local proxy for range requests. Pipe input opens one stream. The
 // caller must close the source after the decoder finishes.
-func openMedia(ctx context.Context, c *jellyfin.Client, url string, input playerapi.Input) (*mediaSource, error) {
+func openMedia(ctx context.Context, c media.StreamSource, url string, input playerapi.Input, log *diagnostics.Log) (*mediaSource, error) {
 	source := &mediaSource{}
 	var err error
 	if input == playerapi.URL {
-		source.url, source.closeProxy, err = audioProxy(ctx, c, url)
+		source.url, source.closeProxy, err = audioProxy(ctx, c, url, log)
 	} else {
 		source.stream, err = c.OpenStream(ctx, url)
 	}

@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-//go:embed misterfin_crt.png
+//go:embed mistervision.png
 var logoPNG []byte
 
 // Logo returns immutable project artwork, decoded once on first use. Callers

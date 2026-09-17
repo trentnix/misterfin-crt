@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
-func subtitle(i jellyfin.Item) (string, uint32) {
+func subtitle(i media.Item) (string, uint32) {
 	color := uint32(0x585858)
 	switch i.Type {
 	case "TvChannel", "LiveTvChannel":
@@ -32,6 +32,8 @@ func subtitle(i jellyfin.Item) (string, uint32) {
 			seasons += " - " + positiveCount(i.RecursiveItemCount, "episode")
 		}
 		return seasons, color
+	case "Playlist", "BoxSet":
+		return positiveCount(i.ChildCount, "item"), color
 	case "Audio":
 		return runtime(i.RunTimeTicks), color
 	}
@@ -49,12 +51,12 @@ func subtitle(i jellyfin.Item) (string, uint32) {
 	return strings.TrimPrefix(s, " - "), color
 }
 
-func itemTitle(i jellyfin.Item) string {
+func itemTitle(i media.Item) string {
 	s := i.Name
 	if i.ContinueAction != "" && i.Type == "Episode" && i.SeriesName != "" {
 		s = i.SeriesName + " - " + s
 	}
-	if jellyfin.IsLive(i) {
+	if media.IsLive(i) {
 		number := i.Number
 		if number == "" {
 			number = i.ChannelNumber
@@ -85,7 +87,7 @@ func positiveCount(count int, name string) string {
 }
 
 // continueSubtitle distinguishes starting an episode from resuming saved progress.
-func continueSubtitle(item jellyfin.Item) string {
+func continueSubtitle(item media.Item) string {
 	parts := []string{}
 	if item.ContinueAction == "resume" {
 		parts = append(parts, "Resume", runtime(item.UserData.PlaybackPositionTicks))

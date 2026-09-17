@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 // sprites reuses decoded PNG/GIF frames across a small layered formation.

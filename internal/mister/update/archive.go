@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	updateapi "misterfin-crt/internal/update"
+	updateapi "mistervision/internal/update"
 )
 
 const maxFiles = 128
@@ -27,16 +27,16 @@ func allowed(name string) bool {
 		return false
 	}
 	switch name {
-	case "Scripts/MiSTerFin-CRT.sh", "INSTALL.txt", "SHA256SUMS":
+	case "Scripts/MiSTerVision.sh", "INSTALL.txt", "SHA256SUMS":
 		return true
-	case "misterfin-crt/misterfin-crt", "misterfin-crt/mplayer-arm", "misterfin-crt/VERSION", "misterfin-crt/UPDATE_FORMAT", "misterfin-crt/BUILD.txt", "misterfin-crt/LICENSE", "misterfin-crt/THIRD_PARTY.md", "misterfin-crt/jellyfin.conf.example", "misterfin-crt/settings.example.json":
+	case "mistervision/mistervision", "mistervision/mplayer-arm", "mistervision/VERSION", "mistervision/UPDATE_FORMAT", "mistervision/BUILD.txt", "mistervision/LICENSE", "mistervision/THIRD_PARTY.md", "mistervision/jellyfin.conf.example", "mistervision/settings.example.json":
 		return true
 	}
-	return strings.HasPrefix(name, "misterfin-crt/licenses/")
+	return strings.HasPrefix(name, "mistervision/licenses/")
 }
 
 func mode(name string) os.FileMode {
-	if name == "Scripts/MiSTerFin-CRT.sh" || name == "misterfin-crt/misterfin-crt" || name == "misterfin-crt/mplayer-arm" {
+	if name == "Scripts/MiSTerVision.sh" || name == "mistervision/mistervision" || name == "mistervision/mplayer-arm" {
 		return 0755
 	}
 	return 0644
@@ -44,12 +44,12 @@ func mode(name string) os.FileMode {
 
 func (i *Installer) destination(name string) string {
 	switch name {
-	case "Scripts/MiSTerFin-CRT.sh":
+	case "Scripts/MiSTerVision.sh":
 		return i.launcher
 	case "INSTALL.txt":
 		return filepath.Join(i.root, "INSTALL.txt")
 	default:
-		return filepath.Join(i.root, strings.TrimPrefix(name, "misterfin-crt/"))
+		return filepath.Join(i.root, strings.TrimPrefix(name, "mistervision/"))
 	}
 }
 
@@ -93,11 +93,11 @@ func (i *Installer) unpack(ctx context.Context, stage, archive, version string) 
 		}
 		return data, err
 	}
-	format, err := readSmall("misterfin-crt/UPDATE_FORMAT", 16)
+	format, err := readSmall("mistervision/UPDATE_FORMAT", 16)
 	if err != nil || string(format) != "1\n" {
 		return nil, updateapi.ErrManual
 	}
-	label, err := readSmall("misterfin-crt/VERSION", 64)
+	label, err := readSmall("mistervision/VERSION", 64)
 	if err != nil || string(label) != version+"\n" {
 		return nil, errors.New("release version mismatch")
 	}
@@ -112,7 +112,7 @@ func (i *Installer) unpack(ctx context.Context, stage, archive, version string) 
 	if len(sums) != len(files)-1 {
 		return nil, errors.New("release file checksums do not match the archive")
 	}
-	for _, name := range []string{"misterfin-crt/misterfin-crt", "misterfin-crt/mplayer-arm", "Scripts/MiSTerFin-CRT.sh", "misterfin-crt/LICENSE", "misterfin-crt/THIRD_PARTY.md", "misterfin-crt/BUILD.txt"} {
+	for _, name := range []string{"mistervision/mistervision", "mistervision/mplayer-arm", "Scripts/MiSTerVision.sh", "mistervision/LICENSE", "mistervision/THIRD_PARTY.md", "mistervision/BUILD.txt"} {
 		if files[name] == nil {
 			return nil, errors.New("required release file is missing")
 		}
@@ -155,7 +155,7 @@ func (i *Installer) unpack(ctx context.Context, stage, archive, version string) 
 		if hex.EncodeToString(hash.Sum(nil)) != sums[name] {
 			return nil, errors.New("release file checksum mismatch")
 		}
-		if name == "misterfin-crt/misterfin-crt" || name == "misterfin-crt/mplayer-arm" {
+		if name == "mistervision/mistervision" || name == "mistervision/mplayer-arm" {
 			if err := checkARM(dest); err != nil {
 				return nil, err
 			}

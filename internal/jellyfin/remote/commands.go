@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/remote"
 )
 
 // decode translates supported protocol messages. Unknown commands are ignored.

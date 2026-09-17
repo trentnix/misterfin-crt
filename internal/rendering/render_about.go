@@ -2,10 +2,10 @@ package rendering
 
 import (
 	"fmt"
-	"misterfin-crt/internal/branding"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
-	"misterfin-crt/internal/update"
+	"mistervision/internal/branding"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
+	"mistervision/internal/update"
 )
 
 // about draws project identity and release state using the shared raster path.
@@ -44,7 +44,7 @@ func (s *sceneCache) about(c *ui.Canvas, statusY int) {
 		top := safeY(dst.Width, dst.Height) + 4
 		titleY := statusY - 86
 		dst.Image(branding.Logo(), 24, top, dst.Width-48, max(1, titleY-top-8))
-		center(dst, titleY, "MiSTerFin CRT", titleColor, 2)
+		center(dst, titleY, "MiSTerVision", titleColor, 2)
 		center(dst, statusY-44, "Trent Nix", 0xc0c0c0, 1)
 		center(dst, statusY-32, "Based on MiSTerFin by Pudding Studio", dimColor, 1)
 		center(dst, statusY-20, "CC BY-NC 4.0. Components have separate licenses.", dimColor, 1)

@@ -3,15 +3,14 @@ package browser
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/platform"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/input/control"
+	"mistervision/internal/platform"
+	"mistervision/internal/playback"
+	"mistervision/internal/rendering"
+	"mistervision/internal/videoout"
 )
 
 func TestRunBorrowsInputAndOutput(t *testing.T) {
@@ -36,7 +35,7 @@ func TestRunBorrowsInputAndOutput(t *testing.T) {
 			}
 			// No terminal or framebuffer is opened. Authentication cannot reach a server.
 			dir := t.TempDir()
-			config := Config{ConfigPath: filepath.Join(dir, "missing.conf"), StateDir: dir}
+			config := Config{StateDir: dir}
 			err := Run(ctx, config, playback.Config{}, output, rendering.NewRenderer(), nil, keys)
 			if (want == "" && err != nil) || (want != "" && (err == nil || err.Error() != want)) {
 				t.Fatalf("got %v, want %q", err, want)

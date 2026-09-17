@@ -3,7 +3,7 @@ package native
 import (
 	"testing"
 
-	"misterfin-crt/internal/platform"
+	"mistervision/internal/platform"
 )
 
 func TestInterlacedOverlayUsesFullFrame(t *testing.T) {

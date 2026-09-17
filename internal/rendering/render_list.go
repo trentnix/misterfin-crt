@@ -3,8 +3,8 @@ package rendering
 import (
 	"math"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 // list draws a paginated item list and returns its configured button badges.

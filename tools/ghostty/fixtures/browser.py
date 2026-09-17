@@ -21,7 +21,7 @@ from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 ROOT = Path(__file__).resolve().parents[3]
-BINARY = Path(os.environ.get("MISTERFIN_CRT_TEST_BINARY", str(ROOT / "build/misterfin-crt")))
+BINARY = Path(os.environ.get("MISTERVISION_TEST_BINARY", str(ROOT / "build/mistervision")))
 
 
 @dataclass
@@ -39,10 +39,12 @@ class Scenario:
     remote_control: bool = False
     slow_seek: bool = False
     page_delay: float = 0
+    video_delay: float = 0
     transcode_profile: str = ""
     player: str = "idle"
     controlling_terminal: bool = True
     legacy_settings: bool = False
+    unified_server: bool = False
 
 
 class BrowserFixture(unittest.TestCase):
@@ -160,6 +162,8 @@ class BrowserFixture(unittest.TestCase):
                     self.wfile.write(payload)
                     return
                 if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
+                    if test.scenario.video_delay:
+                        time.sleep(test.scenario.video_delay)
                     if (test.scenario.slow_seek and
                             parse_qs(urlparse(self.path).query).get("startTimeTicks") == ["920000000"]):
                         time.sleep(16)  # Exceed the former media response-header timeout.
@@ -175,7 +179,8 @@ class BrowserFixture(unittest.TestCase):
                         pass
                     return
                 if (test.scenario.page_delay
-                        and (path == "/UserViews" or
+                        and (path == "/UserViews" or path == "/LiveTv/Channels" or
+                             (path.startswith("/Shows/") and path.endswith(("/Seasons", "/Episodes"))) or
                              (path == "/Items" and query.get("StartIndex") == ["0"]
                               and query.get("Limit") == ["64"]))):
                     time.sleep(test.scenario.page_delay)
@@ -234,9 +239,11 @@ class BrowserFixture(unittest.TestCase):
         # than assuming a loopback response is rendered within a fixed delay.
         self.diagnostics = self.directory / "logs" / "diagnostics.log"
         self.write_settings()
-        self.environment = {**os.environ, "MISTERFIN_CACHE_ROOT": str(self.directory / "cache"),
-                            "MISTERFIN_SETTINGS": "", "MISTERFIN_INPUT_CONFIG": "",
-                            "MISTERFIN_SOUND_CONFIG": "", "MISTERFIN_MUSIC_CONFIG": "",
+        if self.scenario.unified_server:
+            config.unlink()  # The shared document must be sufficient on its own.
+        self.environment = {**os.environ, "MISTERVISION_CACHE_ROOT": str(self.directory / "cache"),
+                            "MISTERVISION_SETTINGS": "", "MISTERVISION_INPUT_CONFIG": "",
+                            "MISTERVISION_SOUND_CONFIG": "", "MISTERVISION_MUSIC_CONFIG": "",
                             "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "127.0.0.1,localhost"}
 
         self.process = subprocess.Popen(
@@ -278,9 +285,19 @@ class BrowserFixture(unittest.TestCase):
                           and params.get("Limit") == ["64"]):
                         self.wait_event("browser.page", parent=params["ParentId"][0],
                                         start=int(params.get("StartIndex", ["0"])[0]), failed=False)
+                    elif path == "/LiveTv/Channels" and params.get("Limit") == ["64"]:
+                        self.wait_event("browser.page", kind="livetv",
+                                        start=int(params.get("StartIndex", ["0"])[0]), failed=False)
+                    elif path.startswith("/Shows/") and path.endswith("/Seasons"):
+                        self.wait_event("browser.page", kind="seasons", parent=path.split("/")[2],
+                                        start=0, failed=False)
+                    elif path.startswith("/Shows/") and path.endswith("/Episodes"):
+                        self.wait_event("browser.page", kind="episodes", parent=params["seasonId"][0],
+                                        start=int(params.get("StartIndex", ["0"])[0]), failed=False)
                     else:
-                        # Playback assertions also inspect decoder reports or
-                        # rendered frames after observing the request.
+                        # Requests alone do not prove playback or rendering is
+                        # ready. Tests that send dependent input must also wait
+                        # for an applied event or the expected frame.
                         time.sleep(0.15)
                     self.assertIsNone(self.process.poll())
                     return params
@@ -289,6 +306,10 @@ class BrowserFixture(unittest.TestCase):
                 self.fail(self.log.read().decode())
             time.sleep(0.01)
         self.fail(f"request not observed: {path} {query}; got {self.requests}")
+
+    def wait_video_ready(self, start_ticks=0):
+        """Wait for the inline fixture's two-second position to reach the UI loop."""
+        self.wait_event("browser.playback-ready", position_ticks=start_ticks + 20000000)
 
     def wait_event(self, name, **attributes):
         """Wait for an applied browser result in the optional diagnostic log."""
@@ -352,6 +373,13 @@ class BrowserFixture(unittest.TestCase):
                     "music_visuals": {"default_background": "Off", "show_audio_meters": False,
                                       "backgrounds": backgrounds},
                     "diagnostics": diagnostics}
+        if self.scenario.unified_server:
+            settings["server"] = {
+                "provider": "jellyfin",
+                "url": f"http://127.0.0.1:{self.server.server_port}",
+                "jellyfin": {"api_key": "mock-api-key", "username": "mockuser"},
+                "transcode": {"max_width": 640, "max_height": 480, "video_bitrate": 8000000},
+            }
         for section, value in self.scenario.settings.items():
             # A custom title must not accidentally enable workstation sound.
             if section == "ui" and isinstance(value, dict):

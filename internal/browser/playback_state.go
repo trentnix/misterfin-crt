@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
 )
 
 // playbackState belongs exclusively to PlaybackController. Decoder events and
@@ -13,7 +13,7 @@ type playbackState struct {
 	PlayingVideo bool
 	Paused       bool
 
-	// SeekTarget is an absolute Jellyfin position in 100-nanosecond ticks.
+	// SeekTarget is an absolute server position in 100-nanosecond ticks.
 	// A nil target means no seek is queued. The second press reveals the preview.
 	SeekTarget      *int64
 	SeekPresses     int
@@ -53,8 +53,8 @@ func (m *playbackState) HideControls() {
 
 // seekVideo accumulates seek actions against the pending destination. It only
 // updates UI intent. The controller starts the request after the deadline.
-func (m *playbackState) seekVideo(item *jellyfin.Item, key control.Action, now time.Time) {
-	if !m.PlayingVideo || !m.ProgressSeen || item == nil || jellyfin.IsLive(*item) {
+func (m *playbackState) seekVideo(item *media.Item, key control.Action, now time.Time) {
+	if !m.PlayingVideo || !m.ProgressSeen || item == nil || media.IsLive(*item) {
 		return
 	}
 	target := m.PositionTicks

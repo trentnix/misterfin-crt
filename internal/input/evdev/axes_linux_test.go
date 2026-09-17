@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 func TestConfiguredButtonsOverrideDefaultsAndRelease(t *testing.T) {

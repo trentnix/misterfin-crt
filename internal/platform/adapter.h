@@ -1,5 +1,5 @@
-#ifndef MISTERFIN_CRT_ADAPTER_H
-#define MISTERFIN_CRT_ADAPTER_H
+#ifndef MISTERVISION_ADAPTER_H
+#define MISTERVISION_ADAPTER_H
 #include <stddef.h>
 #include <stdint.h>
 typedef struct mf_display mf_display;

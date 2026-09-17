@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/playback"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 // remoteSession owns the control source for one authenticated account. Commands
@@ -20,11 +20,8 @@ type remoteSession struct {
 
 func (s *browserSession) startRemote() {
 	s.stopRemote()
-	if s.config.Remote == nil || s.about.Updating || !s.update.exitAt.IsZero() {
-		return
-	}
-	source := s.config.Remote(s.client)
-	if source == nil {
+	source := s.controlSource
+	if source == nil || s.about.Updating || !s.update.exitAt.IsZero() {
 		return
 	}
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -48,6 +45,7 @@ func (s *browserSession) stopRemote() {
 	s.remotePlayback.switching = false
 	s.remotePlayback.queue.Replace(nil, 0)
 	s.remotePlayback.items = nil
+	s.remotePlayback.localRows = nil
 }
 
 type remoteCommandResult struct {

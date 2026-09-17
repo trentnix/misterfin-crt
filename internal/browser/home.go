@@ -2,20 +2,22 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
-const continueID = "misterfin-crt:continue"
+const continueID = "mistervision:continue"
 
 // homeState owns the combined Continue Watching snapshot and its independent
 // request. Library browsing never waits for this request or cancels it.
 type homeState struct {
 	cancel          context.CancelFunc
 	generation      int
-	items           []jellyfin.Item
+	items           []media.Item
 	err             error
 	loading, loaded bool
 }
@@ -54,8 +56,8 @@ func (s *browserSession) handleHome(r homeResult) bool {
 	if r.err == nil || len(r.page.Items) > 0 {
 		s.home.items = r.page.Items
 	}
-	if jellyfin.Rejected(r.err) {
-		s.setup = setupFailure(connectionAuthentication, r.err, s.config)
+	if errors.Is(r.err, media.ErrUnauthorized) {
+		s.setup = s.setupPresentation(r.err)
 	}
 	s.syncHomeViews()
 	s.config.Diagnostics.Record("browser.home", slog.Int("items", len(s.home.items)), slog.Bool("failed", r.err != nil))
@@ -82,7 +84,7 @@ func (s *browserSession) syncHomeViews() {
 				continue
 			}
 			total := len(s.home.items)
-			replaceHomePage(v, jellyfin.Page{Items: s.home.items, TotalRecordCount: &total}, s.model.Rows)
+			replaceHomePage(v, media.Page{Items: s.home.items, TotalRecordCount: &total}, s.model.Rows)
 			v.Loading = s.home.loading && !s.home.loaded
 			v.fetching = false
 			v.Error = ""
@@ -93,23 +95,29 @@ func (s *browserSession) syncHomeViews() {
 	}
 }
 
-func (s *browserSession) homeLibraries(page jellyfin.Page) jellyfin.Page {
-	items := make([]jellyfin.Item, 0, len(page.Items)+1)
+func (s *browserSession) homeLibraries(page media.Page) media.Page {
+	items := make([]media.Item, 0, len(page.Items)+1)
 	// Reserve Continue before its first response so startup never presents a
 	// library and then changes focus when the slower feed arrives.
 	if !s.home.loaded || len(s.home.items) > 0 || s.home.err != nil {
-		items = append(items, jellyfin.Item{ID: continueID, Name: "Continue", Type: "Folder", IsFolder: true})
+		items = append(items, media.Item{ID: continueID, Name: "Continue", Type: "Folder", IsFolder: true})
 	}
 	for _, item := range page.Items {
-		if item.ID != continueID {
+		if item.CollectionType == "boxsets" && s.config.ShowCollections != nil && !*s.config.ShowCollections {
+			continue
+		}
+		if item.CollectionType == "playlists" && s.config.ShowPlaylists != nil && !*s.config.ShowPlaylists {
+			continue
+		}
+		if item.ID != continueID && !unsupportedLibrary(item) {
 			items = append(items, item)
 		}
 	}
 	total := len(items)
-	return jellyfin.Page{Items: items, TotalRecordCount: &total}
+	return media.Page{Items: items, TotalRecordCount: &total}
 }
 
-func replaceHomePage(v *View, page jellyfin.Page, rows int) {
+func replaceHomePage(v *View, page media.Page, rows int) {
 	id, series := "", ""
 	if item := v.Item(); item != nil {
 		id, series = item.ID, item.SeriesID
@@ -159,4 +167,14 @@ func (s *browserSession) loadContinue() {
 	if !s.home.loading {
 		s.refreshHome()
 	}
+}
+
+// unsupportedLibrary excludes reading formats by server category, never by name.
+// Plex has no audiobook category. Audio stored as ordinary music remains music.
+func unsupportedLibrary(item media.Item) bool {
+	switch strings.ToLower(item.CollectionType) {
+	case "books", "book", "comics", "comic", "audiobooks", "audiobook":
+		return true
+	}
+	return item.Type == "Book" || item.Type == "AudioBook"
 }

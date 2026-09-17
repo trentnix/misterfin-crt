@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/rendering"
 )
 
 // trackPicker owns navigation within the video Options menu.
@@ -26,16 +26,16 @@ func (c *PlaybackController) hasTracks() bool {
 }
 
 func (c *PlaybackController) trackRows(tab int) []rendering.TrackRow {
-	if jellyfin.IsLive(c.item) {
+	if media.IsLive(c.item) {
 		if tab == 0 {
 			return c.captions.rows()
 		}
-		if tab == 1 {
+		if tab == 1 && !c.tracks.LiveAudio {
 			return nil
 		}
 	}
 	if tab == 2 {
-		if jellyfin.IsLive(c.item) && !c.tracks.LivePicture {
+		if media.IsLive(c.item) && !c.tracks.LivePicture {
 			return []rendering.TrackRow{{Index: int(playback.PictureOriginal), Label: "Original", Active: true}}
 		}
 		return []rendering.TrackRow{
@@ -89,7 +89,7 @@ func (c *PlaybackController) trackKey(key control.Action, now time.Time) {
 	case control.SeekBackward, control.SeekForward:
 		// While choosing subtitles, triggers adjust text timing rather than seeking.
 		sub, ok := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
-		if c.picker.tab == 0 && ok && sub.TextSubtitle() && c.tracks.ClientSubtitles {
+		if c.picker.tab == 0 && ok && sub.ClientSubtitle() && c.tracks.ClientSubtitles {
 			delta := 100 * time.Millisecond
 			if key == control.SeekBackward {
 				delta = -delta
@@ -109,7 +109,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 	// Keep selection within the current tab if stream metadata changes.
 	c.picker.selected[c.picker.tab] = min(c.picker.selected[c.picker.tab], len(rows)-1)
 	index := rows[c.picker.selected[c.picker.tab]].Index
-	if jellyfin.IsLive(c.item) && c.picker.tab == 0 {
+	if media.IsLive(c.item) && c.picker.tab == 0 {
 		c.captions.enabled = index == 0
 		c.picker.visible = false
 		c.state.HideControls()
@@ -143,7 +143,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 		options.Text = nil
 		old, oldOK := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
 		sub, subOK := c.tracks.Stream("Subtitle", index)
-		if c.tracks.ClientSubtitles && (!oldOK || old.TextSubtitle()) && (index < 0 || subOK && sub.TextSubtitle()) {
+		if c.tracks.ClientSubtitles && (!oldOK || old.ClientSubtitle()) && (index < 0 || subOK && sub.ClientSubtitle()) {
 			request := c.subtitleRequest + 1
 			select {
 			case c.controls <- playback.Control{Kind: playback.SelectSubtitle, Index: index, Request: request}:
@@ -161,8 +161,11 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 	c.trackOptions = options
 	c.picker.visible = false
 	c.notice = ""
-	// Reuse the tested replacement gate and pause restoration at the current time.
+	// Reuse the replacement gate. Live audio changes reopen at the live edge.
 	target := c.state.PositionTicks
+	if media.IsLive(c.item) {
+		target = 0
+	}
 	c.state.SwitchingTracks = true
 	c.state.SeekTarget = &target
 	c.state.SeekDeadline = now
@@ -203,7 +206,7 @@ func (c *PlaybackController) trackPresentation(p *rendering.PlaybackPresentation
 			p.Tracks.Message = c.trackMessage(c.picker.tab, selected)
 		}
 		sub, ok := c.tracks.Stream("Subtitle", c.tracks.Selection.SubtitleIndex)
-		if c.picker.tab == 0 && ok && sub.TextSubtitle() && c.tracks.ClientSubtitles {
+		if c.picker.tab == 0 && ok && sub.ClientSubtitle() && c.tracks.ClientSubtitles {
 			p.Tracks.Delay = fmt.Sprintf("Subtitle delay: %+.1fs", c.subtitleDelay.Seconds())
 		}
 	}
@@ -214,7 +217,7 @@ func (c *PlaybackController) trackPresentation(p *rendering.PlaybackPresentation
 	if !c.state.Paused && p.WaitLabel == "" {
 		ticks += int64(min(time.Second, max(0, now.Sub(c.state.LastAdvance))) / 100)
 	}
-	if jellyfin.IsLive(c.item) {
+	if media.IsLive(c.item) {
 		if c.captions.enabled {
 			p.Subtitle = c.captions.text
 		}
@@ -225,7 +228,7 @@ func (c *PlaybackController) trackPresentation(p *rendering.PlaybackPresentation
 
 // trackMessage explains the selected picture mode or an unavailable live option.
 func (c *PlaybackController) trackMessage(tab, selected int) string {
-	if jellyfin.IsLive(c.item) {
+	if media.IsLive(c.item) {
 		switch tab {
 		case 0:
 			if !c.captions.available {
@@ -233,7 +236,10 @@ func (c *PlaybackController) trackMessage(tab, selected int) string {
 			}
 			return ""
 		case 1:
-			return "Live TV audio selection is not available."
+			if !c.tracks.LiveAudio {
+				return "Live TV audio selection is not available."
+			}
+			return "Changing audio briefly reloads the channel."
 		case 2:
 			if !c.tracks.LivePicture {
 				return "This player cannot change Live TV picture mode."

@@ -1,16 +1,16 @@
 package browser
 
 import (
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/sound"
 )
 
 // navigationState captures only user-visible browsing changes. Artwork arrivals
 // and redraws cannot produce sounds. Absolute selection survives page prefetch.
 type navigationState struct {
 	depth, selected          int
-	location                 jellyfin.Location
+	location                 media.Location
 	detail, notice           string
 	list, exit, media, about bool
 }

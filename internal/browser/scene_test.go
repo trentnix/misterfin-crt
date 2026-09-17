@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/rendering"
 )
 
 func TestSceneCopiesScalarState(t *testing.T) {

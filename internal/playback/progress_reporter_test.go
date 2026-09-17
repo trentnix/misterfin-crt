@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	desktopplayer "misterfin-crt/internal/player/ffplay"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	desktopplayer "mistervision/internal/player/ffplay"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func awaitReportSignal(t *testing.T, signal <-chan struct{}) {
@@ -68,7 +69,7 @@ func TestProgressReportsCoalesceAndFinishInOrder(t *testing.T) {
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
 	reporter := newProgressReporter(context.Background(), client, false)
 	canSeek := true
-	state := jellyfin.PlayState{ItemID: "item", PlaySessionID: "session", CanSeek: &canSeek}
+	state := media.PlayState{ItemID: "item", PlaySessionID: "session", CanSeek: &canSeek}
 	reporter.start(state)
 	awaitReportSignal(t, started)
 	for i := int64(1); i <= 100; i++ {
@@ -212,7 +213,7 @@ func TestReportingFailuresAreRememberedButFinalErrorsRemainBestEffort(t *testing
 	}))
 	defer server.Close()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
-	state := jellyfin.PlayState{ItemID: "item", PlaySessionID: "session"}
+	state := media.PlayState{ItemID: "item", PlaySessionID: "session"}
 	reporter := newProgressReporter(context.Background(), client, false)
 	reporter.start(state)
 	reporter.progress(state, true, false)
@@ -250,7 +251,7 @@ func TestAsyncReportCleanupOwnsFinalSnapshotAndWaitsForStopBeforeSave(t *testing
 	defer once.Do(func() { close(release) })
 	reporter := newProgressReporter(context.Background(), jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), false)
 	seekable := true
-	state := jellyfin.PlayState{ItemID: "item", PlaySessionID: "session", PositionTicks: 42, CanSeek: &seekable}
+	state := media.PlayState{ItemID: "item", PlaySessionID: "session", PositionTicks: 42, CanSeek: &seekable}
 	async := make(chan struct{})
 	close(async)
 	returned := make(chan struct{})
@@ -299,7 +300,7 @@ func TestFastCompletionPreservesInitialReportAndSurfacesReportingFailure(t *test
 	defer server.Close()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
 	err := Run(context.Background(), client, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {}}})
-	if err == nil || err.Error() != "playback ended, but Jellyfin progress reporting failed" {
+	if err == nil || err.Error() != "playback ended, but server progress reporting failed" {
 		t.Fatalf("reporting failure was lost at EOF: %v", err)
 	}
 	mu.Lock()

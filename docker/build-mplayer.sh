@@ -81,14 +81,14 @@ make -j$(nproc)
 arm-linux-gnueabihf-strip mplayer
 cp mplayer /build/mplayer-arm
 if [ -n "${OUTPUT_DIR:-}" ]; then
-    cp mplayer "$OUTPUT_DIR/misterfin-crt-mplayer-arm"
-    cp ../MPlayer-$MPLAYER_VER.tar.xz "$OUTPUT_DIR/misterfin-crt-mplayer-source.tar.xz"
+    cp mplayer "$OUTPUT_DIR/mistervision-mplayer-arm"
+    cp ../MPlayer-$MPLAYER_VER.tar.xz "$OUTPUT_DIR/mistervision-mplayer-source.tar.xz"
     {
         echo "MPlayer source: $MPLAYER_VER"
         echo "MPlayer source SHA256: $MPLAYER_SHA256"
         printf 'Bundled FFmpeg: '
         cat ffmpeg/RELEASE
         arm-linux-gnueabihf-gcc --version | head -1
-    } > "$OUTPUT_DIR/misterfin-crt-mplayer-build.txt"
+    } > "$OUTPUT_DIR/mistervision-mplayer-build.txt"
 fi
 echo "=== Done: /build/mplayer-arm ==="

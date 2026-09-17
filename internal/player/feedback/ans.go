@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/player"
+	"mistervision/internal/player"
 )
 
 // ParseANS accepts the shared patched-MPlayer/Python status protocol. It returns

@@ -111,7 +111,7 @@
          return 0;
      }
      go_output_fd = fd;
-+    const char *interlaced = getenv("MISTERFIN_CRT_INTERLACED");
++    const char *interlaced = getenv("MISTERVISION_INTERLACED");
 +    if (interlaced && !strcmp(interlaced, "1")) {
 +        if ((fb_yres != 480 && fb_yres != 576) || !pf_init()) {
 +            mp_msg(MSGT_VO, MSGL_ERR, "Cannot initialize interlaced page flipping\n");
@@ -146,7 +146,7 @@
      /* Match the C player's pacing before MPlayer schedules presentation.
       * Waiting in flip_page adds another delay after that deadline. */
 -    if (y == 0 && !pf_active && access("/tmp/misterdvd_vsync", F_OK) == 0) {
-+    if (y == 0 && !pf_active && !getenv("MISTERFIN_CRT_INTERLACED") && access("/tmp/misterdvd_vsync", F_OK) == 0) {
++    if (y == 0 && !pf_active && !getenv("MISTERVISION_INTERLACED") && access("/tmp/misterdvd_vsync", F_OK) == 0) {
          __u32 dummy = 0;
          ioctl(fb_dev_fd, FBIO_WAITFORVSYNC, &dummy);
      }
@@ -211,7 +211,7 @@
      center = output;
 +    /* MPlayer calls draw_osd after filters and before its audio-clock wait.
 +     * vf_extra_flip also calls it for paused redraws and picture changes. */
-+    const char *interlaced = getenv("MISTERFIN_CRT_INTERLACED");
++    const char *interlaced = getenv("MISTERVISION_INTERLACED");
 +    if (interlaced && !strcmp(interlaced, "1")) prepare_frame();
  }
  

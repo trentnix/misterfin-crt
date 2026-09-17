@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/diagnostics"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/diagnostics"
+	"mistervision/internal/input/control"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/settings"
 )
 
 func TestMissingMusicAssetIsLoggedBeforeNotice(t *testing.T) {

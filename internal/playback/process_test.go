@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	nativeplayer "misterfin-crt/internal/player/mplayer"
+	nativeplayer "mistervision/internal/player/mplayer"
 )
 
 func TestDecoderShutdownOwnsProcessGroup(t *testing.T) {
@@ -62,7 +63,9 @@ func TestDecoderShutdownOwnsProcessGroup(t *testing.T) {
 			deadline = time.Now().Add(time.Second)
 			for {
 				status, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", child))
-				if os.IsNotExist(err) || strings.Contains(string(status), "State:\tZ") {
+				// A process can disappear between opening and reading procfs.
+				// Both ENOENT and ESRCH mean the descendant has exited.
+				if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) || strings.Contains(string(status), "State:\tZ") {
 					break
 				}
 				if err != nil {

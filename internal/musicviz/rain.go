@@ -3,7 +3,7 @@ package musicviz
 import (
 	"math"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 type rain struct {

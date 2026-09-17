@@ -3,8 +3,8 @@ package browser
 import (
 	"context"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
 )
 
 // playbackProcess holds one decoder's lifecycle resources. Only the controller
@@ -25,7 +25,7 @@ func (p *playbackProcess) stop() {
 	}
 }
 
-// stopWithAsyncCleanup cancels decoding without waiting for Jellyfin stop/save
+// stopWithAsyncCleanup cancels decoding without waiting for server stop/save
 // or tuner release before the handoff. The cleanup signal closes at most once.
 func (p *playbackProcess) stopWithAsyncCleanup() {
 	if p.cleanup != nil {
@@ -39,7 +39,7 @@ func (p *playbackProcess) stopWithAsyncCleanup() {
 // If prepare is true, the bridge reports PlaybackPrepared before waiting on gate.
 // The controller owns gate closure. The bridge owns done closure and event IDs.
 type playbackLaunch func(
-	item jellyfin.Item,
+	item media.Item,
 	offset *int64,
 	gate <-chan struct{},
 	prepare bool,

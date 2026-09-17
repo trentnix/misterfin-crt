@@ -1,20 +1,54 @@
 # Configuration
 
-Jellyfin connection details belong in `jellyfin.conf`. Application options belong in one `settings.json` beside it. The standard installation directory is `/media/fat/misterfin-crt`. Restart after changing application settings. Setup Retry reloads only `jellyfin.conf`.
+Connection and application options belong in `settings.json`, normally under `/media/fat/mistervision`. Restart after changing JSON settings. Legacy Jellyfin Setup Retry still reloads `jellyfin.conf` when no `server` section exists.
 
 ## Server connection
 
-The only required line is the server URL:
+Both providers use the same connection fields:
 
-```text
-http://your-jellyfin-server:8096
+```json
+{
+  "server": {
+    "provider": "jellyfin",
+    "url": "http://your-jellyfin-server:8096",
+    "insecure_tls": false,
+    "transcode": {
+      "max_width": 720,
+      "max_height": 576,
+      "video_bitrate": 12000000
+    }
+  }
+}
 ```
 
-Approve the displayed Quick Connect code from an already signed-in Jellyfin client. Alternatively, add the API key and username as the next two non-option lines. Blank lines and lines beginning with `#` are ignored. HTTP, HTTPS, and reverse-proxy base paths are supported. URLs must not contain embedded credentials, queries, or fragments.
+For Plex, set `provider` to `plex` and `url` to your Plex Media Server address, normally using port 32400. See [linking and current limits](GO_PLEX.md).
 
-`PAL`, `NTSC`, `DEBUGLOG`, `INSECURE_TLS`, and a [transcode profile](GO_PLAYBACK.md#transcode-configuration) can appear on separate lines anywhere in the file. PAL is the parser default. Actual output geometry determines the playback frame-rate convention. `PAL`/`NTSC` does not switch the CRT output mode.
+| Field | Default and behavior |
+| --- | --- |
+| `provider` | `jellyfin`. Accepts `jellyfin` or `plex`. |
+| `url` | Required when `server` exists. HTTP, HTTPS, and reverse-proxy base paths are supported. No embedded credentials, query, or fragment. |
+| `insecure_tls` | `false`. True disables certificate verification only for the configured media server, including its Jellyfin remote connection. Plex account linking always verifies certificates. |
+| `transcode.max_width` | 720. Range: 160–1920 pixels. |
+| `transcode.max_height` | 576. Range: 120–1080 pixels. |
+| `transcode.video_bitrate` | 12,000,000 bits/sec. Range: 100,000–50,000,000. |
+| `jellyfin` | Omitted. Optional `api_key` and `username` must be supplied together. Rejected for Plex. |
 
-TLS certificates are verified by default. `INSECURE_TLS` disables certificate verification for this server, including remote control. Prefer a trusted certificate. Saved sign-in data lives in `session.json` in the application state directory, not beside the server configuration. See [sign-in](GO_BROWSING.md#setup-and-sign-in).
+Dimensions limit server-side conversion, not UI geometry or picture aspect ratio. Each adapter owns its codecs and frame-rate policy. See [playback](GO_PLAYBACK.md#transcode-configuration).
+
+Without API-key credentials, Jellyfin uses Quick Connect. To use API-key login, add this object inside `server`:
+
+```json
+{
+  "jellyfin": {
+    "api_key": "your-api-key",
+    "username": "your-username"
+  }
+}
+```
+
+Keep API-key configuration private. Plex tokens, account identity, and client identifiers remain saved sign-in state rather than configuration. Sign-in files stay in the application state directory.
+
+An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. The legacy file accepts a URL, optional API key and username, `INSECURE_TLS`, `DEBUGLOG`, and `WIDTHxHEIGHT@BITRATE` lines. `PAL` and `NTSC` remain accepted but do not control display or playback timing. The active output geometry determines timing.
 
 ## Application settings
 
@@ -22,7 +56,7 @@ Copy [settings.example.json](../settings.example.json), or include only the sect
 
 ```json
 {
-  "ui": {"title": "MiSTerFin CRT", "navigation_sounds": {"enabled": false}},
+  "ui": {"title": "MiSTerVision", "navigation_sounds": {"enabled": false}},
   "background": {"image": "background.png"},
   "display": {"interlaced": false}
 }
@@ -32,21 +66,38 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 
 | Section | Default | Failure behavior |
 | --- | --- | --- |
-| `ui.title` | `MiSTerFin CRT`. Empty hides the heading. | Restore default title with a notice. |
+| `server` | Absent: legacy Jellyfin fallback. Present: Jellyfin provider, verified TLS, default transcode limits. | Invalid section stops startup. |
+| `ui.title` | `MiSTerVision`. Empty hides the heading. | Restore default title with a notice. |
+| `ui.show_collections`, `ui.show_playlists` | Both `true`. Empty categories stay hidden. | Restore the invalid option to `true`, with a notice and a diagnostic event. |
 | `ui.navigation_sounds` | `enabled: true`, `volume: 10`. | Disable sounds with a notice. Media volume is unchanged. |
 | `background` | Carousel mosaics and item artwork. | Restore normal artwork with a notice. |
 | [`display`](GO_DISPLAY.md) | `interlaced: false`. | Invalid settings stop startup. |
 | [`input`](GO_INPUT.md) | Built-in device bindings. | Invalid settings stop startup. |
 | [`music_visuals`](GO_MUSIC.md) | Starfield, stereo meters enabled. | Invalid settings disable backgrounds. Missing custom assets leave music playable. |
-| [`diagnostics`](GO_DIAGNOSTICS.md) | Off unless `DEBUGLOG` is set. `debug.log`, 1 MiB per file. | Disable logging and report the failure. |
+| [`diagnostics`](GO_DIAGNOSTICS.md) | Off. Legacy `DEBUGLOG` applies only without `server`. `debug.log`, 1 MiB per file. | Disable logging and report the failure. |
 
-Title and sound failures recover independently. An invalid entire `ui` object restores the title and disables sounds. Notices display for four seconds once browsing is ready. Quick Connect does not consume their display time. Enabled diagnostics records handled failures as `configuration.fallback`. Intentional defaults do not produce failure events. Recovery never rewrites settings.
+Title, carousel option, and sound failures recover independently. An invalid entire `ui` object restores the title, enables nonempty collections and playlists, and disables sounds. Notices display for four seconds once browsing is ready. Quick Connect does not consume their display time. Enabled diagnostics records handled failures as `configuration.fallback`. Intentional defaults do not produce failure events. Recovery never rewrites settings.
 
 The file must be one JSON object, at most 256 KiB, with known sections. `input` and `music_visuals` allow 64 KiB each. Other sections allow 4 KiB each, excluding formatting whitespace. A malformed document, unknown top-level section, unreadable file, or missing explicit settings file stops startup because display and input intent cannot be recovered safely.
 
+## Carousel categories
+
+`ui.show_collections` and `ui.show_playlists` default to `true`. A card appears only when the server returns at least one accessible collection or playlist. Empty categories remain hidden even when the server supplies a card. Set either option to `false` to hide its card regardless of contents. Normal libraries and Continue Watching are unaffected. Restart after changing these options.
+
+```json
+{
+  "ui": {
+    "show_collections": true,
+    "show_playlists": true
+  }
+}
+```
+
+Values must be booleans. A mistyped value or `null` falls back to `true`, shows a notice, and records a `configuration.fallback` event when diagnostics is enabled. Other valid UI options retain their values.
+
 ## Browsing title
 
-`ui.title` changes the carousel and root-list heading. An omitted title uses `MiSTerFin CRT`. `""` or whitespace-only text hides it while keeping the clock. Whitespace is collapsed and control characters are removed. Long titles end in `...` within the heading area, which fits 33 characters at the standard width. Library titles and About keep their own names.
+`ui.title` changes the carousel and root-list heading. An omitted title uses `MiSTerVision`. `""` or whitespace-only text hides it while keeping the clock. Whitespace is collapsed and control characters are removed. Long titles end in `...` within the heading area, which fits 33 characters at the standard width. Library titles and About keep their own names.
 
 ## Browsing background
 
@@ -64,21 +115,21 @@ Only visible browsing actions produce cues. Boundaries, redraws, and media contr
 
 ## Paths and precedence
 
-The executable accepts `-settings PATH`. `MISTERFIN_SETTINGS` supplies its default. The harness accepts `--settings PATH`. Flags override the environment. Relative image, music-asset, and log paths resolve beside the file that supplied them. The interlaced core remains beside `jellyfin.conf`.
+The executable accepts `-settings PATH`. `MISTERVISION_SETTINGS` supplies its default. The harness accepts `--settings PATH`. Flags override the environment. Relative image, music-asset, and log paths resolve beside the file that supplied them. The interlaced core lives beside `settings.json`.
 
-When `settings.json` exists, omitted sections use defaults rather than legacy files. Legacy `-input-config`, `-sound-config`, `MISTERFIN_INPUT_CONFIG`, `MISTERFIN_SOUND_CONFIG`, and `MISTERFIN_MUSIC_CONFIG` overrides still replace their sections. Remove those overrides when adopting the shared file.
+When `settings.json` exists, omitted application sections use defaults rather than legacy JSON files. The absent `server` section is the compatibility exception: it permits `jellyfin.conf`. Legacy `-input-config`, `-sound-config`, `MISTERVISION_INPUT_CONFIG`, `MISTERVISION_SOUND_CONFIG`, and `MISTERVISION_MUSIC_CONFIG` overrides still replace their sections. Remove those overrides when adopting the shared file.
 
 The old top-level `sounds` and `music` sections remain aliases. Explicit `ui.navigation_sounds` and `music_visuals` take precedence as whole sections, even if empty or invalid. In music settings, `default_background` and `show_audio_meters` replace `default` and `meters`. Explicit current fields win, including null values that select their defaults.
 
 ## Migration
 
-If the default `settings.json` is absent, the client reads legacy `ui.json`, `background.json`, `display.json`, `sounds.json`, `input.json`, `music.json`, and `diagnostics.json` beside it. To combine them:
+If the default `settings.json` is absent, the client reads legacy `ui.json`, `background.json`, `display.json`, `sounds.json`, `input.json`, `music.json`, and `diagnostics.json` beside it. The migration command also imports `jellyfin.conf`:
 
 ```sh
-/media/fat/misterfin-crt/misterfin-crt -migrate-settings -config /media/fat/misterfin-crt/jellyfin.conf
+/media/fat/mistervision/mistervision -migrate-settings -config /media/fat/mistervision/jellyfin.conf
 ```
 
-Use the configuration path of the installation being migrated. Separate 480i test installations can have their configuration under `interlaced-test`. Migration preserves originals and relative paths, writes current names, rejects malformed input, and refuses to overwrite `settings.json`. It does not open a display or connect to Jellyfin. Section values are validated on normal startup. Archive old files after verifying the new settings.
+Use the configuration path of the installation being migrated. Separate 480i test installations can have their configuration under `interlaced-test`. Migration preserves originals and relative asset paths. If `settings.json` already exists without `server`, migration first saves its exact bytes in a private `settings.json.before-server` backup, then adds connection settings atomically. Explicit `diagnostics.enabled` wins over legacy `DEBUGLOG`. Existing server sections, backups, and files edited after loading cause migration to stop. Invalid connection settings fail before writing. Migration opens no display and contacts no server. Archive old configuration and any credential-bearing backup after verifying the new settings.
 
 Saved sign-in, playback preferences, and caches are application state and remain separate. [`internal/settings`](../internal/settings/settings.go) owns file loading and compatibility normalization. Each component validates its own values.
 

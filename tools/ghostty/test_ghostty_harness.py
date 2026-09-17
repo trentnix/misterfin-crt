@@ -37,7 +37,7 @@ class LaunchOptionsTests(unittest.TestCase):
         args = HARNESS.parse_args(["--demo", "--ntsc"])
         self.assertTrue(args.browse)
         self.assertTrue(args.demo)
-        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-crt")
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/mistervision")
 
     def test_browse_preserves_explicit_config(self):
         args = HARNESS.parse_args(["--browse", "--config", "/tmp/jellyfin.conf", "--settings", "/tmp/settings.json"])
@@ -59,12 +59,12 @@ class LaunchOptionsTests(unittest.TestCase):
     def test_go_test_frame_is_default(self):
         args = HARNESS.parse_args([])
         self.assertFalse(args.browse)
-        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-crt")
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/mistervision")
 
     def test_legacy_go_flag_still_selects_test_frame(self):
         args = HARNESS.parse_args(["--go", "--ntsc"])
         self.assertTrue(args.ntsc)
-        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/misterfin-crt")
+        self.assertEqual(args.binary, HARNESS.REPO_ROOT / "build/mistervision")
 
     def test_explicit_binary_is_preserved(self):
         args = HARNESS.parse_args(["--go", "--binary", "/tmp/custom-go"])
@@ -207,12 +207,12 @@ class ChildEnvironmentTests(unittest.TestCase):
     def test_desktop_cache_root_is_set_by_default(self):
         with patch.dict("os.environ", {}, clear=True):
             env = HARNESS.child_environment(640, 288, Path("/tmp/frame.raw"))
-        self.assertEqual(env["MISTERFIN_CACHE_ROOT"], "/tmp/misterfin-cache")
+        self.assertEqual(env["MISTERVISION_CACHE_ROOT"], "/tmp/mistervision-cache")
 
     def test_explicit_cache_root_is_preserved(self):
-        with patch.dict("os.environ", {"MISTERFIN_CACHE_ROOT": "/tmp/custom-cache"}, clear=True):
+        with patch.dict("os.environ", {"MISTERVISION_CACHE_ROOT": "/tmp/custom-cache"}, clear=True):
             env = HARNESS.child_environment(640, 240, Path("/tmp/frame.raw"))
-        self.assertEqual(env["MISTERFIN_CACHE_ROOT"], "/tmp/custom-cache")
+        self.assertEqual(env["MISTERVISION_CACHE_ROOT"], "/tmp/custom-cache")
 
 
 if __name__ == "__main__":

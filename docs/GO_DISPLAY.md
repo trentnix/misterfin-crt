@@ -4,7 +4,7 @@ The default keeps MiSTer's current display, normally 240p for NTSC or 288p for P
 
 ## Enable or disable interlaced output
 
-Install the matching [Go client and MPlayer](GO_BUILD.md), then place [InterlacedMenu.rbf v0.0.1](https://github.com/iwalton3/Menu_MiSTer/releases/tag/v0.0.1) beside `jellyfin.conf`, normally in `/media/fat/misterfin-crt`. The supported core must have this SHA-256:
+Install the matching [Go client and MPlayer](GO_BUILD.md), then place [InterlacedMenu.rbf v0.0.1](https://github.com/iwalton3/Menu_MiSTer/releases/tag/v0.0.1) beside `settings.json`, normally in `/media/fat/mistervision`. The supported core must have this SHA-256:
 
 ```text
 0158e0338a00441271f38be0703c22253d53ea39b60a1a96b7ec964bedae8999
@@ -16,13 +16,13 @@ Set the `display` section in `settings.json`:
 {"display": {"interlaced": true}}
 ```
 
-Launch **MiSTerFin-CRT** from the normal Scripts menu using the main `MiSTer.ini`. The client verifies and loads the core, then restores the normal menu on exit. No replacement of `MiSTer`, `menu.rbf`, or the kernel is part of this setup. Zaparoo is not required.
+Launch **MiSTerVision** from the normal Scripts menu using the main `MiSTer.ini`. The client verifies and loads the core, then restores the normal menu on exit. No replacement of `MiSTer`, `menu.rbf`, or the kernel is part of this setup. Zaparoo is not required.
 
-To return to progressive output, set `interlaced` to `false` or omit the section. Preserve other settings when editing. The same launcher supports both modes. Separate launchers such as **MiSTerFin-CRT-480i** simply select a different configuration directory.
+To return to progressive output, set `interlaced` to `false` or omit the section. Preserve other settings when editing. The same launcher supports both modes. Separate launchers such as **MiSTerVision-480i** simply select a different configuration directory.
 
 ## Configuration changes and recovery
 
-The application writes `Interlaced.mgl` beside `jellyfin.conf` and a marked `[MiSTerFinInterlaced]` section in `/media/fat/MiSTer.ini`. Before its first change, it saves `/media/fat/misterfin-crt/MiSTer.ini.before-interlaced`. Existing sections remain intact. An unmarked section with the same name causes an error instead of being overwritten. Disabling interlacing leaves the isolated section available for later use.
+The application writes `Interlaced.mgl` beside `settings.json` and a marked `[MiSTerVisionInterlaced]` section in `/media/fat/MiSTer.ini`. Before its first change, it saves `/media/fat/mistervision/MiSTer.ini.before-interlaced`. Existing sections remain intact. An unmarked section with the same name causes an error instead of being overwritten. Disabling interlacing leaves the isolated section available for later use.
 
 The scoped section inherits RGB/component and PAL/NTSC settings. RGB enables `direct_video` and `forced_scandoubler`. Component enables `direct_video` without forcing the scandoubler. These rules do not establish compatibility with every cable or DAC.
 

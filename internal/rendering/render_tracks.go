@@ -1,10 +1,10 @@
 package rendering
 
 import (
-	"strings"
+	"mistervision/internal/caption"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 // drawTrackMenu uses the shared overlay canvas on every video output.
@@ -65,39 +65,11 @@ func drawTrackMenu(c *ui.Canvas, menu *TrackMenu, labels control.Labels) {
 	drawControls(c, bottom, controls)
 }
 
-// drawSubtitle paints readable text above playback controls, with an outline.
-// Layout is bounded to three lines so malformed cues cannot cover the screen.
-func drawSubtitle(c *ui.Canvas, text string, bottom int) {
-	if text == "" {
+// drawSubtitle positions a cached Unicode cue above playback controls.
+func drawSubtitle(c *ui.Canvas, captions *caption.Renderer, text string, bottom int) {
+	image := captions.Image(text, c.Width, c.Height)
+	if image == nil {
 		return
 	}
-	width := c.Width - 64
-	var lines []string
-	for _, paragraph := range strings.Split(text, "\n") {
-		line := ""
-		for _, word := range strings.Fields(paragraph) {
-			if textWidth(line+" "+word, 1) > width && line != "" {
-				lines = append(lines, line)
-				line = ""
-			}
-			if line != "" {
-				line += " "
-			}
-			line += truncate(word, width, 1)
-		}
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-	lines = lines[:min(3, len(lines))]
-	top := bottom - len(lines)*12
-	for i, line := range lines {
-		x := (c.Width - textWidth(line, 1)) / 2
-		y := top + i*12
-		c.Shade(x-4, y-2, textWidth(line, 1)+8, 12, 100)
-		for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
-			c.Text(x+d[0], y+d[1], line, 0, c.Width-24)
-		}
-		c.Text(x, y, line, 0xffffff, c.Width-24)
-	}
+	c.Overlay(image, (c.Width-image.Bounds().Dx())/2, bottom-image.Bounds().Dy())
 }

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/release"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/release"
 )
 
 func TestAboutPreservesBrowseAndIsolatesInput(t *testing.T) {

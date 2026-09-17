@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/assets/sfx"
+	"mistervision/assets/sfx"
 )
 
 func TestConfigAndSilentDefaults(t *testing.T) {

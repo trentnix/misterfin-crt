@@ -3,8 +3,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/remote"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/remote"
+	"mistervision/internal/rendering"
 )
 
 // handleRemote operates on media state directly. It never synthesizes a select
@@ -32,6 +32,9 @@ func (s *browserSession) handleRemote(cmd remote.Command) bool {
 			s.controller.stopByUser()
 		} else if s.remotePlayback.active {
 			s.endRemoteQueue()
+		} else if s.playlistPlayback() {
+			s.model.ReturnToParent()
+			s.loadSelection()
 		}
 	case remote.Pause, remote.Resume, remote.TogglePause:
 		if !s.controller.running {
@@ -56,7 +59,7 @@ func (s *browserSession) handleRemote(cmd remote.Command) bool {
 		}
 		if s.remotePlayback.active {
 			s.moveRemoteQueue(direction, false)
-		} else if s.model.MusicQueueActive() {
+		} else if s.model.MusicQueueActive() || s.playlistPlayback() {
 			s.media.nextTrack = direction
 			s.navigateMedia(direction)
 		}

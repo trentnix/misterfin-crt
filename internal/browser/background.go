@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/settings"
 )
 
 // LoadBackground reads a legacy optional background.json and its image.

@@ -87,7 +87,7 @@ func (c *DiskCache) load(key imageKey, revision artworkRevision) image.Image {
 }
 
 // save uses atomic replacement and skips canceled or superseded requests.
-// Cache failures do not prevent displaying an image fetched from Jellyfin.
+// Cache failures do not prevent displaying an image fetched from the server.
 func (c *DiskCache) save(ctx context.Context, key imageKey, revision artworkRevision, im image.Image) {
 	if c == nil || ctx.Err() != nil {
 		return

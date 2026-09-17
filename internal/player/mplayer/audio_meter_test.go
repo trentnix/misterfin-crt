@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/player"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/player"
 )
 
 func TestAudioExportStereoAndMalformed(t *testing.T) {

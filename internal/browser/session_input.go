@@ -3,10 +3,10 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/rendering"
 )
 
 // dispatchKey routes each action to the active screen. The return value requests
@@ -194,7 +194,7 @@ func (s *browserSession) handleBrowseKey(key control.Action) bool {
 		s.requests.cancel()
 	}
 	s.load(req)
-	if key == control.Open && !wasDetail && s.model.Current().Detail != nil && jellyfin.IsLive(*s.model.Current().Detail) {
+	if key == control.Open && !wasDetail && s.model.Current().Detail != nil && media.IsLive(*s.model.Current().Detail) {
 		s.startPlayback(nil, false)
 		return false
 	}

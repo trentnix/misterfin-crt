@@ -4,15 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"github.com/coder/websocket"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/coder/websocket"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 func TestSourceHTTPAndTLS(t *testing.T) {
@@ -25,7 +26,7 @@ func TestSourceHTTPAndTLS(t *testing.T) {
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Jellyfin can reject query-only socket authentication. Require
 				// the same authenticated identity for the upgrade and API calls.
-				wantAuth := `MediaBrowser Client="MiSTerFin CRT", Device="MiSTerFin CRT", Version="v2.3.4", DeviceId="device", Token="token"`
+				wantAuth := `MediaBrowser Client="MiSTerVision", Device="MiSTerVision", Version="v2.3.4", DeviceId="device", Token="token"`
 				if r.Header.Get("Authorization") != wantAuth {
 					w.WriteHeader(http.StatusForbidden)
 					return
@@ -146,14 +147,14 @@ func TestPublishedQueueReportsOccurrences(t *testing.T) {
 	defer server.Close()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
 	New(client).Publish(remote.QueueState{Entries: []remote.Entry{{ID: "a", Key: "1"}, {ID: "a", Key: "2"}}, Current: "2", Repeat: remote.RepeatAll, Shuffled: true})
-	if err := client.ReportPlaying(context.Background(), "progress", jellyfin.PlayState{ItemID: "a"}); err != nil {
+	if err := client.ReportPlaying(context.Background(), "progress", media.PlayState{ItemID: "a"}); err != nil {
 		t.Fatal(err)
 	}
 	p := <-reports
 	if len(p.NowPlayingQueue) != 2 || p.PlaylistItemID != "2" || p.RepeatMode != "RepeatAll" || p.PlaybackOrder != "Shuffle" {
 		t.Fatalf("missing queue: %+v", p)
 	}
-	if err := client.ReportPlaying(context.Background(), "stopped", jellyfin.PlayState{ItemID: "old"}); err != nil {
+	if err := client.ReportPlaying(context.Background(), "stopped", media.PlayState{ItemID: "old"}); err != nil {
 		t.Fatal(err)
 	}
 	if p := <-reports; len(p.NowPlayingQueue) != 0 {

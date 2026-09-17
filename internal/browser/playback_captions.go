@@ -1,7 +1,7 @@
 package browser
 
 import (
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/rendering"
 )
 
 // captionState owns the latest decoder screen and the viewer's local selection.

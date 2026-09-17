@@ -7,24 +7,24 @@ import (
 	"sync/atomic"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // progressReport is an owned snapshot. Initial start/progress and final stop/save
 // are indivisible jobs, so another update cannot overtake either lifecycle edge.
 type progressReport struct {
 	event             string
-	state             jellyfin.PlayState
+	state             media.PlayState
 	save, played      bool
 	failed, completed bool
 }
 
-// progressReporter serializes Jellyfin writes outside the decoder loop. It keeps
+// progressReporter serializes server writes outside the decoder loop. It keeps
 // one initial report, one replaceable progress report, and one final report.
 // Only the worker performs HTTP requests. The mutex protects short mailbox edits,
 // never network I/O. A paused/resumed state supersedes older pending progress.
 type progressReporter struct {
-	client                  *jellyfin.Client
+	client                  media.Progress
 	live                    bool
 	ctx                     context.Context
 	cancel                  context.CancelFunc
@@ -35,16 +35,24 @@ type progressReporter struct {
 	failed                  atomic.Bool
 }
 
-func newProgressReporter(ctx context.Context, client *jellyfin.Client, live bool) *progressReporter {
+func newProgressReporter(ctx context.Context, client media.Progress, live bool) *progressReporter {
 	ctx, cancel := context.WithCancel(ctx)
 	r := &progressReporter{client: client, live: live, ctx: ctx, cancel: cancel, wake: make(chan struct{}, 1), done: make(chan struct{})}
 	go r.run()
 	return r
 }
 
-// reportState copies the optional flags as well as the scalar fields. Callers can
+// reportState copies optional flags and track indexes as well as scalar fields. Callers can
 // keep updating their session without changing a queued or in-flight request.
-func reportState(state jellyfin.PlayState) jellyfin.PlayState {
+func reportState(state media.PlayState) media.PlayState {
+	if state.AudioStreamIndex != nil {
+		value := *state.AudioStreamIndex
+		state.AudioStreamIndex = &value
+	}
+	if state.SubtitleStreamIndex != nil {
+		value := *state.SubtitleStreamIndex
+		state.SubtitleStreamIndex = &value
+	}
 	if state.CanSeek != nil {
 		value := *state.CanSeek
 		state.CanSeek = &value
@@ -58,7 +66,7 @@ func reportState(state jellyfin.PlayState) jellyfin.PlayState {
 
 // start is called once, after the decoder's first position. The initial progress
 // report stays paired with start even if subsequent progress is coalesced.
-func (r *progressReporter) start(state jellyfin.PlayState) {
+func (r *progressReporter) start(state media.PlayState) {
 	r.mu.Lock()
 	if r.final == nil {
 		r.initial = &progressReport{event: "start", state: reportState(state)}
@@ -69,7 +77,7 @@ func (r *progressReporter) start(state jellyfin.PlayState) {
 
 // progress never waits for HTTP. Coalescing retains a pending request to save
 // resume data, using the newest position and watched state when it is delivered.
-func (r *progressReporter) progress(state jellyfin.PlayState, save, played bool) {
+func (r *progressReporter) progress(state media.PlayState, save, played bool) {
 	r.mu.Lock()
 	if r.final == nil {
 		if r.pending != nil {
@@ -86,7 +94,7 @@ func (r *progressReporter) progress(state jellyfin.PlayState, save, played bool)
 // initial or in-flight report finish. Cancellation, decoder failure, and async
 // handoffs abort routine HTTP work. Stop/save has its own five-second context.
 // The result reports routine reporting failures, matching Run's existing policy.
-func (r *progressReporter) finish(state jellyfin.PlayState, started, played, failed bool, async <-chan struct{}) bool {
+func (r *progressReporter) finish(state media.PlayState, started, played, failed bool, async <-chan struct{}) bool {
 	asynchronous := false
 	select {
 	case <-async:

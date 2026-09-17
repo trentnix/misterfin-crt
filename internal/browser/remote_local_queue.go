@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strconv"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/remote"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 // publishLocalQueue makes locally started media visible to remote controllers.
@@ -33,6 +33,11 @@ func (s *browserSession) publishLocalQueue() {
 	}
 	s.remote.source.Publish(remote.QueueState{Entries: []remote.Entry{{ID: item.ID, Key: "local"}}, Current: "local", Repeat: remote.RepeatNone})
 	parent, hasParent := s.model.Parent()
+	// Keep playlists paged, even when a remote source is connected. Loading a
+	// complete queue would delay large playlists and impose the remote size cap.
+	if hasParent && parent.Location.Kind == "playlist" {
+		return
+	}
 	if item.Type != "Audio" || !hasParent || (parent.Start == 0 && !parent.More()) {
 		s.adoptLocalQueue()
 		return
@@ -53,7 +58,7 @@ func (s *browserSession) publishLocalQueue() {
 type localQueueResult struct {
 	generation int
 	itemID     string
-	items      []jellyfin.Item
+	items      []media.Item
 	err        error
 }
 
@@ -62,7 +67,7 @@ func (r localQueueResult) apply(s *browserSession) bool {
 	if r.generation != s.remoteRequests.localGeneration || !s.controller.running || q.active || s.controller.item.ID != r.itemID || r.err != nil {
 		return false
 	}
-	index := slices.IndexFunc(r.items, func(item jellyfin.Item) bool { return item.ID == r.itemID })
+	index := slices.IndexFunc(r.items, func(item media.Item) bool { return item.ID == r.itemID })
 	if index < 0 {
 		return false
 	}
@@ -74,8 +79,8 @@ func (r localQueueResult) apply(s *browserSession) bool {
 }
 
 // audioItems preserves the order of playable tracks in an already loaded page.
-func audioItems(items []jellyfin.Item) []jellyfin.Item {
-	var tracks []jellyfin.Item
+func audioItems(items []media.Item) []media.Item {
+	var tracks []media.Item
 	for _, item := range items {
 		if item.Type == "Audio" {
 			tracks = append(tracks, item)

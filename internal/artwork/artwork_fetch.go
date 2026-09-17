@@ -6,14 +6,14 @@ import (
 	"image"
 	"image/draw"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // Fetch reuses tagged artwork before acquiring a request slot and checks
 // the cache again afterward. Successful uncanceled loads are normalized to RGBA
 // and retained. Kind must be Primary, Backdrop, Logo, or Photo. The returned
 // image is immutable. Call Fetch on a worker, not the browser event loop.
-func (l *Loader) Fetch(ctx context.Context, item jellyfin.Item, kind string) (image.Image, error) {
+func (l *Loader) Fetch(ctx context.Context, item media.Item, kind string) (image.Image, error) {
 	key := artworkKey(item, kind)
 	if key.tag == "" {
 		if kind == "Photo" {

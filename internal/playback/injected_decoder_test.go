@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/player"
-	"misterfin-crt/internal/player/feedback"
-	"misterfin-crt/internal/player/ffplay"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/player"
+	"mistervision/internal/player/feedback"
+	"mistervision/internal/player/ffplay"
 )
 
 // fixtureDecoder proves playback accepts a protocol it does not recognize.

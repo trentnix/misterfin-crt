@@ -10,7 +10,7 @@ import (
 	"time"
 	"unsafe"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 // Read temporarily disables line buffering and echo. Signal keys keep their

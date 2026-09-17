@@ -35,7 +35,7 @@ jobs:
         run: make native-player
       - name: Verify ARM executable and record checksum
         run: |
-          file build/misterfin-crt-mplayer-arm
-          readelf -h build/misterfin-crt-mplayer-arm | grep -E 'Machine:.*ARM'
-          cat build/misterfin-crt-mplayer-build.txt
-          sha256sum build/misterfin-crt-mplayer-arm
+          file build/mistervision-mplayer-arm
+          readelf -h build/mistervision-mplayer-arm | grep -E 'Machine:.*ARM'
+          cat build/mistervision-mplayer-build.txt
+          sha256sum build/mistervision-mplayer-arm

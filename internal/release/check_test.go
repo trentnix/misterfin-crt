@@ -54,7 +54,7 @@ func TestLatestReleaseResponses(t *testing.T) {
 				if r.Method != "GET" || r.Header.Get("Authorization") != "" || r.URL.RawQuery != "" {
 					t.Error("unexpected request or credentials")
 				}
-				if r.Header.Get("User-Agent") != "MiSTerFin-CRT" {
+				if r.Header.Get("User-Agent") != "MiSTerVision" {
 					t.Error("missing user agent")
 				}
 				w.WriteHeader(tc.code)
@@ -124,7 +124,7 @@ func TestBuildLabel(t *testing.T) {
 
 func TestReleaseIncludesBoundedNotesAndMatchingAssets(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"tag_name":"v0.2.0","body":%q,"assets":[{"name":"misterfin-crt-v0.2.0-mister.zip"},{"name":"SHA256SUMS"}]}`, strings.Repeat("x", 9000))
+		fmt.Fprintf(w, `{"tag_name":"v0.2.0","body":%q,"assets":[{"name":"mistervision-v0.2.0-mister.zip"},{"name":"SHA256SUMS"}]}`, strings.Repeat("x", 9000))
 	}))
 	defer server.Close()
 	status, err := check(context.Background(), server.Client(), server.URL, "v0.1.0")
@@ -139,7 +139,7 @@ func TestReleaseSummarySelection(t *testing.T) {
 		{"summary only", "## Release summary\n\nAutomatic updates.\n", "Automatic updates."},
 		{"exclude instructions", "GitHub introduction.\n\n## Release summary\n\n### Automatic updates\n\nKeep your settings.\n\n## Installation\n\nManual instructions.", "### Automatic updates\n\nKeep your settings."},
 		{"top-level boundary", "## Release summary\nUse the updater.\n# Downloads\nGitHub downloads.", "Use the updater."},
-		{"windows newlines", "## Release summary\r\n\r\nReopen MiSTerFin CRT.\r\n\r\n## Installation\r\nOther instructions.", "Reopen MiSTerFin CRT."},
+		{"windows newlines", "## Release summary\r\n\r\nReopen MiSTerVision.\r\n\r\n## Installation\r\nOther instructions.", "Reopen MiSTerVision."},
 		{"empty summary", "## Release summary\n\n## Installation\nManual instructions.", "## Release summary\n\n## Installation\nManual instructions."},
 		{"selection before limit", strings.Repeat("x", 9000) + "\n## Release summary\nUseful summary.", "Useful summary."},
 		{"bounded Unicode", "## Release summary\n" + strings.Repeat("é", 9000) + "\n## Installation\nDo not show.", strings.Repeat("é", 8192) + "\n[Release notes truncated]"},

@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	playerapi "misterfin-crt/internal/player"
-	desktopplayer "misterfin-crt/internal/player/ffplay"
-	"misterfin-crt/internal/player/mplayer"
-	inlineplayer "misterfin-crt/internal/player/pythonhelper"
+	"mistervision/internal/jellyfin"
+	playerapi "mistervision/internal/player"
+	desktopplayer "mistervision/internal/player/ffplay"
+	"mistervision/internal/player/mplayer"
+	inlineplayer "mistervision/internal/player/pythonhelper"
 )
 
 func TestOriginalAndZoomGeometry(t *testing.T) {
@@ -30,7 +30,7 @@ func TestOriginalAndZoomGeometry(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := fmt.Sprintf("misterfin=640:%d:1.777777778:%d", height, mode)
+			want := fmt.Sprintf("mistervision=640:%d:1.777777778:%d", height, mode)
 			args := d.Args(wide, "")
 			if !slices.Contains(args, want) {
 				t.Fatalf("height %d, mode %d: %v", height, mode, args)
@@ -79,7 +79,7 @@ func TestNativePictureProtocolAndAcknowledgments(t *testing.T) {
 	if err := d.SetPicture(playerapi.Control{Stdin: &commands}, PictureZoom43, 42); err != nil {
 		t.Fatal(err)
 	}
-	if commands.String() != "pausing_keep_force misterfin_picture 1 42\n" {
+	if commands.String() != "pausing_keep_force mistervision_picture 1 42\n" {
 		t.Fatal(commands.String())
 	}
 	p := &playerProcess{pictures: make(chan PictureResult, 4)}
@@ -141,7 +141,7 @@ func TestNativePictureRequestStaysInCurrentSession(t *testing.T) {
 			}))
 			defer server.Close()
 			path := filepath.Join(t.TempDir(), "player")
-			script := "#!/bin/sh\nprintf 'ANS_TIME_POSITION=2\\n'\nwhile read keep command mode request; do\ncase \"$command\" in\nmisterfin_picture) printf 'ANS_PICTURE_MODE=%s,%s\\n' \"$request\" \"$mode\";;\nesac\ndone\n"
+			script := "#!/bin/sh\nprintf 'ANS_TIME_POSITION=2\\n'\nwhile read keep command mode request; do\ncase \"$command\" in\nmistervision_picture) printf 'ANS_PICTURE_MODE=%s,%s\\n' \"$request\" \"$mode\";;\nesac\ndone\n"
 			if err := os.WriteFile(path, []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}

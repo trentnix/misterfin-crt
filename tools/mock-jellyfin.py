@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-A tiny fake Jellyfin server for developing MiSTerFin off-hardware.
+A tiny fake Jellyfin server for developing MiSTerVision off-hardware.
 
 Serves just enough of the API for the client to browse, page, and
 authenticate against, backed by a synthetic library that is deliberately

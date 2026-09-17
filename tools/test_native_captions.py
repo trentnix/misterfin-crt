@@ -29,7 +29,7 @@ class NativeCaptionsTest(unittest.TestCase):
 
 
 PROGRAM = r'''
-#include "misterfin_captions.h"
+#include "mistervision_captions.h"
 static unsigned char parity(unsigned char b) { return b | ((__builtin_parity(b) ^ 1) << 7); }
 static void packet(struct mf_captions *s, const unsigned char *pairs, int n) {
  AVFrame *f = av_frame_alloc();

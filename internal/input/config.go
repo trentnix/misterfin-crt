@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"misterfin-crt/internal/input/evdev"
-	"misterfin-crt/internal/settings"
+	"mistervision/internal/input/evdev"
+	"mistervision/internal/settings"
 )
 
 // LoadConfig reads legacy controller settings. An explicit path must exist.

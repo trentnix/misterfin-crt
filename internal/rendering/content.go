@@ -3,7 +3,7 @@ package rendering
 import (
 	"fmt"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // Content describes the visible items and selection without navigation or request
@@ -16,9 +16,9 @@ type Content struct {
 	Title    string
 	// Page borrows immutable items and their optional total. Start is the absolute
 	// index of its first item. Selected and Scroll are relative to that window.
-	Page                    jellyfin.Page
+	Page                    media.Page
 	Start, Selected, Scroll int
-	Detail                  *jellyfin.Item
+	Detail                  *media.Item
 	Loading, Fetching       bool
 	Error                   string
 	// Continue selects resume/next-episode labels. Capabilities describe actions
@@ -27,7 +27,7 @@ type Content struct {
 }
 
 // Item returns the borrowed detail or selected item, or nil for an empty list.
-func (c Content) Item() *jellyfin.Item {
+func (c Content) Item() *media.Item {
 	if c.Detail != nil {
 		return c.Detail
 	}

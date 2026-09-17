@@ -5,14 +5,14 @@ import (
 	"image"
 	"sync"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // Loader fetches and caches images for one authenticated session. It
 // owns a three-request image limit across selections. Dimensions and client
 // authentication must remain unchanged while workers are running.
 type Loader struct {
-	client                  *jellyfin.Client
+	client                  media.Artwork
 	photoWidth, photoHeight int
 	slots                   chan struct{}
 	cache                   artworkCache
@@ -32,7 +32,7 @@ func (l *Loader) remember(ctx context.Context, key imageKey, disk *DiskCache, re
 }
 
 // Forget invalidates memory immediately and defers disk removal to image workers.
-func (l *Loader) Forget(item jellyfin.Item) {
+func (l *Loader) Forget(item media.Item) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.cache.forget(item)
@@ -43,7 +43,7 @@ func (l *Loader) Forget(item jellyfin.Item) {
 
 // NewLoader binds one authenticated client, fixed photo dimensions, and optional
 // disk storage before image workers start. Cached images are immutable.
-func NewLoader(client *jellyfin.Client, photoWidth, photoHeight int, disk *DiskCache) *Loader {
+func NewLoader(client media.Artwork, photoWidth, photoHeight int, disk *DiskCache) *Loader {
 	return &Loader{
 		client: client, photoWidth: photoWidth, photoHeight: photoHeight,
 		slots: make(chan struct{}, 3), cache: newArtworkCache(), disk: disk,
@@ -51,7 +51,7 @@ func NewLoader(client *jellyfin.Client, photoWidth, photoHeight int, disk *DiskC
 }
 
 // Cached returns a decoded image without filesystem or network work. Nil is a miss.
-func (l *Loader) Cached(item jellyfin.Item, kind string) image.Image {
+func (l *Loader) Cached(item media.Item, kind string) image.Image {
 	return l.cache.cached(artworkKey(item, kind))
 }
 

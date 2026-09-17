@@ -4,6 +4,8 @@ Set device profiles in the `input` section of `settings.json`. Omission or `{"pr
 
 Profiles configure Linux evdev devices, including MiSTer controllers and physical keyboards. Ghostty uses terminal key sequences instead. Hints follow the last physical device used, while terminal input supplies keyboard labels.
 
+The default controller layout follows MiSTer: B selects, plays, or pauses and A returns, cancels, or stops. Explicit button bindings override these defaults. Keyboard controls remain Enter to select and Escape to return.
+
 ## Profiles and labels
 
 `match` is a case-sensitive glob for the Linux device name. Read `/proc/bus/input/devices` or use an event inspector such as `evtest` to identify names, button codes, and axes. Matching profiles apply in file order, including after hotplug.

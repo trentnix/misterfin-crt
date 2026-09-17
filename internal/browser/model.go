@@ -1,4 +1,4 @@
-// Package browser coordinates Jellyfin navigation and media controls. Run owns
+// Package browser coordinates media-server navigation and media controls. Run owns
 // the event loop, Model tracks navigation, and PlaybackController tracks decoder
 // transitions. The browser supplies read-only scenes to rendering.Renderer and
 // presents its frames through videoout.Output.
@@ -7,8 +7,8 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
 )
 
 // PageSize is the requested number of items per library page.
@@ -19,13 +19,13 @@ const PageSize = 64
 // remain absolute so page arrivals cannot reset the visible selection.
 type View struct {
 	Title                         string
-	Location                      jellyfin.Location
-	Page                          jellyfin.Page
+	Location                      media.Location
+	Page                          media.Page
 	Start, Selected, PendingStart int
 	Scroll, Target                int
 	Loading                       bool
 	Error                         string
-	Detail                        *jellyfin.Item
+	Detail                        *media.Item
 	fetching, prefetchFailed      bool
 	direction                     int
 }
@@ -34,7 +34,7 @@ type View struct {
 // from a superseded request. Start is an absolute, zero-based item index.
 type Request struct {
 	Generation int
-	Location   jellyfin.Location
+	Location   media.Location
 	Start      int
 }
 
@@ -53,7 +53,7 @@ type Model struct {
 // New creates a model at the library carousel with a six-row list viewport.
 // Startup sets Rows to the renderer's capacity for the selected display.
 func New() *Model {
-	return &Model{Rows: 6, Stack: []View{{Title: "Libraries", Location: jellyfin.Location{Kind: "views"}}}}
+	return &Model{Rows: 6, Stack: []View{{Title: "Libraries", Location: media.Location{Kind: "views"}}}}
 }
 
 // Current borrows the active view. Models created by New always have one.
@@ -75,7 +75,7 @@ func (m *Model) Load(start int) *Request {
 
 // Apply accepts only the active listing request. A foreground result selects
 // the waiting target. A background result preserves the user's current item.
-func (m *Model) Apply(req Request, page jellyfin.Page, err error) bool {
+func (m *Model) Apply(req Request, page media.Page, err error) bool {
 	if req.Generation != m.Generation {
 		return false
 	}
@@ -124,7 +124,7 @@ func (v *View) More() bool {
 
 // Item borrows the detail item or selected list item, or returns nil when empty.
 // The pointer must not be retained across page replacement or navigation.
-func (v *View) Item() *jellyfin.Item {
+func (v *View) Item() *media.Item {
 	if v.Detail != nil {
 		return v.Detail
 	}
@@ -182,7 +182,7 @@ func (m *Model) Key(key control.Action) *Request {
 		return nil
 	}
 	if v.Detail != nil && key == control.Open {
-		m.Notice = "Playback for this item type is not available yet.  A:back"
+		m.Notice = "Playback for this item type is not available yet."
 	}
 	if (v.Loading && len(v.Page.Items) == 0) || v.Detail != nil {
 		return nil
@@ -231,16 +231,23 @@ func (m *Model) Key(key control.Action) *Request {
 		if item == nil {
 			return nil
 		}
-		next := View{Title: item.Name, Location: jellyfin.Location{Kind: "items", ParentID: item.ID, Collection: v.Location.Collection, SeriesID: v.Location.SeriesID}}
+		next := View{Title: item.Name, Location: media.Location{Kind: "items", ParentID: item.ID, Collection: v.Location.Collection, SeriesID: v.Location.SeriesID}}
 		switch {
 		case item.ID == continueID:
 			next.Title = "Continue Watching"
-			next.Location = jellyfin.Location{Kind: "continue"}
+			next.Location = media.Location{Kind: "continue"}
 		case v.Location.Kind == "views":
 			next.Location.Collection = item.CollectionType
-			if item.CollectionType == "livetv" {
-				next.Location.Kind = "livetv"
+			switch item.CollectionType {
+			case "livetv", "playlists":
+				next.Location.Kind = item.CollectionType
+			case "boxsets":
+				next.Location.Kind = "collections"
 			}
+		case item.Type == "Playlist":
+			next.Location = media.Location{Kind: "playlist", ParentID: item.ID}
+		case item.Type == "BoxSet":
+			next.Location = media.Location{Kind: "collection", ParentID: item.ID}
 		case item.Type == "Series":
 			next.Location.Kind = "seasons"
 			next.Location.SeriesID = item.ID

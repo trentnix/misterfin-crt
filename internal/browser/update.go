@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"misterfin-crt/internal/update"
+	"mistervision/internal/update"
 )
 
 // updateWork owns the installer worker. Shutdown joins it after cancellation so
@@ -66,7 +66,7 @@ func (r installResult) apply(s *browserSession) bool {
 		}
 		s.update.exitAt = time.Now().Add(2 * time.Second)
 	case errors.Is(r.err, update.ErrRecovery):
-		s.about.Message = "Recovery needed. Exit and relaunch MiSTerFin CRT."
+		s.about.Message = "Recovery needed. Exit and relaunch MiSTerVision."
 		s.update.exitAt = time.Now().Add(3 * time.Second)
 	default:
 		switch {

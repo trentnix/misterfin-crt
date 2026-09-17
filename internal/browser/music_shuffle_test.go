@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
 )
 
 func TestShuffleCancellationPreservesArtists(t *testing.T) {

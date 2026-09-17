@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"misterfin-crt/internal/input/control"
+	"mistervision/internal/input/control"
 )
 
 func TestReleaseNotesWrapAndRemoveDecoration(t *testing.T) {
@@ -42,7 +42,7 @@ func TestReleaseNoteScrollGeometryMatchesFooter(t *testing.T) {
 func TestInstallationCompletionStatus(t *testing.T) {
 	for _, automatic := range []bool{false, true} {
 		a := AboutPresentation{Installed: true, Restarting: automatic}
-		want := "Installed. Reopen MiSTerFin CRT."
+		want := "Installed. Reopen MiSTerVision."
 		if automatic {
 			want = "Update installed. Restarting..."
 		}

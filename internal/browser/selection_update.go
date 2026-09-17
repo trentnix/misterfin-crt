@@ -1,8 +1,8 @@
 package browser
 
 import (
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
 
 // selectionData is the selected item's presentation data. Library counts remain
@@ -27,7 +27,7 @@ const (
 type selectionUpdate struct {
 	kind   selectionUpdateKind
 	art    artUpdate
-	detail *jellyfin.Item
+	detail *media.Item
 	count  *int
 	err    error
 }

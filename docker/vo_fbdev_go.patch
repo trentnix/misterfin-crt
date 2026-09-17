@@ -18,7 +18,7 @@
 -        if (fb_tty_fd >= 0 && ioctl(fb_tty_fd, KDSETMODE, KD_TEXT) < 0) {
 +        if (fb_tty_fd >= 0 && ioctl(fb_tty_fd, KDSETMODE, fb_tty_mode) < 0) {
 @@ -1237,0 +1248,174 @@
-+/* ── MiSTerFin CRT playback overlay ────────────────────────────────────────
++/* ── MiSTerVision playback overlay ────────────────────────────────────────
 + * Go renders controls once as straight-alpha BGRA pixels. The application
 + * publishes a cropped overlay atomically through OVERLAY_FILE. This video
 + * output driver composites those pixels over the finished decoder frame,
@@ -26,7 +26,7 @@
 + *
 + * Header, little endian: magic[8], canvas w/h, crop x/y/w/h, sequence u64.
 + * The payload is crop-width * crop-height BGRA pixels. */
-+#define OVERLAY_FILE "/tmp/misterfin_crt_overlay"
++#define OVERLAY_FILE "/tmp/mistervision_overlay"
 +#define OUTPUT_LOCK_FILE OVERLAY_FILE ".lock"
 +#define OVERLAY_HEADER_SIZE 40
 +#define OVERLAY_MAX_BYTES (16u * 1024u * 1024u)

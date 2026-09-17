@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	nativeplayer "misterfin-crt/internal/player/mplayer"
-	inlineplayer "misterfin-crt/internal/player/pythonhelper"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	nativeplayer "mistervision/internal/player/mplayer"
+	inlineplayer "mistervision/internal/player/pythonhelper"
 )
 
 func TestStopReleasesOutputBeforeSlowServerCleanup(t *testing.T) {
@@ -123,7 +124,7 @@ func TestStopCanDetachReportingAlreadyInProgress(t *testing.T) {
 	r := newProgressReporter(context.Background(), client, false)
 	fast, returned := make(chan struct{}), make(chan struct{})
 	go func() {
-		r.finish(jellyfin.PlayState{ItemID: "item"}, false, false, false, fast)
+		r.finish(media.PlayState{ItemID: "item"}, false, false, false, fast)
 		close(returned)
 	}()
 	awaitReportSignal(t, blocked)

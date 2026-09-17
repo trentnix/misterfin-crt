@@ -4,12 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // itemImages requests each image independently and waits for all workers.
 // emit may run concurrently and must return promptly.
-func (l *selectionLoader) itemImages(ctx context.Context, item jellyfin.Item, detail bool, emit func(artUpdate)) {
+func (l *selectionLoader) itemImages(ctx context.Context, item media.Item, detail bool, emit func(artUpdate)) {
 	kinds := []string{"Primary", "Backdrop"}
 	if detail {
 		kinds = append(kinds, "Logo")
@@ -31,7 +31,7 @@ func (l *selectionLoader) itemImages(ctx context.Context, item jellyfin.Item, de
 // coverImages loads a resolved sample with at most three workers. Each completed
 // image can render independently. Slots retain sample order. The caller must not
 // mutate items until this method returns. emit may run concurrently.
-func (l *selectionLoader) coverImages(ctx context.Context, items []jellyfin.Item, emit func(artUpdate)) {
+func (l *selectionLoader) coverImages(ctx context.Context, items []media.Item, emit func(artUpdate)) {
 	// Workers take the next cover as soon as one completes. No goroutine per
 	// library item is needed, and completed covers retain their sample order.
 	var wg sync.WaitGroup

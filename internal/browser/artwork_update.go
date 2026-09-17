@@ -3,7 +3,7 @@ package browser
 import (
 	"image"
 
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/rendering"
 )
 
 // artUpdate delivers one independently completed image request.

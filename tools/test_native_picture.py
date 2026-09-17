@@ -14,7 +14,7 @@ class NativePictureTest(unittest.TestCase):
     def test_cached_frame_toggles_without_reconfiguring_output(self):
         # The filter is production code. Small MPlayer/scaler doubles expose its
         # crop/fit geometry, source ownership, timestamps, and output lifetime.
-        source = (ROOT / "docker/vf_misterfin.c").read_text()
+        source = (ROOT / "docker/vf_mistervision.c").read_text()
         source = re.sub(r'^#include ".*"\n', '', source, flags=re.M)
         prefix = r'''
 #include <assert.h>
@@ -29,7 +29,7 @@ class NativePictureTest(unittest.TestCase):
 #define MP_IMGFLAG_ACCEPT_STRIDE 1
 #define MP_IMGFLAG_PREFER_ALIGNED_STRIDE 2
 #define VFCAP_CSP_SUPPORTED_BY_HW 4
-#define VFCTRL_MISTERFIN_PICTURE 100
+#define VFCTRL_MISTERVISION_PICTURE 100
 #define CONTROL_TRUE 1
 #define CONTROL_FALSE 0
 #define SWS_FAST_BILINEAR 1
@@ -109,17 +109,17 @@ int main(void) {
   memset(input->planes[0],77,736*576);
   for(int n=0;n<100;n++) {
    int mode=1;
-   assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&mode)==CONTROL_TRUE);
+   assert(vf.control(&vf,VFCTRL_MISTERVISION_PICTURE,&mode)==CONTROL_TRUE);
    assert(output.planes[0][(height/2*640+16)*4]==200);
    assert(output.planes[0][(height/16*640+320)*4]==200);
    mode=0;
-   assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&mode)==CONTROL_TRUE);
+   assert(vf.control(&vf,VFCTRL_MISTERVISION_PICTURE,&mode)==CONTROL_TRUE);
    assert(memcmp(original,output.planes[0],bytes)==0);
    assert(last_pts==12.5 && configured==1);
   }
   assert(allocations==(height>=480?4:2) && flips==200);
   int invalid=2;
-  assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&invalid)==CONTROL_FALSE);
+  assert(vf.control(&vf,VFCTRL_MISTERVISION_PICTURE,&invalid)==CONTROL_FALSE);
   assert(memcmp(original,output.planes[0],bytes)==0);
   free(original);free_mp_image(input);vf.uninit(&vf);
  }
@@ -133,7 +133,7 @@ int main(void) {
   assert(vf.put_image(&vf,input,20.0,20.04));
   assert(output.planes[0][0]==0);
   int mode=1;
-  assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&mode)==CONTROL_TRUE);
+  assert(vf.control(&vf,VFCTRL_MISTERVISION_PICTURE,&mode)==CONTROL_TRUE);
   // A 4:3 encoded frame receives a centered 4/3 enlargement.
   assert(vf.priv->scaler[1]->sw==540);
   assert(vf.priv->scaler[1]->sh==432);
@@ -143,7 +143,7 @@ int main(void) {
  }
  // Interlaced output uses the entire raster, with no device-specific top
  // padding. Both modes retain distinct rows at full output resolution.
- setenv("MISTERFIN_CRT_INTERLACED","1",1);
+ setenv("MISTERVISION_INTERLACED","1",1);
  for(int height=480;height<=576;height+=96) {
   vf_instance_t vf={0};char args[80];
   snprintf(args,sizeof(args),"640:%d:1.333333333:0",height);
@@ -155,7 +155,7 @@ int main(void) {
   assert(vf.priv->scaler[0]->dh==height);
   for(int y=0;y<height;y++)assert(output.planes[0][(y*640+320)*4]==1+y%254);
   int mode=1;
-  assert(vf.control(&vf,VFCTRL_MISTERFIN_PICTURE,&mode)==CONTROL_TRUE);
+  assert(vf.control(&vf,VFCTRL_MISTERVISION_PICTURE,&mode)==CONTROL_TRUE);
   assert(vf.priv->scaler[1]->dh==height);
   assert(output.planes[0][0]!=0);
   assert(last_pts==30);
@@ -183,7 +183,7 @@ int main(void) {
    free_mp_image(input);vf.uninit(&vf);
   }
  }
- unsetenv("MISTERFIN_CRT_INTERLACED");
+ unsetenv("MISTERVISION_INTERLACED");
  free(output.planes[0]);
  return 0;
 }

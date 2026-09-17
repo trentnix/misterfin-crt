@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"misterfin-crt/assets/sfx"
+	"mistervision/assets/sfx"
 )
 
 // Player keeps one pending cue and borrows audio only during browsing bursts.

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 func TestRootHeadingTruncatesBeforeClock(t *testing.T) {
@@ -28,7 +28,7 @@ func TestRootHeadingTruncatesBeforeClock(t *testing.T) {
 			}
 		}
 	}
-	if got := (Scene{Root: true}).title(); got != "MiSTerFin CRT" {
+	if got := (Scene{Root: true}).title(); got != "MiSTerVision" {
 		t.Fatal(got)
 	}
 	custom := "Custom"

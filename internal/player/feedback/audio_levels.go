@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/player"
+	"mistervision/internal/player"
 )
 
 // parseAudioLevels accepts stereo ANS_AUDIO_LEVELS feedback only when both

@@ -3,9 +3,9 @@ package rendering
 import (
 	"strings"
 
-	"misterfin-crt/internal/branding"
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/branding"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 // setup draws connection progress, approval codes, and actionable setup errors.
@@ -22,7 +22,7 @@ func (p *screenPainter) setup() {
 	top := p.safeY + 4
 	logoHeight := min(48, max(16, bottom-top-132))
 	p.cache.setup(c, top, logoHeight)
-	heading, message := s.content()
+	heading, message := s.Title, s.Message
 	titleY := top + logoHeight + 8
 	scale := 2
 	if textWidth(heading, scale) > p.width-48 {
@@ -31,7 +31,7 @@ func (p *screenPainter) setup() {
 	center(c, titleY, truncate(heading, p.width-48, scale), titleColor, scale)
 	bodyY := titleY + 28
 	switch s.Kind {
-	case SetupQuickConnect:
+	case SetupApproval:
 		setupLines(c, bodyY, message, 2)
 		center(c, bottom-62, truncate(s.Code, p.width-48, 3), 0xffffff, 3)
 		center(c, bottom-22, "Waiting for approval...", dimColor, 1)
@@ -42,11 +42,7 @@ func (p *screenPainter) setup() {
 	default:
 		setupLines(c, bodyY, message, max(1, (bottom-42-bodyY)/12))
 		if s.Path != "" {
-			label := "Configuration file"
-			if s.Kind == SetupSessionUnavailable {
-				label = "Sign-in folder"
-			}
-			center(c, bottom-34, label, dimColor, 1)
+			center(c, bottom-34, s.PathLabel, dimColor, 1)
 			setupPath(c, bottom-20, s.Path)
 		}
 	}

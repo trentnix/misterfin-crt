@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	playerapi "misterfin-crt/internal/player"
+	playerapi "mistervision/internal/player"
 )
 
 // playerProcess owns decoder pipes and progress channels. Wait runs exactly

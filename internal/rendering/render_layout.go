@@ -3,9 +3,9 @@ package rendering
 import (
 	"fmt"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/musicviz"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/musicviz"
+	"mistervision/internal/ui"
 )
 
 const titleColor = 0xffe040
@@ -17,18 +17,10 @@ func safeY(w, h int) int { return int(24*float64(h*4)/float64(w*3) + 0.5) }
 // Navigation must use this capacity when centering a selection or retaining pages.
 func VisibleRows(w, h int) int { return max(1, (h-2*safeY(w, h)-32)/30) }
 
-func textWidth(s string, scale int) int { return len([]rune(s)) * 8 * scale }
+func textWidth(s string, scale int) int { return ui.TextWidth(s) * scale }
 
 func truncate(s string, width, scale int) string {
-	r := []rune(s)
-	n := max(0, width/(8*scale))
-	if len(r) <= n {
-		return s
-	}
-	if n > 3 {
-		return string(r[:n-3]) + "..."
-	}
-	return string(r[:n])
+	return ui.TruncateText(s, width/scale)
 }
 
 func center(c *ui.Canvas, y int, s string, color uint32, scale int) {

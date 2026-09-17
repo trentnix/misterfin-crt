@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"misterfin-crt/internal/player"
-	"misterfin-crt/internal/player/feedback"
+	"mistervision/internal/player"
+	"mistervision/internal/player/feedback"
 )
 
 // Feedback creates an independent stdout/stderr parser for one process.

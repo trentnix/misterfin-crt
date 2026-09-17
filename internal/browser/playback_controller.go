@@ -3,10 +3,10 @@ package browser
 import (
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/input/control"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/rendering"
 )
 
 // PlaybackController coordinates one item's playback on the browser event loop.
@@ -25,7 +25,7 @@ type PlaybackController struct {
 	subtitleRequest int
 	subtitleLoading bool
 	state           playbackState
-	item            jellyfin.Item
+	item            media.Item
 	launch          playbackLaunch
 	controls        chan playback.Control
 
@@ -55,15 +55,15 @@ func newPlaybackController(launch playbackLaunch) *PlaybackController {
 }
 
 // Start begins a new item after the preceding item has finished. A nil offset
-// resumes from Jellyfin's saved position. A pointer to zero requests a restart.
-func (c *PlaybackController) Start(item jellyfin.Item, offset *int64, paused bool, now time.Time) {
+// resumes from server's saved position. A pointer to zero requests a restart.
+func (c *PlaybackController) Start(item media.Item, offset *int64, paused bool, now time.Time) {
 	// Reopening immediately must not read the old server resume position while
 	// the preceding Stop is still saving the position we already know locally.
-	if offset == nil && item.ID == c.item.ID && c.stoppedByUser && !c.cleanupComplete && c.state.ProgressSeen && item.Type != "Audio" && !jellyfin.IsLive(item) {
+	if offset == nil && item.ID == c.item.ID && c.stoppedByUser && !c.cleanupComplete && c.state.ProgressSeen && item.Type != "Audio" && !media.IsLive(item) {
 		resume := c.state.PositionTicks
 		offset = &resume
 	}
-	c.tracks = playback.VideoTracks{TrackOptions: playback.TrackOptions{Selection: jellyfin.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
+	c.tracks = playback.VideoTracks{TrackOptions: playback.TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}}
 	c.trackOptions = c.tracks.TrackOptions
 	c.picker = trackPicker{}
 	c.captions = captionState{}
@@ -110,7 +110,7 @@ func (c *PlaybackController) Key(key control.Action, now time.Time) {
 		return
 	}
 	if c.seekPhase != seekInactive && key != control.Back && key != control.ToggleControls {
-		if key == control.SeekBackward || key == control.SeekForward {
+		if !media.IsLive(c.item) && (key == control.SeekBackward || key == control.SeekForward) {
 			c.retargetSeek(key, now)
 		}
 		return

@@ -12,16 +12,16 @@ import (
 	"syscall"
 	"time"
 
-	"misterfin-crt/internal/update"
+	"mistervision/internal/update"
 )
 
 // ActiveEnv is inherited only by the supervised client and its native player.
 // It enables the shared scanout protocol after Main has stopped using SPI.
-const ActiveEnv = "MISTERFIN_CRT_INTERLACED"
+const ActiveEnv = "MISTERVISION_INTERLACED"
 
 // LauncherEnv delegates successful menu restoration to the Scripts launcher.
 // Failures and standalone invocations always restore the menu in the supervisor.
-const LauncherEnv = "MISTERFIN_CRT_LAUNCHER"
+const LauncherEnv = "MISTERVISION_LAUNCHER"
 
 // Run starts a supervised copy of the client under the standalone interlaced
 // core. It owns the core switch, exclusive hardware access, and failure recovery.
@@ -33,7 +33,7 @@ func Run(ctx context.Context, directory string, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	lock, err := os.OpenFile("/tmp/misterfin-crt-display.lock", os.O_CREATE|os.O_RDWR, 0600)
+	lock, err := os.OpenFile("/tmp/mistervision-display.lock", os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
 	}
@@ -66,12 +66,25 @@ func Run(ctx context.Context, directory string, args []string) (err error) {
 		err = errors.Join(err, command(restore, "load_core /media/fat/menu.rbf"))
 		err = errors.Join(err, waitCore(restore, "MENU", false))
 	}()
+	if err = prepareConsole(); err != nil {
+		return err
+	}
+	// Main publishes OSD_VISIBLE when its menu can receive F9. The framebuffer
+	// geometry appears earlier, while F9 is still routed to the core. Discard
+	// any marker from a previous run before asking Main to load this core.
+	const menuReady = "/tmp/OSD_VISIBLE"
+	if err = os.Remove(menuReady); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	if err = command(ctx, "load_core "+mgl); err != nil {
 		return err
 	}
 	ready, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	if err = waitCore(ready, coreName, true); err != nil {
+		return err
+	}
+	if err = waitMenuReady(ready, menuReady); err != nil {
 		return err
 	}
 	if err = enableConsole(); err != nil {
@@ -153,5 +166,30 @@ func delay(ctx context.Context) error {
 		return ctx.Err()
 	case <-time.After(50 * time.Millisecond):
 		return nil
+	}
+}
+
+// waitMenuReady waits for Main's log_file_entry marker. A ready framebuffer does
+// not imply that Main routes F9 to its menu yet. The caller removes stale state
+// before loading the core and must provide a bounded context.
+func waitMenuReady(ctx context.Context, path string) error {
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err == nil && strings.TrimSpace(string(data)) == "1" {
+			return nil
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for MiSTer menu input: %w", ctx.Err())
+		case <-ticker.C:
+		}
 	}
 }

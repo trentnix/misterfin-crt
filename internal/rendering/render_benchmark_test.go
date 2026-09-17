@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 )
 
 func benchmarkScene() (Scene, Artwork) {

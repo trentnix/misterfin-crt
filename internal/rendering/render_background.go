@@ -4,7 +4,7 @@ import (
 	"image"
 	"math"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 // customBackground caches a dimmed, centered crop in physical 4:3 screen space.

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	updateapi "misterfin-crt/internal/update"
+	updateapi "mistervision/internal/update"
 )
 
 // entry records whether rollback restores an original or removes a new file.
@@ -58,7 +58,7 @@ func (i *Installer) backup(ctx context.Context, stage string, entries []entry) e
 		}
 		info, err := os.Lstat(dest)
 		if errors.Is(err, os.ErrNotExist) {
-			if entries[index].Name == "misterfin-crt/misterfin-crt" || entries[index].Name == "misterfin-crt/mplayer-arm" {
+			if entries[index].Name == "mistervision/mistervision" || entries[index].Name == "mistervision/mplayer-arm" {
 				return errors.New("installed player pair is incomplete")
 			}
 			continue

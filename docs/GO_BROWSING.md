@@ -1,14 +1,16 @@
 # Browsing and sign-in
 
-Use the [MiSTer launcher](GO_BUILD.md#install-on-mister) or [development harness](../tools/ghostty/README.md). The home carousel shows Jellyfin library names and a combined Continue Watching card. Tab/SELECT switches between the carousel and root library list.
+Use the [MiSTer launcher](GO_BUILD.md#install-on-mister) or [development harness](../tools/ghostty/README.md). The home carousel shows server library names and a combined Continue Watching card. Tab/SELECT switches between the carousel and root library list.
 
 ## Setup and sign-in
 
-A missing or invalid `jellyfin.conf` opens setup help with the selected path and an example server address. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back exits setup.
+Connection settings normally come from `settings.json`. Invalid JSON connection settings stop startup with a field-level error. Restart after correcting them. When no `server` section exists, a missing or invalid legacy `jellyfin.conf` opens setup help with the selected path and an example server address. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back exits setup.
 
-Quick Connect displays a public approval code. Enter it in an already signed-in Jellyfin client. The waiting indicator animates until approval or the five-minute timeout. New code cancels the previous attempt. The screen does not expose credentials or Quick Connect secrets.
+Jellyfin Quick Connect displays a public approval code. Enter it in an already signed-in Jellyfin client. The waiting indicator animates until approval or the five-minute timeout. New code cancels the previous attempt. The screen does not expose credentials or Quick Connect secrets.
 
-The standard MiSTer launcher stores identity and sign-in in `/media/fat/misterfin-crt/state/session.json`. Desktop defaults to `misterfin-crt` under the user's configuration directory, normally `~/.config`. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Saved sessions are bound to the server URL. C `token.conf` and `device.conf` files are not imported.
+Plex uses an account-link code at `plex.tv/link`. The linked account determines access to the configured server. [Plex support](GO_PLEX.md) describes sign-in and provider-specific limits.
+
+The standard MiSTer launcher stores identity and sign-in in `/media/fat/mistervision/state/session.json`. Desktop defaults to `mistervision` under the user's configuration directory, normally `~/.config`. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Saved sessions are bound to the server URL. C `token.conf` and `device.conf` files are not imported.
 
 For a complete, valid saved session, network and server failures retain its tokens. An explicit HTTP 401 or 403 triggers replacement authentication. Damaged local sign-in data is backed up before a fresh sign-in, with a notice explaining the recovery. Storage failures show setup help instead. See [saved sign-in recovery](GO_CONFIGURATION.md#saved-sign-in-recovery). TLS verification is enabled unless [configured otherwise](GO_CONFIGURATION.md#server-connection).
 
@@ -27,17 +29,27 @@ For a complete, valid saved session, network and server failures retain its toke
 
 On-screen badges follow the active [input profile](GO_INPUT.md). Back at home opens exit confirmation. Held directions accelerate. Lists keep selection near the center except at the first and last rows. Neighboring pages load ahead, and arrivals preserve the selected position. A late page leaves existing rows visible with a loading message. Back restores the parent selection.
 
-Movies and music videos use filtered recursive lists. Music retains artist → album → track navigation. Mixed and home-video libraries retain folders. Series and seasons use Jellyfin's Shows endpoints. Live TV preserves server channel order and opens a channel directly into playback. Stopping returns to that channel in the list.
+For Jellyfin, movies and music videos use filtered recursive lists. Music retains artist → album → track navigation. Mixed and home-video libraries retain folders. Series and seasons use Jellyfin's Shows endpoints. Live TV preserves server channel order and opens a channel directly into playback. Stopping returns to that channel in the list.
 
 Details show available artwork, overview, year, rating, runtime, and resume/watched state. Open starts or resumes video. SELECT/Tab restarts an unwatched resumable video from the beginning. See [playback controls](GO_PLAYBACK.md#playback-controls). Text supports ASCII and Latin-1, with fallback glyphs for other characters. Search is not implemented.
 
 ## Continue Watching
 
-The first card, labeled Continue, combines resumable videos and the next unwatched episode of series in progress. Each series appears once. Its most recently played resumable episode takes precedence over Next Up. Recent playback orders dated entries first. Undated series retain Jellyfin's Next Up order.
+The first card, labeled Continue, combines resumable videos and the next unwatched episode of series in progress. Each series appears once. Its most recently played resumable episode takes precedence over Next Up. Recent playback orders dated entries first. Undated series retain Jellyfin's Next Up order. Plex supplies its combined resume and next-episode feed for the same Continue card.
 
 The card reserves its position while loading, so startup does not switch away from a briefly selected library. Empty results remove it while preserving library selection. A slow feed does not block other libraries. Opening the card, returning home, and finishing recorded playback refresh the feed. Refreshes preserve the selected item or series. Partial failures keep usable results. R retries.
 
 The client merges `/UserItems/Resume` and `/Shows/NextUp`, with a bounded recent-episode query for ordering. It reads pages before deduplication. Each source has an approximately 10,000-entry safety limit. Continue covers use the ordinary artwork cache. The changing combined collage is not stored as a library collage.
+
+## Collections and playlists
+
+Collections and Playlists appear in the carousel only when nonempty and enabled by [`ui.show_collections` and `ui.show_playlists`](GO_CONFIGURATION.md#carousel-categories). Both settings default to `true`. Jellyfin's existing card names are preserved. Collections retain their hierarchy, so a collection can contain movies, shows, albums, or other folders. Open a playlist to browse its entries in server order. Repeated entries remain separate rows.
+
+Select a music track or video to start playback. Playback advances through the remaining audio/video entries, fetching pages as needed. The first selected video uses its normal resume position. Subsequent entries start at the beginning. Stopping or reaching the end returns to the list with the current entry selected. Music retains previous/next controls. Videos retain their existing pause and seek controls. Photo playlists use the manual photo viewer. Automatic slideshows and playlist editing are not implemented.
+
+Locally started playlists publish the current item to Jellyfin remote controls and support previous/next commands. Sending a playlist from another Jellyfin client uses the existing bounded remote queue.
+
+Books, comics, and audiobook categories are hidden from the carousel. Display names do not determine library type. Plex has no dedicated audiobook category, so audiobooks stored as an ordinary music library remain indistinguishable from music.
 
 ## Photos
 
@@ -59,7 +71,7 @@ Failures restore the previous files. Startup recovers an interrupted replacement
 
 ## Persistent artwork cache
 
-Covers, backdrops, and logos persist under `misterfin-crt/covercache` within the cache root, partitioned by Jellyfin server and user. The first visit downloads images. Later visits and launches reuse decoded pixels. Image tags invalidate changed artwork. Metadata still requires Jellyfin, so caching does not provide offline browsing. Full-screen photos use memory caching only.
+Covers, backdrops, and logos persist under `mistervision/covercache` within the cache root, partitioned by provider, server, and user. The first visit downloads images. Later visits and launches reuse decoded pixels. Image tags invalidate changed artwork. Metadata still requires the media server, so caching does not provide offline browsing. Full-screen photos use memory caching only.
 
 | Cache | Per-account limit |
 | --- | --- |
@@ -71,14 +83,14 @@ Disk files have version, size, and checksum checks and are replaced atomically. 
 
 ## Persistent collage cache
 
-Library mosaics persist under `misterfin-crt/gridcache` in the same cache root. A worker restores saved pixels before refreshing sample IDs and image tags. Only changed images download again. Counts refresh independently. Incomplete loads do not replace a usable collage, and unchanged collages do not rewrite the SD card.
+Library mosaics persist under `mistervision/gridcache` in the same cache root. A worker restores saved pixels before refreshing sample IDs and image tags. Only changed images download again. Counts refresh independently. Incomplete loads do not replace a usable collage, and unchanged collages do not rewrite the SD card.
 
-Default cache roots are `/media/fat` on MiSTer, the user's cache directory for direct desktop runs, and `/tmp/misterfin-cache` in the Ghostty harness. Set `MISTERFIN_CACHE_ROOT` to change the parent directory. Go appends `misterfin-crt/covercache` or `misterfin-crt/gridcache` and the account partition.
+Default cache roots are `/media/fat` on MiSTer, the user's cache directory for direct desktop runs, and `/tmp/mistervision-cache` in the Ghostty harness. Set `MISTERVISION_CACHE_ROOT` to change the parent directory. Go appends `mistervision/covercache` or `mistervision/gridcache` and the account partition.
 
 For a persistent desktop cache:
 
 ```sh
-MISTERFIN_CACHE_ROOT="$HOME/.cache" python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
+MISTERVISION_CACHE_ROOT="$HOME/.cache" python3 tools/ghostty/ghostty_harness.py --browse --ntsc --config jellyfin.conf
 ```
 
 On MiSTer, export the variable in the launcher before starting the client. A new root populates a new cache and leaves old files intact. Custom [browsing backgrounds and titles](GO_CONFIGURATION.md#browsing-background) are separate settings.

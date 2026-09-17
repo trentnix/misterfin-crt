@@ -8,11 +8,11 @@ import (
 	"syscall"
 	"testing"
 
-	"misterfin-crt/internal/jellyfin"
-	playerapi "misterfin-crt/internal/player"
-	"misterfin-crt/internal/player/ffplay"
-	"misterfin-crt/internal/player/mplayer"
-	"misterfin-crt/internal/player/pythonhelper"
+	"mistervision/internal/jellyfin"
+	playerapi "mistervision/internal/player"
+	"mistervision/internal/player/ffplay"
+	"mistervision/internal/player/mplayer"
+	"mistervision/internal/player/pythonhelper"
 )
 
 func TestDecoderSelectionAndInput(t *testing.T) {
@@ -22,8 +22,8 @@ func TestDecoderSelectionAndInput(t *testing.T) {
 		executable, script string
 		input              playerapi.Input
 	}{
-		{name: "native video", kind: "Movie", options: Config{Height: 240, VideoDecoder: mplayer.Decoder{Width: 640, Height: 240}, AudioDecoder: mplayer.Decoder{Width: 640, Height: 240}}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.Pipe},
-		{name: "native audio", kind: "Audio", options: Config{Height: 288, VideoDecoder: mplayer.Decoder{Width: 640, Height: 288}, AudioDecoder: mplayer.Decoder{Width: 640, Height: 288}}, executable: "/media/fat/misterfin-crt/mplayer-arm", input: playerapi.URL},
+		{name: "native video", kind: "Movie", options: Config{Height: 240, VideoDecoder: mplayer.Decoder{Width: 640, Height: 240}, AudioDecoder: mplayer.Decoder{Width: 640, Height: 240}}, executable: "/media/fat/mistervision/mplayer-arm", input: playerapi.Pipe},
+		{name: "native audio", kind: "Audio", options: Config{Height: 288, VideoDecoder: mplayer.Decoder{Width: 640, Height: 288}, AudioDecoder: mplayer.Decoder{Width: 640, Height: 288}}, executable: "/media/fat/mistervision/mplayer-arm", input: playerapi.URL},
 		{name: "native override", kind: "Episode", options: Config{Height: 480, VideoDecoder: mplayer.Decoder{Player: "custom-mplayer", Width: 640, Height: 480}, AudioDecoder: mplayer.Decoder{Player: "custom-mplayer", Width: 640, Height: 480}}, executable: "custom-mplayer", input: playerapi.Pipe},
 		{name: "desktop video", kind: "Movie", options: Config{VideoDecoder: ffplay.Decoder{}, AudioDecoder: ffplay.Decoder{}}, executable: "ffplay", input: playerapi.Pipe},
 		{name: "desktop audio", kind: "Audio", options: Config{VideoDecoder: ffplay.Decoder{}, AudioDecoder: ffplay.Decoder{}}, executable: "ffplay", input: playerapi.Pipe},

@@ -5,10 +5,23 @@ import (
 	"image"
 	"time"
 
-	"misterfin-crt/internal/artwork"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/rendering"
+	"mistervision/internal/artwork"
+	"mistervision/internal/media"
+	"mistervision/internal/rendering"
 )
+
+// selectionCatalog supplies only the metadata used by selection workers.
+type selectionCatalog interface {
+	Details(context.Context, string) (media.Item, error)
+	LibraryCount(context.Context, media.Item) (*int, error)
+	Mosaic(context.Context, media.Item) (media.Page, error)
+}
+
+// selectionSource combines metadata and images during loader assembly.
+type selectionSource interface {
+	selectionCatalog
+	media.Artwork
+}
 
 // selectionLoader coordinates metadata and images for one authenticated session.
 // It refreshes non-photo details on every visit, caches library metadata, and
@@ -17,7 +30,7 @@ type selectionLoader struct {
 	// customBackground suppresses invisible mosaic/backdrop downloads. Set
 	// before publishing the loader, then keep it immutable.
 	customBackground bool
-	client           *jellyfin.Client
+	client           selectionCatalog
 	artwork          *artwork.Loader
 	libraries        libraryCache
 	disk             *artwork.MosaicCache
@@ -30,16 +43,16 @@ type selectionCaches struct {
 	artwork *artwork.DiskCache
 }
 
-func newSelectionCaches(config Config, client *jellyfin.Client) selectionCaches {
+func newSelectionCaches(config Config, identity media.Identity) selectionCaches {
 	return selectionCaches{
-		mosaics: artwork.NewMosaicCache(config.MosaicCacheDir, client.Config.Server, client.Session.UserID),
-		artwork: artwork.NewDiskCache(config.ArtworkCacheDir, client.Config.Server, client.Session.UserID),
+		mosaics: artwork.NewMosaicCache(config.MosaicCacheDir, identity.Server, identity.User),
+		artwork: artwork.NewDiskCache(config.ArtworkCacheDir, identity.Server, identity.User),
 	}
 }
 
 // newSelectionLoader returns a complete loader. Callers cannot attach disk
 // caches after workers begin using it.
-func newSelectionLoader(client *jellyfin.Client, photoWidth, photoHeight int, caches selectionCaches) *selectionLoader {
+func newSelectionLoader(client selectionSource, photoWidth, photoHeight int, caches selectionCaches) *selectionLoader {
 	images := artwork.NewLoader(client, photoWidth, photoHeight, caches.artwork)
 	return &selectionLoader{
 		client:    client,
@@ -54,7 +67,7 @@ func newSelectionLoader(client *jellyfin.Client, photoWidth, photoHeight int, ca
 // selections. Metadata, counts, and photos start immediately. Detail images
 // follow fresh metadata. List and carousel images wait for debounce. Three image
 // requests run across all loads sharing this loader.
-func (l *selectionLoader) load(ctx context.Context, item jellyfin.Item, root, detail bool, emit func(selectionUpdate)) {
+func (l *selectionLoader) load(ctx context.Context, item media.Item, root, detail bool, emit func(selectionUpdate)) {
 	if detail && item.Type == "Photo" {
 		im, err := l.artwork.Fetch(ctx, item, "Photo")
 		if ctx.Err() == nil {
@@ -108,7 +121,7 @@ func selectionDelay(ctx context.Context) bool {
 // snapshot assembles immediately available selection data without network I/O.
 // It omits expired metadata but keeps reusable images. The caller owns the cover
 // slice. Images and count values remain immutable after publication.
-func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData {
+func (l *selectionLoader) snapshot(item media.Item, root bool) selectionData {
 	if !root {
 		return selectionData{artwork: rendering.Artwork{
 			Primary:  l.artwork.Cached(item, "Primary"),
@@ -133,7 +146,7 @@ func (l *selectionLoader) snapshot(item jellyfin.Item, root bool) selectionData 
 
 // forget invalidates both metadata and images for an explicit retry. Shared
 // parent backdrops follow the image cache's existing invalidation policy.
-func (l *selectionLoader) forget(item jellyfin.Item) {
+func (l *selectionLoader) forget(item media.Item) {
 	l.libraries.forget(item.ID)
 	l.libraries.remember(item.ID, func(value *cachedLibrary) { value.discardMosaic = true })
 	l.artwork.Forget(item)

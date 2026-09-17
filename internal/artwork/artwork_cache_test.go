@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/jellyfin"
 )
 
 func TestImageCacheEvictsLeastRecentlyUsedWithinBudget(t *testing.T) {

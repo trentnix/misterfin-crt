@@ -3,7 +3,7 @@ package rendering
 import (
 	"image"
 
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/ui"
 )
 
 // sceneCache reuses static screen backgrounds, the current item backdrop, and

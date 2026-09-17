@@ -1,6 +1,6 @@
 package playback
 
-import "misterfin-crt/internal/player"
+import "mistervision/internal/player"
 
 // publishFeedback receives normalized observations from a decoder's output
 // writer. It never waits for the playback loop. Measurements can be dropped,

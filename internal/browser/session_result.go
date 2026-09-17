@@ -1,8 +1,9 @@
 package browser
 
 import (
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/musicviz"
+	"mistervision/internal/connection"
+	"mistervision/internal/media"
+	"mistervision/internal/musicviz"
 )
 
 // workerResult is one completed outcome delivered to the browser event loop.
@@ -15,16 +16,15 @@ type workerResult interface {
 
 type pageResult struct {
 	request Request
-	page    jellyfin.Page
+	page    media.Page
 	err     error
 }
 
 func (r pageResult) apply(s *browserSession) bool { return s.handlePage(r) }
 
 type authCodeResult struct {
-	generation int
-	code       string
-	recovered  bool
+	generation   int
+	presentation connection.Presentation
 }
 
 func (r authCodeResult) apply(s *browserSession) bool { return s.handleAuthCode(r) }
@@ -32,7 +32,6 @@ func (r authCodeResult) apply(s *browserSession) bool { return s.handleAuthCode(
 type authResult struct {
 	generation int
 	connection *authenticatedConnection
-	stage      connectionStage
 	err        error
 }
 
@@ -48,7 +47,7 @@ func (r selectionResult) apply(s *browserSession) bool { return s.handleSelectio
 type neighborResult struct {
 	generation int
 	parent     View
-	item       *jellyfin.Item
+	item       *media.Item
 	err        error
 }
 
@@ -56,7 +55,7 @@ func (r neighborResult) apply(s *browserSession) bool { return s.handleNeighbor(
 
 type homeResult struct {
 	generation int
-	page       jellyfin.Page
+	page       media.Page
 	err        error
 }
 
@@ -64,7 +63,7 @@ func (r homeResult) apply(s *browserSession) bool { return s.handleHome(r) }
 
 type shuffleResult struct {
 	generation int
-	page       jellyfin.Page
+	page       media.Page
 	err        error
 }
 

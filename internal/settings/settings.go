@@ -1,4 +1,4 @@
-// Package settings owns section reading, the UI schema, and legacy compatibility.
+// Package settings owns section reading, UI and server schemas, and legacy compatibility.
 // Domain consumers validate their own values. Migration uses the same aliases.
 package settings
 
@@ -12,15 +12,16 @@ import (
 
 const maxFileBytes = 256 << 10
 
-var sections = map[string]int{"ui": 4096, "background": 4096, "display": 4096, "sounds": 4096, "diagnostics": 4096, "input": 64 << 10, "music_visuals": 64 << 10}
+var sections = map[string]int{"server": 4096, "ui": 4096, "background": 4096, "display": 4096, "sounds": 4096, "diagnostics": 4096, "input": 64 << 10, "music_visuals": 64 << 10}
 
 // File holds immutable startup snapshots. UI fields are decoded once. Relative
 // asset paths stay attached to their source, including legacy files.
 type File struct {
-	Path    string
-	sources map[string]Section
-	legacy  bool
-	ui      UI
+	Path     string
+	sources  map[string]Section
+	legacy   bool
+	original []byte // Original document protects explicit migration from stale writes.
+	ui       UI
 }
 
 // Load reads the shared document or snapshots legacy files when the default is
@@ -37,10 +38,10 @@ func Load(path string, required bool) (*File, error) {
 			return nil, fmt.Errorf("settings %s: unknown section %q", path, name)
 		}
 	}
-	f := &File{Path: path, legacy: source.Data == nil, sources: make(map[string]Section)}
+	f := &File{Path: path, original: source.Data, legacy: source.Data == nil, sources: make(map[string]Section)}
 	for name, limit := range sections {
 		s := Section{Path: path, Data: data[name]}
-		if f.legacy {
+		if f.legacy && name != "server" {
 			file := name
 			if file == "music_visuals" {
 				file = "music"
@@ -75,6 +76,6 @@ func (f *File) Section(name string) Section {
 	return Section{Path: f.Path, Err: errors.New("unknown settings section")}
 }
 
-// UI returns decoded title settings and a separate sound source for validation.
-// Callers must not mutate the borrowed title or sound data.
+// UI returns decoded heading and carousel options and a separate sound source.
+// Callers must not mutate borrowed setting values or sound data.
 func (f *File) UI() UI { return f.ui }

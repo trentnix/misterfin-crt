@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/ui"
 )
 
 func TestRasterRendererMatchesSceneAndClearsOverlays(t *testing.T) {

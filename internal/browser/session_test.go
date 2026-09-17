@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/rendering"
-	"misterfin-crt/internal/videoout"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/rendering"
+	"mistervision/internal/videoout"
 )
 
 func testSession(t *testing.T) *browserSession {
@@ -76,9 +76,9 @@ func TestSessionRejectsStaleAuthAndSelection(t *testing.T) {
 	s := testSession(t)
 	s.connection.generation = 2
 	s.selection.generation = 3
-	s.setup = rendering.SetupPresentation{Kind: rendering.SetupQuickConnect, Code: "current"}
+	s.setup = rendering.SetupPresentation{Kind: rendering.SetupApproval, Code: "current"}
 	for _, r := range []workerResult{
-		authCodeResult{generation: 1, code: "stale"},
+		authCodeResult{generation: 1, presentation: rendering.SetupPresentation{Code: "stale"}},
 		selectionResult{generation: 2, update: selectionUpdate{kind: selectionDetails, detail: &jellyfin.Item{ID: "stale"}}},
 		selectionResult{generation: 2, update: selectionUpdate{kind: selectionCount, count: new(int)}},
 		selectionResult{generation: 2, update: selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "cover", total: 1}}},

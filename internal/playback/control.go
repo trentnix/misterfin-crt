@@ -31,7 +31,7 @@ const (
 type Control struct {
 	Kind    ControlKind
 	Request int         // Correlates subtitle or picture replies with the latest selection.
-	Index   int         // Jellyfin stream index for a subtitle request.
+	Index   int         // server stream index for a subtitle request.
 	Seconds int         // Signed audio offset for either seek kind. Video replaces the stream.
 	Picture PictureMode // Requested live picture mode.
 }

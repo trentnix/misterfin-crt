@@ -6,7 +6,7 @@ import (
 	"io"
 	"syscall"
 
-	"misterfin-crt/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 // Decoder holds immutable launch settings. The caller owns the process and its
@@ -23,16 +23,16 @@ type Decoder interface {
 	// by the writer. The caller retains ownership of process and pipe lifetimes.
 	Feedback(emit func(Feedback)) io.Writer
 	// Validate checks settings for the requested item without opening resources.
-	Validate(jellyfin.Item) error
+	Validate(media.Item) error
 	// ClientSubtitles reports whether shared overlay text reaches the video.
 	ClientSubtitles() bool
 	// Executable returns a path or a name to resolve through PATH.
 	Executable() string
 	// Input selects pipe or local proxy transport for the requested item.
-	Input(jellyfin.Item) Input
+	Input(media.Item) Input
 	// Args builds arguments from refreshed item metadata without opening resources.
 	// An empty source selects file descriptor 3. Otherwise source is a local proxy URL.
-	Args(jellyfin.Item, string) []string
+	Args(media.Item, string) []string
 	// Pause requests the supplied pause state. The caller must invoke it only
 	// when that state changes because some protocols expose only a toggle.
 	// Success means the transport accepted the command, without an acknowledgment.

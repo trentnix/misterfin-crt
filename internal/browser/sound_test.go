@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/jellyfin"
-	"misterfin-crt/internal/playback"
-	"misterfin-crt/internal/player/ffplay"
-	"misterfin-crt/internal/sound"
+	"mistervision/internal/input/control"
+	"mistervision/internal/jellyfin"
+	"mistervision/internal/playback"
+	"mistervision/internal/player/ffplay"
+	"mistervision/internal/sound"
 )
 
 func TestBrowsingSoundsFollowChangesNotRawKeys(t *testing.T) {

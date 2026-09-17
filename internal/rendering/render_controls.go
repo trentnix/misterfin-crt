@@ -1,8 +1,8 @@
 package rendering
 
 import (
-	"misterfin-crt/internal/input/control"
-	"misterfin-crt/internal/ui"
+	"mistervision/internal/input/control"
+	"mistervision/internal/ui"
 )
 
 // controlHint pairs a physical input badge with a short action description.
