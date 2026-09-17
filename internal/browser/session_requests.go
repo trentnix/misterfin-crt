@@ -87,6 +87,19 @@ func (s *browserSession) handleAuth(r authResult) bool {
 	if r.err != nil {
 		s.setup = s.setupPresentation(r.err)
 	} else {
+		s.connection.newAccount = false
+		s.connection.profileFlow = false
+		s.connection.selectProfile = false
+		s.connection.profilePIN = ""
+		s.about.Profile = r.connection.profile
+		if s.about.Profile != nil {
+			profile := *s.about.Profile
+			if avatar := s.connection.profileAvatars[profile.ID]; avatar != nil {
+				profile.Avatar = avatar
+			}
+			s.about.Profile = &profile
+		}
+		s.about.SwitchProfile = r.connection.switchProfile
 		s.client = r.connection.client
 		s.controlSource = r.connection.remote
 		s.includeCurrentConnection()

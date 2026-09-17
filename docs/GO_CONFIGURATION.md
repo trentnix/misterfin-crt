@@ -48,7 +48,9 @@ Without API-key credentials, Jellyfin uses Quick Connect. To use API-key login, 
 
 Keep API-key configuration private. Plex tokens, account identity, and client identifiers remain saved sign-in state rather than configuration. Sign-in files stay in the application state directory.
 
-An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. If that file is also absent, the client uses a remembered Jellyfin server or offers [local discovery](GO_BROWSING.md#jellyfin-discovery). The legacy file accepts a URL, optional API key and username, `INSECURE_TLS`, `DEBUGLOG`, and `WIDTHxHEIGHT@BITRATE` lines. `PAL` and `NTSC` remain accepted but do not control display or playback timing. The active output geometry determines timing.
+An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. If that file is also absent, the default route uses a remembered Jellyfin server or offers [local discovery](GO_BROWSING.md#jellyfin-discovery). A previously selected Plex or named connection can open instead under the [multiple-connection startup rules](#multiple-connections).
+
+The legacy file accepts a URL, optional API key and username, `INSECURE_TLS`, `DEBUGLOG`, and `WIDTHxHEIGHT@BITRATE` lines. `PAL` and `NTSC` remain accepted but do not control display or playback timing. The active output geometry determines timing.
 
 ## Multiple connections
 
@@ -89,9 +91,11 @@ Each profile must have a unique `id`, a display `name`, and validated `server` s
 
 The original top-level `server` and legacy configuration still work and appear as an existing connection. On first launch, they take precedence over named profiles. If neither a configured nor remembered default server exists, the first profile is used. The last successful choice is saved in `connection-choice.json` under the state directory and selected automatically on later launches. Editing connection configuration resets that startup choice. A failed sign-in does not replace it.
 
+Plex Home viewing profiles are separate from `connections.profiles`. Choose Home viewers on screen through [Plex Home profiles](GO_PLEX.md#plex-home-profiles). No extra JSON settings are required.
+
 Accounts retain independent sign-ins and browsing positions during the application run. Switching cancels the old session's work before activating the next connection. Only the active account receives remote commands or plays media. Display mode, controller mappings, navigation sounds, and backgrounds stay loaded. Switching configured accounts does not restart the application. Restart after editing the configuration file to load new or changed profiles.
 
-Named sign-ins live under `state/connections/<id>-<account digest>/`. A Jellyfin server chosen through About uses `state/discovery/jellyfin/`, separate from the default connection. Plex discovery uses `state/discovery/plex/` for the linked account, remembered server, and separate server credentials. See [Plex discovery](GO_PLEX.md#server-discovery). Navigation positions are held in memory, not saved across application restarts.
+Named sign-ins live under `state/connections/<id>-<account digest>/`. A Jellyfin server chosen through About uses `state/discovery/jellyfin/`, separate from the default connection. Plex discovery commits the linked account, viewer, and server credentials together in `state/discovery/plex/server.json`. See [Plex discovery](GO_PLEX.md#server-discovery). Navigation positions are held in memory, not saved across application restarts.
 
 ## Application settings
 
@@ -118,7 +122,7 @@ Omitted fields use defaults. Preserve other sections when editing. Explicit empt
 
 | Section | Default | Failure behavior |
 | --- | --- | --- |
-| `connections` | Absent: single-server setup. `profiles`: up to 16 named connections. | Invalid profiles stop startup. |
+| `connections` | No configured entries. Discovered connections can still be remembered and switched. `profiles`: up to 16 named connections. | Invalid profiles stop startup. |
 | `server` | Absent: legacy Jellyfin configuration, then a remembered server or discovery if the legacy file is missing. Present: Jellyfin provider, verified TLS, default transcode limits. | Invalid section stops startup. |
 | `ui.title` | `MiSTerVision`. Empty hides the heading. | Restore default title with a notice. |
 | `ui.show_collections`, `ui.show_playlists` | Both `true`. Empty categories stay hidden. | Restore the invalid option to `true`, with a notice and a diagnostic event. |
@@ -194,6 +198,8 @@ The remembered discovery selection (`jellyfin-server.json` in the state director
 
 ## Saved sign-in recovery
 
-Jellyfin uses `session.json` in the selected [state directory](GO_BROWSING.md#setup-and-sign-in). Plex uses `plex/session.json`. If either file is malformed or exceeds 64 KiB, the client preserves it as `session-damaged-*` beside the original and starts a fresh sign-in. A notice explains the recovery.
+Jellyfin uses `session.json` in the selected [state directory](GO_BROWSING.md#setup-and-sign-in). Current Plex connections use a private `plex/server.json` record that commits the linking account, viewer, and server grant together. Discovery uses the same record under `discovery/plex/`. Plex records are limited to 16 KiB. Invalid or incomplete records remain untouched and produce a sign-in storage error. The client must not recover by opening a different viewer.
+
+Jellyfin and legacy Plex `session.json` records are limited to 64 KiB. If a legacy record is malformed or too large, the client preserves it as `session-damaged-*` beside the original and starts a fresh sign-in. A notice explains the recovery.
 
 Storage permission and read errors preserve the original file and show a setup error. Valid credentials survive temporary server failures. Backups request owner-only permissions where supported, contain private sign-in data, and must not be shared.

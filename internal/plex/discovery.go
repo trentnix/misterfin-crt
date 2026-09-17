@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mistervision/internal/connection"
+	"mistervision/internal/serverstate"
 )
 
 var (
@@ -24,8 +25,13 @@ var (
 // Per-server grants remain private to this attempt and never enter UI state.
 type serverDiscovery struct {
 	account *Client
-	lan     connection.Discoverer
-	grants  map[connection.Server]string
+	owner   serverstate.Session
+	profile *connection.Profile
+	avatars connection.ProfileAvatars
+	// preferred keeps a working remembered address stable while refreshing a viewer grant.
+	preferred *connection.Server
+	lan       connection.Discoverer
+	grants    map[connection.Server]string
 	// previous limits recovery to one identity, excludes its failed address,
 	// and preserves HTTPS. Nil permits ordinary account-wide selection.
 	previous *connection.Server
@@ -165,6 +171,16 @@ func (d *serverDiscovery) Discover(ctx context.Context) ([]connection.Server, er
 // for at most two seconds, so unreachable container interfaces cannot consume
 // the whole scan budget before a LAN or remote fallback gets a chance.
 func (d *serverDiscovery) reachable(ctx context.Context, resource accountResource) connection.Server {
+	if d.preferred != nil && d.preferred.ID == resource.ID {
+		resource.HTTPSRequired = resource.HTTPSRequired || strings.HasPrefix(d.preferred.URL, "https://")
+		if d.previous == nil && (!resource.HTTPSRequired || strings.HasPrefix(d.preferred.URL, "https://")) {
+			candidate := *d.preferred
+			candidate.Name = resource.Name
+			if server := d.probeGroup(ctx, []connection.Server{candidate}); server.ID != "" {
+				return server
+			}
+		}
+	}
 	var groups [4][]connection.Server
 	seen := make(map[string]bool)
 	for _, endpoint := range resource.Connections {

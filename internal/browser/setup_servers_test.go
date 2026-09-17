@@ -280,7 +280,7 @@ func TestRecoveryChoiceKeepsExplanationAndCanBackOut(t *testing.T) {
 	s.about.Connections = []connection.Choice{{ID: "plex", Name: "Plex"}}
 	s.handleAuthCode(authCodeResult{generation: 0, presentation: connection.Presentation{Kind: connection.SetupServers, Title: "Server address changed", Message: "Same server at a new address."}})
 	candidate := connection.Server{ID: "same", Name: "Server", URL: "http://new"}
-	(serverChoicesResult{generation: 0, servers: []connection.Server{candidate}, choice: make(chan connection.Server, 1)}).apply(s)
+	(serverChoicesResult{generation: 0, servers: []connection.Server{candidate}, choice: make(chan serverChoice, 1)}).apply(s)
 	if s.setup.Title != "Server address changed" || s.setup.Message == "" || s.setup.BackToServers {
 		t.Fatal("recovery explanation or navigation changed")
 	}
@@ -288,5 +288,88 @@ func TestRecoveryChoiceKeepsExplanationAndCanBackOut(t *testing.T) {
 	s.handleKey(control.Back)
 	if s.connectionChange == nil || s.connectionChange.ID != "plex" {
 		t.Fatal("Back could not leave recovery")
+	}
+}
+
+// accountChoosingConnector exposes the same optional action as an account-backed
+// provider without coupling browser navigation tests to Plex HTTP requests.
+type accountChoosingConnector struct {
+	started chan connection.Interaction
+}
+
+func (c accountChoosingConnector) Connect(ctx context.Context, i connection.Interaction) (connection.Session, error) {
+	c.started <- i
+	if i.NewAccount {
+		i.Show(connection.Presentation{Kind: connection.SetupApproval, Title: "Link account", Code: "ABCD", Retry: "New code", BackToServers: true})
+		<-ctx.Done()
+		return connection.Session{}, ctx.Err()
+	}
+	for {
+		i.Show(connection.Presentation{Kind: connection.SetupServers, SignIn: "Sign in with another account"})
+		_, err := i.ChooseServer(ctx, []connection.Server{{ID: "old", Name: "Saved", URL: "http://saved"}})
+		if !errors.Is(err, connection.ErrRescan) {
+			return connection.Session{}, err
+		}
+	}
+}
+
+func (accountChoosingConnector) Describe(error) connection.Presentation {
+	return connection.Presentation{Kind: connection.SetupConnecting}
+}
+
+func TestAccountPickerNewCodeBackAndRescan(t *testing.T) {
+	s := testSession(t)
+	s.controller.running = false
+	connector := accountChoosingConnector{started: make(chan connection.Interaction, 8)}
+	s.config = Config{Connector: connector}
+	s.connection = newConnectionManager(s.config, 640, 240)
+	defer s.connection.close()
+	wait := func(kind connection.SetupKind) {
+		t.Helper()
+		timeout := time.After(time.Second)
+		for s.setup.Kind != kind || (kind == connection.SetupServers && s.connection.choice == nil) {
+			select {
+			case result := <-s.events:
+				s.handleResult(result)
+			case <-timeout:
+				t.Fatal("setup did not reach expected state")
+			}
+		}
+	}
+	s.authenticate()
+	wait(connection.SetupServers)
+	if (<-connector.started).NewAccount {
+		t.Fatal("initial picker discarded saved sign-in")
+	}
+	generation := s.connection.generation
+	s.dispatchKey(control.Select)
+	s.dispatchKey(control.Select) // A repeated press must not discard the pending account.
+	wait(connection.SetupServers)
+	if s.connection.generation != generation {
+		t.Fatal("rescan replaced the sign-in attempt")
+	}
+	s.dispatchKey(control.Down)
+	s.dispatchKey(control.Down)
+	if s.setup.Selected != 1 {
+		t.Fatal("account action is not selectable below servers")
+	}
+	s.dispatchKey(control.Open)
+	wait(connection.SetupApproval)
+	if !(<-connector.started).NewAccount {
+		t.Fatal("account action did not request fresh sign-in")
+	}
+	s.dispatchKey(control.Open)
+	wait(connection.SetupApproval)
+	if !(<-connector.started).NewAccount {
+		t.Fatal("New code reused the saved account")
+	}
+	s.dispatchKey(control.Back)
+	wait(connection.SetupServers)
+	if (<-connector.started).NewAccount || s.connection.newAccount {
+		t.Fatal("Back did not restore saved account selection")
+	}
+	s.dispatchKey(control.Back)
+	if !s.model.Quit {
+		t.Fatal("Back looped into linking again")
 	}
 }

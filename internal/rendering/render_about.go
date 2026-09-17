@@ -21,6 +21,9 @@ func (p *screenPainter) about() {
 		return
 	}
 	var hints []controlHint
+	if a.SwitchProfile && p.scene.Setup.Kind == SetupHidden {
+		hints = append(hints, hint(p.scene.Controls, control.Up, "Switch profile"))
+	}
 	if len(a.Connections) > 0 {
 		hints = append(hints, hint(p.scene.Controls, control.Down, "Connections"))
 	}
@@ -33,8 +36,16 @@ func (p *screenPainter) about() {
 	hints = append(hints, hint(p.scene.Controls, control.Back, "Back"))
 	rows := controlRows(p.width, hints)
 	statusY := controlsTop(p.bottom, rows) - 18
-	p.cache.about(p.canvas, statusY)
-	center(p.canvas, statusY-62, truncate("Version "+a.Build.String(), p.width-48, 1), dimColor, 1)
+	baseY := statusY
+	if a.Profile != nil {
+		baseY -= 14
+	}
+	p.cache.about(p.canvas, baseY)
+	if a.Profile != nil {
+		name := truncate(a.Profile.Name, p.width-48-profileLabelInset, 1)
+		drawProfileLabel(p.canvas, (p.width-textWidth(name, 1)-profileLabelInset)/2, statusY-14, name, a.Profile.Avatar, titleColor)
+	}
+	center(p.canvas, baseY-62, truncate("Version "+a.Build.String(), p.width-48, 1), dimColor, 1)
 	text := a.Status()
 	color := uint32(0xc0c0c0)
 	if a.Release.Available && !a.Checking && a.Message == "" {

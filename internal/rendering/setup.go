@@ -11,6 +11,8 @@ const (
 	SetupApproval   = connection.SetupApproval
 	SetupFailure    = connection.SetupFailure
 	SetupServers    = connection.SetupServers
+	SetupProfiles   = connection.SetupProfiles
+	SetupPIN        = connection.SetupPIN
 )
 
 // SetupPresentation is safe, resolved content from the connection flow.

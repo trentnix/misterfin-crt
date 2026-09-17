@@ -12,9 +12,13 @@ import (
 // It receives typed state and resolved input labels, never raw errors or config.
 func (p *screenPainter) setup() {
 	s, c := p.scene.Setup, p.canvas
+	if s.Kind == SetupProfiles || s.Kind == SetupPIN {
+		p.profiles()
+		return
+	}
 	hints := []controlHint{}
 	if s.Kind == SetupServers {
-		if len(s.Servers) > 1 {
+		if s.ChoiceCount() > 1 {
 			hints = append(hints, pairedHint(p.scene.Controls, control.Up, control.Down, "Choose"))
 		}
 		hints = append(hints, hint(p.scene.Controls, control.Open, "Select"), hint(p.scene.Controls, control.Select, "Scan again"))

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"mistervision/internal/connection"
 	jfconnection "mistervision/internal/jellyfin/connection"
+	"mistervision/internal/media"
 	"mistervision/internal/plex"
 	"mistervision/internal/serverstate"
 	"mistervision/internal/settings"
@@ -97,5 +100,67 @@ func TestPlexDiscoveryCatalogWithoutServerConfiguration(t *testing.T) {
 	catalog = load()
 	if catalog.selected != "plex" || catalog.choices[0].Children[0].ID != "plex" || catalog.choices[0].Children[0].Name != "My Plex" {
 		t.Fatal("remembered Plex missing from startup or existing connections")
+	}
+}
+
+// profileCatalogConnector supplies distinct viewers without network or storage.
+type profileCatalogConnector struct {
+	fail  bool
+	calls int
+}
+type catalogViewer struct {
+	media.Server
+	user string
+}
+
+func (v catalogViewer) Identity() media.Identity { return media.Identity{Server: "plex", User: v.user} }
+func (c *profileCatalogConnector) Connect(ctx context.Context, i connection.Interaction) (connection.Session, error) {
+	c.calls++
+	if c.fail {
+		return connection.Session{}, context.Canceled
+	}
+	user := "first"
+	if i.SelectProfile {
+		user = "second"
+	}
+	return connection.Session{Server: catalogViewer{user: user}, Profile: &connection.Profile{ID: user, Name: user}, SwitchProfile: true}, nil
+}
+func (*profileCatalogConnector) Describe(error) connection.Presentation {
+	return connection.Presentation{}
+}
+
+func TestProfileCatalogCancelsAndPromotesTentativeViewer(t *testing.T) {
+	provider := &profileCatalogConnector{}
+	retained := &connection.Retained{Connector: provider}
+	catalog := &connectionCatalog{connectors: map[string]connection.Connector{"profile/plex": retained}, retained: map[string]*connection.Retained{"profile/plex": retained}}
+	original, err := retained.Connect(t.Context(), connection.Interaction{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := catalog.startProfileSelection("profile/plex")
+	if catalog.connectionID(route) != "profile/plex" {
+		t.Fatal("profile switch changed connection identity")
+	}
+	provider.fail = true
+	if _, err := catalog.connectors[route].Connect(t.Context(), connection.Interaction{}); !errors.Is(err, context.Canceled) {
+		t.Fatal("failed switch succeeded")
+	}
+	restored, err := retained.Connect(t.Context(), connection.Interaction{})
+	if err != nil || restored.Server.Identity() != original.Server.Identity() {
+		t.Fatal("cancel lost the working viewer")
+	}
+	provider.fail = false
+	route = catalog.startProfileSelection("profile/plex")
+	replacement, err := catalog.connectors[route].Connect(t.Context(), connection.Interaction{})
+	if err != nil || replacement.Profile.ID != "second" {
+		t.Fatal("profile switch was not requested")
+	}
+	calls := provider.calls
+	again, err := retained.Connect(t.Context(), connection.Interaction{})
+	if err != nil || again.Server.Identity() != replacement.Server.Identity() || provider.calls != calls {
+		t.Fatal("successful switch did not promote retained viewer")
+	}
+	if _, err := catalog.connectors[route].Connect(t.Context(), connection.Interaction{}); err != nil || provider.calls != calls {
+		t.Fatal("promoted route reopened the picker")
 	}
 }
