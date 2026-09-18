@@ -269,7 +269,7 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 			s.trace.record("playback.startup-timeout")
 			cancel()
 			s.trace.decoderExit(<-p.done)
-			return errors.New("player did not start playback within 30 seconds")
+			return ErrStartupTimeout
 		case <-ctx.Done():
 			cancel()
 			s.trace.decoderExit(<-p.done)
@@ -281,8 +281,11 @@ func (s *playbackSession) monitor(ctx context.Context, cancel context.CancelFunc
 			if ctx.Err() != nil {
 				return nil
 			}
-			if err != nil || !s.started {
-				return errors.New("player could not play the stream")
+			if !s.started {
+				return ErrNotStarted
+			}
+			if err != nil {
+				return ErrInterrupted
 			}
 			s.played = s.played || !s.liveTV && s.item.RunTimeTicks > 0 && s.state.PositionTicks >= s.item.RunTimeTicks-2*10000000
 			return nil

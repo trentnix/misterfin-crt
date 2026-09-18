@@ -33,7 +33,7 @@ func renderVideoOverlayOn(c *ui.Canvas, p PlaybackPresentation, now time.Time, l
 		return c.Pixels
 	}
 	if p.Notice != "" {
-		center(c, safeY(w, h), truncate(p.Notice, w-48, 1), titleColor, 1)
+		drawNotice(c, "", p.Notice, safeY(w, h), 6)
 	}
 	if !p.ControlsVisible {
 		drawSubtitle(c, captions, p.Subtitle, h-safeY(w, h)-8)

@@ -3,6 +3,7 @@ package plex
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -368,7 +369,7 @@ func TestLiveTuneDeadlineExplainsFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 	_, err := owner.tune(ctx, "2", "channel")
-	if err == nil || !strings.Contains(err.Error(), "Plex did not finish tuning") || strings.Contains(err.Error(), "context deadline exceeded") {
+	if !errors.Is(err, media.ErrTuning) || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("unhelpful tuner error: %v", err)
 	}
 }

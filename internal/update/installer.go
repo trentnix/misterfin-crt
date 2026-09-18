@@ -43,3 +43,10 @@ type Progress struct {
 type Installer interface {
 	Install(context.Context, release.Status, func(Progress)) error
 }
+
+// ErrDownload identifies an update transfer failure. Wrapped filesystem errors
+// can still identify storage failures while downloading.
+var ErrDownload = errors.New("update download failed")
+
+// ErrVerification means the downloaded release failed integrity or format checks.
+var ErrVerification = errors.New("update verification failed")

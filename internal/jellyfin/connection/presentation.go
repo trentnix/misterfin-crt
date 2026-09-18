@@ -34,43 +34,43 @@ func (c *Connector) Describe(err error) connection.Presentation {
 		stage = failure.stage
 	}
 	p := connection.Presentation{Kind: connection.SetupFailure, Retry: "Retry", Path: c.ConfigPath, PathLabel: "Configuration file",
-		Title: "Can't connect to Jellyfin", Message: "Check your server address and network connection.\nMake sure Jellyfin is running, then retry."}
+		Title: titleConnectFailed, Message: messageConnectFailed}
 	switch {
 	case stage == connectionRecovery:
-		p.Title, p.Message = "Your Jellyfin server is unavailable", "Check that your server is running, then retry.\nYour saved server and sign-in have been kept."
+		p.Title, p.Message = titleRecoveryFailed, messageRecoveryFailed
 		p.Path = ""
 	case stage == connectionDiscovery:
-		p.Title, p.Message = "Can't find Jellyfin servers", "Check Jellyfin and your local network, then retry.\nOr set server.url in settings.json."
+		p.Title, p.Message = titleDiscoveryFailed, messageDiscoveryFailed
 		if errors.Is(err, errNoServers) {
-			p.Title = "No Jellyfin servers found"
+			p.Title = titleNoServers
 		}
 		p.Path = c.SettingsPath
 	case stage == connectionServerStorage:
-		p.Title, p.Message = "Check saved server", "Make sure this file is valid and its folder is writable.\nRestore or remove the file, or configure server.url."
+		p.Title, p.Message = titleSavedServerInvalid, messageSavedServerInvalid
 		p.Path, p.PathLabel = filepath.Join(c.StateDir, "jellyfin-server.json"), "Saved server file"
 	case stage == connectionConfig:
-		p.Title, p.Message = "Check your configuration", "Use an HTTP or HTTPS server address on the first line.\nCheck any optional settings, then retry."
+		p.Title, p.Message = connection.ConfigurationTitle, messageConfigInvalid
 		if errors.Is(err, os.ErrNotExist) {
-			p.Title, p.Message = "Setup needed", "Create this file and add your Jellyfin server address.\nFor example: http://192.168.1.10:8096"
+			p.Title, p.Message = titleSetupNeeded, messageSetupNeeded
 		} else {
 			var fileErr *os.PathError
 			if errors.As(err, &fileErr) {
-				p.Title, p.Message = "Can't read configuration", "Make sure this file exists and is readable, then retry."
+				p.Title, p.Message = titleConfigUnreadable, messageConfigUnreadable
 			}
 		}
 	case stage == connectionSession || errors.Is(err, jellyfin.ErrSessionSave):
 		p.Path, p.PathLabel = c.StateDir, "Sign-in folder"
-		p.Title, p.Message = "Can't save or read sign-in", "Make sure this folder is writable, then retry.\nYour saved sign-in has not been cleared."
+		p.Title, p.Message = connection.SignInStorageTitle, connection.SignInStorageMessage
 	case errors.Is(err, jellyfin.ErrQuickConnectExpired):
 		p.Path, p.Retry = "", "New code"
-		p.Title, p.Message = "Code expired", "Request a new code, then approve it in Jellyfin."
+		p.Title, p.Message = connection.CodeExpiredTitle, messageCodeExpired
 	case errors.Is(err, jellyfin.ErrQuickConnectDisabled):
-		p.Title, p.Message = "Quick Connect is disabled", "Enable Quick Connect on your Jellyfin server, then retry.\nOr add an API key and username to your configuration."
+		p.Title, p.Message = titleQuickConnectDisabled, messageQuickConnectDisabled
 	case errors.Is(err, jellyfin.ErrUsernameNotFound):
-		p.Title, p.Message = "Check your username", "The configured username was not found on the server.\nCheck the configured username, then retry."
+		p.Title, p.Message = titleUsernameInvalid, messageUsernameInvalid
 	case jellyfin.Rejected(err):
 		p.Retry = "Sign in"
-		p.Title, p.Message = "Sign-in required", "Jellyfin rejected your sign-in. Sign in again.\nIf you use an API key, check it in your configuration."
+		p.Title, p.Message = connection.SignInRequiredTitle, messageSignInRejected
 	}
 	if p.Path != "" {
 		if absolute, err := filepath.Abs(p.Path); err == nil {
@@ -85,7 +85,7 @@ func approval(code string, recovered bool) connection.Presentation {
 	p := connection.Presentation{Kind: connection.SetupApproval, Title: "Quick Connect", Code: code, Recovered: recovered, Retry: "New code",
 		Message: "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerVision."}
 	if recovered {
-		p.Message = "Saved sign-in was damaged and backed up.\nOpen Quick Connect in Jellyfin and approve this code."
+		p.Message = messageSignInRecovered
 	}
 	return p
 }

@@ -126,11 +126,11 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 		return
 	}
 	if !c.state.ProgressSeen || c.seekPhase != seekInactive || c.state.SeekTarget != nil {
-		c.notice = "Wait for playback before changing options"
+		c.notice = messageWaitForPlayback
 		return
 	}
 	if c.subtitleLoading && c.picker.tab != 0 {
-		c.notice = "Wait for subtitles before changing options"
+		c.notice = messageWaitForSubtitles
 		return
 	}
 	options := c.trackOptions
@@ -151,7 +151,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 				c.subtitleLoading = true
 				c.notice = "Loading subtitles..."
 			default:
-				c.notice = "Player is busy. Try again."
+				c.notice = messagePlayerBusy
 			}
 			return
 		}
@@ -192,7 +192,7 @@ func (c *PlaybackController) applyPicture(mode playback.PictureMode) {
 		c.trackOptions.Picture = mode
 		c.notice = ""
 	default:
-		c.notice = "Player is busy. Try again."
+		c.notice = messagePlayerBusy
 	}
 }
 
@@ -232,17 +232,17 @@ func (c *PlaybackController) trackMessage(tab, selected int) string {
 		switch tab {
 		case 0:
 			if !c.captions.available {
-				return "No closed-caption data received."
+				return messageNoCaptionData
 			}
 			return ""
 		case 1:
 			if !c.tracks.LiveAudio {
-				return "Live TV audio selection is not available."
+				return messageLiveAudioUnavailable
 			}
 			return "Changing audio briefly reloads the channel."
 		case 2:
 			if !c.tracks.LivePicture {
-				return "This player cannot change Live TV picture mode."
+				return messageLivePictureUnavailable
 			}
 		}
 	}

@@ -60,12 +60,12 @@ func videoTracks(item media.Item, choices trackPreparation) (VideoTracks, error)
 	}
 	if t.Selection.AudioIndex >= 0 {
 		if _, ok := t.Stream("Audio", t.Selection.AudioIndex); !ok {
-			return t, errors.New("audio track is no longer available")
+			return t, ErrTrackUnavailable
 		}
 	}
 	if t.Selection.SubtitleIndex >= 0 {
 		if _, ok := t.Stream("Subtitle", t.Selection.SubtitleIndex); !ok {
-			return t, errors.New("subtitle track is no longer available")
+			return t, ErrTrackUnavailable
 		}
 	}
 	return t, nil

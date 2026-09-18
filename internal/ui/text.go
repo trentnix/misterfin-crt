@@ -38,3 +38,35 @@ func TruncateText(s string, width int) string {
 	}
 	return string(r[:n])
 }
+
+// WrapText returns word-wrapped lines that fit width pixels. It collapses
+// whitespace and splits long words without separating variation selectors from
+// their preceding glyph. Widths below one glyph return no lines.
+func WrapText(s string, width int) []string {
+	if width < 8 {
+		return nil
+	}
+	var lines []string
+	line := ""
+	for _, word := range strings.Fields(s) {
+		if line != "" && TextWidth(line+" "+word) <= width {
+			line += " " + word
+			continue
+		}
+		if line != "" {
+			lines = append(lines, line)
+			line = ""
+		}
+		for _, r := range word {
+			if !isVariationSelector(r) && TextWidth(line)+8 > width {
+				lines = append(lines, line)
+				line = ""
+			}
+			line += string(r)
+		}
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
+}

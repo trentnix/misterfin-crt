@@ -1,11 +1,8 @@
 package browser
 
 import (
-	"time"
-
 	"mistervision/internal/media"
 	"mistervision/internal/remote"
-	"mistervision/internal/rendering"
 )
 
 // playbackQueue owns local and remote queue entries, metadata, and decoder handoff.
@@ -179,9 +176,6 @@ func (s *browserSession) queueEnded(event PlaybackEvent) bool {
 		return true
 	}
 	s.endQueue()
-	if event.Err != nil {
-		s.message = rendering.MessagePresentation{Header: "Playback", Text: "Playback ended with an error.", Until: time.Now().Add(8 * time.Second)}
-	}
 	return true
 }
 

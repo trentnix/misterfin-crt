@@ -24,7 +24,7 @@ func loadSettings(o launchOptions) (*settings.File, error) {
 // opening a display or contacting a server. Existing sign-in files stay untouched.
 func migrateSettings(o launchOptions, source *settings.File) error {
 	if section := source.Section("server"); section.Data != nil || section.Err != nil {
-		return errors.New("server settings already exist; migration is not needed")
+		return errors.New(messageMigrationNotNeeded)
 	}
 	legacy, err := jellyfin.LoadConfig(o.config)
 	if errors.Is(err, os.ErrNotExist) {

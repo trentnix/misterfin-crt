@@ -2,7 +2,6 @@ package rendering
 
 import (
 	"mistervision/internal/caption"
-
 	"mistervision/internal/input/control"
 	"mistervision/internal/ui"
 )
@@ -39,8 +38,11 @@ func drawTrackMenu(c *ui.Canvas, menu *TrackMenu, labels control.Labels) {
 		center(c, footer, menu.Delay, dimColor, 1)
 	}
 	if menu.Message != "" {
-		footer -= 12
-		center(c, footer, truncate(menu.Message, w-48, 1), titleColor, 1)
+		lines := messageLines(menu.Message, w-48, 4)
+		footer -= len(lines)*10 + 2
+		for i, line := range lines {
+			center(c, footer+i*10, line, titleColor, 1)
+		}
 	}
 	rows := max(1, (footer-top)/18)
 	start := max(0, min(menu.Selected-rows/2, len(menu.Rows)-rows))

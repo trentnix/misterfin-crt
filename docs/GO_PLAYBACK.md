@@ -4,6 +4,8 @@ MiSTer uses the patched MPlayer. Local development uses Python/libmpv inside Gho
 
 Jellyfin and [Plex](GO_PLEX.md) share playback controls and output paths. Each adapter handles stream preparation, progress reporting, and tuner ownership for its server.
 
+If the player reports no playback position within 30 seconds, playback stops and a wrapped “Playback didn't start” message offers retry guidance for eight seconds. Starting playback clears the message. Diagnostics retain the `playback.startup-timeout` event. The timeout does not identify the cause of a slow start. Other failures distinguish a stream that could not start from interrupted playback. A routine progress-reporting failure shows a warning without stopping album or playlist advancement. The warning stays visible across track changes until its eight-second deadline. Subtitle and track-navigation failures offer retry guidance without exposing provider errors.
+
 The browser’s `playbackQueue` owns local and remote queue entries and decoder handoff. Remote command handling and queue publication remain in `remote_commands.go` and `remote_source.go`. Paged playlists and whole-library shuffle retain their separate navigation state.
 
 ## Players and local use

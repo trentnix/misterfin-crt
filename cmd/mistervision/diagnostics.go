@@ -40,7 +40,7 @@ func openStartupDiagnostics(o launchOptions, supervisor bool, source *settings.F
 	legacyEnabled := server.Data == nil && server.Err == nil && legacyDebugLog(o.config)
 	c, err := diagnostics.ParseConfig(source.Section("diagnostics"), legacyEnabled)
 	if err != nil {
-		s.notice = "Check diagnostics settings. Logging is off."
+		s.notice = messageDiagnosticsInvalid
 		fmt.Fprintln(os.Stderr, s.notice)
 		return s, nil
 	}
@@ -51,7 +51,7 @@ func openStartupDiagnostics(o launchOptions, supervisor bool, source *settings.F
 	}
 	s.log, err = diagnostics.Open(c)
 	if err != nil {
-		s.notice = "Cannot open diagnostic log. Check its path and permissions. Logging is off."
+		s.notice = messageDiagnosticsUnavailable
 		fmt.Fprintln(os.Stderr, s.notice)
 	}
 	s.log.Record("application.start", slog.String("build", release.CurrentBuild().String()),
@@ -95,6 +95,6 @@ func (s *startupDiagnostics) close(err error) {
 	}
 	s.log.Record("application.exit", slog.Bool("failed", err != nil), slog.Bool("canceled", errors.Is(err, context.Canceled)), slog.Int64("elapsed_ms", time.Since(s.started).Milliseconds()))
 	if s.log.Close() != nil {
-		fmt.Fprintln(os.Stderr, "Diagnostics stopped: could not write log.")
+		fmt.Fprintln(os.Stderr, messageDiagnosticsStopped)
 	}
 }

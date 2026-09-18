@@ -65,9 +65,18 @@ func (c *Client) Identity() media.Identity {
 // HTTPError contains only a status code. Response bodies and URLs remain private.
 type HTTPError struct{ Status int }
 
-// Is exposes authentication rejection without leaking provider status types.
+// Is classifies HTTP failures through shared media errors.
 func (e *HTTPError) Is(target error) bool {
-	return target == media.ErrUnauthorized && (e.Status == 401 || e.Status == 403)
+	switch target {
+	case media.ErrUnauthorized:
+		return e.Status == 401 || e.Status == 403
+	case media.ErrNotFound:
+		return e.Status == 404 || e.Status == 410
+	case media.ErrServerFailure:
+		return e.Status >= 500 && e.Status <= 599
+	default:
+		return false
+	}
 }
 
 // Error returns a credential-free failure description.
@@ -132,7 +141,7 @@ func (c *Client) fetch(ctx context.Context, h *http.Client, origin, token, metho
 		if ctx.Err() != nil {
 			return nil, 0, ctx.Err()
 		}
-		return nil, 0, errors.New("cannot reach Plex (check address, certificate, and connection)")
+		return nil, 0, media.NetworkError(err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -141,7 +150,7 @@ func (c *Client) fetch(ctx context.Context, h *http.Client, origin, token, metho
 	const limit = 8 << 20
 	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
 	if err != nil {
-		return nil, response.StatusCode, errors.New("cannot read Plex response")
+		return nil, response.StatusCode, media.NetworkError(err)
 	}
 	if len(data) > limit {
 		return nil, response.StatusCode, errors.New("Plex response exceeds 8 MiB")

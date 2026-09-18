@@ -138,7 +138,7 @@ func (p livePlayback) tune(ctx context.Context, dvr, channel string) ([]byte, er
 	// Log the operation without server, channel, or consumer identifiers.
 	p.client.Diagnostics.Request("POST", "/livetv/dvrs/:dvr/channels/:channel/tune", status, time.Since(started), int64(len(data)), err != nil)
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return nil, errors.New("Plex did not finish tuning this channel within 30 seconds. Try again")
+		return nil, errors.Join(media.ErrTuning, context.DeadlineExceeded)
 	}
 	return data, err
 }
@@ -162,7 +162,7 @@ func tunedVideo(data []byte) (liveVideo, error) {
 	}
 	c := response.Container
 	if c.Status < 0 {
-		return liveVideo{}, errors.New("Plex could not tune this channel; check the tuner and antenna")
+		return liveVideo{}, media.ErrTuning
 	}
 	videos := c.Metadata
 	for _, sub := range c.Subscriptions {
@@ -179,7 +179,7 @@ func tunedVideo(data []byte) (liveVideo, error) {
 			return video, nil
 		}
 	}
-	return liveVideo{}, errors.New("Plex did not provide a playable Live TV session")
+	return liveVideo{}, media.ErrTuning
 }
 
 // validLiveSession accepts only the UUID characters used in live-session paths.

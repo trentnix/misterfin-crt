@@ -2,7 +2,6 @@ package plex
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -60,7 +59,7 @@ func (c *Client) decideVideo(ctx context.Context, q url.Values) error {
 		return err
 	}
 	if decision.Container == nil || decision.Container.Code < 1000 || decision.Container.Code >= 2000 {
-		return errors.New("Plex cannot convert this video")
+		return media.ErrConversion
 	}
 	return nil
 }

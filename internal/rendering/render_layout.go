@@ -104,8 +104,14 @@ func (p *screenPainter) footer(controls [][]controlHint) {
 	}
 	message := p.footerMessage()
 	if message != "" {
-		message = truncate(message, messageWidth, 1)
-		c.Text(24+(messageWidth-textWidth(message, 1))/2, messageY, message, 0xff6060, w-24)
+		if textWidth(message, 1) > messageWidth {
+			// Longer explanations wrap above the controls instead of losing
+			// their recovery instructions to footer truncation.
+			lines := messageLines(message, w-88, 6)
+			drawNotice(c, "", message, max(p.safeY, messageY-len(lines)*10-24), 6)
+		} else {
+			c.Text(24+(messageWidth-textWidth(message, 1))/2, messageY, message, 0xff6060, w-24)
+		}
 	}
 	if s.ExitConfirm {
 		rows := controlRows(w, []controlHint{hint(s.Controls, control.Open, "Exit"), hint(s.Controls, control.Back, "Cancel")})
@@ -115,11 +121,7 @@ func (p *screenPainter) footer(controls [][]controlHint) {
 		center(c, top+6, "Exit?", titleColor, 2)
 		drawControls(c, top+30+max(0, len(rows)-1)*controlRowHeight+controlBottomInset, rows)
 	} else if s.Notice != "" {
-		message := s.Notice
-		scale := 1
-		width := textWidth(message, scale)
-		c.Shade((w-width)/2-12, h/2-8*scale-12, width+24, 16*scale+24, 210)
-		center(c, h/2-4*scale, message, titleColor, scale)
+		drawNotice(c, "", s.Notice, -1, 6)
 	}
 }
 

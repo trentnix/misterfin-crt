@@ -45,19 +45,19 @@ func parseOptions(args []string) (launchOptions, error) {
 		return o, err
 	}
 	if flags.NArg() != 0 || o.hold < 0 {
-		return o, errors.New("unexpected arguments or negative hold duration")
+		return o, errors.New(messageArgumentsInvalid)
 	}
 	if o.wait && o.hold != 0 {
-		return o, errors.New("use either -wait or -hold")
+		return o, errors.New(messageWaitHoldConflict)
 	}
 	if o.browse && (o.wait || o.hold != 0) {
-		return o, errors.New("-browse cannot be combined with -wait or -hold")
+		return o, errors.New(messageBrowseWaitConflict)
 	}
 	if o.terminalPlayer != "" && (!o.browse || o.headless == "" || o.output == "" || o.player != "") {
-		return o, errors.New("-terminal-player requires -browse, -headless, and -output, without -player")
+		return o, errors.New(messageTerminalPlayerArguments)
 	}
 	if o.audioPlayer != "" && (o.headless == "" || !o.browse || o.player != "") {
-		return o, errors.New("-audio-player requires headless browsing without -player")
+		return o, errors.New(messageAudioPlayerArguments)
 	}
 	return o, nil
 }

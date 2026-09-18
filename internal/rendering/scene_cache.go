@@ -17,6 +17,7 @@ type sceneCache struct {
 	setupLogoHeight                int
 	aboutBase                      *ui.Canvas
 	aboutStatusY                   int
+	aboutCompact                   bool
 	videoBackground                *ui.Canvas
 	videoSource                    image.Image
 	background                     *ui.Canvas

@@ -58,7 +58,11 @@ func (s *browserSession) handleShuffle(r shuffleResult) bool {
 			s.shuffle = shuffleQueue{}
 			s.loadSelection()
 		}
-		s.model.Notice = "Could not load shuffle. Select shuffle to retry."
+		if s.controller.running {
+			s.model.Notice = messageShuffleMoreFailed
+		} else {
+			s.model.Notice = messageShuffleStartFailed
+		}
 		return true
 	}
 	// Keep one previous batch. Avoid an immediate repeat at a batch boundary.

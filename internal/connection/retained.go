@@ -60,7 +60,7 @@ func (c *Retained) Connect(ctx context.Context, i Interaction) (Session, error) 
 // failures without exposing server addresses or credentials.
 func (c *Retained) Describe(err error) Presentation {
 	if errors.Is(err, errRemember) {
-		return Presentation{Kind: SetupFailure, Title: "Can't remember connection", Message: "Make sure the sign-in folder is writable, then retry.", Retry: "Retry"}
+		return Presentation{Kind: SetupFailure, Title: titleConnectionNotSaved, Message: messageConnectionNotSaved, Retry: "Retry"}
 	}
 	return c.Connector.Describe(err)
 }

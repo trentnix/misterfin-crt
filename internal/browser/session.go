@@ -24,7 +24,7 @@ type browserSession struct {
 	controlSource    remote.Source // Supplied by the authenticated connection and reusable after update cancellation.
 	remoteRequests   remoteRequests
 	playbackQueue    playbackQueue
-	message          rendering.MessagePresentation
+	message          browserMessage
 	startupNotices   []string // Pending until browsing can show each notice.
 
 	ctx              context.Context

@@ -17,7 +17,7 @@ func preparePlayback(ctx context.Context, c media.Playback, config Config, reque
 		if ctx.Err() != nil {
 			return nil, nil
 		}
-		return nil, errors.New("cannot load playback details")
+		return nil, err
 	}
 	if liveTV {
 		item.Type = "TvChannel"

@@ -14,7 +14,7 @@ var errRecovery = errors.New("remembered Plex server could not be recovered")
 // connection fails. The old identity and HTTPS policy constrain discovery before
 // probing, so another server or a transport downgrade cannot become the choice.
 func (c Connector) recoverDiscovered(ctx context.Context, interaction connection.Interaction, discovery *serverDiscovery, old connection.Server) (connection.Session, error) {
-	interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Finding your Plex server", Message: "The saved address is unavailable.\nChecking for a new address.", BackToServers: true})
+	interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Finding your Plex server", Message: connection.AddressRecoveryMessage, BackToServers: true})
 	retry := *discovery
 	retry.previous = &old
 	servers, presentation, err := c.discoverServers(ctx, interaction, &retry)

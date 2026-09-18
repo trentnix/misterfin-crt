@@ -119,7 +119,7 @@ func (c *PlaybackController) replacementFailed(err error, now time.Time) {
 		c.SetPaused(false)
 	}
 	if err != nil {
-		c.notice = err.Error()
+		c.notice = requestFailure(messagePlaybackChangeFailed, err)
 	}
 	if originalEnded {
 		c.finishVideo()
