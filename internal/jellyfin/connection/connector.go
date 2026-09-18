@@ -10,7 +10,6 @@ import (
 	"mistervision/internal/connection"
 	"mistervision/internal/diagnostics"
 	"mistervision/internal/jellyfin"
-	jellyfinremote "mistervision/internal/jellyfin/remote"
 	"mistervision/internal/serverstate"
 )
 
@@ -55,9 +54,30 @@ func (c *Connector) Connect(ctx context.Context, interaction connection.Interact
 	if err != nil {
 		return connection.Session{}, &connectionError{connectionSession, err}
 	}
-	client, err := c.authenticate(ctx, interaction, config, saved, recovered, id)
+	if interaction.ProfileAction == connection.ProfileForget && config.APIKey == "" {
+		users, err := loadUsers(c.StateDir)
+		if err != nil {
+			return connection.Session{}, &connectionError{connectionSession, err}
+		}
+		if users == nil {
+			return connection.Session{}, &connectionError{connectionSession, errUserState}
+		}
+		if _, found := users.find(saved, saved.UserID); !found {
+			// Retry cleanup after the roster committed but the active-file write failed.
+			if err := jellyfin.SaveSession(c.StateDir, newUserSession(saved)); err != nil {
+				return connection.Session{}, errors.Join(connection.ErrSignedOut, &connectionError{connectionSession, err})
+			}
+			return connection.Session{}, connection.ErrSignedOut
+		}
+		_, err = c.forgetUser(ctx, interaction, saved, &users, saved.UserID)
+		if err == nil {
+			err = connection.ErrCanceled
+		}
+		return connection.Session{}, err
+	}
+	result, err := c.authenticate(ctx, interaction, config, saved, recovered, id)
 	if err != nil && remembered != nil && c.selected == nil && errors.Is(err, jellyfin.ErrServerUnavailable) && ctx.Err() == nil {
-		client, endpoint, err = c.recoverAddress(ctx, interaction, config, *remembered, saved, recovered)
+		result, endpoint, err = c.recoverAddress(ctx, interaction, config, *remembered, saved, recovered)
 	}
 	if err != nil {
 		return connection.Session{}, err
@@ -68,44 +88,8 @@ func (c *Connector) Connect(ctx context.Context, interaction connection.Interact
 		}
 		c.selected = nil
 	}
-	return connection.Session{Endpoint: endpoint, Server: client, Remote: jellyfinremote.New(client), Recovered: recovered}, nil
-}
-
-// authenticate validates a moved endpoint before using credentials from another
-// address. Stable identity metadata also makes interrupted address saves recoverable.
-func (c *Connector) authenticate(ctx context.Context, interaction connection.Interaction, config jellyfin.Config, saved jellyfin.Session, recovered bool, id string) (*jellyfin.Client, error) {
-	if saved.Server != config.Server {
-		if err := jellyfin.VerifyServer(ctx, config.Server, id); err != nil {
-			return nil, &connectionError{connectionAuthentication, err}
-		}
-	}
-	changed := saved.Server != config.Server || saved.ServerID != id
-	saved.Server, saved.ServerID = config.Server, id
-	client := jellyfin.NewClient(config, saved)
-	client.Version, client.Diagnostics = c.Version, c.Diagnostics
-	if recovered {
-		c.Diagnostics.Record("authentication.session-recovered")
-	}
-	err := client.Authenticate(ctx, c.StateDir, func(code string) { interaction.Show(approval(code, recovered)) })
-	if err != nil {
-		return nil, &connectionError{connectionAuthentication, err}
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	// API-key sign-in needs a stable device identity, but the configured key
-	// must stay in configuration rather than being copied into saved sign-in.
-	persistent := client.Session
-	apiKey := config.APIKey != "" && persistent.Token == config.APIKey
-	if apiKey {
-		persistent.Token, persistent.UserID = "", ""
-	}
-	if changed || apiKey {
-		if err := jellyfin.SaveSession(c.StateDir, persistent); err != nil {
-			return nil, &connectionError{connectionSession, err}
-		}
-	}
-	return client, nil
+	result.Endpoint = endpoint
+	return result, nil
 }
 
 // connectionError retains the failed operation without adding sensitive text.

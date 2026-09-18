@@ -24,10 +24,12 @@ var (
 // serverDiscovery translates account resources into public server choices.
 // Per-server grants remain private to this attempt and never enter UI state.
 type serverDiscovery struct {
-	account *Client
-	owner   serverstate.Session
-	profile *connection.Profile
-	avatars connection.ProfileAvatars
+	account       *Client
+	owner         serverstate.Session
+	ownerName     string
+	profile       *connection.Profile
+	avatars       connection.ProfileAvatars
+	switchProfile bool // Another Home viewer is available.
 	// preferred keeps a working remembered address stable while refreshing a viewer grant.
 	preferred *connection.Server
 	lan       connection.Discoverer

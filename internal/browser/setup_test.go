@@ -144,7 +144,7 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 		if s.setup.Code != "123456" || s.connection.generation != attempt {
 			t.Fatal("new-code flow did not replace request")
 		}
-		if s.setup.BackToServers {
+		if s.setup.Back == connection.BackServers {
 			t.Fatal("explicit configuration unexpectedly offers discovery navigation")
 		}
 	}

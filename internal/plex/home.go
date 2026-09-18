@@ -2,8 +2,10 @@ package plex
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -44,7 +46,7 @@ func (c *Client) homeProfiles(ctx context.Context) ([]connection.Profile, connec
 			return nil, nil, errHome
 		}
 		seen[user.ID] = true
-		profiles[i] = connection.Profile{ID: user.ID, Name: (accountIdentity{FriendlyName: user.Title}).name(), Protected: user.Protected == "1" || user.Protected == "true"}
+		profiles[i] = connection.Profile{ID: user.ID, Name: (accountIdentity{FriendlyName: user.Title}).name(), Protected: user.Protected == "1" || user.Protected == "true", AvatarKey: fmt.Sprintf("%x", sha256.Sum256([]byte(user.Thumb)))}
 	}
 	urls := make(map[string]string, len(response.Users))
 	for _, user := range response.Users {
@@ -95,9 +97,20 @@ func (c *Client) switchHome(ctx context.Context, profile connection.Profile, pin
 // The linking account remains available only to this attempt and private state.
 func (d *serverDiscovery) chooseHome(ctx context.Context, i connection.Interaction, user accountIdentity, remembered string) error {
 	d.owner = d.account.Session
+	d.ownerName = user.name()
 	d.profile = nil
 	d.avatars = nil
+	d.switchProfile = false
 	if !user.Home && !user.Protected {
+		if remembered != "" && remembered != strconv.Itoa(user.ID) {
+			accepted, err := i.Ask(ctx, connection.Confirmation{Title: "Profile no longer available", Message: fmt.Sprintf(messageHomeUnavailable, user.name()), Accept: "Use this account"})
+			if err != nil {
+				return err
+			}
+			if !accepted {
+				return connection.ErrCanceled
+			}
+		}
 		return nil
 	}
 	profiles, avatars, err := d.account.homeProfiles(ctx)
@@ -105,14 +118,21 @@ func (d *serverDiscovery) chooseHome(ctx context.Context, i connection.Interacti
 		return err
 	}
 	d.avatars = avatars
+	d.switchProfile = len(profiles) > 1
 	selected := 0
+	found := false
 	for j, p := range profiles {
 		if p.ID == remembered {
 			selected = j
+			found = true
 		}
 	}
-	auto := !i.SelectProfile && (len(profiles) == 1 || (remembered != "" && profiles[selected].ID == remembered && !i.SelectServer && !i.NewAccount))
+	missing := remembered != "" && !found
+	auto := !missing && (len(profiles) == 1 || (i.ProfileAction == connection.ProfileUnchanged && found && !i.SelectServer && !i.NewAccount))
 	prompt := connection.ProfilePrompt{Profiles: profiles, Avatars: avatars, Selected: selected}
+	if missing {
+		prompt.Message = messageProfileUnavailable
+	}
 	if auto && profiles[selected].Protected {
 		prompt.PIN = true
 	}
@@ -129,6 +149,9 @@ func (d *serverDiscovery) chooseHome(ctx context.Context, i connection.Interacti
 		}
 		auto = false
 		selected = -1
+		if choice.Action != connection.ProfileUnchanged && choice.Action != connection.ProfileChoose {
+			return errHome
+		}
 		for j, p := range profiles {
 			if p.ID == choice.ID {
 				selected = j
@@ -152,4 +175,13 @@ func (d *serverDiscovery) chooseHome(ctx context.Context, i connection.Interacti
 		d.account.Session.Token, d.account.Session.UserID = token, profile.ID
 		return nil
 	}
+}
+
+// profileBack returns to a viewer choice or required PIN. It skips a picker
+// that would immediately reconnect its sole unprotected user.
+func (d *serverDiscovery) profileBack() connection.BackDestination {
+	if d.switchProfile || (d.profile != nil && d.profile.Protected) {
+		return connection.BackProfiles
+	}
+	return connection.BackDefault
 }

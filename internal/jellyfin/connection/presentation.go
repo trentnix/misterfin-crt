@@ -36,6 +36,11 @@ func (c *Connector) Describe(err error) connection.Presentation {
 	p := connection.Presentation{Kind: connection.SetupFailure, Retry: "Retry", Path: c.ConfigPath, PathLabel: "Configuration file",
 		Title: titleConnectFailed, Message: messageConnectFailed}
 	switch {
+	case errors.Is(err, connection.ErrSignedOut):
+		p.Title, p.Message, p.Path = connection.SignOutIncompleteTitle, connection.SignOutIncompleteMessage, c.StateDir
+		p.PathLabel = "Sign-in folder"
+	case errors.Is(err, connection.ErrCanceled):
+		p.Title, p.Message, p.Path = connection.SignInCanceledTitle, connection.SignInCanceledMessage, ""
 	case stage == connectionRecovery:
 		p.Title, p.Message = titleRecoveryFailed, messageRecoveryFailed
 		p.Path = ""
@@ -58,7 +63,7 @@ func (c *Connector) Describe(err error) connection.Presentation {
 				p.Title, p.Message = titleConfigUnreadable, messageConfigUnreadable
 			}
 		}
-	case stage == connectionSession || errors.Is(err, jellyfin.ErrSessionSave):
+	case stage == connectionSession:
 		p.Path, p.PathLabel = c.StateDir, "Sign-in folder"
 		p.Title, p.Message = connection.SignInStorageTitle, connection.SignInStorageMessage
 	case errors.Is(err, jellyfin.ErrQuickConnectExpired):

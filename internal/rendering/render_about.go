@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"mistervision/internal/branding"
+	"mistervision/internal/connection"
 	"mistervision/internal/input/control"
 	"mistervision/internal/ui"
 	"mistervision/internal/update"
@@ -51,7 +52,7 @@ func (p *screenPainter) about() {
 		center(p.canvas, baseY-62, truncate("Version "+a.Build.String(), p.width-48, 1), dimColor, 1)
 	}
 	color := uint32(0xc0c0c0)
-	if a.Release.Available && !a.Checking && a.Message == "" {
+	if a.Release.Available && !a.Checking && a.Message == "" && a.AccountMessage == "" {
 		color = titleColor
 	}
 	for i, line := range lines {
@@ -67,11 +68,21 @@ func aboutHints(a AboutPresentation, labels control.Labels, setupHidden, compact
 		profileLabel, releaseLabel, updateLabel = "Profile", "Release", "Updates"
 	}
 	var hints []controlHint
-	if a.SwitchProfile && setupHidden {
+	if a.ProfileAction == connection.ProfileAdd {
+		profileLabel = "Add user"
+	}
+	if a.ProfileAction != connection.ProfileUnchanged && setupHidden {
 		hints = append(hints, hint(labels, control.Up, profileLabel))
 	}
 	if len(a.Connections) > 0 {
 		hints = append(hints, hint(labels, control.Down, "Connections"))
+	}
+	if a.ForgetLabel != "" && setupHidden {
+		label := a.ForgetLabel
+		if compact && label == "Forget user" {
+			label = "Forget"
+		}
+		hints = append(hints, hint(labels, control.Next, label))
 	}
 	if a.Release.Available && !a.Checking {
 		hints = append(hints, hint(labels, control.Open, releaseLabel))

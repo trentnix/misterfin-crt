@@ -23,7 +23,7 @@ func TestSetupFailuresHaveSpecificRecoveryWithoutRawErrors(t *testing.T) {
 		{connectionConfig, &os.PathError{Op: "open", Path: "private-path", Err: os.ErrPermission}, "Can't read configuration"},
 		{connectionConfig, errors.New("private configuration content"), "Check your configuration"},
 		{connectionSession, errors.New("private token"), "Can't save or read sign-in"},
-		{connectionAuthentication, jellyfin.ErrSessionSave, "Can't save or read sign-in"},
+
 		{connectionAuthentication, jellyfin.ErrUsernameNotFound, "Check your username"},
 		{connectionAuthentication, jellyfin.ErrQuickConnectDisabled, "Quick Connect is disabled"},
 		{connectionAuthentication, fmt.Errorf("private secret: %w", jellyfin.ErrQuickConnectExpired), "Code expired"},

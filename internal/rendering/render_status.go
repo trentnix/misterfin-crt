@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"mistervision/internal/branding"
+	"mistervision/internal/connection"
 	"mistervision/internal/input/control"
 	"mistervision/internal/ui"
 )
@@ -27,10 +28,13 @@ func (p *screenPainter) setup() {
 		hints = append(hints, hint(p.scene.Controls, control.Open, action))
 	}
 	back := "Exit"
-	if s.BackToServers || len(p.scene.About.Connections) > 0 {
+	if s.Back != connection.BackDefault || len(p.scene.About.Connections) > 0 {
 		back = "Back"
 	}
 	hints = append(hints, hint(p.scene.Controls, control.About, "About"), hint(p.scene.Controls, control.Back, back))
+	if s.Kind == connection.SetupConfirm {
+		hints = []controlHint{hint(p.scene.Controls, control.Open, s.Retry), hint(p.scene.Controls, control.Back, "Cancel")}
+	}
 	rows := controlRows(p.width, hints)
 	bottom := controlsTop(p.bottom, rows) - 12
 	top := p.safeY + 4

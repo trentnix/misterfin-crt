@@ -18,7 +18,8 @@ type authenticatedConnection struct {
 	selection     *selectionLoader
 	recovered     bool
 	profile       *connection.Profile
-	switchProfile bool
+	profileAction connection.ProfileAction
+	forgetLabel   string
 }
 
 // serverChoice carries a selected server or an explicit rescan request.
@@ -36,13 +37,14 @@ type connectionManager struct {
 	cancel         context.CancelFunc
 	generation     int
 	reauthenticate bool
-	newAccount     bool // Retained while requesting another approval code.
-	selectProfile  bool // Reopen the profile picker after canceling PIN verification.
-	selectServer   bool // Keep discovery active across retries until a server is chosen.
+	newAccount     bool                     // Retained while requesting another approval code.
+	profileAction  connection.ProfileAction // Explicit viewer action for this attempt.
+	selectServer   bool                     // Keep discovery active across retries until a server is chosen.
 	choice         chan serverChoice
 	profileChoice  chan connection.ProfileSelection
+	confirmation   chan bool
+	forgetting     bool   // Local removal leaves the current browser intact until committed.
 	profilePIN     string // Private, transient keypad input. Never copied into a scene.
-	profileFlow    bool
 	profileAvatars map[string]image.Image
 	done           <-chan struct{} // Closes after this attempt and all preceding attempts exit.
 }
@@ -58,6 +60,8 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 	m.cancel()
 	m.choice = nil
 	m.profileChoice = nil
+	m.confirmation = nil
+	m.forgetting = false
 	m.profilePIN = ""
 	m.profileAvatars = make(map[string]image.Image)
 	m.generation++
@@ -65,7 +69,7 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 	work, cancel := context.WithCancel(ctx)
 	m.cancel = cancel
 	config, width, height, selectServer, reauthenticate := m.config, m.width, m.height, m.selectServer, m.reauthenticate
-	newAccount, selectProfile := m.newAccount, m.selectProfile
+	newAccount, profileAction := m.newAccount, m.profileAction
 	previous := m.done
 	done := make(chan struct{})
 	m.done = done
@@ -86,7 +90,7 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 		} else {
 			session, err = config.Connector.Connect(work, connection.Interaction{
 				SelectServer:   selectServer,
-				SelectProfile:  selectProfile,
+				ProfileAction:  profileAction,
 				NewAccount:     newAccount,
 				Reauthenticate: reauthenticate,
 				ChooseProfile: func(ctx context.Context, prompt connection.ProfilePrompt) (connection.ProfileSelection, error) {
@@ -99,6 +103,9 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 					case <-ctx.Done():
 						return connection.ProfileSelection{}, ctx.Err()
 					}
+				},
+				Confirm: func(ctx context.Context, prompt connection.Confirmation) (bool, error) {
+					return askConfirmation(ctx, generation, prompt, send)
 				},
 				Progress: func(p connection.Presentation) {
 					send(work, authCodeResult{generation: generation, presentation: p})
@@ -123,9 +130,39 @@ func (m *connectionManager) connect(ctx context.Context, send func(context.Conte
 			caches := newSelectionCaches(config, session.Server.Identity())
 			selection := newSelectionLoader(session.Server, width, height, caches)
 			selection.customBackground = config.Background != nil
-			connected = &authenticatedConnection{client: session.Server, remote: session.Remote, recovered: session.Recovered, selection: selection, profile: session.Profile, switchProfile: session.SwitchProfile}
+			connected = &authenticatedConnection{client: session.Server, remote: session.Remote, recovered: session.Recovered, selection: selection, profile: session.Profile, profileAction: session.ProfileAction, forgetLabel: session.ForgetLabel}
 		}
 		send(work, authResult{generation: generation, connection: connected, err: err})
+	}()
+}
+
+// forget prepares local removal without replacing the authenticated browser or
+// its request generation. It joins earlier work before touching credentials,
+// and close waits for removal just as it waits for a connection attempt.
+func (m *connectionManager) forget(ctx context.Context, send func(context.Context, workerResult)) {
+	m.forgetting = true
+	m.cancel()
+	ctx, cancel := context.WithCancel(ctx)
+	m.cancel = cancel
+	previous := m.done
+	done := make(chan struct{})
+	m.done = done
+	generation, connector := m.generation, m.config.Connector
+	go func() {
+		defer close(done)
+		if previous != nil {
+			<-previous
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		_, err := connector.Connect(ctx, connection.Interaction{
+			ProfileAction: connection.ProfileForget,
+			Confirm: func(ctx context.Context, prompt connection.Confirmation) (bool, error) {
+				return askConfirmation(ctx, generation, prompt, send)
+			},
+		})
+		send(ctx, forgetResult{generation: generation, err: err})
 	}()
 }
 

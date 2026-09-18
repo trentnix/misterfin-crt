@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 
+	"mistervision/internal/connection"
 	"mistervision/internal/diagnostics"
 	"mistervision/internal/media"
 	"mistervision/internal/rendering"
@@ -27,6 +28,8 @@ func (s *browserSession) send(work context.Context, r workerResult) {
 // authenticate resets browser state and delegates connection work. The
 // connection manager rejects results from superseded attempts.
 func (s *browserSession) authenticate() {
+	s.about.AccountMessage = ""
+	s.pendingAuthError = nil
 	s.stopRemote()
 	if s.home.cancel != nil {
 		s.home.cancel()
@@ -39,6 +42,9 @@ func (s *browserSession) authenticate() {
 	s.selection.err = ""
 	s.selection.key = ""
 	s.setup = s.setupPresentation(nil)
+	if s.connection.profileAction == connection.ProfileForget {
+		s.setup = connection.Presentation{Kind: connection.SetupConnecting, Title: titleSignOutCleanup, Message: messageSignOutCleanup}
+	}
 	s.connection.reauthenticate = s.client != nil
 	s.connection.connect(s.ctx, s.send)
 }
@@ -74,9 +80,11 @@ func (s *browserSession) handleAuthCode(r authCodeResult) bool {
 	if !s.connection.current(r.generation) {
 		return false
 	}
-	// The connector can restore discovery navigation for a remembered server.
-	// Approval-code updates retain that action until the attempt is replaced.
-	r.presentation.BackToServers = r.presentation.BackToServers || s.setup.BackToServers
+	// Progress retains the preceding screen. A new server picker starts its
+	// own navigation route, even when it has no preceding setup screen.
+	if r.presentation.Back == connection.BackDefault && r.presentation.Kind != connection.SetupServers {
+		r.presentation.Back = s.setup.Back
+	}
 	s.setup = r.presentation
 	return true
 }
@@ -85,22 +93,57 @@ func (s *browserSession) handleAuth(r authResult) bool {
 	if !s.connection.current(r.generation) {
 		return false
 	}
+	if errors.Is(r.err, connection.ErrSignedOut) {
+		s.stopRemote()
+		// Discard background results from the removed account, including errors
+		// that could otherwise replace cleanup recovery instructions.
+		s.pendingAuthError = nil
+		s.requests.cancel()
+		s.model.Generation++
+		if s.home.cancel != nil {
+			s.home.cancel()
+		}
+		s.home.generation++
+		s.selection.cancel()
+		s.selection.generation++
+		s.client, s.controlSource = nil, nil
+		s.about.Profile, s.about.ForgetLabel = nil, ""
+		s.about.ProfileAction = connection.ProfileUnchanged
+		s.config.ReturnConnectionID = ""
+		s.about.CanReturnToConnection = false
+		if s.config.Navigation != nil {
+			*s.config.Navigation = Navigation{}
+		}
+		if r.err == connection.ErrSignedOut {
+			s.connectionChange = &connection.Change{ID: s.config.ConnectionID}
+			s.model.Quit = true
+		} else {
+			// Removal has committed. Retry must finish cleanup before sign-in.
+			s.connection.profileAction = connection.ProfileForget
+			s.setup = s.config.Connector.Describe(r.err)
+		}
+		return true
+	}
+	if errors.Is(r.err, connection.ErrCanceled) && s.config.ReturnConnectionID != "" {
+		s.changeConnection(s.config.ReturnConnectionID)
+		return true
+	}
 	if r.err != nil {
 		s.setup = s.setupPresentation(r.err)
 	} else {
 		s.connection.newAccount = false
-		s.connection.profileFlow = false
-		s.connection.selectProfile = false
+		s.connection.profileAction = connection.ProfileUnchanged
 		s.connection.profilePIN = ""
 		s.about.Profile = r.connection.profile
 		if s.about.Profile != nil {
 			profile := *s.about.Profile
-			if avatar := s.connection.profileAvatars[profile.ID]; avatar != nil {
+			if avatar := s.connection.profileAvatars[profileAvatarKey(profile.ID, profile.AvatarKey)]; avatar != nil {
 				profile.Avatar = avatar
 			}
 			s.about.Profile = &profile
 		}
-		s.about.SwitchProfile = r.connection.switchProfile
+		s.about.ProfileAction = r.connection.profileAction
+		s.about.ForgetLabel = r.connection.forgetLabel
 		s.client = r.connection.client
 		s.controlSource = r.connection.remote
 		s.refreshConnections()
@@ -147,7 +190,7 @@ func (s *browserSession) handlePage(r pageResult) bool {
 	if errors.Is(r.err, media.ErrUnauthorized) {
 		s.selection.cancel()
 		s.selection.generation++
-		s.setup = s.setupPresentation(r.err)
+		s.requireSignIn(r.err)
 	} else {
 		s.loadSelection()
 		s.load(s.model.Prefetch())

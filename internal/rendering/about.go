@@ -14,9 +14,13 @@ import (
 // AboutPresentation is a value snapshot of the About page and release check.
 // Notes is immutable after publication. Rendering performs no installation I/O.
 type AboutPresentation struct {
+	Profile       *connection.Profile
+	ProfileAction connection.ProfileAction
+	ForgetLabel   string
+	// AccountMessage keeps account-action failures separate from release checks.
+	// Explicit navigation or an account retry clears it.
+	AccountMessage string
 	// Connections is an immutable menu snapshot supplied by application assembly.
-	Profile            *connection.Profile
-	SwitchProfile      bool
 	Connections        []connection.Choice
 	ConnectionsVisible bool
 	ConnectionSelected int
@@ -29,7 +33,7 @@ type AboutPresentation struct {
 	Build                           release.Build
 	Checking, Checked               bool
 	Release                         release.Status
-	Message                         string
+	Message                         string // Release-check and installation feedback.
 	NotesVisible                    bool
 	Notes                           []string
 	Scroll                          int
@@ -41,7 +45,8 @@ type AboutPresentation struct {
 	Progress   update.Progress
 }
 
-// Status returns safe user-facing release or installation state.
+// Status returns safe account, release, or installation feedback. Account errors
+// take priority over background release checks, but never hide installation work.
 func (a AboutPresentation) Status() string {
 	switch {
 	case a.Installed && a.Restarting:
@@ -60,6 +65,8 @@ func (a AboutPresentation) Status() string {
 			}
 			return "Downloading update..."
 		}
+	case a.AccountMessage != "":
+		return a.AccountMessage
 	case a.Checking:
 		return "Checking for updates..."
 	case a.Message != "":

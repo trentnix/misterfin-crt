@@ -27,6 +27,12 @@ func (p *screenPainter) profiles() {
 	if !s.PINChecking {
 		hints = append(hints, hint(p.scene.Controls, control.Open, "Select"))
 	}
+	if s.Kind == SetupProfiles && s.AddUser {
+		hints = append(hints, hint(p.scene.Controls, control.Select, "Add user"))
+	}
+	if s.Kind == SetupProfiles && s.Forget {
+		hints = append(hints, hint(p.scene.Controls, control.Down, "Forget user"))
+	}
 	hints = append(hints, hint(p.scene.Controls, control.Back, "Back"))
 	rows := controlRows(p.width, hints)
 	bottom := controlsTop(p.bottom, rows) - 12

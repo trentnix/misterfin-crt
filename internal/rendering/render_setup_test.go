@@ -23,7 +23,7 @@ func TestSetupRenderingAndConfiguredControls(t *testing.T) {
 			for _, labels := range []control.Labels{control.KeyboardLabels(), {"open": "Cross", "back": "Circle"}, {"back": "Back"}} {
 				setup := SetupPresentation{Kind: kind, Title: "Example setup", Message: "Follow the server instructions.", Retry: "Retry", PathLabel: "Configuration file", Path: "/media/fat/mistervision/interlaced-test/jellyfin.conf"}
 				if kind == SetupApproval {
-					setup.BackToServers = true
+					setup.Back = connection.BackServers
 					setup.Code = "123456"
 					setup.Path = ""
 				}
@@ -42,7 +42,7 @@ func TestSetupRenderingAndConfiguredControls(t *testing.T) {
 					hints = append(hints, hint(labels, "open", action))
 				}
 				back := "Exit"
-				if setup.BackToServers {
+				if setup.Back == connection.BackServers {
 					back = "Back"
 				}
 				hints = append(hints, hint(labels, control.About, "About"), hint(labels, "back", back))
@@ -230,9 +230,9 @@ func TestAccountPickerLayout(t *testing.T) {
 
 func TestProfilePickerAndPINLayout(t *testing.T) {
 	for _, height := range []int{240, 288} {
-		for _, state := range []SetupPresentation{{Kind: SetupProfiles}, {Kind: SetupPIN}, {Kind: SetupPIN, PINChecking: true}} {
+		for _, state := range []SetupPresentation{{Kind: SetupProfiles}, {Kind: SetupProfiles, AddUser: true, Forget: true}, {Kind: SetupPIN}, {Kind: SetupPIN, PINChecking: true}} {
 			kind := state.Kind
-			scene := Scene{Setup: SetupPresentation{Kind: kind, PINChecking: state.PINChecking, Profiles: []connection.Profile{{ID: "one", Name: "Parent", Protected: true}, {ID: "two", Name: "Child"}, {ID: "three", Name: "Guest"}}, Selected: 0, PINLength: 2, PINKey: 4}}
+			scene := Scene{Setup: SetupPresentation{Kind: kind, AddUser: state.AddUser, Forget: state.Forget, PINChecking: state.PINChecking, Profiles: []connection.Profile{{ID: "one", Name: "Parent", Protected: true}, {ID: "two", Name: "Child"}, {ID: "three", Name: "Guest"}}, Selected: 0, PINLength: 2, PINKey: 4}}
 			if kind == SetupPIN {
 				scene.Setup.Message = "Incorrect PIN. Try again."
 				if state.PINChecking {
@@ -246,7 +246,14 @@ func TestProfilePickerAndPINLayout(t *testing.T) {
 			if kind == SetupPIN {
 				hints = []controlHint{pairedHint(scene.Controls, control.Up, control.Down, "Move"), pairedHint(scene.Controls, control.Previous, control.Next, "Move")}
 			}
-			hints = append(hints, hint(scene.Controls, control.Open, "Select"), hint(scene.Controls, control.Back, "Back"))
+			hints = append(hints, hint(scene.Controls, control.Open, "Select"))
+			if state.AddUser {
+				hints = append(hints, hint(scene.Controls, control.Select, "Add user"))
+			}
+			if state.Forget {
+				hints = append(hints, hint(scene.Controls, control.Down, "Forget user"))
+			}
+			hints = append(hints, hint(scene.Controls, control.Back, "Back"))
 			if state.PINChecking {
 				hints = []controlHint{hint(scene.Controls, control.Back, "Back")}
 			}
@@ -260,7 +267,7 @@ func TestProfilePickerAndPINLayout(t *testing.T) {
 				t.Fatal("profile content overlaps input hints")
 			}
 			if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
-				writeSetupPreview(t, dir, fmt.Sprintf("profiles-%d-%d-checking-%t.png", kind, height, state.PINChecking), c)
+				writeSetupPreview(t, dir, fmt.Sprintf("profiles-%d-%d-checking-%t-add-%t.png", kind, height, state.PINChecking, state.AddUser), c)
 			}
 		}
 	}
@@ -268,7 +275,7 @@ func TestProfilePickerAndPINLayout(t *testing.T) {
 
 func TestAboutWithActiveProfileAndUpdate(t *testing.T) {
 	for _, height := range []int{240, 288} {
-		scene := Scene{About: AboutPresentation{Visible: true, Profile: &connection.Profile{ID: "viewer", Name: "Test Viewer"}, SwitchProfile: true, Connections: []connection.Choice{{Name: "Plex"}}}}
+		scene := Scene{About: AboutPresentation{Visible: true, Profile: &connection.Profile{ID: "viewer", Name: "Test Viewer"}, ProfileAction: connection.ProfileChoose, Connections: []connection.Choice{{Name: "Plex"}}}}
 		scene.About.Release.Available = true
 		scene.About.Release.Latest = "v1.2.0"
 		c := ui.New(640, height)
@@ -323,6 +330,32 @@ func TestProfilePickerScrollsBeyondThreeCards(t *testing.T) {
 					writeSetupPreview(t, dir, fmt.Sprintf("profiles-scroll-%d-%d.png", count, height), c)
 				}
 			})
+		}
+	}
+}
+
+func TestAccountConfirmationLayout(t *testing.T) {
+	for _, width := range []int{320, 640} {
+		for _, kind := range []string{"Forget user", "Sign out", "Use this account"} {
+			scene := Scene{Controls: control.KeyboardLabels(), Setup: SetupPresentation{Kind: SetupConfirm, Title: kind + "?", Message: "Remove Test Viewer's saved sign-in from this device?\nTheir server account and media will not be deleted.", Retry: kind}}
+			c := ui.New(width, 240)
+			pixels := renderScene(c, nil, scene, Animation{})
+			hints := []controlHint{hint(scene.Controls, control.Open, kind), hint(scene.Controls, control.Back, "Cancel")}
+			rows := controlRows(width, hints)
+			bottom := 240 - 8 - safeY(width, 240)
+			expected := ui.New(width, 240)
+			expected.Rect(0, 0, width, 240, 0x0b0d13)
+			drawControls(expected, bottom, rows)
+			start := controlsTop(bottom, rows) * width * 4
+			if !bytes.Equal(pixels[start:], expected.Pixels[start:]) {
+				t.Fatal("confirmation overlaps its controls")
+			}
+			if !screenContainsText(c, kind+"?") && !screenContainsScaledText(c, kind+"?", 2) {
+				t.Fatal("confirmation title missing")
+			}
+			if dir := os.Getenv("SETUP_PREVIEW_DIR"); dir != "" {
+				writeSetupPreview(t, dir, fmt.Sprintf("confirmation-%d-%s.png", width, strings.ReplaceAll(kind, " ", "-")), c)
+			}
 		}
 	}
 }

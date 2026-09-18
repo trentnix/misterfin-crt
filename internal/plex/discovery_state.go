@@ -1,6 +1,7 @@
 package plex
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"io"
@@ -20,6 +21,9 @@ type discoveryState struct {
 	Credentials *serverstate.Session `json:"credentials,omitempty"`
 	HomeChecked bool                 `json:"home_checked,omitempty"`
 	Profile     *connection.Profile  `json:"profile,omitempty"`
+	AccountName string               `json:"account_name,omitempty"`
+	// SignedOut blocks all legacy credential fallbacks after explicit removal.
+	SignedOut bool `json:"signed_out,omitempty"`
 }
 
 // loadDiscoveryState accepts the original metadata-only server.json as well as
@@ -48,6 +52,12 @@ func (s discoveryState) validate() error {
 	if err := s.Server.Validate(); err != nil {
 		return ErrSessionSave
 	}
+	if s.SignedOut {
+		if s.Account != nil || s.Credentials != nil || s.Profile != nil || s.HomeChecked || s.AccountName != "" {
+			return ErrSessionSave
+		}
+		return nil
+	}
 	if s.Account == nil && s.Credentials == nil {
 		// Only legacy metadata-only records may omit credentials.
 		if s.Profile != nil || s.HomeChecked {
@@ -75,7 +85,7 @@ func (s discoveryState) validate() error {
 // saveDiscoveryState atomically publishes a complete replacement. A failed
 // write leaves both the old account and server available together.
 func saveDiscoveryState(dir string, s discoveryState) error {
-	if err := s.validate(); err != nil || s.Account == nil {
+	if err := s.validate(); err != nil || (s.Account == nil && !s.SignedOut) {
 		return ErrSessionSave
 	}
 	data, err := json.Marshal(s)
@@ -94,6 +104,9 @@ func loadDiscoveryAccount(dir, origin string) (serverstate.Session, bool, error)
 	state, err := loadDiscoveryState(dir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return serverstate.Session{}, false, ErrSessionSave
+	}
+	if err == nil && state.SignedOut {
+		return serverstate.Session{Server: origin, DeviceID: rand.Text()}, false, nil
 	}
 	if err == nil && state.Account != nil {
 		if state.Account.Server != origin {

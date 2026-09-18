@@ -54,7 +54,7 @@ type remoteCommandResult struct {
 }
 
 func (r remoteCommandResult) apply(s *browserSession) bool {
-	if r.generation != s.remote.generation || s.setup.Kind != rendering.SetupHidden {
+	if r.generation != s.remote.generation || s.setup.Kind != rendering.SetupHidden || s.connection.forgetting {
 		return false
 	}
 	return s.handleRemote(r.command)

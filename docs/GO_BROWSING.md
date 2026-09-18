@@ -6,13 +6,13 @@ Use the [MiSTer launcher](GO_BUILD.md#install-on-mister) or [development harness
 
 Connection settings normally come from `settings.json`. Invalid JSON connection settings stop startup with a field-level error. Restart after correcting them.
 
-When no `server` section exists, the client reads legacy `jellyfin.conf` if present. A missing legacy file starts Jellyfin discovery. An invalid legacy file opens setup help instead of selecting a different server. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back returns to discovery when sign-in followed a discovery selection. Otherwise, Back opens the connection chooser when connections are available, or exits setup. Start/F1 opens About during discovery, connection attempts, approval, and errors. Choosing another connection cancels the unfinished attempt. Canceling from the connection chooser restores the last connected browser, or exits if none exists.
+When no `server` section exists, the client reads legacy `jellyfin.conf` if present. A missing legacy file starts Jellyfin discovery. An invalid legacy file opens setup help instead of selecting a different server. Connection, disabled Quick Connect, unknown username, and sign-in storage failures have separate recovery instructions. Open/Enter retries after you correct the file. R is a retry alias. Back returns to discovery when sign-in followed a discovery selection. Otherwise, Back opens the connection chooser when connections are available, or exits setup. Start/F1 opens About during discovery, connection attempts, approval, and errors. Choosing another connection cancels the unfinished attempt. Canceling from the connection chooser restores About on the last connected browser, or exits if none exists.
 
 Jellyfin Quick Connect displays a public approval code. Enter it in an already signed-in Jellyfin client. The waiting indicator animates until approval or the five-minute timeout. New code cancels the previous attempt. The screen does not expose credentials or Quick Connect secrets.
 
 Plex uses an account-link code at `plex.tv/link`. The linked account provides access to its servers. For Plex Home, the selected viewer determines the available libraries and playback history. Choose Plex under About → Connections to link an account and select a server without editing configuration. [Plex support](GO_PLEX.md) describes sign-in and provider-specific limits.
 
-The standard MiSTer state directory is `/media/fat/mistervision/state`. Desktop defaults to `~/.config/mistervision`, or `mistervision` under `XDG_CONFIG_HOME` when set. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Jellyfin stores identity and sign-in in `session.json`. Plex keeps its linking account, viewing profile, and server grant together in `plex/server.json`. [Discovered Plex connections](GO_PLEX.md#server-discovery) use `discovery/plex/server.json`. Older Plex sign-in files remain readable during migration.
+The standard MiSTer state directory is `/media/fat/mistervision/state`. Desktop defaults to `~/.config/mistervision`, or `mistervision` under `XDG_CONFIG_HOME` when set. The executable's `-state-dir` or harness's `--state-dir` overrides that directory. Jellyfin stores the active sign-in in `session.json` and separately authorized users in `jellyfin-users.json`. Plex keeps its linking account, viewing profile, and server grant together in `plex/server.json`. [Discovered Plex connections](GO_PLEX.md#server-discovery) use `discovery/plex/server.json`. Older Plex sign-in files remain readable during migration.
 
 Saved sessions are bound to the server URL. C `token.conf` and `device.conf` files are not imported.
 
@@ -25,6 +25,24 @@ When no server is configured, the client first checks its remembered Jellyfin se
 After sign-in succeeds, the selection is stored in `jellyfin-server.json` under the state directory. Until then, the selected server stays in memory for new-code retries. Canceling setup keeps the previous server and sign-in. Later launches connect to the successfully authenticated server and reuse valid sign-in. Discovery does not create or edit configuration files. An explicit JSON server or an existing legacy configuration always takes precedence. Invalid explicit configuration never triggers discovery. An unreadable or damaged saved selection shows recovery instructions and is preserved.
 
 If no servers appear, make sure Jellyfin discovery is enabled and UDP port 7359 can reach the server. Containers must expose that UDP port. Broadcast discovery normally stays on the local subnet. Retry after fixing the network, or set `server.url` in `settings.json` using the [connection example](GO_CONFIGURATION.md#server-connection). If connecting to a remembered address fails, MiSTerVision scans once for the same server ID and checks its public identity without sending credentials. A matching new address opens **Server address changed**. Select it to reconnect with your saved sign-in, or press Back to cancel. The new address is remembered after sign-in succeeds. Failed recovery preserves your sign-in and offers Retry. Explicitly configured addresses never change automatically, and HTTPS connections cannot recover to HTTP. Use About → Connections to choose a different server.
+
+## Jellyfin users
+
+For Quick Connect connections with multiple saved users, open About and press Up for **Switch profile**. With only the current user saved for that server, About offers **Add user** directly and skips the picker.
+
+The picker shows users previously authorized on this device for the current server. Left/Right selects a user. Open switches to that user’s libraries and viewing history. Avatars load independently, and missing images use the name’s initial. More than three users scroll through the same three-card layout as Plex.
+
+Select **Add user** with the displayed control (Select on the default controller, Tab on the keyboard). Approve the Quick Connect code in a Jellyfin client signed in as the intended user. No password or PIN is entered on the CRT. Back from the code returns to the picker, or directly to About if Add user started there. Back from the picker restores About with the previous user still active. A successful switch opens the selected user’s browser.
+
+Later launches reopen the last selected user automatically.
+
+Each saved user has a separate token and device identity. Only the active user receives remote commands. Artwork, playback preferences, and viewing history stay scoped to the user. Selecting an expired sign-in requires Quick Connect again and identifies the user who needs approval. If approval returns a different user, a confirmation is required before switching. Temporary failures retain saved credentials. Names and avatar references refresh after successful authentication.
+
+To remove the current user's saved sign-in, open About and use the displayed **Forget** control. In the user picker, Down offers **Forget user** for the selected person. Both require confirmation. Forgetting the active user returns to the remaining saved users, or Quick Connect if none remain. Cancel leaves the sign-in available and preserves the highlighted user in the picker. Removal applies only to this connection on this device and does not delete the Jellyfin account or media.
+
+Anyone using this device can select its saved users without another password prompt. To revoke access, remove the corresponding device session in Jellyfin.
+
+API-key connections keep their configured username and do not offer user switching. Named server connections in `connections.profiles` are separate from these saved users. Neither adding nor switching users changes `settings.json`. See [saved sign-in recovery](GO_CONFIGURATION.md#saved-sign-in-recovery).
 
 ## Navigation
 
@@ -81,7 +99,7 @@ Photos open full screen with preserved proportions. Left/Right moves through pho
 
 Start or F1 opens and closes About while browsing. Back also closes it. About is unavailable during media playback and loading a media item. It remains available during setup. Press Down for Connections, then choose an existing connection, Jellyfin discovery, or Plex setup. See [multiple connections](GO_CONFIGURATION.md#multiple-connections).
 
-For Plex Home, Up opens **Switch profile**. The active viewer’s avatar and name appear on About and the carousel. See [profile and PIN behavior](GO_PLEX.md#plex-home-profiles). About also shows the logo, installed version, Trent Nix’s credit, the original MiSTerFin credit to Pudding Studio, and the [license](../LICENSE).
+For Jellyfin Quick Connect users and Plex Home, Up opens **Switch profile** when another viewer is available. With only one saved Jellyfin user, Up opens **Add user**. Plex omits the action when only one profile exists. Back from the picker returns to About. The active viewer’s avatar and name appear on About and the carousel. See [profile and PIN behavior](GO_PLEX.md#plex-home-profiles). About also shows the logo, installed version, Trent Nix’s credit, the original MiSTerFin credit to Pudding Studio, and the [license](../LICENSE).
 
 The client checks this repository's latest public stable release once per launch. Select/Tab or R checks again after the preceding request finishes. Stable `vMAJOR.MINOR.PATCH` versions are compared numerically. Development builds can offer a public release without claiming it is newer than the checkout. Builds use the version described in the [build guide](GO_BUILD.md#go-client).
 

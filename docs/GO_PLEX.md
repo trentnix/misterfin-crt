@@ -20,13 +20,15 @@ Account linking, refreshing the server list, and address recovery require intern
 
 On **Choose a Plex server**, select **Sign in with another account** to get a new code. Open plex.tv/link with the account you want to use. Back cancels linking and returns to the saved account’s server picker. The replacement account is saved only after its selected server connects successfully. Scan again refreshes the server list without discarding the pending sign-in. Accounts with no reachable servers can still choose another sign-in.
 
+To remove the linked account and its saved access tokens from this connection, open About and use **Sign out**. Confirmation is required. Settings, public server information, and Plex Home membership stay intact. Connecting again requires account linking. If an expired sign-in needs renewal, the code screen identifies the account. Approval from a different account requires confirmation unless you explicitly chose **Sign in with another account**.
+
 Discovery saves the account credentials, selected server, and server credentials together in the private `state/discovery/plex/server.json` file. Older separate account and server credential files remain readable. Tokens never appear in the picker, logs, or configuration. Configured connections keep their own state directories and fixed server addresses.
 
 ## Plex Home profiles
 
 After linking a Plex Home account, **Who’s watching?** shows profile names and avatars. Left/right selects a profile. The selected profile appears larger. Profiles appear immediately after Plex returns the member list. Avatars load in the background. A missing or unsupported avatar shows the profile’s initial.
 
-Ordinary startup skips the picker when only one profile is available. A protected profile still requires its PIN.
+When only one profile is available, startup skips the picker and About omits Switch profile. A protected profile still requires its PIN.
 
 With more than three profiles, Left and Right scroll through three visible cards. A position counter shows the selected profile and total. Navigation stops at either end.
 
@@ -38,7 +40,9 @@ An incorrect PIN shows “Incorrect PIN. Try again.” until you select the firs
 
 The last successful profile is remembered. Unprotected profiles reconnect automatically. Protected profiles require a PIN again after restarting the application. Plex Home startup requires internet access to check current permissions. An unavailable account service does not fall back to the linking account’s access.
 
-Open About and use **Switch profile** to change viewers. Back cancels the switch and restores the current connection. The carousel and About show the active profile’s avatar beside its name. A missing avatar uses a silhouette there and on the PIN screen. The profile picker uses an initial instead. Profiles receive their own server grants, library access, Continue Watching, artwork cache, and playback choices.
+If the remembered profile has been removed, the picker explains the change and requires a selection, even when only one profile remains. If Plex Home is no longer available, returning to the linking account requires confirmation. Profile names and avatar references refresh when Plex Home access is checked.
+
+Open About and use **Switch profile** to change viewers. Back cancels the switch and returns to About on the current connection. The carousel and About show the active profile’s avatar beside its name. A missing avatar uses a silhouette there and on the PIN screen. The profile picker uses an initial instead. Profiles receive their own server grants, library access, Continue Watching, artwork cache, and playback choices.
 
 A successful switch keeps the current server when the profile can access it. Otherwise, the server picker offers that profile’s available servers. Back from that picker returns to the profiles.
 
@@ -71,7 +75,7 @@ On first use, open `https://plex.tv/link` in a browser signed in to the account 
 
 The server URL can use HTTP or HTTPS and a reverse-proxy base path. TLS certificates are verified unless `server.insecure_tls` is true. That override never applies to Plex account linking. Credentials, queries, and fragments are not allowed in the URL. Do not put a Plex token in settings. Restart after changing the server section.
 
-Plex saves the linking account, selected profile, and media-server grant together in `plex/server.json` beneath the state directory. The older `plex/session.json` sign-in is read during migration. Jellyfin uses `session.json` in the state directory. Artwork and playback choices use separate provider identities, even if item IDs overlap. Switching to Jellyfin uses the same fields with `provider: "jellyfin"` and its URL. Removing `server` permits legacy `jellyfin.conf` fallback. Unknown providers stop startup instead of silently selecting another server.
+Plex saves the linking account, selected profile, and media-server grant together in `plex/server.json` beneath the state directory. The older `plex/session.json` sign-in is read during migration. Jellyfin uses `session.json` for its active user and `jellyfin-users.json` for saved Quick Connect users. Artwork and playback choices use separate provider identities, even if item IDs overlap. Switching to Jellyfin uses the same fields with `provider: "jellyfin"` and its URL. Removing `server` permits legacy `jellyfin.conf` fallback. Unknown providers stop startup instead of silently selecting another server.
 
 ## Playback and limits
 

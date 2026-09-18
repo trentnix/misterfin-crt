@@ -13,6 +13,7 @@ const (
 	SetupServers    = connection.SetupServers
 	SetupProfiles   = connection.SetupProfiles
 	SetupPIN        = connection.SetupPIN
+	SetupConfirm    = connection.SetupConfirm
 )
 
 // SetupPresentation is safe, resolved content from the connection flow.

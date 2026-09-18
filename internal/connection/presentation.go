@@ -13,6 +13,18 @@ const (
 	SetupServers                     // The user chooses from discovered servers.
 	SetupProfiles                    // The user chooses a viewing identity.
 	SetupPIN                         // The user enters a private profile PIN.
+	SetupConfirm                     // An account decision needs explicit approval.
+)
+
+// BackDestination identifies the preceding setup screen. The browser preserves
+// it across progress and failure messages until navigation chooses a new screen.
+type BackDestination uint8
+
+const (
+	BackDefault    BackDestination = iota // Open the connection chooser, or exit if none exists.
+	BackServers                           // Return to server selection.
+	BackProfiles                          // Return to the viewer picker.
+	BackConnection                        // Restore the previously connected browser.
 )
 
 // Presentation is a copied setup snapshot. Text and Path must be safe to show.
@@ -30,15 +42,15 @@ type Presentation struct {
 	SignIn string
 	// Profiles contains public viewer information. PINLength exposes only masking.
 	Profiles          []Profile
+	AddUser           bool // The profile picker can start another sign-in.
+	Forget            bool // The selected saved user can be removed from this device.
 	PINLength, PINKey int
 	PINChecking       bool // Verification is pending. Only cancellation accepts input.
-	BackToProfiles    bool
+	// Back preserves the preceding screen. Zero inherits the current destination
+	// on progress updates. A new server picker establishes its own destination.
+	Back BackDestination
 	// Recovered records damaged sign-in storage that was backed up.
 	Recovered bool
-	// BackToServers offers discovery navigation during sign-in. The connector
-	// enables it for remembered choices. The browser retains it for the attempt.
-	// Otherwise, the browser offers its connection chooser or exits setup.
-	BackToServers bool
 }
 
 // RetryLabel returns the connector's label for the open/retry action.

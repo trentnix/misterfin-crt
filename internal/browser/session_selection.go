@@ -67,8 +67,8 @@ func (s *browserSession) handleSelection(r selectionResult) bool {
 		return false
 	}
 	if errors.Is(r.update.err, media.ErrUnauthorized) {
-		s.setup = s.setupPresentation(r.update.err)
-		return false
+		s.requireSignIn(r.update.err)
+		return true
 	}
 	if r.update.err != nil && r.update.kind == selectionArtwork {
 		// Covers and backdrops are optional. A carousel can request the same

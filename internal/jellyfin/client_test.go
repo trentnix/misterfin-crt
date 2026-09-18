@@ -111,7 +111,7 @@ func TestTemporaryFailurePreservesSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := NewClient(Config{Server: s.URL}, session)
-	if err := c.Authenticate(context.Background(), dir, func(string) { t.Error("started replacement sign-in") }); err == nil {
+	if _, err := c.Authenticate(context.Background(), func(string) { t.Error("started replacement sign-in") }); err == nil {
 		t.Fatal("accepted 503")
 	}
 	got, _, err := LoadSession(dir, s.URL)
@@ -124,7 +124,7 @@ func TestQuickConnectReplacesRejectedSession(t *testing.T) {
 	seenCode := ""
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/UserViews":
+		case "/Users/Me":
 			w.WriteHeader(401)
 		case "/QuickConnect/Enabled":
 			fmt.Fprint(w, `true`)
@@ -143,25 +143,23 @@ func TestQuickConnectReplacesRejectedSession(t *testing.T) {
 			if json.NewDecoder(r.Body).Decode(&body) != nil || body["Secret"] != "s&?" {
 				t.Error("bad authentication body")
 			}
-			fmt.Fprint(w, `{"AccessToken":"new-token","User":{"Id":"new-user"}}`)
+			fmt.Fprint(w, `{"AccessToken":"new-token","User":{"Id":"new-user","Name":"New viewer"}}`)
 		default:
 			t.Errorf("unexpected request %s", r.URL.Path)
 			w.WriteHeader(404)
 		}
 	}))
 	defer s.Close()
-	dir := t.TempDir()
 	c := NewClient(Config{Server: s.URL}, Session{Server: s.URL, DeviceID: "device", Token: "old", UserID: "user"})
-	if err := c.Authenticate(context.Background(), dir, func(code string) { seenCode = code }); err != nil {
+	user, err := c.Authenticate(context.Background(), func(code string) { seenCode = code })
+	if err != nil {
 		t.Fatal(err)
 	}
-	saved, _, err := LoadSession(dir, s.URL)
-	if err != nil || saved.Token != "new-token" || saved.UserID != "new-user" || seenCode != "123456" {
-		t.Fatalf("saved %+v code %q error %v", saved, seenCode, err)
+	if user.ID != "new-user" || user.Name != "New viewer" {
+		t.Fatal("authentication lost the approved viewer")
 	}
-	info, _ := os.Stat(filepath.Join(dir, "session.json"))
-	if info.Mode().Perm() != 0600 {
-		t.Fatal("session is not private")
+	if c.Session.Token != "new-token" || c.Session.UserID != "new-user" || seenCode != "123456" {
+		t.Fatal("Quick Connect did not replace the rejected identity")
 	}
 }
 

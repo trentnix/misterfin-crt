@@ -85,10 +85,10 @@ func TestAboutRequestsTentativeProfileSwitch(t *testing.T) {
 	s.config.ConnectionID = "plex"
 	s.client = switchServer{id: "plex"}
 	s.about.Visible = true
-	s.about.SwitchProfile = true
+	s.about.ProfileAction = connection.ProfileChoose
 	s.setup.Kind = rendering.SetupHidden
 	s.handleAboutKey(control.Up)
-	if s.connectionChange == nil || !s.connectionChange.SelectProfile || s.connectionChange.ID != "plex" || s.connectionChange.ReturnID != "plex" {
+	if s.connectionChange == nil || s.connectionChange.ProfileAction == connection.ProfileUnchanged || s.connectionChange.ID != "plex" || s.connectionChange.ReturnID != "plex" {
 		t.Fatal("About did not request a cancellable same-connection switch")
 	}
 }
@@ -201,5 +201,150 @@ func TestProfileKeypadMovesWithinRowsAndColumns(t *testing.T) {
 		if s.setup.PINKey != test.want {
 			t.Errorf("key %d with %s moved to %d, want %d", test.key, test.action, s.setup.PINKey, test.want)
 		}
+	}
+}
+
+func TestProfileAddUserUsesSeparateAction(t *testing.T) {
+	s := testSession(t)
+	s.controller.running = false
+	choice := make(chan connection.ProfileSelection, 1)
+	prompt := connection.ProfilePrompt{Profiles: []connection.Profile{{ID: "one", Name: "One"}}, AddUser: true}
+	(profileChoicesResult{prompt: prompt, choice: choice}).apply(s)
+	s.handleSetupKey(control.Select)
+	reply := <-choice
+	if reply.Action != connection.ProfileAdd || reply.ID != "" || reply.PIN != "" || s.connection.profileChoice != nil {
+		t.Fatal("Add user submitted a saved identity")
+	}
+	s.handleSetupKey(control.Select)
+	if len(choice) != 0 {
+		t.Fatal("Add user was submitted twice")
+	}
+	// Plex does not offer this action. Select must leave its picker intact.
+	prompt.AddUser = false
+	(profileChoicesResult{prompt: prompt, choice: choice}).apply(s)
+	s.handleSetupKey(control.Select)
+	if len(choice) != 0 || s.setup.Kind != connection.SetupProfiles {
+		t.Fatal("unoffered action changed profile selection")
+	}
+}
+
+func TestProfileCancelReturnsToAbout(t *testing.T) {
+	s := testSession(t)
+	s.controller.running = false
+	s.client = switchServer{id: "plex"}
+	s.config.ConnectionID = "plex"
+	s.config.Navigation = &Navigation{}
+	s.setup.Kind = rendering.SetupHidden
+	s.about.Visible = true
+	s.about.ProfileAction = connection.ProfileChoose
+	s.handleAboutKey(control.Up)
+	s.rememberNavigation()
+	pending := testSession(t)
+	pending.config.ReturnConnectionID = "plex"
+	(profileChoicesResult{prompt: connection.ProfilePrompt{Profiles: []connection.Profile{{ID: "viewer", Name: "Viewer"}}}}).apply(pending)
+	pending.handleSetupKey(control.Back)
+	if pending.connectionChange == nil || pending.connectionChange.ID != "plex" {
+		t.Fatal("Back lost the working connection")
+	}
+	restored := testSession(t)
+	restored.controller.running = false
+	restored.client = s.client
+	restored.config.Navigation = s.config.Navigation
+	restored.restoreNavigation()
+	if !restored.about.Visible {
+		t.Fatal("Back from profiles did not return to About")
+	}
+	restored.handleAboutKey(control.Back)
+	if restored.about.Visible || restored.model.Quit {
+		t.Fatal("Back from About did not return to browsing")
+	}
+}
+
+func TestQuickConnectBackRequestsProfiles(t *testing.T) {
+	s := testSession(t)
+	s.controller.running = false
+	s.setup = connection.Presentation{Kind: connection.SetupApproval, Back: connection.BackProfiles}
+	s.config.ReturnConnectionID = "jellyfin"
+	t.Cleanup(s.connection.close)
+	s.handleSetupKey(control.Back)
+	if s.connection.profileAction != connection.ProfileChoose || s.connection.selectServer || s.connectionChange != nil || s.model.Quit {
+		t.Fatal("Back escaped user switching instead of reopening profiles")
+	}
+}
+
+func TestAddUserFailureBeforeCodeReturnsToPicker(t *testing.T) {
+	for _, progress := range []bool{false, true} {
+		s := testSession(t)
+		s.controller.running = false
+		s.config.ReturnConnectionID = "jellyfin"
+		s.config.Connector = switchConnector{}
+		choices := make(chan connection.ProfileSelection, 1)
+		(profileChoicesResult{prompt: connection.ProfilePrompt{
+			Profiles: []connection.Profile{{ID: "one", Name: "One"}, {ID: "two", Name: "Two"}}, AddUser: true,
+		}, choice: choices}).apply(s)
+		s.handleSetupKey(control.Select)
+		if choice := <-choices; choice.Action != connection.ProfileAdd {
+			t.Fatal("did not request Add user")
+		}
+		if progress {
+			s.handleAuthCode(authCodeResult{presentation: connection.Presentation{Kind: connection.SetupConnecting}})
+		}
+		// No approval code arrives before initiation fails.
+		s.handleAuth(authResult{err: fmt.Errorf("Quick Connect disabled")})
+		if s.setup.Back != connection.BackProfiles {
+			t.Fatal("progress or failure lost the preceding picker")
+		}
+		t.Cleanup(s.connection.close)
+		s.handleSetupKey(control.Back)
+		if s.connectionChange != nil || s.connection.profileAction != connection.ProfileChoose || s.model.Quit {
+			t.Fatal("Back left the picker flow")
+		}
+	}
+}
+
+func TestSingleProfileAboutActionAndDirectSignInBack(t *testing.T) {
+	for _, addUser := range []bool{false, true} {
+		s := testSession(t)
+		s.controller.running = false
+		s.client = switchServer{id: "single"}
+		s.config.ConnectionID = "single"
+		s.setup.Kind = rendering.SetupHidden
+		s.about.Visible = true
+		if addUser {
+			s.about.ProfileAction = connection.ProfileAdd
+		}
+		s.handleAboutKey(control.Up)
+		if (s.connectionChange != nil) != addUser {
+			t.Fatal("About dispatched an unavailable profile action")
+		}
+	}
+	for _, failed := range []bool{false, true} {
+		s := testSession(t)
+		s.controller.running = false
+		s.config.Connector = switchConnector{}
+		s.config.ReturnConnectionID = "jellyfin"
+		s.setup = connection.Presentation{Kind: connection.SetupApproval, Back: connection.BackConnection}
+		if failed {
+			s.handleAuth(authResult{err: fmt.Errorf("sign-in unavailable")})
+		}
+		s.handleSetupKey(control.Back)
+		if s.connectionChange == nil || s.connectionChange.ID != "jellyfin" || s.connection.profileAction != connection.ProfileUnchanged || s.connection.selectServer {
+			t.Fatal("direct sign-in Back did not restore the active connection")
+		}
+	}
+}
+
+func TestFailedProfileSelectionReturnsToActiveConnection(t *testing.T) {
+	s := testSession(t)
+	s.controller.running = false
+	s.config.Connector = switchConnector{}
+	s.config.ReturnConnectionID = "plex"
+	choice := make(chan connection.ProfileSelection, 1)
+	(profileChoicesResult{prompt: connection.ProfilePrompt{Profiles: []connection.Profile{{ID: "viewer", Name: "Viewer"}}}, choice: choice}).apply(s)
+	s.handleSetupKey(control.Open)
+	s.handleAuth(authResult{err: fmt.Errorf("server unavailable")})
+	s.handleSetupKey(control.Back)
+	if s.connectionChange == nil || s.connectionChange.ID != "plex" {
+		t.Fatal("failed profile selection lost the active connection")
 	}
 }

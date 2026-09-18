@@ -1,6 +1,6 @@
 # Documentation
 
-Start with the [project README](../README.md) for installation and everyday use. These guides cover MiSTerVision v1.2.0, including discovery, connection switching, and Plex Home profiles.
+Start with the [project README](../README.md) for installation and everyday use. These guides describe the current source, including discovery, connection switching, saved Jellyfin users, and Plex Home profiles.
 
 | Guide | Contents |
 | --- | --- |

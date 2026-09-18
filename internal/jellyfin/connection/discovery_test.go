@@ -136,7 +136,9 @@ func TestDiscoveredServerQuickConnectAndSavedSignIn(t *testing.T) {
 		case "/QuickConnect/Connect":
 			fmt.Fprint(w, `{"Authenticated":true}`)
 		case "/Users/AuthenticateWithQuickConnect":
-			fmt.Fprint(w, `{"AccessToken":"saved-token","User":{"Id":"viewer"}}`)
+			fmt.Fprint(w, `{"AccessToken":"saved-token","User":{"Id":"viewer","Name":"Viewer"}}`)
+		case "/Users/Me":
+			fmt.Fprint(w, `{"Id":"viewer","Name":"Viewer"}`)
 		case "/UserViews":
 			fmt.Fprint(w, `{"Items":[]}`)
 		default:

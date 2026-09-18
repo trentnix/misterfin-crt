@@ -16,7 +16,7 @@ The outputs are `build/mistervision` and `build/mistervision-arm`. The ARM targe
 Development builds show `dev`, the Git revision, and a modified marker when available. Jellyfin and Plex requests report the same version label, without the revision suffix. Set `VERSION` for a stable release label:
 
 ```sh
-make arm VERSION=v1.2.0
+make arm VERSION=v1.3.0
 ```
 
 ## MPlayer
@@ -38,15 +38,15 @@ The native build also exports `build/mistervision-mplayer-source.tar.xz`, the ve
 From a clean Git checkout, build a release with:
 
 ```sh
-make release VERSION=v1.2.0
+make release VERSION=v1.3.0
 ```
 
-This command rebuilds both ARM executables, records their metadata and checksums, and packages them under `build/releases/v1.2.0/`. It requires the same Go, Zig, Python, and Docker tools as the individual builds. Stable `vMAJOR.MINOR.PATCH` versions are required. Dirty checkouts, untracked source files, invalid binaries, source checksum mismatches, and existing output directories stop the build. Failed builds do not publish a partial bundle.
+This command rebuilds both ARM executables, records their metadata and checksums, and packages them under `build/releases/v1.3.0/`. It requires the same Go, Zig, Python, and Docker tools as the individual builds. Stable `vMAJOR.MINOR.PATCH` versions are required. Dirty checkouts, untracked source files, invalid binaries, source checksum mismatches, and existing output directories stop the build. Failed builds do not publish a partial bundle.
 
 | Artifact | Contents |
 | --- | --- |
-| `mistervision-v1.2.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
-| `mistervision-v1.2.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
+| `mistervision-v1.3.0-mister.zip` | SD card layout with both binaries, Scripts launcher, configuration examples, installation instructions, version/build metadata, component notices, and checksums. |
+| `mistervision-v1.3.0-source.tar.gz` | Committed project source plus the exact upstream MPlayer archive. Patches and build recipes remain under `docker/`. |
 | `SHA256SUMS` | Checksums for both downloadable archives. |
 
 The ZIP contains only example configuration files. It contains no active `jellyfin.conf`, `settings.json`, sign-in, preferences, or caches. Read its `INSTALL.txt` before copying files. The optional interlaced core remains a separate download.
@@ -197,7 +197,7 @@ The comparison omits timing deltas if the recorded environment differs. Matching
 With Go and an authenticated GitHub CLI, download and verify a draft or published release:
 
 ```sh
-make verify-release VERSION=v1.2.2
+make verify-release VERSION=v1.3.0
 ```
 
 The local Git checkout must contain the release tag. Verification checks both archive hashes, every bundled checksum, executable permissions and ARM headers, version and revision metadata, the source archive against that Git revision, and the upstream player source checksum. It then installs the real ZIP through the production updater into temporary storage and tests interrupted replacement and repeat recovery while preserving fixture settings and sign-in files. The test never executes the installed ARM binaries on the host. Checksums are integrity checks, not independent signatures.
@@ -205,8 +205,8 @@ The local Git checkout must contain the release tag. Verification checks both ar
 To verify existing downloads and optionally execute the packaged pair on a MiSTer:
 
 ```sh
-python3 tools/verify_release.py v1.2.2 \
-  --directory /tmp/mistervision-v1.2.2-release \
+python3 tools/verify_release.py v1.3.0 \
+  --directory /tmp/mistervision-v1.3.0-release \
   --mister root@192.168.1.42 \
   --identity /home/trent/.ssh/misterfin_crt_development
 ```

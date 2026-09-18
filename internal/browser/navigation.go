@@ -8,6 +8,7 @@ import "mistervision/internal/media"
 type Navigation struct {
 	model    *Model
 	identity media.Identity
+	about    bool
 }
 
 // rememberNavigation runs after the loop has stopped mutating the model.
@@ -17,7 +18,7 @@ func (s *browserSession) rememberNavigation() {
 	}
 	s.model.Quit = false
 	s.model.ExitConfirm = false
-	*s.config.Navigation = Navigation{model: s.model, identity: s.client.Identity()}
+	*s.config.Navigation = Navigation{model: s.model, identity: s.client.Identity(), about: s.about.Visible}
 }
 
 // restoreNavigation rejects stale account state and clears canceled page work.
@@ -27,6 +28,7 @@ func (s *browserSession) restoreNavigation() {
 		return
 	}
 	s.model = saved.model
+	s.about.Visible = saved.about
 	s.model.Generation++
 	s.model.Quit = false
 	for i := range s.model.Stack {
