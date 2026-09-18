@@ -2,6 +2,7 @@ package rendering
 
 import (
 	"fmt"
+
 	"mistervision/internal/branding"
 	"mistervision/internal/input/control"
 	"mistervision/internal/ui"
@@ -20,61 +21,109 @@ func (p *screenPainter) about() {
 		p.releaseNotes()
 		return
 	}
-	var hints []controlHint
-	if a.SwitchProfile && p.scene.Setup.Kind == SetupHidden {
-		hints = append(hints, hint(p.scene.Controls, control.Up, "Switch profile"))
-	}
-	if len(a.Connections) > 0 {
-		hints = append(hints, hint(p.scene.Controls, control.Down, "Connections"))
-	}
-	if a.Release.Available && !a.Checking {
-		hints = append(hints, hint(p.scene.Controls, control.Open, "View release"))
-	}
-	if !a.Checking {
-		hints = append(hints, hint(p.scene.Controls, control.Select, "Check updates"))
-	}
-	hints = append(hints, hint(p.scene.Controls, control.Back, "Back"))
+	hints := aboutHints(a, p.scene.Controls, p.scene.Setup.Kind == SetupHidden, false)
 	rows := controlRows(p.width, hints)
-	statusY := controlsTop(p.bottom, rows) - 18
+	lines := messageLines(a.Status(), p.width-48, 6)
+	statusY := controlsTop(p.bottom, rows) - 18 - max(0, len(lines)-1)*10
 	baseY := statusY
 	if a.Profile != nil {
 		baseY -= 14
 	}
-	p.cache.about(p.canvas, baseY)
-	if a.Profile != nil {
+	// Keep a useful logo area above the heading. Narrow screens also need
+	// wrapped attribution, so use a small side-by-side logo and identity block.
+	compact := baseY-86 < p.safeY+36 || textWidth(aboutLicense, 1) > p.width-48
+	if compact {
+		rows = controlRows(p.width, aboutHints(a, p.scene.Controls, p.scene.Setup.Kind == SetupHidden, true))
+		statusY = controlsTop(p.bottom, rows) - 18 - max(0, len(lines)-1)*10
+		baseY = statusY
+		if a.Profile != nil {
+			baseY -= 14
+		}
+	}
+	p.cache.about(p.canvas, baseY, compact)
+	if a.Profile != nil && (!compact || baseY >= p.safeY+32) {
 		name := truncate(a.Profile.Name, p.width-48-profileLabelInset, 1)
 		drawProfileLabel(p.canvas, (p.width-textWidth(name, 1)-profileLabelInset)/2, statusY-14, name, a.Profile.Avatar, titleColor)
 	}
-	center(p.canvas, baseY-62, truncate("Version "+a.Build.String(), p.width-48, 1), dimColor, 1)
-	text := a.Status()
+	if compact {
+		p.canvas.Text(104, p.safeY+16, truncate("Version "+a.Build.String(), p.width-128, 1), dimColor, p.width-24)
+	} else {
+		center(p.canvas, baseY-62, truncate("Version "+a.Build.String(), p.width-48, 1), dimColor, 1)
+	}
 	color := uint32(0xc0c0c0)
 	if a.Release.Available && !a.Checking && a.Message == "" {
 		color = titleColor
 	}
-	center(p.canvas, statusY, truncate(text, p.width-48, 1), color, 1)
+	for i, line := range lines {
+		center(p.canvas, statusY+i*10, line, color, 1)
+	}
 	drawControls(p.canvas, p.bottom, rows)
 }
 
+// aboutHints keeps every action available when a compact layout uses shorter labels.
+func aboutHints(a AboutPresentation, labels control.Labels, setupHidden, compact bool) []controlHint {
+	profileLabel, releaseLabel, updateLabel := "Switch profile", "View release", "Check updates"
+	if compact {
+		profileLabel, releaseLabel, updateLabel = "Profile", "Release", "Updates"
+	}
+	var hints []controlHint
+	if a.SwitchProfile && setupHidden {
+		hints = append(hints, hint(labels, control.Up, profileLabel))
+	}
+	if len(a.Connections) > 0 {
+		hints = append(hints, hint(labels, control.Down, "Connections"))
+	}
+	if a.Release.Available && !a.Checking {
+		hints = append(hints, hint(labels, control.Open, releaseLabel))
+	}
+	if !a.Checking {
+		hints = append(hints, hint(labels, control.Select, updateLabel))
+	}
+	hints = append(hints, hint(labels, control.Back, "Back"))
+	return hints
+}
+
+const aboutLicense = "CC BY-NC 4.0. Components have separate licenses."
+
 // about caches the static logo and attribution at the current geometry. Source
 // artwork is embedded and decoded once. Repeated draws only copy prepared pixels.
-func (s *sceneCache) about(c *ui.Canvas, statusY int) {
+func (s *sceneCache) about(c *ui.Canvas, statusY int, compact bool) {
 	draw := func(dst *ui.Canvas) {
 		dst.Rect(0, 0, dst.Width, dst.Height, 0x0b0d13)
 		top := safeY(dst.Width, dst.Height) + 4
+		if compact {
+			dst.Image(branding.Logo(), 24, top, 72, 24)
+			dst.Text(104, top, "MiSTerVision", titleColor, dst.Width-24)
+			var credits []string
+			for _, text := range []string{"Trent Nix", "Based on MiSTerFin by Pudding Studio", aboutLicense} {
+				credits = append(credits, ui.WrapText(text, dst.Width-48)...)
+			}
+			// With unusually long control labels, recovery guidance takes priority.
+			// Never let attribution collide with the status or identity header.
+			y := top + 28
+			if y+len(credits)*10 <= statusY-2 {
+				for _, line := range credits {
+					center(dst, y, line, dimColor, 1)
+					y += 10
+				}
+			}
+			return
+		}
 		titleY := statusY - 86
 		dst.Image(branding.Logo(), 24, top, dst.Width-48, max(1, titleY-top-8))
 		center(dst, titleY, "MiSTerVision", titleColor, 2)
 		center(dst, statusY-44, "Trent Nix", 0xc0c0c0, 1)
 		center(dst, statusY-32, "Based on MiSTerFin by Pudding Studio", dimColor, 1)
-		center(dst, statusY-20, "CC BY-NC 4.0. Components have separate licenses.", dimColor, 1)
+		center(dst, statusY-20, aboutLicense, dimColor, 1)
 	}
 	if s == nil {
 		draw(c)
 		return
 	}
-	if s.aboutBase == nil || s.aboutBase.Width != c.Width || s.aboutBase.Height != c.Height || s.aboutStatusY != statusY {
+	if s.aboutBase == nil || s.aboutBase.Width != c.Width || s.aboutBase.Height != c.Height || s.aboutStatusY != statusY || s.aboutCompact != compact {
 		s.aboutBase = ui.New(c.Width, c.Height)
 		s.aboutStatusY = statusY
+		s.aboutCompact = compact
 		draw(s.aboutBase)
 	}
 	copy(c.Pixels, s.aboutBase.Pixels)
@@ -95,7 +144,9 @@ func (p *screenPainter) releaseNotes() {
 	if len(a.Notes) > count {
 		center(c, statusY-12, fmt.Sprintf("%d-%d of %d", start+1, min(start+count, len(a.Notes)), len(a.Notes)), dimColor, 1)
 	}
-	center(c, statusY, truncate(a.Status(), p.width-48, 1), titleColor, 1)
+	for i, line := range messageLines(a.Status(), p.width-48, 6) {
+		center(c, statusY+i*10, line, titleColor, 1)
+	}
 	if a.Updating {
 		setupActivity(c, statusY+12, p.animation.Seconds)
 	}
@@ -117,13 +168,13 @@ func (a AboutPresentation) notesLayout(width, height int, labels control.Labels)
 		}
 	default:
 		hints = append(hints, pairedHint(labels, control.Up, control.Down, "Scroll"))
-		if a.CanInstall && a.Release.HasBundle {
+		if a.CanInstall && !a.ManualInstall && a.Release.HasBundle {
 			hints = append(hints, hint(labels, control.Open, "Install"))
 		}
 		hints = append(hints, hint(labels, control.Back, "Back"))
 	}
 	rows := controlRows(width, hints)
-	statusY := controlsTop(height-8-safeY(width, height), rows) - 20
+	statusY := controlsTop(height-8-safeY(width, height), rows) - 20 - max(0, len(messageLines(a.Status(), width-48, 6))-1)*10
 	top := safeY(width, height) + 34
 	count := max(1, (statusY-top-12)/12)
 	return notesLayout{controls: rows, statusY: statusY, top: top, rows: count}

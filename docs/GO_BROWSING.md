@@ -120,3 +120,11 @@ MISTERVISION_CACHE_ROOT="$HOME/.cache" python3 tools/ghostty/ghostty_harness.py 
 ```
 
 On MiSTer, export the variable in the launcher before starting the client. A new root populates a new cache and leaves old files intact. Custom [browsing backgrounds and titles](GO_CONFIGURATION.md#browsing-background) are separate settings.
+
+## Errors and recovery
+
+Library failures show a short explanation and the configured Retry control. Network failures, timeouts, missing items, rejected sign-in, and server errors have different recovery guidance. An unsuccessful request does not imply an empty library. Optional missing cover art stays out of the UI.
+
+Long explanations wrap within CRT margins. About uses a compact identity block and shorter control descriptions when space is limited. Playback and update messages use the same layout rules on MiSTer and desktop output. Provider error text, request URLs, and credentials are not displayed. Diagnostics retain failure categories and request status codes.
+
+User-facing error text uses named constants in each owning package’s `messages.go`: [browser](../internal/browser/messages.go), [rendering](../internal/rendering/messages.go), [startup](../cmd/mistervision/messages.go), [Jellyfin](../internal/jellyfin/connection/messages.go), and [Plex](../internal/plex/messages.go). [Shared connection messages](../internal/connection/messages.go) keep common sign-in and recovery wording consistent. Classification and recovery behavior stay at the call sites.

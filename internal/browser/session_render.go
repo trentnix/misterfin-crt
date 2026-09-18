@@ -18,12 +18,12 @@ func (s *browserSession) draw() error {
 	// Start the notice timer when browsing can actually display it, including
 	// after a long Quick Connect sign-in. Consume it so navigation cannot repeat it.
 	if len(s.startupNotices) > 0 && !now.Before(s.message.Until) && scene.Setup.Kind == rendering.SetupHidden && !s.about.Visible && scene.Content.Detail == nil && !scene.Content.Loading && scene.Content.Error == "" {
-		s.message = rendering.MessagePresentation{Header: "Settings", Text: s.startupNotices[0], Until: now.Add(4 * time.Second)}
+		s.message = browserMessage{MessagePresentation: rendering.MessagePresentation{Header: "Settings", Text: s.startupNotices[0], Until: now.Add(4 * time.Second)}}
 		s.startupNotices = s.startupNotices[1:]
 	}
 	scene.Title = s.config.Title
 	scene.Background = s.config.Background
-	scene.Message = s.message
+	scene.Message = s.message.MessagePresentation
 	scene.About = s.about
 	scene.Controls = s.controls
 	scene.Music, scene.MusicIndex = s.music.library, s.music.index

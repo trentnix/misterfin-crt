@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"syscall"
 	"time"
 
+	"mistervision/internal/diagnostics"
 	"mistervision/internal/update"
 )
 
@@ -19,11 +22,11 @@ type updateWork struct {
 }
 
 func (s *browserSession) installUpdate() {
-	if s.config.Updater == nil || !s.about.Release.HasBundle || s.about.Updating {
+	if s.config.Updater == nil || !s.about.Release.HasBundle || s.about.ManualInstall || s.about.Updating {
 		return
 	}
 	if s.controller.running || s.media.pending || s.model.MusicQueueActive() {
-		s.about.Message = "Stop playback before installing an update."
+		s.about.Message = messageUpdateStopPlayback
 		return
 	}
 	s.stopRemote()
@@ -56,7 +59,7 @@ type installResult struct{ err error }
 
 func (r installResult) apply(s *browserSession) bool {
 	s.about.Updating = false
-	s.config.Diagnostics.Record("update.end", slog.Bool("failed", r.err != nil), slog.Bool("canceled", errors.Is(r.err, context.Canceled)), slog.Bool("recovery_required", errors.Is(r.err, update.ErrRecovery)))
+	s.config.Diagnostics.Record("update.end", slog.Bool("failed", r.err != nil), slog.Bool("canceled", errors.Is(r.err, context.Canceled)), slog.Bool("recovery_required", errors.Is(r.err, update.ErrRecovery)), slog.String("error_kind", diagnostics.ErrorKind(r.err)), slog.Bool("download_failed", errors.Is(r.err, update.ErrDownload)), slog.Bool("verification_failed", errors.Is(r.err, update.ErrVerification)))
 	switch {
 	case r.err == nil:
 		s.about.Installed = true
@@ -66,16 +69,27 @@ func (r installResult) apply(s *browserSession) bool {
 		}
 		s.update.exitAt = time.Now().Add(2 * time.Second)
 	case errors.Is(r.err, update.ErrRecovery):
-		s.about.Message = "Recovery needed. Exit and relaunch MiSTerVision."
+		s.about.Message = messageUpdateRecovery
 		s.update.exitAt = time.Now().Add(3 * time.Second)
 	default:
 		switch {
 		case errors.Is(r.err, context.Canceled):
-			s.about.Message = "Update canceled. Existing installation kept."
+			s.about.Message = messageUpdateCanceled
 		case errors.Is(r.err, update.ErrManual):
-			s.about.Message = "Unsupported update format. Existing installation kept."
+			s.about.ManualInstall = true
+			s.about.Message = messageUpdateManual
+		case errors.Is(r.err, syscall.ENOSPC):
+			s.about.Message = messageUpdateNoSpace
+		case errors.Is(r.err, os.ErrPermission) || errors.Is(r.err, syscall.EROFS):
+			s.about.Message = messageUpdateReadOnly
+		case isStorageError(r.err):
+			s.about.Message = messageUpdateStorageFailed
+		case errors.Is(r.err, update.ErrVerification):
+			s.about.Message = messageUpdateVerificationFailed
+		case errors.Is(r.err, update.ErrDownload):
+			s.about.Message = messageUpdateDownloadFailed
 		default:
-			s.about.Message = "Update failed. Existing installation kept."
+			s.about.Message = messageUpdateInstallFailed
 		}
 		if s.client != nil {
 			s.startRemote()
@@ -92,4 +106,11 @@ func (w *updateWork) close() {
 	if w.done != nil {
 		<-w.done
 	}
+}
+
+// isStorageError recognizes filesystem failures without exposing local paths.
+func isStorageError(err error) bool {
+	var path *os.PathError
+	var link *os.LinkError
+	return errors.As(err, &path) || errors.As(err, &link)
 }

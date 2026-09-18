@@ -70,7 +70,7 @@ func TestSettingsNoticesQueueWithoutReplacingActiveMessage(t *testing.T) {
 	s.output = noticeTestOutput{}
 	s.renderer = &noticeTestRenderer{}
 	s.startupNotices = []string{"First settings warning", "Check music configuration and assets. Music backgrounds are off."}
-	s.message = rendering.MessagePresentation{Text: "Active message", Until: time.Now().Add(time.Hour)}
+	s.message = browserMessage{MessagePresentation: rendering.MessagePresentation{Text: "Active message", Until: time.Now().Add(time.Hour)}}
 	if err := s.draw(); err != nil {
 		t.Fatal(err)
 	}

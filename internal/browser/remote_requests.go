@@ -44,7 +44,7 @@ func (r remoteItemsResult) apply(s *browserSession) bool {
 	q.resolving = false
 	q.cancel = nil
 	if r.err != nil {
-		s.message = rendering.MessagePresentation{Header: "Remote playback", Text: "Could not load the requested queue.", Until: time.Now().Add(8 * time.Second)}
+		s.message = browserMessage{MessagePresentation: rendering.MessagePresentation{Header: titleRemotePlayback, Text: requestFailure(messageRemoteItemsFailed, r.err), Until: time.Now().Add(8 * time.Second)}}
 	} else {
 		s.applyRemoteItems(r.command, r.items)
 	}

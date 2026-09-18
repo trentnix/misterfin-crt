@@ -89,7 +89,7 @@ func (s *browserSession) syncHomeViews() {
 			v.fetching = false
 			v.Error = ""
 			if s.home.err != nil {
-				v.Error = "Some Continue Watching items could not load."
+				v.Error = messageContinueItemsFailed
 			}
 		}
 	}

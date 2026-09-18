@@ -53,7 +53,12 @@ func (i *Installer) response(ctx context.Context, endpoint string) (*http.Respon
 	return resp, nil
 }
 
-func (i *Installer) download(ctx context.Context, stage string, status release.Status, notify func(updateapi.Progress)) (string, error) {
+func (i *Installer) download(ctx context.Context, stage string, status release.Status, notify func(updateapi.Progress)) (path string, resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			resultErr = errors.Join(updateapi.ErrDownload, resultErr)
+		}
+	}()
 	name := "mistervision-" + status.Latest + "-mister.zip"
 	base := "https://github.com/trentnix/mistervision/releases/download/" + status.Latest + "/"
 	resp, err := i.response(ctx, base+"SHA256SUMS")
@@ -67,11 +72,11 @@ func (i *Installer) download(ctx context.Context, stage string, status release.S
 	}
 	sums, err := checksums(data)
 	if err != nil {
-		return "", err
+		return "", errors.Join(updateapi.ErrVerification, err)
 	}
 	expected, ok := sums[name]
 	if !ok {
-		return "", errors.New("release archive checksum is missing")
+		return "", errors.Join(updateapi.ErrVerification, errors.New("release archive checksum is missing"))
 	}
 	resp, err = i.response(ctx, base+name)
 	if err != nil {
@@ -79,9 +84,9 @@ func (i *Installer) download(ctx context.Context, stage string, status release.S
 	}
 	defer resp.Body.Close()
 	if resp.ContentLength > maxArchive {
-		return "", errors.New("release archive is too large")
+		return "", errors.Join(updateapi.ErrVerification, errors.New("release archive is too large"))
 	}
-	path := filepath.Join(stage, "archive.zip")
+	path = filepath.Join(stage, "archive.zip")
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return "", err
@@ -96,10 +101,10 @@ func (i *Installer) download(ctx context.Context, stage string, status release.S
 		return "", err
 	}
 	if size > maxArchive {
-		return "", errors.New("release archive is too large")
+		return "", errors.Join(updateapi.ErrVerification, errors.New("release archive is too large"))
 	}
 	if hex.EncodeToString(hash.Sum(nil)) != expected {
-		return "", errors.New("release archive checksum mismatch")
+		return "", errors.Join(updateapi.ErrVerification, errors.New("release archive checksum mismatch"))
 	}
 	return path, nil
 }

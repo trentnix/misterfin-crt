@@ -53,7 +53,12 @@ func (i *Installer) destination(name string) string {
 	}
 }
 
-func (i *Installer) unpack(ctx context.Context, stage, archive, version string) ([]entry, error) {
+func (i *Installer) unpack(ctx context.Context, stage, archive, version string) (result []entry, resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			resultErr = errors.Join(updateapi.ErrVerification, resultErr)
+		}
+	}()
 	reader, err := zip.OpenReader(archive)
 	if err != nil {
 		return nil, err

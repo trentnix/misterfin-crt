@@ -30,7 +30,7 @@ func selectDecoder(o Config, item media.Item, picture PictureMode) (playerapi.De
 	}
 	d := o.decoder(item)
 	if d == nil {
-		return nil, errors.New("no decoder configured for this media type")
+		return nil, ErrPlayerUnavailable
 	}
 	d = d.WithPicture(picture)
 	if err := d.Validate(item); err != nil {
@@ -47,7 +47,7 @@ func resolveDecoder(o Config, item media.Item, picture PictureMode) (playerapi.D
 	}
 	executable, err := exec.LookPath(d.Executable())
 	if err != nil {
-		return nil, "", fmt.Errorf("player not found: %s", d.Executable())
+		return nil, "", fmt.Errorf("player not found: %s: %w", d.Executable(), ErrPlayerUnavailable)
 	}
 	return d, executable, nil
 }

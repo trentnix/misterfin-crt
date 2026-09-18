@@ -3,7 +3,6 @@ package playback
 
 import (
 	"context"
-	"errors"
 
 	"mistervision/internal/media"
 	playerapi "mistervision/internal/player"
@@ -56,7 +55,7 @@ func Run(ctx context.Context, c media.Playback, config Config, request Request) 
 	defer func() {
 		failed := session.finish(resultErr != nil, request.AsyncCleanup, request.Callbacks.CleanupDone)
 		if resultErr == nil && ctx.Err() == nil && failed {
-			resultErr = errors.New("playback ended, but server progress reporting failed")
+			resultErr = ErrProgress
 		}
 	}()
 	if request.Callbacks.TrackInfo != nil && session.item.Type != "Audio" {

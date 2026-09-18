@@ -59,7 +59,18 @@ func (t *playbackTrace) finish(ctx context.Context, err error) {
 	if t == nil {
 		return
 	}
-	t.record("playback.end", slog.String("stage", t.stage), slog.Bool("failed", err != nil), slog.Bool("canceled", ctx.Err() != nil))
+	kind := diagnostics.ErrorKind(err)
+	switch {
+	case errors.Is(err, ErrStartupTimeout):
+		kind = "startup-timeout"
+	case errors.Is(err, ErrNotStarted):
+		kind = "decoder-start"
+	case errors.Is(err, ErrInterrupted):
+		kind = "decoder-interrupted"
+	case errors.Is(err, ErrProgress):
+		kind = "progress-report"
+	}
+	t.record("playback.end", slog.String("stage", t.stage), slog.Bool("failed", err != nil), slog.Bool("canceled", ctx.Err() != nil), slog.String("error_kind", kind))
 }
 
 // prepared records the adapter's numeric limits without parsing its private URL.

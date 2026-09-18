@@ -267,8 +267,12 @@ func TestInvalidArchivesLeaveInstallationUntouched(t *testing.T) {
 				payload["SHA256SUMS"] = []byte("bad checksum list")
 			}
 			i, original := testInstaller(t, testArchive(t, payload))
-			if err := i.Install(context.Background(), available(), nil); err == nil {
-				t.Fatal("accepted invalid archive")
+			err := i.Install(context.Background(), available(), nil)
+			if !errors.Is(err, updateapi.ErrVerification) {
+				t.Fatalf("missing verification category: %v", err)
+			}
+			if (kind == "legacy" || kind == "format") && !errors.Is(err, updateapi.ErrManual) {
+				t.Fatal("manual installation requirement lost")
 			}
 			assertOriginal(t, original)
 		})
@@ -285,8 +289,15 @@ func TestChecksumFailureAndCanceledDownload(t *testing.T) {
 				}
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(strings.Repeat("0", 64) + "  mistervision-v0.2.0-mister.zip\n")), Header: make(http.Header)}, nil
 			})
-			if err := i.Install(context.Background(), available(), nil); err == nil {
-				t.Fatal("accepted damaged download")
+			err := i.Install(context.Background(), available(), nil)
+			if !errors.Is(err, updateapi.ErrDownload) {
+				t.Fatalf("missing download category: %v", err)
+			}
+			if cancel && !errors.Is(err, context.Canceled) {
+				t.Fatal("download lost cancellation")
+			}
+			if !cancel && !errors.Is(err, updateapi.ErrVerification) {
+				t.Fatal("download lost checksum failure")
 			}
 			assertOriginal(t, original)
 		})

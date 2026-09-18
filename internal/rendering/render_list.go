@@ -86,7 +86,7 @@ func (p *screenPainter) list() [][]controlHint {
 		}
 		list.Text(24, y+11, truncate(s, width, 1), col, 24+width)
 	}
-	if len(v.Page.Items) == 0 && !v.Loading {
+	if len(v.Page.Items) == 0 && !v.Loading && v.Error == "" {
 		center(c, h/2, "Nothing here", dimColor, 1)
 	}
 	return controls

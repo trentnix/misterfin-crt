@@ -101,6 +101,8 @@ Downloads use verified HTTPS from this repository's GitHub release assets withou
 
 The SD card must have room for the download, staged files, rollback copies, and a temporary replacement file. The installer downloads, validates, and backs up everything before changing installed files. Storage or validation failures leave the installation intact. Settings, credentials, preferences, artwork caches, and the separately installed 480i core are excluded from replacement.
 
+Update failures distinguish download, verification, and storage problems and explain what to try next. If a release requires manual installation, Install is disabled for that release and the page directs you to its ZIP. Cancellation and recoverable failures confirm that the existing installation was kept.
+
 A successful update shows “Update installed. Restarting...” for two seconds, closes the client, and starts the installed launcher again. In 480i, the supervisor restores the normal core before restart. Cleanup or startup failures stop with an error instead of retrying. Cancellation or a replacement failure restores the old files. Custom launchers without restart support require reopening the app after an update.
 
 If interrupted, startup uses `.update-pending` to finish rollback, then re-executes the restored client before opening the display. A committed transaction only needs backup cleanup. Do not delete pending recovery files. If recovery cannot finish, the app stops before playback. Correct the storage problem and relaunch, or manually reinstall the matching pair while preserving settings and state.

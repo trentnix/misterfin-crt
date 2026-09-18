@@ -130,11 +130,11 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 		if _, ok := catalog.connectors[saved.ID]; ok {
 			catalog.selected = saved.ID
 		} else {
-			catalog.notice = "Saved connection is unavailable. Using configured startup."
+			catalog.notice = messageSavedConnectionUnavailable
 			log.ConfigurationFallback("connections", "configured-startup", errors.New("unknown saved connection"))
 		}
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		catalog.notice = "Saved connection choice could not be read. Using configured startup."
+		catalog.notice = messageSavedConnectionUnreadable
 		log.ConfigurationFallback("connections", "configured-startup", err)
 	}
 	return catalog, nil

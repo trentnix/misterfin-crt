@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -53,6 +54,7 @@ func (s *browserSession) navigateMedia(direction int) {
 	work, stop := context.WithCancel(s.ctx)
 	s.media.cancel = stop
 	s.media.pending = true
+	s.media.nextTrack = direction
 	s.media.paused = false
 	client := s.client
 	go func() {
@@ -64,6 +66,9 @@ func (s *browserSession) navigateMedia(direction int) {
 func (s *browserSession) startPlayback(startTicks *int64, paused bool) {
 	if !s.playbackQueue.active {
 		s.remoteRequests.cancelAll()
+	}
+	if !s.message.preserveOnPlayback {
+		s.message = browserMessage{}
 	}
 	s.music.levels = playback.AudioLevels{}
 	selected := *s.model.Current().Detail
@@ -106,6 +111,12 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		}
 		return false
 	}
+	// Progress reporting is independent of decoder completion. Normalize it
+	// once before the controller and either queue decide how to advance.
+	completionErr := event.Err
+	if event.Kind == PlaybackEnded && errors.Is(event.Err, playback.ErrProgress) {
+		event.Err = nil
+	}
 	progressSeen, subtitleLoading := s.controller.state.ProgressSeen, s.controller.subtitleLoading
 	ended := s.controller.Handle(event, time.Now())
 	// Decoder feedback and server reports precede application on the UI loop.
@@ -129,6 +140,9 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		return false
 	}
 	s.model.Notice = ""
+	if completionErr != nil {
+		s.showPlaybackError(completionErr)
+	}
 	if s.controller.item.Type != "Audio" && !media.IsLive(s.controller.item) {
 		s.refreshHome()
 	}
@@ -165,9 +179,6 @@ func (s *browserSession) handlePlayback(event PlaybackEvent) bool {
 		}
 		s.selection.key = ""
 		s.loadSelection()
-		if event.Err != nil {
-			s.model.Notice = event.Err.Error()
-		}
 	}
 
 	return true
@@ -178,6 +189,7 @@ func (s *browserSession) handleNeighbor(r neighborResult) bool {
 		return false
 	}
 	s.media.pending = false
+	direction := s.media.nextTrack
 	s.media.nextTrack = 0
 	if s.controller.running && (s.model.MusicQueueActive() || s.playlistPlayback()) {
 		if r.item != nil && r.err == nil {
@@ -185,12 +197,12 @@ func (s *browserSession) handleNeighbor(r neighborResult) bool {
 			s.controller.StopForTrackChange()
 		}
 		if r.err != nil {
-			s.model.Notice = "Could not load adjacent track"
+			s.model.Notice = neighborFailure(direction, "track")
 		}
 		return false
 	}
 	if r.err != nil {
-		s.model.Notice = "Could not load adjacent item."
+		s.model.Notice = neighborFailure(direction, "item")
 		s.model.EndMusicQueue()
 	} else if r.item != nil {
 		if !s.model.SelectAdjacent(r.parent, *r.item) {

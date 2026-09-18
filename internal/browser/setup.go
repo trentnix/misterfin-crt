@@ -13,5 +13,5 @@ func (s *browserSession) setupPresentation(err error) connection.Presentation {
 	if err == nil {
 		return connection.Presentation{Kind: connection.SetupConnecting, Title: "Connecting"}
 	}
-	return connection.Presentation{Kind: connection.SetupFailure, Title: "Server unavailable", Message: "No server connection is configured.", Retry: "Retry"}
+	return connection.Presentation{Kind: connection.SetupFailure, Title: titleServerUnavailable, Message: messageNoConnection, Retry: "Retry"}
 }

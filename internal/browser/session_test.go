@@ -2,6 +2,8 @@ package browser
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -359,5 +361,122 @@ func TestCanceledPlaylistTransitionDiscardsPause(t *testing.T) {
 	s.handlePlayback(PlaybackEvent{Kind: PlaybackPosition, ID: s.controller.active.id, Ticks: 1})
 	if s.wantsPause() || len(s.controller.active.controls) != 0 {
 		t.Fatal("new playback inherited canceled pause")
+	}
+}
+
+func TestPlaybackFailureUsesReadableBanner(t *testing.T) {
+	for _, queued := range []bool{false, true} {
+		for _, kind := range []string{"Movie", "Audio", "TvChannel"} {
+			t.Run(fmt.Sprintf("%s/queue=%v", kind, queued), func(t *testing.T) {
+				s := testSession(t)
+				item := media.Item{ID: "item", Type: kind}
+				s.model.Stack = append(s.model.Stack, View{Detail: &item})
+				s.controller.item = item
+				s.playbackQueue.active = queued
+				s.playbackQueue.returnDepth = 1
+				before := time.Now()
+				err := fmt.Errorf("start: %w", playback.ErrStartupTimeout)
+				if !s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id, Err: err}) {
+					t.Fatal("failure did not return to browsing")
+				}
+				if s.controller.running || s.playbackQueue.active || s.model.Notice != "" {
+					t.Fatal("failure retained playback or single-line notice")
+				}
+				if s.message.Header != "Playback didn't start" || s.message.Text != "The stream did not start in time. Try playing it again. If this keeps happening, check your media server." {
+					t.Fatalf("unexpected message: %+v", s.message)
+				}
+				if s.message.Until.Before(before.Add(8*time.Second)) || s.message.Until.After(time.Now().Add(8*time.Second)) {
+					t.Fatal("recovery guidance does not stay visible for eight seconds")
+				}
+				// Retrying must not display the previous failure over the new stream.
+				s.model.Stack = append(s.model.Stack, View{Detail: &item})
+				s.startPlayback(nil, false)
+				if s.message.Text != "" {
+					t.Fatal("retry retained failure banner")
+				}
+			})
+		}
+	}
+}
+
+func TestPlaybackFailureHidesRawErrorsAndIgnoresStaleEvents(t *testing.T) {
+	s := testSession(t)
+	err := errors.New("private stream URL and response")
+	s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id + 1, Err: playback.ErrStartupTimeout})
+	if s.message.Text != "" || !s.controller.running {
+		t.Fatal("stale decoder replaced current playback with an error")
+	}
+	s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id, Err: err})
+	if s.message.Header != "Playback didn't start" || s.message.Text != "Could not open this stream. Try again." {
+		t.Fatal("non-timeout failure exposed provider text or lost retry guidance")
+	}
+}
+
+func TestReportingWarningPreservesQueueAdvancement(t *testing.T) {
+	for _, queue := range []string{"album", "playlist", "remote", "shuffle"} {
+		t.Run(queue, func(t *testing.T) {
+			s := testSession(t)
+			kind := "Audio"
+			if queue == "playlist" || queue == "remote" {
+				kind = "Movie"
+			}
+			items := []media.Item{{ID: "first", Type: kind}, {ID: "second", Type: kind}}
+			v := s.model.Current()
+			v.Location.Kind = "items"
+			if queue == "playlist" {
+				v.Location.Kind = "playlist"
+			}
+			v.Page.Items = items
+			s.model.Key(control.Open)
+			s.startPlayback(nil, false)
+			if queue == "remote" {
+				s.adoptLocalQueue()
+				s.playbackQueue.replace(items, 0)
+			}
+			if queue == "shuffle" {
+				s.shuffle = shuffleQueue{library: "music", items: items}
+			}
+			s.controller.state.ControlsUntil = time.Now().Add(time.Hour)
+			old := s.controller.active.id
+			s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: old, Err: fmt.Errorf("report: %w", playback.ErrProgress)})
+			if queue == "album" || queue == "playlist" {
+				if !s.media.pending {
+					t.Fatal("reporting warning stopped local advancement")
+				}
+				s.handleNeighbor(receiveNeighbor(t, s))
+			}
+			if !s.controller.running || s.controller.item.ID != "second" {
+				t.Fatal("reporting warning stopped next item")
+			}
+			if s.message.Header != "Progress update failed" || !time.Now().Before(s.message.Until) {
+				t.Fatal("track change erased reporting warning")
+			}
+			warning := s.message
+			s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: old, Err: playback.ErrProgress})
+			if s.message != warning {
+				t.Fatal("stale completion extended warning")
+			}
+			s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id, Err: playback.ErrInterrupted})
+			if s.controller.running || s.playbackQueue.active || s.model.MusicQueueActive() {
+				t.Fatal("decoder failure continued queue")
+			}
+			if s.message.preserveOnPlayback {
+				t.Fatal("playback failure retained warning policy")
+			}
+			s.model.Stack = append(s.model.Stack, View{Detail: &media.Item{ID: "retry", Type: "Audio"}})
+			s.startPlayback(nil, false)
+			if s.message.Text != "" {
+				t.Fatal("retry retained failure")
+			}
+		})
+	}
+}
+
+func TestReportingWarningDoesNotRestartStoppedPlayback(t *testing.T) {
+	s := setupMusicSession(t)
+	s.controller.stopByUser()
+	s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id, Err: playback.ErrProgress})
+	if s.controller.running || s.media.pending || s.model.MusicQueueActive() {
+		t.Fatal("warning restarted stopped playback")
 	}
 }

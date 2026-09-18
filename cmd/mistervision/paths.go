@@ -24,12 +24,12 @@ func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File)
 	config.MusicVisuals, err = musicviz.ParsePresets(musicSource)
 	if err != nil {
 		log.ConfigurationFallback("music_visuals", "music-backgrounds-off", err)
-		config.StartupNotices = append(config.StartupNotices, "Check music configuration and assets. Music backgrounds are off.")
+		config.StartupNotices = append(config.StartupNotices, messageMusicInvalid)
 	}
 	ui := source.UI()
 	if ui.TitleError != nil {
 		log.ConfigurationFallback("ui", "default-title", ui.TitleError)
-		config.StartupNotices = append(config.StartupNotices, "Could not load title settings. Using MiSTerVision.")
+		config.StartupNotices = append(config.StartupNotices, messageTitleInvalid)
 	} else {
 		config.Title = ui.Title
 	}
@@ -46,12 +46,12 @@ func browserConfig(o launchOptions, log *diagnostics.Log, source *settings.File)
 		}
 	}
 	if ui.ShowCollectionsError != nil || ui.ShowPlaylistsError != nil {
-		config.StartupNotices = append(config.StartupNotices, "Invalid carousel options use their defaults.")
+		config.StartupNotices = append(config.StartupNotices, messageCarouselInvalid)
 	}
 	background, err := browser.ParseBackground(source.Section("background"))
 	if err != nil {
 		log.ConfigurationFallback("background", "normal-artwork", err)
-		config.StartupNotices = append(config.StartupNotices, "Custom background unavailable. Using normal artwork.")
+		config.StartupNotices = append(config.StartupNotices, messageBackgroundUnavailable)
 	} else {
 		config.Background = background
 	}
@@ -89,7 +89,7 @@ func browsingSounds(o launchOptions, log *diagnostics.Log, source *settings.File
 	config, err := sound.ParseConfig(section)
 	if err != nil {
 		log.ConfigurationFallback("ui.navigation_sounds", "sounds-off", err)
-		return sound.Config{}, "Check sound settings. Navigation sounds are off."
+		return sound.Config{}, messageSoundsInvalid
 	}
 	return config, ""
 }

@@ -18,7 +18,7 @@ var errServerNotFound = errors.New("remembered Jellyfin server was not rediscove
 // It runs once per failed remembered connection, never for explicit configuration.
 // The user must accept the candidate before credentials go to its new address.
 func (c *Connector) recoverAddress(ctx context.Context, interaction connection.Interaction, config jellyfin.Config, old connection.Server, saved jellyfin.Session, recovered bool) (*jellyfin.Client, connection.Server, error) {
-	interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Finding your Jellyfin server", Message: "The saved address is unavailable.\nChecking for a new address.", BackToServers: true})
+	interaction.Show(connection.Presentation{Kind: connection.SetupConnecting, Title: "Finding your Jellyfin server", Message: connection.AddressRecoveryMessage, BackToServers: true})
 	servers, err := c.Discovery.Discover(ctx)
 	c.Diagnostics.Record("connection.rediscovery", slog.Bool("failed", err != nil), slog.Int("servers", len(servers)))
 	if err != nil {

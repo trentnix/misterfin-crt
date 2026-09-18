@@ -3,7 +3,9 @@ package browser
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -197,7 +199,7 @@ func TestNotesScrollingStopsAtLastVisiblePage(t *testing.T) {
 func TestFailedCheckPreservesKnownRelease(t *testing.T) {
 	s := updateSession(t)
 	s.handleResult(updateResult{err: errors.New("network failure")})
-	if !s.about.Release.Available || s.about.Message != "Could not check for updates." {
+	if !s.about.Release.Available || s.about.Message != "Could not check for updates. Check your internet connection, then try Check updates again." {
 		t.Fatal("lost known release")
 	}
 	s.handleResult(updateResult{err: release.ErrUnavailable})
@@ -284,4 +286,47 @@ type updateTestRenderer struct {
 func (r *updateTestRenderer) Render(width, height int, scene rendering.Scene) videoout.Frame {
 	r.inspect(scene)
 	return r.Renderer.Render(width, height, scene)
+}
+
+func TestUpdateFailureGuidance(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"download", errors.Join(update.ErrDownload, errors.New("private URL")), "internet connection"},
+		{"verification", errors.Join(update.ErrDownload, update.ErrVerification), "could not be verified"},
+		{"space", errors.Join(update.ErrDownload, &os.PathError{Path: "private", Err: syscall.ENOSPC}), "free space"},
+		{"read-only", errors.Join(update.ErrVerification, &os.PathError{Path: "private", Err: syscall.EROFS}), "writable"},
+		{"storage", &os.PathError{Path: "private", Err: syscall.EIO}, "SD card"},
+		{"manual", update.ErrManual, "manually"},
+		{"other", errors.New("private implementation detail"), "Retry or install"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := updateSession(t)
+			s.about.NotesVisible = true
+			installResult{tc.err}.apply(s)
+			if !strings.Contains(s.about.Message, tc.want) || !strings.Contains(s.about.Message, "Existing installation kept.") || strings.Contains(s.about.Message, "private") {
+				t.Fatal(s.about.Message)
+			}
+			if tc.name == "manual" {
+				called := false
+				s.config.Updater = testUpdater(func(context.Context, release.Status, func(update.Progress)) error { called = true; return nil })
+				s.handleKey(control.Open)
+				if !s.about.ManualInstall || called || s.about.Updating {
+					t.Fatal("incompatible release remained installable")
+				}
+				same := s.about.Release
+				updateResult{status: same}.apply(s)
+				if !s.about.ManualInstall {
+					t.Fatal("checking the same release reenabled installation")
+				}
+				same.Latest = "v9.0.0"
+				updateResult{status: same}.apply(s)
+				if s.about.ManualInstall {
+					t.Fatal("new release inherited incompatible format")
+				}
+			}
+		})
+	}
 }

@@ -52,7 +52,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	if os.Getenv("MISTERVISION_UPDATE_RECOVERED") == "1" {
 		_ = os.Unsetenv("MISTERVISION_UPDATE_RECOVERED")
 		trace.log.Record("update.recovered")
-		config.StartupNotices = append(config.StartupNotices, "An interrupted update was rolled back.")
+		config.StartupNotices = append(config.StartupNotices, messageUpdateRolledBack)
 	}
 	config.CheckUpdate = func(ctx context.Context) (release.Status, error) {
 		return release.Check(ctx, config.Build.Version)
@@ -77,7 +77,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	sounds, err := sound.New(soundConfig, target.openSound)
 	if err != nil {
 		trace.log.ConfigurationFallback("ui.navigation_sounds", "sounds-off", err)
-		config.StartupNotices = append(config.StartupNotices, "Navigation sounds unavailable. Continuing without feedback.")
+		config.StartupNotices = append(config.StartupNotices, messageSoundsUnavailable)
 	}
 	defer sounds.Close()
 	var feedback sound.Feedback
@@ -115,7 +115,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 			return err
 		}
 		if _, ok := catalog.connectors[change.ID]; !ok {
-			return errors.New("unknown connection selection")
+			return errors.New(messageConnectionSelectionInvalid)
 		}
 		catalog.startSelection(change.ID)
 		config.ReturnConnectionID = change.ReturnID

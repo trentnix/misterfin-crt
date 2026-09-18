@@ -28,13 +28,17 @@ func (p *screenPainter) photo() {
 	}
 
 	if s.Notice != "" {
-		c.Shade(0, h/2-10, w, 24, 210)
-		center(c, h/2-4, s.Notice, 0xffffff, 1)
+		drawNotice(c, "", s.Notice, -1, 6)
+		return
 	}
 	if art.Photo == nil {
 		message := "Loading photo..."
 		if selectionError != "" {
-			message = "Photo unavailable. R:retry"
+			message = messagePhotoFailed
+			rows := controlRows(w, []controlHint{hint(s.Controls, control.Retry, "Retry"), hint(s.Controls, control.Back, "Back")})
+			drawNotice(c, "", message, -1, 4)
+			drawControls(c, bottom, rows)
+			return
 		}
 		center(c, h/2-4, message, 0xffffff, 1)
 	}

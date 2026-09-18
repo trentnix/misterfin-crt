@@ -7,6 +7,7 @@ import (
 
 	"mistervision/internal/connection"
 	"mistervision/internal/release"
+	"mistervision/internal/ui"
 	"mistervision/internal/update"
 )
 
@@ -33,6 +34,8 @@ type AboutPresentation struct {
 	Notes                           []string
 	Scroll                          int
 	CanInstall, Updating, Installed bool
+	// ManualInstall suppresses retrying an incompatible release in this updater.
+	ManualInstall bool
 	// Restarting distinguishes a supported automatic restart from manual relaunch.
 	Restarting bool
 	Progress   update.Progress
@@ -61,10 +64,10 @@ func (a AboutPresentation) Status() string {
 		return "Checking for updates..."
 	case a.Message != "":
 		return a.Message
-	case a.NotesVisible && !a.CanInstall:
-		return "Install the release ZIP manually on this device."
+	case a.NotesVisible && (!a.CanInstall || a.ManualInstall):
+		return messageUpdateManual
 	case a.NotesVisible && !a.Release.HasBundle:
-		return "No installation bundle is available."
+		return messageNoUpdateBundle
 	case a.NotesVisible:
 		return "Install this release? Settings and sign-in are kept."
 	case a.Release.Available:
@@ -72,7 +75,7 @@ func (a AboutPresentation) Status() string {
 	case a.Checked:
 		return "Up to date"
 	default:
-		return "Update checks unavailable"
+		return messageUpdateCheckUnavailable
 	}
 }
 
@@ -91,29 +94,18 @@ func ReleaseNotes(text string, width int) []string {
 	if strings.TrimSpace(text) == "" {
 		text = "No release notes were provided."
 	}
-	columns := max(8, (width-48)/8)
 	var lines []string
 	for _, paragraph := range strings.Split(text, "\n") {
 		paragraph = strings.TrimLeft(strings.TrimSpace(paragraph), "# ")
 		paragraph = strings.ReplaceAll(strings.ReplaceAll(paragraph, "`", ""), "**", "")
-		line := ""
-		for _, word := range strings.Fields(paragraph) {
-			if line != "" && len([]rune(line+" "+word)) > columns {
-				lines = append(lines, line)
-				line = ""
-			}
-			runes := []rune(word)
-			for len(runes) > columns {
-				lines = append(lines, string(runes[:columns]))
-				runes = runes[columns:]
-			}
-			if line != "" {
-				line += " "
-			}
-			line += string(runes)
+		wrapped := ui.WrapText(paragraph, max(64, width-48))
+		if len(wrapped) == 0 {
+			lines = append(lines, "")
+		} else {
+			lines = append(lines, wrapped...)
 		}
-		lines = append(lines, line)
 	}
+
 	return lines
 }
 

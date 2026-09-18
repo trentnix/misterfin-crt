@@ -54,7 +54,7 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 		c.picturePending = false
 		if event.Picture.Err != nil {
 			c.trackOptions.Picture = c.tracks.Picture
-			c.notice = event.Picture.Err.Error()
+			c.notice = messagePictureFailed
 		} else {
 			c.tracks.Picture = event.Picture.Mode
 			c.trackOptions.Picture = event.Picture.Mode
@@ -75,7 +75,7 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 		}
 		c.subtitleLoading = false
 		if event.Subtitle.Err != nil {
-			c.notice = event.Subtitle.Err.Error()
+			c.notice = messageSubtitleFailed
 		} else {
 			c.tracks.Selection.SubtitleIndex = event.Subtitle.Index
 			c.tracks.Text = event.Subtitle.Text
@@ -118,7 +118,7 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 			}
 		case PlaybackControlFailed:
 			if event.Err != nil {
-				c.notice = event.Err.Error()
+				c.notice = messageControlFailed
 			}
 		case PlaybackPaused:
 			// Feedback describes the decoder, not the user's latest intent.

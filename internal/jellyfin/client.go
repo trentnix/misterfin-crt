@@ -79,18 +79,27 @@ func (c *Client) Authorization() string {
 
 // ErrServerUnavailable identifies a failed transport request without exposing
 // the URL or credentials. HTTP error statuses and invalid responses are distinct.
-var ErrServerUnavailable = errors.New("cannot reach Jellyfin (check address, TLS certificate, and connection)")
+var ErrServerUnavailable = media.ErrUnavailable
 
 // HTTPError reports a non-success HTTP status without retaining response bodies
 // or credential-bearing URLs.
 type HTTPError struct{ Status int }
 
-// Error returns a status-only diagnostic suitable for display.
+// Error returns a status-only diagnostic. The browser supplies recovery guidance.
 func (e *HTTPError) Error() string { return fmt.Sprintf("Jellyfin returned HTTP %d", e.Status) }
 
-// Is identifies authentication rejection through the shared media error.
+// Is classifies HTTP failures through shared media errors.
 func (e *HTTPError) Is(target error) bool {
-	return target == media.ErrUnauthorized && (e.Status == 401 || e.Status == 403)
+	switch target {
+	case media.ErrUnauthorized:
+		return e.Status == 401 || e.Status == 403
+	case media.ErrNotFound:
+		return e.Status == 404 || e.Status == 410
+	case media.ErrServerFailure:
+		return e.Status >= 500 && e.Status <= 599
+	default:
+		return false
+	}
 }
 
 // Rejected reports whether err wraps an authentication or authorization failure
@@ -134,7 +143,7 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, ErrServerUnavailable
+		return nil, media.NetworkError(err)
 	}
 	defer resp.Body.Close()
 	status = resp.StatusCode
@@ -145,7 +154,7 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 	data, err = io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	received = int64(len(data))
 	if err != nil {
-		return nil, errors.New("cannot read Jellyfin response")
+		return nil, media.NetworkError(err)
 	}
 	if len(data) > limit {
 		return nil, errors.New("Jellyfin response exceeds 8 MiB")

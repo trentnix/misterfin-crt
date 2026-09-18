@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 
+	"mistervision/internal/diagnostics"
 	"mistervision/internal/media"
 	"mistervision/internal/rendering"
 )
@@ -105,7 +106,7 @@ func (s *browserSession) handleAuth(r authResult) bool {
 		s.refreshConnections()
 		s.about.CurrentConnection = s.config.ConnectionID
 		if r.connection.recovered {
-			s.startupNotices = append(s.startupNotices, "Damaged sign-in was backed up. Connected successfully.")
+			s.startupNotices = append(s.startupNotices, messageRecoveredSignIn)
 		}
 		s.model = New()
 		s.restoreNavigation()
@@ -142,7 +143,7 @@ func (s *browserSession) handlePage(r pageResult) bool {
 	s.config.Diagnostics.Record("browser.page",
 		slog.String("kind", r.request.Location.Kind),
 		slog.String("parent", parent[:min(256, len(parent))]),
-		slog.Int("start", r.request.Start), slog.Bool("failed", r.err != nil))
+		slog.Int("start", r.request.Start), slog.Bool("failed", r.err != nil), slog.String("error_kind", diagnostics.ErrorKind(r.err)))
 	if errors.Is(r.err, media.ErrUnauthorized) {
 		s.selection.cancel()
 		s.selection.generation++

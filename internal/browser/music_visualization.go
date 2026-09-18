@@ -49,7 +49,7 @@ func (s *browserSession) handleMusicAssets(r musicAssetsResult) bool {
 	if r.err == nil {
 		s.music.library = r.music
 	} else if r.index == s.music.index {
-		s.music.error = "Background unavailable. Check music assets."
+		s.music.error = messageMusicBackgroundFailed
 	}
 	if r.index != s.music.index {
 		s.loadMusicAssets()

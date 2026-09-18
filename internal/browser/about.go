@@ -43,10 +43,13 @@ func (r updateResult) apply(s *browserSession) bool {
 	switch {
 	case errors.Is(r.err, release.ErrUnavailable):
 		s.about.Release = release.Status{}
-		s.about.Message = "No public release available."
+		s.about.Message = messageNoRelease
 	case r.err != nil:
-		s.about.Message = "Could not check for updates."
+		s.about.Message = messageUpdateCheckFailed
 	default:
+		if s.about.Release.Latest != r.status.Latest {
+			s.about.ManualInstall = false
+		}
 		s.about.Release = r.status
 		s.about.Notes = rendering.ReleaseNotes(r.status.Notes, max(320, s.geometry.Width))
 		s.about.Scroll = 0

@@ -143,7 +143,7 @@ func (d *serverDiscovery) chooseHome(ctx context.Context, i connection.Interacti
 		choice.PIN = ""
 		if e != nil {
 			if Rejected(e) && profile.Protected {
-				prompt = connection.ProfilePrompt{Profiles: profiles, Avatars: avatars, Selected: selected, PIN: true, Message: "Incorrect PIN. Try again."}
+				prompt = connection.ProfilePrompt{Profiles: profiles, Avatars: avatars, Selected: selected, PIN: true, Message: messagePINIncorrect}
 				continue
 			}
 			return e

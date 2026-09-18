@@ -3,6 +3,7 @@ package playback
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -300,7 +301,7 @@ func TestFastCompletionPreservesInitialReportAndSurfacesReportingFailure(t *test
 	defer server.Close()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
 	err := Run(context.Background(), client, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: media.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {}}})
-	if err == nil || err.Error() != "playback ended, but server progress reporting failed" {
+	if !errors.Is(err, ErrProgress) {
 		t.Fatalf("reporting failure was lost at EOF: %v", err)
 	}
 	mu.Lock()
@@ -308,5 +309,41 @@ func TestFastCompletionPreservesInitialReportAndSurfacesReportingFailure(t *test
 	want := []string{"/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped", "/UserItems/movie/UserData"}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("fast completion lost reporting order: %v", events)
+	}
+}
+
+func TestDecoderFailureDistinguishesStartupAndInterruption(t *testing.T) {
+	for _, started := range []bool{false, true} {
+		t.Run(fmt.Sprint(started), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "player")
+			script := "#!/bin/sh\n"
+			if started {
+				script += "printf '1 M-V: 0\\n'\n"
+			}
+			script += "exit 1\n"
+			if err := os.WriteFile(path, []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/Items/movie":
+					fmt.Fprint(w, `{"Id":"movie","Type":"Movie"}`)
+				case "/Videos/movie/stream":
+					fmt.Fprint(w, "media")
+				default:
+					fmt.Fprint(w, `{}`)
+				}
+			}))
+			defer server.Close()
+			client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
+			err := Run(t.Context(), client, Config{VideoDecoder: desktopplayer.Decoder{Player: path}}, Request{Item: media.Item{ID: "movie", Type: "Movie"}})
+			want := ErrNotStarted
+			if started {
+				want = ErrInterrupted
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("got %v, want %v", err, want)
+			}
+		})
 	}
 }

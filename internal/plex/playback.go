@@ -117,7 +117,7 @@ func (c *Client) RequestStream(ctx context.Context, method, raw string, headers 
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, errors.New("cannot open Plex media stream")
+		return nil, media.NetworkError(err)
 	}
 	return response, nil
 }

@@ -96,9 +96,9 @@ func (m *Model) Apply(req Request, page media.Page, err error) bool {
 		v.prefetchFailed = true
 		if waiting {
 			if err != nil {
-				v.Error = err.Error()
+				v.Error = requestFailure(messageListFailed, err)
 			} else {
-				v.Error = "No items returned for this page."
+				v.Error = messageListChanged
 			}
 		}
 		return true
@@ -163,7 +163,7 @@ func (m *Model) Key(key control.Action) *Request {
 		}
 		m.Generation++
 		if v.Loading {
-			v.Error = "Loading canceled."
+			v.Error = messageLoadingCanceled
 		}
 		if len(m.Stack) == 1 && v == m.Current() && !v.Loading {
 			m.ExitConfirm = true
@@ -182,7 +182,7 @@ func (m *Model) Key(key control.Action) *Request {
 		return nil
 	}
 	if v.Detail != nil && key == control.Open {
-		m.Notice = "Playback for this item type is not available yet."
+		m.Notice = messageUnsupportedPlayback
 	}
 	if (v.Loading && len(v.Page.Items) == 0) || v.Detail != nil {
 		return nil
@@ -265,7 +265,7 @@ func (m *Model) Key(key control.Action) *Request {
 			next.Detail = &copy
 		}
 		if len(m.Stack) >= 32 {
-			v.Error = "Maximum folder depth reached"
+			v.Error = messageFolderDepth
 			return nil
 		}
 		m.photoControlsUntil = time.Time{}

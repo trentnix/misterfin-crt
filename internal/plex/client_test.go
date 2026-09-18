@@ -508,3 +508,23 @@ func TestConfiguredTranscodeLimitsReachPlex(t *testing.T) {
 		t.Fatal("diagnostic limits differ from requested limits")
 	}
 }
+
+// timeoutTransport exercises the actual adapter boundary without slow clocks.
+type timeoutTransport struct{}
+
+func (timeoutTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, os.ErrDeadlineExceeded
+}
+
+func TestTimeoutsRemainClassifiableWithoutURLs(t *testing.T) {
+	c := NewClient(Config{Server: "https://private-server"}, serverstate.Session{})
+	c.HTTP.Transport = timeoutTransport{}
+	_, err := c.OpenStream(t.Context(), c.Config.Server+"/stream?private-token=secret")
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, media.ErrUnavailable) || strings.Contains(err.Error(), "private") {
+		t.Fatalf("stream timeout: %v", err)
+	}
+	_, err = c.Libraries(t.Context())
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, media.ErrUnavailable) || strings.Contains(err.Error(), "private") {
+		t.Fatalf("metadata timeout: %v", err)
+	}
+}

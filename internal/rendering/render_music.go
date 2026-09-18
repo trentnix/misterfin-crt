@@ -83,6 +83,6 @@ func (p *screenPainter) music() {
 		drawControls(c, bottom, rows)
 	}
 	if s.Notice != "" {
-		center(c, bottom, s.Notice, dimColor, 1)
+		drawNotice(c, "", s.Notice, -1, 6)
 	}
 }

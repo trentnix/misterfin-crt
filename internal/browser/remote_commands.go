@@ -18,7 +18,7 @@ func (s *browserSession) handleRemote(cmd remote.Command) bool {
 	now := time.Now()
 	switch cmd.Kind {
 	case remote.Message:
-		s.message = rendering.MessagePresentation{Header: cmd.Header, Text: cmd.Text, Until: now.Add(8 * time.Second)}
+		s.message = browserMessage{MessagePresentation: rendering.MessagePresentation{Header: cmd.Header, Text: cmd.Text, Until: now.Add(8 * time.Second)}}
 	case remote.Play:
 		s.requestRemotePlay(cmd)
 	case remote.Stop:
@@ -86,7 +86,7 @@ func (s *browserSession) applyRemoteItems(cmd remote.Command, items []media.Item
 		s.adoptLocalQueue()
 	}
 	if q.active && appendQueue && q.queue.Len()+len(items) > 10000 {
-		s.message = rendering.MessagePresentation{Header: "Remote playback", Text: "The queue limit is 10000 items.", Until: time.Now().Add(8 * time.Second)}
+		s.message = browserMessage{MessagePresentation: rendering.MessagePresentation{Header: titleRemotePlayback, Text: messageQueueLimit, Until: time.Now().Add(8 * time.Second)}}
 		return
 	}
 	if cmd.PlayMode == remote.PlayShuffle {

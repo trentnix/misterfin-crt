@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"mistervision/internal/media"
 )
 
 // OpenStream consumes a prepared video URL without a body-size or total-time limit.
@@ -89,7 +91,7 @@ func (c *Client) doStream(req *http.Request, transport http.RoundTripper) (*http
 		if req.Context().Err() != nil {
 			return nil, req.Context().Err()
 		}
-		return nil, errors.New("cannot open media stream")
+		return nil, media.NetworkError(err)
 	}
 	return response, nil
 }
