@@ -30,7 +30,7 @@ func TestLivePreparationPreservesAudioChoice(t *testing.T) {
 			choices.explicit = &TrackOptions{Selection: media.TrackSelection{AudioIndex: index, SubtitleIndex: 9}, Picture: PictureZoom43}
 		}
 		offset := int64(90000000)
-		session, err := preparePlayback(t.Context(), backend, Config{Height: 480}, Request{Item: media.Item{ID: "channel", Type: "TvChannel"}, StartTicks: &offset}, choices)
+		session, err := preparePlayback(t.Context(), backend, Config{Timing: Timing{LiveFrameRate: 30000.0 / 1001}}, Request{Item: media.Item{ID: "channel", Type: "TvChannel"}, StartTicks: &offset}, choices)
 		if err != nil {
 			t.Fatal(err)
 		}

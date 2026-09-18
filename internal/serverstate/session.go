@@ -20,11 +20,12 @@ type Session struct {
 	ServerID string `json:",omitempty"`
 }
 
-// LoadSession restores sign-in for server or creates a new device identity.
-// A malformed or oversized record is preserved privately as session-damaged-*
-// before replacement. recovered reports that case so callers can explain the
-// fresh sign-in. I/O and permission errors preserve the original and return an
-// error. Session records are limited to 64 KiB. Calls for one directory must be
+// LoadSession restores sign-in for server or creates an unsaved device identity.
+// The caller must save a new session only after successful authentication. A
+// different server never replaces the existing record during setup.
+// A malformed or oversized record is preserved privately as session-damaged-*.
+// recovered reports that case so callers can explain the fresh sign-in.
+// I/O and permission errors preserve the original and return an error. Session records are limited to 64 KiB. Calls for one directory must be
 // serialized with SaveSession.
 func LoadSession(dir, server string) (Session, bool, error) {
 	return LoadSessionForServer(dir, server, "")
@@ -81,29 +82,18 @@ func LoadSessionForServer(dir, server, serverID string) (session Session, recove
 		return Session{}, recovered, err
 	}
 	session = Session{Server: server, DeviceID: hex.EncodeToString(id[:])}
-	return session, recovered, SaveSession(dir, session)
+	return session, recovered, nil
 }
 
 // SaveSession atomically replaces sign-in data using a private file. The caller
 // must serialize writes and LoadSession calls for this directory. Errors leave
 // the previous record intact. Credentials must never be included in diagnostics.
 func SaveSession(dir string, s Session) error {
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, ".session-*")
+	data, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
-	err = json.NewEncoder(f).Encode(s)
-	if e := f.Close(); err == nil {
-		err = e
-	}
-	if err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), filepath.Join(dir, "session.json"))
+	return WriteFile(filepath.Join(dir, "session.json"), append(data, '\n'))
 }
 
 // matchesServer uses stable identity when both records supply it. Legacy and

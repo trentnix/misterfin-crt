@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/playback"
 )
 
@@ -27,12 +27,13 @@ type controllerFixture struct {
 func newControllerFixture(t *testing.T) *controllerFixture {
 	t.Helper()
 	f := &controllerFixture{now: time.Unix(100, 0)}
-	f.c = newPlaybackController(func(item jellyfin.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
+	f.c = newPlaybackController(func(item media.Item, offset *int64, gate <-chan struct{}, prepared bool, tracks playback.TrackOptions) playbackProcess {
+		controls := make(chan playback.Control, 16)
 		call := &controllerLaunch{tracks: tracks, offset: offset, gate: gate, controls: controls, cleanup: make(chan struct{})}
 		f.calls = append(f.calls, call)
-		return playbackProcess{id: len(f.calls), cancel: func() { call.canceled = true }, cleanup: call.cleanup}
+		return playbackProcess{controls: controls, id: len(f.calls), cancel: func() { call.canceled = true }, cleanup: call.cleanup}
 	})
-	f.c.Start(jellyfin.Item{ID: "movie", Type: "Movie", Name: "Movie", RunTimeTicks: 6000000000}, nil, false, f.now)
+	f.c.Start(media.Item{ID: "movie", Type: "Movie", Name: "Movie", RunTimeTicks: 6000000000}, nil, false, f.now)
 	f.c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 1, Ticks: 20000000}, f.now)
 	return f
 }
@@ -94,7 +95,7 @@ func TestImmediateReopenUsesPositionPendingSave(t *testing.T) {
 func TestFirstVideoFrameClearsLoadingBeforePosition(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
-	c.Start(jellyfin.Item{ID: "movie", Type: "Movie"}, nil, false, f.now)
+	c.Start(media.Item{ID: "movie", Type: "Movie"}, nil, false, f.now)
 	c.Key(control.ToggleControls, f.now)
 	c.Handle(PlaybackEvent{Kind: PlaybackVideoStarted, ID: 1}, f.now)
 	if c.Snapshot(f.now).WaitLabel != "Loading..." {
@@ -142,7 +143,7 @@ func TestControllerSeekRetargetDuringHandoff(t *testing.T) {
 		t.Fatal("seek launched before deadline")
 	}
 	c.Tick(f.now.Add(500 * time.Millisecond))
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.SetPaused)
 	if c.Snapshot(f.now).WaitLabel != "Seeking..." || *f.calls[1].offset != 620000000 {
 		t.Fatal("missing seek")
 	}
@@ -188,7 +189,7 @@ func TestControllerPreservesPauseAndRejectsStaleEvents(t *testing.T) {
 	f := newControllerFixture(t)
 	c := f.c
 	c.Key(control.Open, f.now)
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.SetPaused)
 	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: 1, Value: true}, f.now)
 	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
@@ -198,7 +199,7 @@ func TestControllerPreservesPauseAndRejectsStaleEvents(t *testing.T) {
 	c.Handle(PlaybackEvent{Kind: PlaybackPrepared, ID: 2}, f.now)
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
 	c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 2, Ticks: 340000000}, f.now)
-	expectCommand(t, f.calls[1].controls, "pause")
+	expectCommand(t, f.calls[1].controls, playback.SetPaused)
 	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: 2, Value: true}, f.now)
 	c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 1, Ticks: 0}, f.now)
 	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: 1, Value: false}, f.now)
@@ -220,12 +221,12 @@ func TestControllerSeekFailureAndStop(t *testing.T) {
 	c := f.c
 	c.Key(control.SeekForward, f.now)
 	c.Tick(f.now.Add(time.Second))
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.SetPaused)
 	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: 1, Value: true}, f.now)
 	if c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2, Err: errors.New("stream failed")}, f.now) {
 		t.Fatal("failed seek ended original item")
 	}
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.Resume)
 	p := c.Snapshot(f.now)
 	if p.Notice == "" || p.HasDestination || !c.running {
 		t.Fatal(p)
@@ -368,7 +369,7 @@ func TestUpTogglesControlsDuringPlaybackAndSeek(t *testing.T) {
 
 func TestUpTogglesMusicControls(t *testing.T) {
 	f := newControllerFixture(t)
-	f.c.Start(jellyfin.Item{Type: "Audio"}, nil, false, f.now)
+	f.c.Start(media.Item{Type: "Audio"}, nil, false, f.now)
 	f.c.Key(control.ToggleControls, f.now)
 	if !f.c.Snapshot(f.now).ControlsVisible {
 		t.Fatal("controls not revealed")
@@ -376,5 +377,75 @@ func TestUpTogglesMusicControls(t *testing.T) {
 	f.c.Key(control.ToggleControls, f.now)
 	if f.c.Snapshot(f.now).ControlsVisible {
 		t.Fatal("controls not dismissed")
+	}
+}
+
+// Acknowledgments can arrive between later button presses on the event loop.
+func TestPauseIntentSurvivesEarlierAcknowledgment(t *testing.T) {
+	f := newControllerFixture(t)
+	c := f.c
+	c.Key(control.Open, f.now)
+	expectCommand(t, c.active.controls, playback.SetPaused)
+	c.Key(control.Open, f.now)
+	expectCommand(t, c.active.controls, playback.Resume)
+	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: c.active.id, Value: true}, f.now)
+	c.Key(control.Open, f.now)
+	expectCommand(t, c.active.controls, playback.SetPaused)
+}
+
+func TestSeekReplacementDoesNotInheritOldCommands(t *testing.T) {
+	f := newControllerFixture(t)
+	c := f.c
+	c.Key(control.SeekForward, f.now)
+	c.Tick(f.now.Add(time.Second))
+	// Cancellation can win before the original decoder consumes its pause.
+	c.Handle(PlaybackEvent{Kind: PlaybackPrepared, ID: c.pending.id}, f.now)
+	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: c.active.id}, f.now)
+	select {
+	case command := <-f.calls[1].controls:
+		t.Fatalf("replacement inherited old decoder command %q", command.Kind)
+	default:
+	}
+}
+
+func setControllerPaused(t *testing.T, c *PlaybackController, paused bool, now time.Time) {
+	t.Helper()
+	c.SetPaused(paused)
+	kind := playback.Resume
+	if paused {
+		kind = playback.SetPaused
+	}
+	expectCommand(t, c.active.controls, kind)
+	c.Handle(PlaybackEvent{Kind: PlaybackPaused, ID: c.active.id, Value: paused}, now)
+}
+
+func TestStartupAppliesLatestPauseIntentOnce(t *testing.T) {
+	for _, paused := range []bool{false, true} {
+		name := "resume"
+		if paused {
+			name = "pause"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newControllerFixture(t)
+			c := f.c
+			c.Start(c.item, nil, !paused, f.now)
+			c.SetPaused(paused)
+			c.Tick(f.now)
+			if len(c.active.controls) != 0 {
+				t.Fatal("pause sent before decoder startup")
+			}
+			c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: c.active.id, Ticks: 10}, f.now)
+			if paused {
+				expectCommand(t, c.active.controls, playback.SetPaused)
+			}
+			c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: c.active.id, Ticks: 20}, f.now)
+			c.Tick(f.now)
+			if len(c.active.controls) != 0 {
+				t.Fatal("startup repeated or applied obsolete pause intent")
+			}
+			if c.wantsPause() != paused {
+				t.Fatal("startup lost latest pause intent")
+			}
+		})
 	}
 }

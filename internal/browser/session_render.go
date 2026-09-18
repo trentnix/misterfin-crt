@@ -27,7 +27,7 @@ func (s *browserSession) draw() error {
 	scene.About = s.about
 	scene.Controls = s.controls
 	scene.Music, scene.MusicIndex = s.music.library, s.music.index
-	scene.Shuffle = s.shuffle.library != "" || (s.remotePlayback.active && s.remotePlayback.queue.Shuffled())
+	scene.Shuffle = s.shuffle.library != "" || (s.playbackQueue.active && s.playbackQueue.queue.Shuffled())
 	scene.MusicMessage = s.music.error
 	if s.music.library != nil && !s.music.library.Ready(s.music.index) && s.music.loading {
 		scene.MusicMessage = "Loading background..."
@@ -44,13 +44,15 @@ func (s *browserSession) draw() error {
 		s.ticker.Reset(interval)
 	}
 	frame := s.renderer.Render(s.geometry.Width, s.geometry.Height, scene)
-	changed := !bytes.Equal(s.lastVideoOverlay, frame.Overlay)
-	s.lastVideoOverlay = append(s.lastVideoOverlay[:0], frame.Overlay...)
 	if err := s.output.Present(frame); err != nil {
 		return err
 	}
-	if frame.Video && changed && scene.Playback.Paused {
-		s.controller.Refresh()
+	if !frame.Video || !scene.Playback.Paused {
+		s.lastVideoOverlay = s.lastVideoOverlay[:0]
+	} else if !bytes.Equal(s.lastVideoOverlay, frame.Overlay) && s.controller.Refresh() {
+		// A busy decoder must retry on the next frame. Remember the overlay
+		// only after both presentation and the redraw request succeed.
+		s.lastVideoOverlay = append(s.lastVideoOverlay[:0], frame.Overlay...)
 	}
 	return nil
 }

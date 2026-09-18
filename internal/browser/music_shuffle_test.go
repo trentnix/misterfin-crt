@@ -5,27 +5,28 @@ import (
 	"testing"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/remote"
 )
 
 func TestShuffleCancellationPreservesArtists(t *testing.T) {
 	for _, playing := range []bool{false, true} {
 		s := testSession(t)
 		s.controller.running = false
-		artist := View{Location: jellyfin.Location{Collection: "music", ParentID: "library"}, Page: jellyfin.Page{Items: []jellyfin.Item{{ID: "artist", Type: "MusicArtist"}}}}
+		artist := View{Location: media.Location{Collection: "music", ParentID: "library"}, Page: media.Page{Items: []media.Item{{ID: "artist", Type: "MusicArtist"}}}}
 		s.model.Stack = append(s.model.Stack, artist)
 		s.shuffle = shuffleQueue{library: "library"}
 		s.media.pending = true
 		s.media.generation = 2
 		if playing {
-			s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{ID: "track", Type: "Audio"}})
+			s.model.Stack = append(s.model.Stack, View{Detail: &media.Item{ID: "track", Type: "Audio"}})
 			s.model.StartMusicQueue()
 		}
 		s.handleKey(control.Back)
 		if len(s.model.Stack) != 2 || s.model.Current().Item().ID != "artist" || s.model.MusicQueueActive() || s.shuffle.library != "" {
 			t.Fatalf("cancel playing=%v lost artists: %+v", playing, s.model)
 		}
-		if s.handleShuffle(shuffleResult{generation: 2, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "stale", Type: "Audio"}}}}) {
+		if s.handleShuffle(shuffleResult{generation: 2, page: media.Page{Items: []media.Item{{ID: "stale", Type: "Audio"}}}}) {
 			t.Fatal("accepted canceled shuffle")
 		}
 	}
@@ -34,11 +35,11 @@ func TestShuffleCancellationPreservesArtists(t *testing.T) {
 func TestShuffleRefillAndStopRestoreArtistSelection(t *testing.T) {
 	s := testSession(t)
 	s.controller.running = false
-	s.model.Stack = append(s.model.Stack, View{Location: jellyfin.Location{Collection: "music", ParentID: "library"}, Selected: 1, Page: jellyfin.Page{Items: []jellyfin.Item{{ID: "first", Type: "MusicArtist"}, {ID: "selected", Type: "MusicArtist"}}}})
+	s.model.Stack = append(s.model.Stack, View{Location: media.Location{Collection: "music", ParentID: "library"}, Selected: 1, Page: media.Page{Items: []media.Item{{ID: "first", Type: "MusicArtist"}, {ID: "selected", Type: "MusicArtist"}}}})
 	s.shuffle = shuffleQueue{library: "library", position: -1}
 	s.media.generation = 1
-	one, two := jellyfin.Item{ID: "one", Type: "Audio"}, jellyfin.Item{ID: "two", Type: "Audio"}
-	s.handleShuffle(shuffleResult{generation: 1, page: jellyfin.Page{Items: []jellyfin.Item{one, two}}})
+	one, two := media.Item{ID: "one", Type: "Audio"}, media.Item{ID: "two", Type: "Audio"}
+	s.handleShuffle(shuffleResult{generation: 1, page: media.Page{Items: []media.Item{one, two}}})
 	if !s.model.MusicQueueActive() || s.model.Current().Detail.ID != "one" {
 		t.Fatal("shuffle did not start")
 	}
@@ -67,5 +68,18 @@ func TestShuffleFailureLeavesRetryNotice(t *testing.T) {
 	s.handleShuffle(shuffleResult{generation: 3, err: errors.New("offline")})
 	if s.model.Notice == "" || s.shuffle.library != "" || s.media.pending {
 		t.Fatal("shuffle failure lost retry state")
+	}
+}
+
+func TestShuffleTransitionPreservesExplicitPause(t *testing.T) {
+	s := setupMusicSession(t)
+	parent, _ := s.model.Parent()
+	s.shuffle = shuffleQueue{library: "music", items: parent.Page.Items, position: 0}
+	old := s.controller.active.id
+	s.handleRemote(remote.Command{Kind: remote.Next})
+	s.handleRemote(remote.Command{Kind: remote.Pause})
+	s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: old})
+	if s.controller.item.ID != "second" || !s.controller.wantsPause() {
+		t.Fatal("shuffle transition lost the requested pause")
 	}
 }

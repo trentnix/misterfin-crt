@@ -31,5 +31,5 @@ func misterTarget(d platform.Presenter, o launchOptions, bindings evdev.Config) 
 // physical framebuffer dimensions supplied by the presenter.
 func misterPlayback(o launchOptions, g platform.Geometry) playback.Config {
 	decoder := mplayer.Decoder{Player: o.player, Device: o.device, Width: g.OutputWidth, Height: g.OutputHeight}
-	return playback.Config{VideoDecoder: decoder, AudioDecoder: decoder, Height: g.OutputHeight}
+	return playback.Config{VideoDecoder: decoder, AudioDecoder: decoder, Timing: crtPlaybackTiming(g.OutputHeight)}
 }

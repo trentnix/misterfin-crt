@@ -49,6 +49,10 @@ func (s discoveryState) validate() error {
 		return ErrSessionSave
 	}
 	if s.Account == nil && s.Credentials == nil {
+		// Only legacy metadata-only records may omit credentials.
+		if s.Profile != nil || s.HomeChecked {
+			return ErrSessionSave
+		}
 		return nil
 	}
 	if s.Account == nil || s.Credentials == nil {
@@ -78,25 +82,7 @@ func saveDiscoveryState(dir string, s discoveryState) error {
 	if err != nil || len(data)+1 > 16384 {
 		return ErrSessionSave
 	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return ErrSessionSave
-	}
-	f, err := os.CreateTemp(dir, ".plex-connection-*")
-	if err != nil {
-		return ErrSessionSave
-	}
-	defer os.Remove(f.Name())
-	_, err = f.Write(append(data, '\n'))
-	if err == nil {
-		err = f.Sync()
-	}
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = os.Rename(f.Name(), filepath.Join(dir, "server.json"))
-	}
-	if err != nil {
+	if err := serverstate.WriteFile(filepath.Join(dir, "server.json"), append(data, '\n')); err != nil {
 		return ErrSessionSave
 	}
 	return nil

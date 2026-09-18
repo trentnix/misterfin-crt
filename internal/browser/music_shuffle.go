@@ -36,6 +36,7 @@ func (s *browserSession) fetchShuffle() {
 	generation, library, client := s.media.generation, s.shuffle.library, s.client
 	ctx, cancel := context.WithCancel(s.ctx)
 	s.media.cancel, s.media.pending = cancel, true
+	s.media.paused = false
 	s.model.Notice = "Loading shuffle..."
 	go func() {
 		items, err := client.RandomTracks(ctx, library)
@@ -87,6 +88,7 @@ func (s *browserSession) navigateShuffle(direction int) {
 		return
 	}
 	s.shuffle.position = next
+	s.media.paused = false
 	s.selectShuffleTrack()
 }
 
@@ -106,5 +108,5 @@ func (s *browserSession) selectShuffleTrack() {
 	}
 	s.selection.key = ""
 	s.loadSelection()
-	s.startPlayback(nil, false)
+	s.startPlayback(nil, s.media.paused)
 }

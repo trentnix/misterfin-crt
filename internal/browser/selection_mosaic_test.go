@@ -11,6 +11,7 @@ import (
 
 	"mistervision/internal/artwork"
 	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {
@@ -35,14 +36,14 @@ func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {
 			if changed.Load() {
 				tag = "changed"
 			}
-			items := []jellyfin.Item{
+			items := []media.Item{
 				{ID: "a", ImageTags: map[string]string{"Primary": tag}},
 				{ID: "b", ImageTags: map[string]string{"Primary": "second"}},
 			}
 			if empty.Load() {
 				items = nil
 			}
-			json.NewEncoder(w).Encode(jellyfin.Page{Items: items})
+			json.NewEncoder(w).Encode(media.Page{Items: items})
 			return
 		}
 		imageRequests.Add(1)
@@ -56,7 +57,7 @@ func TestMosaicRestartRestoresBeforeRefreshAndReusesTaggedImages(t *testing.T) {
 			mosaics: artwork.NewMosaicCache(root, server.URL, "user"),
 		})
 	}
-	library := jellyfin.Item{ID: "library", CollectionType: "movies"}
+	library := media.Item{ID: "library", CollectionType: "movies"}
 	first := makeLoader()
 	first.loadCovers(context.Background(), library, func(selectionUpdate) {})
 	if imageRequests.Load() != 2 {

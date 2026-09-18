@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func artPNG(t *testing.T) []byte {
@@ -61,7 +62,7 @@ func TestDetailsAndCoverArriveBeforeSlowArtwork(t *testing.T) {
 	started := make(chan string, 3)
 	var calls atomic.Int32
 	var watched atomic.Bool
-	item := jellyfin.Item{ID: "movie", Type: "Movie", ImageTags: map[string]string{"Primary": "p", "Logo": "l"}, BackdropImageTags: []string{"b"}}
+	item := media.Item{ID: "movie", Type: "Movie", ImageTags: map[string]string{"Primary": "p", "Logo": "l"}, BackdropImageTags: []string{"b"}}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/Items/movie" {
 			value := item
@@ -147,11 +148,11 @@ func TestCarouselCountsAndCoversLoadIndependently(t *testing.T) {
 				return
 			}
 			sampleCalls.Add(1)
-			items := make([]jellyfin.Item, 12)
+			items := make([]media.Item, 12)
 			for i := range items {
-				items[i] = jellyfin.Item{ID: fmt.Sprint(i), ImageTags: map[string]string{"Primary": "tag"}}
+				items[i] = media.Item{ID: fmt.Sprint(i), ImageTags: map[string]string{"Primary": "tag"}}
 			}
-			json.NewEncoder(w).Encode(jellyfin.Page{Items: items})
+			json.NewEncoder(w).Encode(media.Page{Items: items})
 			return
 		}
 		imageCalls.Add(1)
@@ -172,7 +173,7 @@ func TestCarouselCountsAndCoversLoadIndependently(t *testing.T) {
 	defer server.Close()
 	defer once.Do(func() { close(release) })
 	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288, selectionCaches{})
-	item := jellyfin.Item{ID: "movies", CollectionType: "movies"}
+	item := media.Item{ID: "movies", CollectionType: "movies"}
 	updates := make(chan selectionUpdate, 32)
 	done := make(chan struct{})
 	go func() {
@@ -236,7 +237,7 @@ func TestCancelRetainsCompletedCover(t *testing.T) {
 	}))
 	defer server.Close()
 	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 288, selectionCaches{})
-	item := jellyfin.Item{ID: "movie", ImageTags: map[string]string{"Primary": "p"}, BackdropImageTags: []string{"b"}}
+	item := media.Item{ID: "movie", ImageTags: map[string]string{"Primary": "p"}, BackdropImageTags: []string{"b"}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	updates := make(chan selectionUpdate, 4)
@@ -273,7 +274,7 @@ func TestCarouselCoversDoNotWaitForSlowCount(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		loader.load(ctx, jellyfin.Item{ID: "movies", CollectionType: "movies"}, true, false, func(u selectionUpdate) { updates <- u })
+		loader.load(ctx, media.Item{ID: "movies", CollectionType: "movies"}, true, false, func(u selectionUpdate) { updates <- u })
 	}()
 	select {
 	case <-countStarted:
@@ -291,7 +292,7 @@ func TestCarouselCoversDoNotWaitForSlowCount(t *testing.T) {
 	}
 	cancel()
 	awaitSelection(t, done)
-	if loader.snapshot(jellyfin.Item{ID: "movies"}, true).artwork.Covers[0] == nil {
+	if loader.snapshot(media.Item{ID: "movies"}, true).artwork.Covers[0] == nil {
 		t.Fatal("canceling metadata discarded completed cover")
 	}
 }
@@ -303,7 +304,7 @@ func TestSelectionCancellationBeforeDebounceSkipsImages(t *testing.T) {
 	loader := newSelectionLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240, selectionCaches{})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	loader.load(ctx, jellyfin.Item{ID: "item", ImageTags: map[string]string{"Primary": "tag"}}, false, false, func(selectionUpdate) { t.Error("canceled list selection emitted an update") })
+	loader.load(ctx, media.Item{ID: "item", ImageTags: map[string]string{"Primary": "tag"}}, false, false, func(selectionUpdate) { t.Error("canceled list selection emitted an update") })
 	if calls.Load() != 0 {
 		t.Fatal("canceled selection started an image request")
 	}

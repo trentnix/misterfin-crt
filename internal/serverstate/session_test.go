@@ -31,6 +31,9 @@ func TestDamagedSessionIsPreservedAndReplaced(t *testing.T) {
 		if err != nil || info.Mode().Perm() != 0600 {
 			t.Fatal("backup is not private")
 		}
+		if err := SaveSession(dir, session); err != nil {
+			t.Fatal(err)
+		}
 		next, again, err := LoadSession(dir, "http://server")
 		if err != nil || again || next != session {
 			t.Fatal("retry replaced the repaired session")

@@ -14,7 +14,7 @@ import (
 // delaying playback. Existing whole-library shuffle keeps its rolling batches.
 func (s *browserSession) publishLocalQueue() {
 	q := &s.remoteRequests
-	if s.remote.source == nil || s.remotePlayback.active {
+	if s.remote.source == nil || s.playbackQueue.active {
 		return
 	}
 	q.cancelLocal()
@@ -63,7 +63,7 @@ type localQueueResult struct {
 }
 
 func (r localQueueResult) apply(s *browserSession) bool {
-	q := &s.remotePlayback
+	q := &s.playbackQueue
 	if r.generation != s.remoteRequests.localGeneration || !s.controller.running || q.active || s.controller.item.ID != r.itemID || r.err != nil {
 		return false
 	}

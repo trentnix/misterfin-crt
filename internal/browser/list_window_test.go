@@ -6,21 +6,21 @@ import (
 	"testing"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
-func windowPage(start, total int) jellyfin.Page {
-	items := make([]jellyfin.Item, min(PageSize, max(0, total-start)))
+func windowPage(start, total int) media.Page {
+	items := make([]media.Item, min(PageSize, max(0, total-start)))
 	for i := range items {
-		items[i] = jellyfin.Item{ID: fmt.Sprint(start + i), Name: fmt.Sprint(start + i)}
+		items[i] = media.Item{ID: fmt.Sprint(start + i), Name: fmt.Sprint(start + i)}
 	}
-	return jellyfin.Page{Items: items, TotalRecordCount: &total}
+	return media.Page{Items: items, TotalRecordCount: &total}
 }
 
 func windowModel(total, rows int) *Model {
 	m := New()
 	m.ListMode, m.Rows = true, rows
-	m.Current().Location = jellyfin.Location{Kind: "items", Collection: "music"}
+	m.Current().Location = media.Location{Kind: "items", Collection: "music"}
 	m.Apply(*m.Load(0), windowPage(0, total), nil)
 	return m
 }
@@ -103,12 +103,12 @@ func TestPrefetchFailureAndCancellation(t *testing.T) {
 	v := m.Current()
 	v.Selected = 63
 	r := m.Prefetch()
-	m.Apply(*r, jellyfin.Page{}, errors.New("offline"))
+	m.Apply(*r, media.Page{}, errors.New("offline"))
 	if v.Error != "" || m.Prefetch() != nil {
 		t.Fatal("background failure interrupted browsing or retried in a loop")
 	}
 	r = m.Key(control.Down)
-	m.Apply(*r, jellyfin.Page{}, errors.New("offline"))
+	m.Apply(*r, media.Page{}, errors.New("offline"))
 	if !v.prefetchFailed || v.Error == "" || v.Item().ID != "63" {
 		t.Fatal("foreground failure lost rows or error")
 	}
@@ -135,7 +135,7 @@ func TestUnknownTotalFindsEndWithoutDiscardingRows(t *testing.T) {
 	v.Selected = 63
 	r := m.Prefetch()
 	m.Key(control.Down)
-	m.Apply(*r, jellyfin.Page{}, nil)
+	m.Apply(*r, media.Page{}, nil)
 	if v.More() || v.Loading || v.Error != "" || v.Item().ID != "63" {
 		t.Fatal("empty final page lost rows or kept requesting")
 	}

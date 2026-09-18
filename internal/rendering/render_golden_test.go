@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
 	"mistervision/internal/media"
 	"mistervision/internal/release"
 	"mistervision/internal/ui"
@@ -38,7 +37,7 @@ func TestRenderScreenPixels(t *testing.T) {
 			setup, artError := SetupPresentation{}, ""
 			count := 42
 			art.Photo = art.Primary
-			item := jellyfin.Item{Name: "A long title for a sample movie or track", Type: "Movie", ProductionYear: 1988, CommunityRating: 7.8, RunTimeTicks: 6000000000, Overview: "A description that wraps across the detail screen."}
+			item := media.Item{Name: "A long title for a sample movie or track", Type: "Movie", ProductionYear: 1988, CommunityRating: 7.8, RunTimeTicks: 6000000000, Overview: "A description that wraps across the detail screen."}
 			item.UserData.PlaybackPositionTicks = 900000000
 			switch name {
 			case "connecting":

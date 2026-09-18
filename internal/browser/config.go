@@ -23,9 +23,11 @@ type Config struct {
 	// Connector supplies authentication and safe setup instructions for the selected backend.
 	Connector connection.Connector
 
-	// Connections lists the immutable choices available through About.
-	// ConnectionID identifies the current route. Empty choices hide the action.
-	Connections  []connection.Choice
+	// Connections returns an immutable menu snapshot owned by application assembly.
+	// Run reads it at startup and after authentication. It must be safe to call
+	// while a connector runs and must perform no I/O. Nil hides the action.
+	// ConnectionID identifies the current route.
+	Connections  func() []connection.Choice
 	ConnectionID string
 	// ReturnConnectionID is the last connected route, used when setup is canceled.
 	// Empty means canceling setup exits instead of restoring another browser.

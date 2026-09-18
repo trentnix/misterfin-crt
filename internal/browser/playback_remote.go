@@ -9,35 +9,41 @@ import (
 
 // wantsPause returns user intent, excluding the temporary pause used for seeking.
 func (c *PlaybackController) wantsPause() bool {
-	if c.seekPhase != seekInactive {
-		return c.pausedBeforeSeek
-	}
-	return c.pauseOnFirstPosition || c.state.Paused
+	return c.pauseRequested
 }
 
 // SetPaused sets explicit pause intent independently of the visible menu. The
 // decoder receives an idempotent command, so repeated remote Pause cannot resume.
+// A busy command channel retains the latest intent for Tick to retry.
 func (c *PlaybackController) SetPaused(paused bool) {
 	if !c.running || c.stoppedByUser {
 		return
 	}
-	if c.seekPhase != seekInactive {
-		c.pausedBeforeSeek = paused
-		c.pausedForSeek = !paused
+	c.pauseRequested = paused
+	if c.seekPhase != seekInactive || !c.state.ProgressSeen {
+		// A seek holds the original paused. The replacement applies user intent
+		// on its first position update, once its controls are ready.
 		return
 	}
-	if !c.state.ProgressSeen {
-		c.pauseOnFirstPosition = paused
-		return
-	}
-	c.pauseOnFirstPosition = false
-	kind := playback.Resume
+	c.pendingPause = playback.Resume
 	if paused {
-		kind = playback.SetPaused
+		c.pendingPause = playback.SetPaused
 	}
-	if c.sendCommand(kind) {
-		c.state.Paused = paused
+	c.deliverPause()
+}
+
+// deliverPause retries the latest explicit pause intent without blocking the loop.
+// Visible state updates immediately, but later feedback cannot change user intent.
+func (c *PlaybackController) deliverPause() bool {
+	if c.pendingPause == "" {
+		return true
 	}
+	if !c.sendCommand(c.pendingPause) {
+		return false
+	}
+	c.state.Paused = c.pendingPause == playback.SetPaused
+	c.pendingPause = ""
+	return true
 }
 
 // SeekTo uses the same video handoff as local seeking and a relative decoder
@@ -56,7 +62,7 @@ func (c *PlaybackController) SeekTo(target int64, now time.Time) {
 			return
 		}
 		select {
-		case c.controls <- playback.Control{Kind: playback.SeekAudioRelative, Seconds: int(seconds)}:
+		case c.active.controls <- playback.Control{Kind: playback.SeekAudioRelative, Seconds: int(seconds)}:
 		default:
 		}
 		return

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func TestArtworkLoaderOnlyFetchesImagesAndSharesRequestLimit(t *testing.T) {
@@ -47,7 +48,7 @@ func TestArtworkLoaderOnlyFetchesImagesAndSharesRequestLimit(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			item := jellyfin.Item{ID: id, ImageTags: map[string]string{"Primary": "p", "Logo": "l"}, BackdropImageTags: []string{"b"}}
+			item := media.Item{ID: id, ImageTags: map[string]string{"Primary": "p", "Logo": "l"}, BackdropImageTags: []string{"b"}}
 			loader.itemImages(context.Background(), item, true, func(update artUpdate) {
 				if update.err != nil {
 					t.Error(update.err)

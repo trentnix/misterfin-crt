@@ -19,24 +19,28 @@ const (
 	seekRetargeting           // Obsolete request canceled. Destination preview is visible.
 )
 
-// Tick starts preparation after the latest seek action has settled for 0.5s.
+// Tick retries pending pause intent and starts preparation after a seek settles for 0.5s.
 // It does not restart an already preparing request on each animation tick.
 func (c *PlaybackController) Tick(now time.Time) {
-	if !c.running || c.state.SeekTarget == nil {
+	if !c.running || c.stoppedByUser {
+		return
+	}
+	if !c.deliverPause() || c.state.SeekTarget == nil {
 		return
 	}
 	if c.seekPhase == seekPreparing || now.Before(c.state.SeekDeadline) {
 		return
 	}
 	if c.seekPhase == seekInactive {
+		// A failed delivery leaves the seek in its preview phase. Retry on the
+		// next tick before preparing a replacement or claiming we paused video.
+		paused := c.wantsPause()
+		if !paused && !c.sendCommand(playback.SetPaused) {
+			return
+		}
 		c.subtitleRequest++
 		c.subtitleLoading = false
 		c.notice = ""
-		c.pausedBeforeSeek = c.state.Paused
-		c.pausedForSeek = !c.state.Paused
-		if c.pausedForSeek {
-			c.sendCommand(playback.TogglePause)
-		}
 	}
 	c.seekPhase = seekPreparing
 	c.state.SeekInFlight = true
@@ -67,7 +71,7 @@ func (c *PlaybackController) launchPendingSeek(target int64) {
 	c.pendingTarget = target
 	gate := make(chan struct{})
 	// The offset belongs to this request. Later retargets must not mutate it.
-	c.pending = c.launch(c.item, &target, gate, true, c.controls, c.trackOptions)
+	c.pending = c.launch(c.item, &target, gate, true, c.trackOptions)
 	c.pending.gate = gate
 }
 
@@ -84,8 +88,6 @@ func (c *PlaybackController) activatePendingSeek(now time.Time) {
 	}
 	c.pending = playbackProcess{}
 	c.active.allowStart()
-	c.pauseOnFirstPosition = c.pausedBeforeSeek
-	c.pausedForSeek = false
 	c.clearSeek()
 	c.state.SeekPresses = 0
 	c.state.Paused = false
@@ -104,18 +106,18 @@ func (c *PlaybackController) clearSeek() {
 	c.state.SeekInFlight = false
 }
 
-// replacementFailed resumes the old decoder only when the seek paused it.
+// replacementFailed restores the latest user intent on the old decoder.
 // If that decoder already ended, the browser returns to its non-video display.
 func (c *PlaybackController) replacementFailed(err error, now time.Time) {
 	c.state.finishSeekControls(now)
 	c.trackOptions = c.tracks.TrackOptions
 	originalEnded := c.active.id == 0
-	if c.pausedForSeek && c.running && !originalEnded {
-		c.sendCommand(playback.TogglePause)
-	}
-	c.pausedForSeek = false
+	resume := !c.pauseRequested && c.running && !originalEnded
 	c.pending = playbackProcess{}
 	c.clearSeek()
+	if resume {
+		c.SetPaused(false)
+	}
 	if err != nil {
 		c.notice = err.Error()
 	}

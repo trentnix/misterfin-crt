@@ -30,12 +30,13 @@ func (d *playbackDriver) send(event PlaybackEvent) {
 	}
 }
 
-func (d *playbackDriver) launch(client media.Playback, item media.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
+func (d *playbackDriver) launch(client media.Playback, item media.Item, offset *int64, gate <-chan struct{}, prepared bool, tracks playback.TrackOptions) playbackProcess {
 	d.sequence++
 	id := d.sequence
 	ctx, stop := context.WithCancel(d.ctx)
 	finished := make(chan struct{})
 	cleanup := make(chan struct{})
+	controls := make(chan playback.Control, 16)
 	request := playback.Request{
 		Item: item, StartTicks: offset, Start: gate,
 		AsyncCleanup: cleanup, Controls: controls,
@@ -93,5 +94,5 @@ func (d *playbackDriver) launch(client media.Playback, item media.Item, offset *
 		resumeSounds()
 		d.send(PlaybackEvent{Kind: PlaybackEnded, ID: id, Err: err})
 	}()
-	return playbackProcess{id: id, cancel: stop, done: finished, cleanup: cleanup}
+	return playbackProcess{controls: controls, id: id, cancel: stop, done: finished, cleanup: cleanup}
 }

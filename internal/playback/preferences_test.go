@@ -20,7 +20,7 @@ import (
 func preferenceTracks() VideoTracks {
 	return VideoTracks{SourceID: "source", TrackOptions: TrackOptions{
 		Picture: PictureZoom43, Selection: media.TrackSelection{AudioIndex: 4, SubtitleIndex: 12}},
-		Streams: []jellyfin.MediaStream{
+		Streams: []media.MediaStream{
 			{Type: "Audio", Index: 4, Codec: "aac", Language: "jpn"},
 			{Type: "Subtitle", Index: 12, Codec: "ass", Language: "eng"},
 		}}
@@ -81,7 +81,7 @@ func TestSavedTracksFallBackWhenSourceOrStreamChanges(t *testing.T) {
 				current.Streams[1].Language = "fra"
 				wantSubtitle = -1
 			}
-			got, err := videoTracks(jellyfin.Item{ID: "item", MediaSources: []jellyfin.MediaSource{{ID: current.SourceID, MediaStreams: current.Streams}}}, trackPreparation{saved: saved, clientSubtitles: true})
+			got, err := videoTracks(media.Item{ID: "item", MediaSources: []media.MediaSource{{ID: current.SourceID, MediaStreams: current.Streams}}}, trackPreparation{saved: saved, clientSubtitles: true})
 			if err != nil || got.Picture != PictureZoom43 || got.Selection.AudioIndex != wantAudio || got.Selection.SubtitleIndex != wantSubtitle || got.Text != nil {
 				t.Fatalf("bad saved-track fallback: %+v, %v", got, err)
 			}
@@ -142,7 +142,7 @@ func TestUnstartedAndNonVideoSessionsDoNotSaveChoices(t *testing.T) {
 		started, live bool
 		kind          string
 	}{{false, false, "Movie"}, {true, true, "TvChannel"}, {true, false, "Audio"}} {
-		s := playbackSession{preferences: p, preferenceKey: "item", tracks: preferenceTracks(), started: tc.started, liveTV: tc.live, item: jellyfin.Item{Type: tc.kind}}
+		s := playbackSession{preferences: p, preferenceKey: "item", tracks: preferenceTracks(), started: tc.started, liveTV: tc.live, item: media.Item{Type: tc.kind}}
 		s.rememberChoices()
 		if p.load("item") != nil {
 			t.Fatal("unstarted replacement, Live TV, or music saved video choices")
@@ -154,9 +154,9 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	tracks := preferenceTracks()
 	// Burn-in lets this test inspect subtitle restoration in the stream URL.
 	tracks.Streams[1].Codec = "pgssub"
-	item := jellyfin.Item{ID: "movie", Type: "Movie", RunTimeTicks: 9000000000,
-		MediaSources: []jellyfin.MediaSource{{ID: tracks.SourceID, MediaStreams: append(tracks.Streams,
-			jellyfin.MediaStream{Type: "Video", Width: 1920, Height: 1080, AspectRatio: "16:9"})}}}
+	item := media.Item{ID: "movie", Type: "Movie", RunTimeTicks: 9000000000,
+		MediaSources: []media.MediaSource{{ID: tracks.SourceID, MediaStreams: append(tracks.Streams,
+			media.MediaStream{Type: "Video", Width: 1920, Height: 1080, AspectRatio: "16:9"})}}}
 	item.UserData.PlaybackPositionTicks = 600000000
 	queries := make(chan string, 8)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +180,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	}
 	run := func(p *Preferences, explicit *TrackOptions, start *int64) {
 		t.Helper()
-		err := Run(context.Background(), c, Config{Preferences: p, VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, Height: 240}, Request{Item: item, Tracks: explicit, StartTicks: start, Callbacks: Callbacks{Position: func(int64) {}}})
+		err := Run(context.Background(), c, Config{Preferences: p, VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}}, Request{Item: item, Tracks: explicit, StartTicks: start, Callbacks: Callbacks{Position: func(int64) {}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -197,7 +197,7 @@ func TestResumeRestoresChoicesInDecoderAndStream(t *testing.T) {
 	// its explicit defaults over the choices used by the preceding decoder.
 	ctx, cancel := context.WithCancel(context.Background())
 	defaults := TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
-	if err := Run(ctx, c, Config{Preferences: p, VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, Height: 240}, Request{Item: item, Tracks: &defaults, Start: make(chan struct{}), Callbacks: Callbacks{Ready: cancel, Position: func(int64) {}}}); err != nil {
+	if err := Run(ctx, c, Config{Preferences: p, VideoDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: path, Width: 640, Height: 240}}, Request{Item: item, Tracks: &defaults, Start: make(chan struct{}), Callbacks: Callbacks{Ready: cancel, Position: func(int64) {}}}); err != nil {
 		t.Fatal(err)
 	}
 	cancel()

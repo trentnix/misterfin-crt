@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"mistervision/internal/connection"
 	"mistervision/internal/diagnostics"
@@ -21,6 +22,7 @@ import (
 // connectionCatalog owns provider assembly and the retained accounts for one
 // application run. Browser sessions borrow a connector, never configuration files.
 type connectionCatalog struct {
+	mu          sync.RWMutex // Guards immutable menu snapshots published by sign-in workers.
 	choices     []connection.Choice
 	connectors  map[string]connection.Connector
 	selected    string
@@ -55,17 +57,20 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 	digest := fmt.Sprintf("%x", fingerprint.Sum(nil))
 	choicePath := filepath.Join(stateDir, "connection-choice.json")
 	add := func(id string, connector connection.Connector) *connection.Retained {
-		retained := &connection.Retained{Connector: connector, Remember: func() error {
+		retained := &connection.Retained{Connector: connector, Remember: func(connection.Server) error {
 			return serverstate.SaveChoice(choicePath, serverstate.Choice{ID: id, Configuration: digest})
 		}}
 		catalog.connectors[id] = retained
 		catalog.retained[id] = retained
 		return retained
 	}
-	add("default", defaultConnector)
+	defaultAccount := add("default", defaultConnector)
 	var existing []connection.Choice
 	_, legacyErr := os.Stat(configPath)
 	_, savedErr := os.Stat(filepath.Join(stateDir, "jellyfin-server.json"))
+	if source.Section("server").Data == nil && legacyErr != nil {
+		catalog.observeDiscovery(defaultAccount, "default", "Jellyfin")
+	}
 	if source.Section("server").Data != nil || legacyErr == nil || savedErr == nil {
 		name := "Configured server"
 		provider := "Jellyfin"
@@ -103,6 +108,7 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 	var providers []connection.Choice
 	addDiscovery := func(id, name, description, path string, connector connection.Connector) {
 		catalog.discoveries[id] = add(id, connector)
+		catalog.observeDiscovery(catalog.discoveries[id], id, name)
 		catalog.startSelection(id + "-new")
 		if server, err := serverstate.LoadServer(path); err == nil {
 			existing = append(existing, connection.Choice{ID: id, Name: server.Name, Description: name + " · " + server.URL})
@@ -112,7 +118,7 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 	discoveryDir := filepath.Join(stateDir, "discovery")
 	jellyfinDir := filepath.Join(discoveryDir, "jellyfin")
 	addDiscovery("jellyfin", "Jellyfin", "Find a server on your local network", filepath.Join(jellyfinDir, "jellyfin-server.json"),
-		jfconnection.Connector{Discovery: jellyfin.Discovery{}, DiscoveryOnly: true, SettingsPath: source.Path, ConfigPath: configPath, StateDir: jellyfinDir, Version: version, Diagnostics: log})
+		&jfconnection.Connector{Discovery: jellyfin.Discovery{}, DiscoveryOnly: true, SettingsPath: source.Path, ConfigPath: configPath, StateDir: jellyfinDir, Version: version, Diagnostics: log})
 	addDiscovery("plex", "Plex", "Link your account and choose a server", filepath.Join(plex.StateDir(discoveryDir), "server.json"),
 		plex.Connector{StateDir: discoveryDir, Version: version, Diagnostics: log})
 	if len(existing) > 0 {
@@ -132,6 +138,58 @@ func newConnectionCatalog(source *settings.File, configPath, stateDir, version s
 		log.ConfigurationFallback("connections", "configured-startup", err)
 	}
 	return catalog, nil
+}
+
+// Choices returns the latest immutable menu snapshot. Sign-in workers publish
+// replacements after a successful selection, so browsers never own the catalog.
+func (c *connectionCatalog) Choices() []connection.Choice {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.choices
+}
+
+// observeDiscovery updates the menu only after provider state and the selected
+// route have been saved. Metadata comes from the connector, not its private files.
+func (c *connectionCatalog) observeDiscovery(account *connection.Retained, id, provider string) {
+	remember := account.Remember
+	account.Remember = func(server connection.Server) error {
+		if err := server.Validate(); err != nil {
+			return err
+		}
+		if err := remember(server); err != nil {
+			return err
+		}
+		choice := connection.Choice{ID: id, Name: server.Name, Description: provider + " · " + server.URL}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		choices := append([]connection.Choice(nil), c.choices...)
+		group := -1
+		for i, entry := range choices {
+			if entry.ID == "existing" {
+				group = i
+				break
+			}
+		}
+		if group < 0 {
+			choices = append([]connection.Choice{{ID: "existing", Name: "Use existing connection", Description: "Choose a configured or remembered server"}}, choices...)
+			group = 0
+		}
+		children := append([]connection.Choice(nil), choices[group].Children...)
+		found := false
+		for i, entry := range children {
+			if entry.ID == id {
+				children[i] = choice
+				found = true
+				break
+			}
+		}
+		if !found {
+			children = append(children, choice)
+		}
+		choices[group].Children = children
+		c.choices = choices
+		return nil
+	}
 }
 
 // discoverConnection enters the existing discovery route with a fresh scan.

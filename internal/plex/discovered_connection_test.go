@@ -171,6 +171,9 @@ func TestPlexDiscoveryLinksChoosesAndReopensWithoutAccountService(t *testing.T) 
 	if err != nil || result.Server == nil || !code || !name || f.pinCalls.Load() != 1 {
 		t.Fatalf("discovery did not finish: %v code=%t name=%t", err, code, name)
 	}
+	if result.Endpoint != f.server {
+		t.Fatal("selected server metadata missing from session")
+	}
 	client := result.Server.(*Client)
 	if client.Session.Token != "server-token" || client.Session.UserID != "7" {
 		t.Fatal("wrong playback session")
@@ -186,7 +189,7 @@ func TestPlexDiscoveryLinksChoosesAndReopensWithoutAccountService(t *testing.T) 
 		t.Fatal("saved connection reopened picker")
 		return connection.Server{}, nil
 	}})
-	if err != nil || reopened.Server.Identity() != result.Server.Identity() || f.accountCalls.Load() != accountCalls {
+	if err != nil || reopened.Server.Identity() != result.Server.Identity() || reopened.Endpoint != result.Endpoint || f.accountCalls.Load() != accountCalls {
 		t.Fatalf("reopen requires account service: %v", err)
 	}
 }
@@ -379,6 +382,9 @@ func TestPlexAccountReplacement(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				if result.Endpoint != f.server {
+					t.Fatal("selected server metadata missing from session")
+				}
 				client := result.Server.(*Client)
 				if client.Identity() == old.Server.Identity() || client.Session.UserID != "8" || client.Session.Token != "new-server-token" {
 					t.Fatal("replacement did not change playback identity and grant")
@@ -444,5 +450,52 @@ func TestPlexEmptyAccountCanRescanOrSignIn(t *testing.T) {
 	}, &serverDiscovery{account: f.account})
 	if err != nil || choices != 2 || f.pinCalls.Load() != 0 {
 		t.Fatalf("rescan failed: %v", err)
+	}
+}
+
+func TestConfiguredServerAddressCanChange(t *testing.T) {
+	f := newDiscoveryFixture(t, true)
+	f.connector.Config.Server = f.server.URL
+	_, err := f.connector.connectDiscovered(t.Context(), connection.Interaction{}, &serverDiscovery{account: f.account})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// localhost reaches the same httptest listener and /identity server.
+	original := f.server.URL
+	f.server.URL = "http://localhost" + original[len("http://127.0.0.1"):]
+	f.connector.Config.Server = f.server.URL
+	_, err = f.connector.connectDiscovered(t.Context(), connection.Interaction{}, &serverDiscovery{account: f.account})
+	if err != nil {
+		t.Fatalf("valid configured endpoint change failed: %v", err)
+	}
+}
+
+// A changed configuration must obtain a matching grant before sending any
+// media credentials. Failure leaves the previous working connection on disk.
+func TestConfiguredAddressWithoutGrantPreservesConnection(t *testing.T) {
+	f := newDiscoveryFixture(t, true)
+	f.connector.Config.Server = f.server.URL
+	if _, err := f.connector.connectDiscovered(t.Context(), connection.Interaction{}, &serverDiscovery{account: f.account}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(StateDir(f.connector.StateDir), "server.json")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/identity" || r.Header.Get("X-Plex-Token") != "" {
+			t.Error("unverified endpoint received credentials or media requests")
+		}
+		fmt.Fprint(w, `{"MediaContainer":{"machineIdentifier":"another-server"}}`)
+	}))
+	defer other.Close()
+	f.connector.Config.Server = other.URL
+	if _, err := f.connector.connectDiscovered(t.Context(), connection.Interaction{}, &serverDiscovery{account: f.account}); err == nil {
+		t.Fatal("ungranted endpoint connected")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || string(before) != string(after) {
+		t.Fatal("failed endpoint change replaced saved connection")
 	}
 }

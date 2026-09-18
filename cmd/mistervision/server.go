@@ -17,7 +17,7 @@ func serverConnector(source *settings.File, configPath, stateDir, version string
 		return nil, err
 	}
 	if c == nil {
-		return jfconnection.Connector{Discovery: jellyfin.Discovery{}, SettingsPath: source.Path, ConfigPath: configPath, StateDir: stateDir, Version: version, Diagnostics: log}, nil
+		return &jfconnection.Connector{Discovery: jellyfin.Discovery{}, SettingsPath: source.Path, ConfigPath: configPath, StateDir: stateDir, Version: version, Diagnostics: log}, nil
 	}
 	return configuredConnector(*c, source.Path, stateDir, version, log), nil
 }
@@ -33,6 +33,6 @@ func configuredConnector(c settings.Server, settingsPath, stateDir, version stri
 		if c.Jellyfin != nil {
 			config.APIKey, config.Username = c.Jellyfin.APIKey, c.Jellyfin.Username
 		}
-		return jfconnection.Connector{Config: &config, ConfigPath: settingsPath, StateDir: stateDir, Version: version, Diagnostics: log}
+		return &jfconnection.Connector{Config: &config, ConfigPath: settingsPath, StateDir: stateDir, Version: version, Diagnostics: log}
 	}
 }

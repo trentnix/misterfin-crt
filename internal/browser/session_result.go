@@ -15,9 +15,10 @@ type workerResult interface {
 }
 
 type pageResult struct {
-	request Request
-	page    media.Page
-	err     error
+	connectionGeneration int // Authentication scope, independent of model navigation.
+	request              Request
+	page                 media.Page
+	err                  error
 }
 
 func (r pageResult) apply(s *browserSession) bool { return s.handlePage(r) }

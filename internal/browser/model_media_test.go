@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/rendering"
 )
 
@@ -14,7 +14,7 @@ func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			m := New()
 			m.Current().Location.Kind = "items"
-			m.Current().Page.Items = []jellyfin.Item{{ID: "first", Type: kind}}
+			m.Current().Page.Items = []media.Item{{ID: "first", Type: kind}}
 			m.Key(control.Open)
 			now := time.Unix(100, 0)
 			m.StartMusicQueue()
@@ -24,8 +24,8 @@ func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {
 				t.Fatal("detail has no parent")
 			}
 			parent.Start, parent.Selected, parent.Target, parent.Scroll = 64, 8, 72, 3
-			item := jellyfin.Item{ID: "neighbor", Name: "Next item", Type: kind}
-			parent.Page.Items = make([]jellyfin.Item, 16)
+			item := media.Item{ID: "neighbor", Name: "Next item", Type: kind}
+			parent.Page.Items = make([]media.Item, 16)
 			parent.Page.Items[8] = item
 			before, _ := m.Parent()
 			if before.Start != 0 || before.Selected != 0 || m.Current().Detail.ID != "first" {
@@ -53,7 +53,7 @@ func TestAdjacentSelectionAndReturnRestoreParent(t *testing.T) {
 			if v.Start != 64 || v.Selected != 8 || v.Scroll != 3 || v.Target != 72 || v.Loading {
 				t.Fatalf("return lost the parent position: %+v", v)
 			}
-			if m.Apply(*stale, jellyfin.Page{}, nil) {
+			if m.Apply(*stale, media.Page{}, nil) {
 				t.Fatal("return accepted a stale listing")
 			}
 			generation := m.Generation
@@ -72,7 +72,7 @@ func TestPhotoControlsAreIndependentOfPlayback(t *testing.T) {
 	playback := f.c.Snapshot(f.now)
 	m := New()
 	m.Current().Location.Kind = "items"
-	m.Current().Page.Items = []jellyfin.Item{{ID: "photo", Type: "Photo"}}
+	m.Current().Page.Items = []media.Item{{ID: "photo", Type: "Photo"}}
 	m.Key(control.Open)
 	scene := func() rendering.Scene {
 		return sceneFromModel(m, f.c.Snapshot(f.now), rendering.SetupPresentation{}, selectionData{}, "", f.now)

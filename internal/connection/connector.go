@@ -9,9 +9,9 @@ import (
 )
 
 // Connector authenticates the backend selected by application assembly. Connect
-// reloads credentials on each attempt and honors cancellation. The browser
-// serializes calls. Interaction carries public progress and server selection,
-// never credentials.
+// honors cancellation. The browser serializes calls. Progress and picker
+// presentations are public. Profile replies can carry a private PIN, which
+// must never enter presentation state, diagnostics, or persistent storage.
 // Describe(nil) presents initial progress. Describe(err) supplies safe recovery
 // instructions for connection failures and later authentication rejection.
 type Connector interface {
@@ -23,6 +23,10 @@ type Connector interface {
 // The browser owns cancellation of Remote.Run. Recovered records damaged sign-in
 // storage that was backed up before successful authentication.
 type Session struct {
+	// Endpoint is public metadata for the selected server. Discovery connectors
+	// supply it after successful persistence, including address recovery.
+	// Configured connectors may leave it zero when no discovery menu is needed.
+	Endpoint  Server
 	Server    media.Server
 	Remote    remote.Source
 	Recovered bool

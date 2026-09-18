@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 )
 
 // Choice remembers the last successful connection for one configuration snapshot.
@@ -42,23 +41,9 @@ func SaveChoice(path string, value Choice) error {
 	if value.ID == "" || len(value.ID) > 64 || len(value.Configuration) != 64 {
 		return errors.New("invalid connection choice")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".connection-choice-*")
+	data, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
-	err = json.NewEncoder(f).Encode(value)
-	if err == nil {
-		err = f.Sync()
-	}
-	if e := f.Close(); err == nil {
-		err = e
-	}
-	if err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), path)
+	return WriteFile(path, append(data, '\n'))
 }

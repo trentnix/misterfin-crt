@@ -46,7 +46,7 @@ Without API-key credentials, Jellyfin uses Quick Connect. To use API-key login, 
 }
 ```
 
-Keep API-key configuration private. Plex tokens, account identity, and client identifiers remain saved sign-in state rather than configuration. Sign-in files stay in the application state directory.
+Keep API-key configuration private. Successful Jellyfin API-key sign-in saves a stable device identity without copying the key into session storage. Plex tokens, account identity, and client identifiers remain saved sign-in state rather than configuration. Sign-in files stay in the application state directory.
 
 An explicit `server` section is authoritative. Invalid values stop startup without exposing credentials or falling back to a different server. Only an absent section permits `jellyfin.conf` fallback. If that file is also absent, the default route uses a remembered Jellyfin server or offers [local discovery](GO_BROWSING.md#jellyfin-discovery). A previously selected Plex or named connection can open instead under the [multiple-connection startup rules](#multiple-connections).
 
@@ -81,7 +81,7 @@ Keep application settings in one `settings.json`. Add named accounts under `conn
 }
 ```
 
-Open About with Start/F1, then press Down for Connections. The **Connect to your media** screen offers Jellyfin and Plex. **Use existing connection** appears only when a configured, remembered, or currently connected server is available. A server remembered through discovery needs no configuration entry.
+Open About with Start/F1, then press Down for Connections. The **Connect to your media** screen offers Jellyfin and Plex. **Use existing connection** appears only when a configured, remembered, or currently connected server is available. A server remembered through discovery needs no configuration entry. Successful discoveries appear immediately in Use existing connection and remain available when you switch providers during the same run.
 
 Jellyfin starts a fresh discovery scan. Plex links your account and lists reachable servers. Both provider choices leave configured profiles available under Use existing connection.
 

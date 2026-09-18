@@ -44,16 +44,16 @@ func TestConfigReuseKeepsRequestsIndependent(t *testing.T) {
 	}
 	preferences := NewPreferences(dir, nil)
 	defer preferences.Close()
-	config := Config{Preferences: preferences, VideoDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 240}, Height: 240, AudioDecoder: nativeplayer.Decoder{Width: 640, Height: 240}}
+	config := Config{Preferences: preferences, VideoDecoder: nativeplayer.Decoder{Player: player, Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Width: 640, Height: 240}}
 	originalConfig := config
-	item := jellyfin.Item{ID: "movie", Type: "Movie"}
+	item := media.Item{ID: "movie", Type: "Movie"}
 	explicit := TrackOptions{Picture: PictureZoom43, Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}
 	originalTracks := explicit
 	var zero int64
 	positions := 0
 	requests := []Request{
 		{Item: item, Tracks: &explicit, StartTicks: &zero, Callbacks: Callbacks{Position: func(int64) { positions++ }}},
-		{Item: jellyfin.Item{ID: "other", Type: "Movie"}}, // A different item uses its own defaults.
+		{Item: media.Item{ID: "other", Type: "Movie"}}, // A different item uses its own defaults.
 		{Item: item}, // Reopening the first item restores its saved Zoom, without restarting.
 	}
 	for i, request := range requests {

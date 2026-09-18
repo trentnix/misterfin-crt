@@ -27,7 +27,6 @@ type PlaybackController struct {
 	state           playbackState
 	item            media.Item
 	launch          playbackLaunch
-	controls        chan playback.Control
 
 	// The active decoder may be stopping while a replacement is being prepared.
 	// A zero process ID means that slot has no decoder.
@@ -37,21 +36,17 @@ type PlaybackController struct {
 	stoppedByUser   bool
 	cleanupComplete bool // Final resume save has finished for the active process.
 
-	seekPhase            seekPhase
-	pendingTarget        int64 // Offset requested by the pending replacement.
-	pausedBeforeSeek     bool  // User intent, captured before we pause for a seek.
-	pausedForSeek        bool  // Whether we must resume the original if preparation fails.
-	pauseOnFirstPosition bool  // Restore user pause after the replacement starts.
-	notice               string
-	pictureRequest       int
-	picturePending       bool
+	seekPhase      seekPhase
+	pendingTarget  int64                // Offset requested by the pending replacement.
+	pauseRequested bool                 // User intent. Decoder feedback and seek pauses never change it.
+	pendingPause   playback.ControlKind // Explicit pause/resume awaiting command delivery.
+	notice         string
+	pictureRequest int
+	picturePending bool
 }
 
 func newPlaybackController(launch playbackLaunch) *PlaybackController {
-	return &PlaybackController{
-		launch:   launch,
-		controls: make(chan playback.Control, 16),
-	}
+	return &PlaybackController{launch: launch}
 }
 
 // Start begins a new item after the preceding item has finished. A nil offset
@@ -73,7 +68,8 @@ func (c *PlaybackController) Start(item media.Item, offset *int64, paused bool, 
 	c.subtitleRequest = 0
 	c.subtitleLoading = false
 	c.item = item
-	c.pauseOnFirstPosition = paused
+	c.pauseRequested = paused
+	c.pendingPause = ""
 	c.seekPhase = seekInactive
 	c.stoppedByUser = false
 	c.cleanupComplete = false
@@ -82,9 +78,7 @@ func (c *PlaybackController) Start(item media.Item, offset *int64, paused bool, 
 		PlayingVideo: item.Type != "Audio",
 		LastAdvance:  now,
 	}
-	// Commands queued for the previous item must not reach the new player.
-	c.controls = make(chan playback.Control, 16)
-	c.active = c.launch(item, offset, nil, false, c.controls, c.trackOptions)
+	c.active = c.launch(item, offset, nil, false, c.trackOptions)
 	c.running = true
 }
 
@@ -126,18 +120,14 @@ func (c *PlaybackController) Key(key control.Action, now time.Time) {
 		c.stopByUser()
 	case control.Open:
 		c.state.HideControls()
-		if c.pauseOnFirstPosition {
-			// The user requested resume before the replacement's first position.
-			c.pauseOnFirstPosition = false
-		} else {
-			c.sendCommand(playback.TogglePause)
-		}
+		c.SetPaused(!c.wantsPause())
 	case control.ToggleControls:
 		c.state.ToggleControls(now)
 	}
 }
 
 func (c *PlaybackController) stopByUser() {
+	c.pendingPause = ""
 	c.picker.visible = false
 	c.stoppedByUser = true
 	c.state.HideControls()
@@ -156,15 +146,16 @@ func (c *PlaybackController) StopForTrackChange() {
 }
 
 // Refresh requests a redraw of paused video after its overlay changes.
-func (c *PlaybackController) Refresh() {
-	c.sendCommand(playback.Refresh)
+// It returns false if the decoder is busy. The caller must retry on a later frame.
+func (c *PlaybackController) Refresh() bool {
+	return c.sendCommand(playback.Refresh)
 }
 
 // sendCommand never blocks the UI loop. The caller can retry on a later event
 // when delivery is required, as with pause restoration on a position update.
 func (c *PlaybackController) sendCommand(kind playback.ControlKind) bool {
 	select {
-	case c.controls <- playback.Control{Kind: kind}:
+	case c.active.controls <- playback.Control{Kind: kind}:
 		return true
 	default:
 		return false
@@ -198,7 +189,7 @@ func (c *PlaybackController) seekAudio(key control.Action) {
 		seconds = -seconds
 	}
 	select {
-	case c.controls <- playback.Control{Kind: playback.SeekAudioStep, Seconds: seconds}:
+	case c.active.controls <- playback.Control{Kind: playback.SeekAudioStep, Seconds: seconds}:
 	default:
 	}
 }

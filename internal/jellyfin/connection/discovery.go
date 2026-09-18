@@ -16,7 +16,7 @@ var errNoServers = errors.New("no Jellyfin servers found")
 
 // resolveConfig preserves explicit configuration, including its errors. Only a
 // missing legacy file permits a remembered selection or network discovery.
-func (c Connector) resolveConfig(ctx context.Context, interaction connection.Interaction) (jellyfin.Config, *connection.Server, error) {
+func (c *Connector) resolveConfig(ctx context.Context, interaction connection.Interaction) (jellyfin.Config, *connection.Server, error) {
 	if c.Config != nil {
 		return *c.Config, nil, nil
 	}
@@ -30,6 +30,13 @@ func (c Connector) resolveConfig(ctx context.Context, interaction connection.Int
 	}
 	if !errors.Is(err, os.ErrNotExist) || c.Discovery == nil {
 		return config, nil, &connectionError{connectionConfig, err}
+	}
+	if interaction.SelectServer {
+		c.selected = nil
+	}
+	if c.selected != nil {
+		config.Server = c.selected.URL
+		return config, c.selected, nil
 	}
 	path := filepath.Join(c.StateDir, "jellyfin-server.json")
 	var server connection.Server
@@ -75,9 +82,10 @@ func (c Connector) resolveConfig(ctx context.Context, interaction connection.Int
 		if err := ctx.Err(); err != nil {
 			return config, nil, err
 		}
-		if err := serverstate.SaveServer(path, server); err != nil {
-			return config, nil, &connectionError{connectionServerStorage, err}
-		}
+		// Selecting a server does not replace the working sign-in. Connect
+		// publishes the address only after this attempt authenticates.
+		c.selected = &server
+		remembered = c.selected
 	}
 	// A remembered discovery choice can be changed during sign-in too. Publish
 	// navigation before loading credentials so failures retain the Back action.

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"mistervision/internal/artwork"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func TestLibraryCacheBoundsAndIndependentFields(t *testing.T) {
@@ -23,7 +23,7 @@ func TestLibraryCacheBoundsAndIndependentFields(t *testing.T) {
 	if len(cache.libraries) != libraryCacheLimit || cache.cached("1").count != nil || cache.cached("0").count == nil {
 		t.Fatal("metadata cache did not evict the least recently used library")
 	}
-	cache.remember("0", func(v *cachedLibrary) { v.items = []jellyfin.Item{{ID: "cover"}}; v.itemsUntil = until })
+	cache.remember("0", func(v *cachedLibrary) { v.items = []media.Item{{ID: "cover"}}; v.itemsUntil = until })
 	value := cache.cached("0")
 	if value.count == nil || *value.count != 0 || value.countUntil != until || len(value.items) != 1 {
 		t.Fatal("refreshing a sample replaced its count")
@@ -36,15 +36,15 @@ func TestLibraryCacheBoundsAndIndependentFields(t *testing.T) {
 
 func TestSelectionSnapshotExpiryAndRetry(t *testing.T) {
 	loader := newSelectionLoader(nil, 640, 240, selectionCaches{})
-	item := jellyfin.Item{ID: "library"}
-	cover := jellyfin.Item{ID: "cover", ImageTags: map[string]string{"Primary": "tag"}}
+	item := media.Item{ID: "library"}
+	cover := media.Item{ID: "cover", ImageTags: map[string]string{"Primary": "tag"}}
 	im := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	loader.artwork.Restore(context.Background(), []artwork.Cover{{ID: cover.ID, Tag: "tag", Image: im}})
 	count := 42
 	future := time.Now().Add(time.Minute)
 	loader.libraries.remember(item.ID, func(v *cachedLibrary) {
 		v.count = &count
-		v.items = []jellyfin.Item{cover}
+		v.items = []media.Item{cover}
 		v.itemsUntil = future
 	})
 	data := loader.snapshot(item, true)

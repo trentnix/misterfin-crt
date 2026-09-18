@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/player"
 	"mistervision/internal/player/feedback"
 	"mistervision/internal/player/ffplay"
@@ -35,7 +35,7 @@ func TestInjectedDecoderLaunchesAndOwnsFeedback(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := Config{VideoDecoder: fixtureDecoder{Decoder: ffplay.Decoder{Player: path}}}
-	item := jellyfin.Item{Type: "Movie"}
+	item := media.Item{Type: "Movie"}
 	d, executable, err := resolveDecoder(config, item, PictureZoom43)
 	if err != nil {
 		t.Fatal(err)

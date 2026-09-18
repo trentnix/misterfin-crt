@@ -7,7 +7,7 @@ import (
 
 	"mistervision/internal/caption"
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/ui"
 )
 
@@ -25,7 +25,7 @@ func TestPreviewUsesSharedButtonBadges(t *testing.T) {
 			{"unbound restart", "Movie", 900000000, control.Labels{"open": "Cross", "back": "Circle"}, []controlHint{{"Cross", "Resume"}, {"Circle", "Back"}}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				item := jellyfin.Item{Name: "Preview", Type: tc.kind, RunTimeTicks: 6000000000}
+				item := media.Item{Name: "Preview", Type: tc.kind, RunTimeTicks: 6000000000}
 				item.UserData.PlaybackPositionTicks = tc.position
 				s := Scene{Content: Content{Detail: &item, CanResume: tc.position > 0}, Controls: tc.labels, Now: time.Unix(100, 0)}
 				got := renderScene(ui.New(640, height), nil, s, Animation{})
@@ -114,10 +114,10 @@ func TestBrowsingUsesConfiguredBadges(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				total := 1234
-				v := Content{Title: "Library", CanShuffle: tc.collection == "music", Page: jellyfin.Page{TotalRecordCount: &total}}
+				v := Content{Title: "Library", CanShuffle: tc.collection == "music", Page: media.Page{TotalRecordCount: &total}}
 				if !tc.empty {
 					for i := 0; i < VisibleRows(640, height); i++ {
-						v.Page.Items = append(v.Page.Items, jellyfin.Item{Name: "Selected item", Type: "MusicArtist"})
+						v.Page.Items = append(v.Page.Items, media.Item{Name: "Selected item", Type: "MusicArtist"})
 					}
 				}
 				if tc.failed {

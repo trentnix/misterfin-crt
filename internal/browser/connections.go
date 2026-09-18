@@ -62,32 +62,12 @@ func (s *browserSession) handleConnectionKey(key control.Action) bool {
 	return true
 }
 
-// includeCurrentConnection adds a newly discovered account to the menu snapshot
-// after authentication. It never mutates choices borrowed from configuration.
-func (s *browserSession) includeCurrentConnection() {
-	id := s.config.ConnectionID
-	if id == "" || len(s.about.Connections) == 0 {
-		return
+// refreshConnections borrows the catalog's latest snapshot after authentication.
+// The browser owns selection state, never the available connections themselves.
+func (s *browserSession) refreshConnections() {
+	if s.config.Connections != nil {
+		s.about.Connections = s.config.Connections()
 	}
-	choices := append([]connection.Choice(nil), s.about.Connections...)
-	group := -1
-	for i, c := range choices {
-		if c.ID == "existing" {
-			group = i
-			for _, child := range c.Children {
-				if child.ID == id {
-					return
-				}
-			}
-		}
-	}
-	current := connection.Choice{ID: id, Name: "Current connection", Description: s.client.Identity().Server}
-	if group < 0 {
-		choices = append([]connection.Choice{{ID: "existing", Name: "Use existing connection", Description: "Choose a configured or remembered server", Children: []connection.Choice{current}}}, choices...)
-	} else {
-		choices[group].Children = append(append([]connection.Choice(nil), choices[group].Children...), current)
-	}
-	s.about.Connections = choices
 }
 
 // changeConnection carries the last working route through unfinished attempts.

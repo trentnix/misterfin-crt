@@ -43,7 +43,7 @@ func (s *browserSession) authenticate() {
 }
 
 // load starts a listing request and cancels the previous listing request. Nil
-// is a no-op. The model validates the generation when the result arrives.
+// is a no-op. Results must match both authentication and navigation generations.
 // The caller must not mutate req after passing it here.
 func (s *browserSession) load(req *Request) {
 	if req == nil {
@@ -56,7 +56,7 @@ func (s *browserSession) load(req *Request) {
 	s.requests.cancel()
 	work, stop := context.WithCancel(s.ctx)
 	s.requests.cancel = stop
-	client := s.client
+	client, generation := s.client, s.connection.generation
 	go func() {
 		var p media.Page
 		var err error
@@ -65,7 +65,7 @@ func (s *browserSession) load(req *Request) {
 		} else {
 			p, err = client.List(work, req.Location, req.Start, PageSize)
 		}
-		s.send(work, pageResult{request: *req, page: p, err: err})
+		s.send(work, pageResult{connectionGeneration: generation, request: *req, page: p, err: err})
 	}()
 }
 
@@ -102,7 +102,7 @@ func (s *browserSession) handleAuth(r authResult) bool {
 		s.about.SwitchProfile = r.connection.switchProfile
 		s.client = r.connection.client
 		s.controlSource = r.connection.remote
-		s.includeCurrentConnection()
+		s.refreshConnections()
 		s.about.CurrentConnection = s.config.ConnectionID
 		if r.connection.recovered {
 			s.startupNotices = append(s.startupNotices, "Damaged sign-in was backed up. Connected successfully.")
@@ -126,6 +126,9 @@ func (s *browserSession) handleAuth(r authResult) bool {
 }
 
 func (s *browserSession) handlePage(r pageResult) bool {
+	if !s.connection.current(r.connectionGeneration) {
+		return false
+	}
 	if r.request.Location.Kind == "views" && r.err == nil {
 		r.page = s.homeLibraries(r.page)
 	}

@@ -150,7 +150,7 @@ done
 	buffering := make(chan bool, 8)
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, client, Config{VideoDecoder: nativeplayer.Decoder{Player: player, Device: "/dev/fb0", Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: player, Device: "/dev/fb0", Width: 640, Height: 240}, Height: 240}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Controls: controls, Callbacks: Callbacks{Paused: func(value bool) { paused <- value }, Buffering: func(value bool) { buffering <- value }, Position: func(ticks int64) { positions <- ticks }}})
+		done <- Run(ctx, client, Config{VideoDecoder: nativeplayer.Decoder{Player: player, Device: "/dev/fb0", Width: 640, Height: 240}, AudioDecoder: nativeplayer.Decoder{Player: player, Device: "/dev/fb0", Width: 640, Height: 240}}, Request{Item: media.Item{ID: "movie", Type: "Movie"}, Controls: controls, Callbacks: Callbacks{Paused: func(value bool) { paused <- value }, Buffering: func(value bool) { buffering <- value }, Position: func(ticks int64) { positions <- ticks }}})
 	}()
 	awaitReportSignal(t, started)
 	for _, want := range []bool{true, false} {
@@ -299,7 +299,7 @@ func TestFastCompletionPreservesInitialReportAndSurfacesReportingFailure(t *test
 	}))
 	defer server.Close()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
-	err := Run(context.Background(), client, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: jellyfin.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {}}})
+	err := Run(context.Background(), client, Config{VideoDecoder: desktopplayer.Decoder{Player: player}, AudioDecoder: desktopplayer.Decoder{Player: player}}, Request{Item: media.Item{ID: "movie", Type: "Movie"}, Callbacks: Callbacks{Position: func(int64) {}}})
 	if err == nil || err.Error() != "playback ended, but server progress reporting failed" {
 		t.Fatalf("reporting failure was lost at EOF: %v", err)
 	}

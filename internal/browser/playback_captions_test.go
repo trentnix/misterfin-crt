@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func TestLiveCaptionsToggleWithoutRestartAndKeepMenuState(t *testing.T) {
@@ -43,11 +43,11 @@ func TestLiveCaptionsToggleWithoutRestartAndKeepMenuState(t *testing.T) {
 	if c.Snapshot(f.now).Subtitle != "" {
 		t.Fatal("Off did not hide later captions")
 	}
-	if len(f.calls) != 1 || len(c.controls) != 0 || c.state.SeekTarget != nil {
+	if len(f.calls) != 1 || len(c.active.controls) != 0 || c.state.SeekTarget != nil {
 		t.Fatal("caption toggle interrupted stream")
 	}
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
-	c.Start(jellyfin.Item{ID: "next-channel", Type: "TvChannel"}, nil, false, f.now)
+	c.Start(media.Item{ID: "next-channel", Type: "TvChannel"}, nil, false, f.now)
 	if c.captions.available || c.captions.enabled || c.captions.text != "" {
 		t.Fatal("new channel inherited captions")
 	}

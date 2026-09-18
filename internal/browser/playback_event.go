@@ -121,6 +121,7 @@ func (c *PlaybackController) Handle(event PlaybackEvent, now time.Time) bool {
 				c.notice = event.Err.Error()
 			}
 		case PlaybackPaused:
+			// Feedback describes the decoder, not the user's latest intent.
 			c.state.Paused = event.Value
 			c.state.LastAdvance = now
 		case PlaybackBuffering:
@@ -147,16 +148,17 @@ func (c *PlaybackController) replacementReady(id int, now time.Time) {
 }
 
 func (c *PlaybackController) updatePosition(ticks int64, now time.Time) {
-	if !c.state.ProgressSeen && c.state.SeekTarget == nil {
+	firstPosition := !c.state.ProgressSeen
+	if firstPosition && c.state.SeekTarget == nil {
 		c.state.finishSeekControls(now)
 	}
-	if !c.state.ProgressSeen || ticks != c.state.PositionTicks {
+	if firstPosition || ticks != c.state.PositionTicks {
 		c.state.LastAdvance = now
 	}
 	c.state.ProgressSeen = true
 	c.state.PositionTicks = ticks
-	if c.pauseOnFirstPosition && c.sendCommand(playback.TogglePause) {
-		c.pauseOnFirstPosition = false
+	if firstPosition && c.pauseRequested {
+		c.SetPaused(true)
 	}
 }
 

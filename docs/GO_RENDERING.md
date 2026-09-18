@@ -4,7 +4,7 @@ The browser owns navigation and playback UX. The renderer turns a read-only scen
 
 ## Media services
 
-Application assembly selects Jellyfin by default or the [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. The browser serializes attempts and receives safe setup text. Rendering handles connection progress, server selection, approval codes, viewing profiles, masked PIN entry, and failures.
+Application assembly selects Jellyfin by default or the [Plex adapter](GO_PLEX.md). Both implement [`connection.Connector`](../internal/connection/connector.go), authenticate, and return account services and an optional remote-control source. Discovery sessions also return public server metadata in `Session.Endpoint`. The connection catalog uses that value to update its menu without reopening provider state files. The browser serializes attempts and receives safe setup text. Rendering handles connection progress, server selection, approval codes, viewing profiles, masked PIN entry, and failures.
 
 `connection.Interaction` supplies progress and cancellable server/profile choices. The browser sends an immutable candidate snapshot to its event loop and replies through a one-use channel. Generation checks reject stale pickers. Neither the renderer nor the discovery adapter handles physical input.
 
@@ -97,6 +97,8 @@ Only the browser event loop mutates `browserSession`. Workers capture inputs and
 
 [`connectionManager`](../internal/browser/connection.go) serializes sign-in workers so canceled attempts finish before another reads or writes the session file. Waiting stays off the browser loop. Shutdown cancels and joins the workers.
 
+[`connectionCatalog`](../cmd/mistervision/connections.go) owns available connections. Successful sign-in updates its immutable menu snapshot, which the browser reads at startup and after authentication. Browsers own menu selection, but do not add or retain connection choices themselves. Jellyfin keeps an unapproved server choice in memory for retries. Loading credentials for another server does not replace the working sign-in.
+
 [`browserSession.draw`](../internal/browser/session_render.go) projects the model and controller snapshot into a scene, calls the renderer, presents the frame, and requests a paused-player refresh when needed. Timer and frame-notification events drive redraws. Shutdown cancels session work before waiting for decoder callbacks.
 
 `Model` owns navigation, retained pages, music queue presentation, and photo controls. `PlaybackController` owns playback state, active/pending decoders, seek debounce, pause restoration, options, and notices. Its `Start`, `Key`, `Tick`, `Handle`, and `Snapshot` methods form the UX boundary. It has no framebuffer, font, terminal, or drawing dependency. [`playbackDriver`](../internal/browser/playback_driver.go) connects it to decoding and output handoff through callbacks.
@@ -150,7 +152,7 @@ Disk reads, invalidation, and pruning stay on workers. Cache hits do not rewrite
 
 [`internal/settings`](../internal/settings/settings.go) owns startup snapshots, UI schema, and shared compatibility/migration rules. Components validate their own values. [`sound.Feedback`](../internal/sound/sound.go) receives semantic browsing cues. The sound worker never blocks the UI, bounds pending cues, and releases ALSA before playback. Counted suspensions cover overlapping decoder replacements. Neither settings nor audio-device work belongs in drawing.
 
-[`serverstate`](../internal/serverstate/session.go) owns bounded sign-in reads, damaged-file recovery, and atomic replacement for both providers. [`playback.Preferences`](../internal/playback/preferences.go) owns per-item choices and a background writer. Failed writes stay pending without overwriting newer choices. A later save or final shutdown flush retries them. Both components keep storage policy outside rendering.
+[`serverstate`](../internal/serverstate/session.go) owns bounded sign-in reads and damaged-file recovery. Its [`WriteFile`](../internal/serverstate/write.go) helper writes private state through a synced temporary file and atomic rename. Session, server-choice, connection-choice, and Plex connection records share that helper while retaining their own schemas and validation. [`playback.Preferences`](../internal/playback/preferences.go) owns per-item choices and a background writer. Failed writes stay pending without overwriting newer choices. A later save or final shutdown flush retries them. Both components keep storage policy outside rendering.
 
 ## Release installation
 
@@ -160,7 +162,7 @@ Application assembly enables the installer only for the standard MiSTer client/p
 
 ## Extending and validating
 
-For another display destination, implement `videoout.Output` and, if needed, `platform.Presenter`, then wire it in target assembly. For another decoder, implement `player.Decoder` and its own feedback parser. For another control source, implement [`remote.Source`](../internal/remote/source.go). These interfaces can be reused independently.
+For another display destination, implement `videoout.Output` and, if needed, `platform.Presenter`, then wire it in target assembly. Supply `playback.Timing` explicitly for that target. Shared playback does not infer frame-rate limits from pixel dimensions. For another decoder, implement `player.Decoder` and its own feedback parser. For another control source, implement [`remote.Source`](../internal/remote/source.go). These interfaces can be reused independently.
 
 Renderer tests compare screen hashes, cached/uncached pixels, overlay clearing, and geometry changes. Output tests cover composition and decoder handoff. Controller and process tests cover seeks, cancellation, stale events, pause restoration, and reporting. See [build checks](GO_BUILD.md#tests-and-ci). Changes to CRT synchronization require hardware testing. Rendering benchmarks exclude network, scanout, and input latency:
 

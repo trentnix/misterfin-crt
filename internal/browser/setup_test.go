@@ -61,7 +61,7 @@ func TestConnectionReloadsConfigurationAndReportsItsFailureStage(t *testing.T) {
 	}))
 	defer server.Close()
 	dir := t.TempDir()
-	options := jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+	options := &jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
 	config := Config{Connector: options}
 	m := newConnectionManager(config, 640, 240)
 	defer m.close()
@@ -116,7 +116,7 @@ func TestQuickConnectPublishesOnlyApprovalCodeAndCanBeReplaced(t *testing.T) {
 	}))
 	defer server.Close()
 	dir := t.TempDir()
-	options := jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+	options := &jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
 	config := Config{Connector: options}
 	if err := os.WriteFile(options.ConfigPath, []byte(server.URL), 0600); err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestRecoveredSessionReachesAuthenticationAndPresentation(t *testing.T) {
 			}))
 			defer server.Close()
 			dir := t.TempDir()
-			options := jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
+			options := &jfconnection.Connector{ConfigPath: filepath.Join(dir, "jellyfin.conf"), StateDir: dir}
 			config := Config{Connector: options}
 			options.Version = "v2.3.4"
 			config.Connector = options
