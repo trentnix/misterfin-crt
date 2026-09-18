@@ -180,7 +180,7 @@ type setupDiscoverer func(context.Context) ([]connection.Server, error)
 
 func (f setupDiscoverer) Discover(ctx context.Context) ([]connection.Server, error) { return f(ctx) }
 
-// TestDiscoveryBackAfterRelaunch exercises persisted selection through the real
+// TestDiscoveryBackAfterRelaunch exercises tentative selection through the real
 // Jellyfin connector and browser, including new approval codes and sign-in errors.
 func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
@@ -202,15 +202,16 @@ func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 			defer server.Close()
 			dir := t.TempDir()
 			candidate := connection.Server{ID: "server", Name: "Test server", URL: server.URL}
-			connector := jfconnection.Connector{StateDir: dir, ConfigPath: filepath.Join(dir, "jellyfin.conf"), Discovery: setupDiscoverer(func(context.Context) ([]connection.Server, error) {
+			connector := &jfconnection.Connector{StateDir: dir, ConfigPath: filepath.Join(dir, "jellyfin.conf"), Discovery: setupDiscoverer(func(context.Context) ([]connection.Server, error) {
 				scans.Add(1)
 				return []connection.Server{candidate}, nil
 			})}
 			for launch := range 2 {
 				func() {
+					current := &jfconnection.Connector{StateDir: connector.StateDir, ConfigPath: connector.ConfigPath, Discovery: connector.Discovery}
 					s := testSession(t)
 					s.controller.running = false
-					s.config = Config{Connector: connector}
+					s.config = Config{Connector: current}
 					s.connection = newConnectionManager(s.config, 640, 240)
 					defer s.connection.close()
 					wait := func(kind connection.SetupKind) {
@@ -227,10 +228,8 @@ func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 						}
 					}
 					s.authenticate()
-					if launch == 0 {
-						wait(connection.SetupServers)
-						s.dispatchKey(control.Open)
-					}
+					wait(connection.SetupServers)
+					s.dispatchKey(control.Open)
 					kind := connection.SetupFailure
 					if enabled {
 						kind = connection.SetupApproval
@@ -247,8 +246,8 @@ func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 							t.Fatal("new code lost Back navigation")
 						}
 					}
-					// Relaunch and New code must reuse the choice until Back is pressed.
-					expectedScans := int32(1 + launch)
+					// New code reuses the tentative choice. Each launch starts discovery.
+					expectedScans := int32(1 + 2*launch)
 					if scans.Load() != expectedScans {
 						t.Fatal("sign-in unexpectedly rescanned")
 					}
@@ -266,8 +265,8 @@ func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 					}
 				}()
 			}
-			if scans.Load() != 3 {
-				t.Fatalf("expected three scans, got %d", scans.Load())
+			if scans.Load() != 4 {
+				t.Fatalf("expected four scans, got %d", scans.Load())
 			}
 		})
 	}

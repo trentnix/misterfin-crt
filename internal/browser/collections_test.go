@@ -170,7 +170,7 @@ func TestLocalPlaylistStaysPagedWithRemoteControl(t *testing.T) {
 	source := &playlistRemote{}
 	s.remote.source = source
 	s.publishLocalQueue()
-	if s.remotePlayback.active || len(source.published.Entries) != 1 {
+	if s.playbackQueue.active || len(source.published.Entries) != 1 {
 		t.Fatal("local playlist was replaced by a remote queue")
 	}
 	s.handleRemote(remote.Command{Kind: remote.Next})
@@ -186,7 +186,7 @@ func TestAdoptLoadedQueueUsesSelectedOccurrence(t *testing.T) {
 	s := playlistSession(t, "Audio", "Audio", "Audio")
 	s.model.Stack[0].Selected = 2
 	s.adoptLocalQueue()
-	state := s.remotePlayback.queue.Snapshot()
+	state := s.playbackQueue.queue.Snapshot()
 	if state.Current != state.Entries[2].Key {
 		t.Fatal("adopted first occurrence instead of selected track")
 	}
@@ -197,7 +197,7 @@ func TestAdoptedQueueKeepsRepeatedRowDuringNextAndPrevious(t *testing.T) {
 	s.model.Stack[0].Selected = 1
 	s.adoptLocalQueue()
 	for _, tc := range []struct{ direction, row int }{{1, 2}, {-1, 1}} {
-		s.moveRemoteQueue(tc.direction, false)
+		s.moveQueue(tc.direction, false)
 		s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: s.controller.active.id})
 		parent, _ := s.model.Parent()
 		if parent.Selected != tc.row {

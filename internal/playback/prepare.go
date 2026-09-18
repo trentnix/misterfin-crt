@@ -60,22 +60,12 @@ func preparePlayback(ctx context.Context, c media.Playback, config Config, reque
 			burn = sub.Index
 			tracks.Text = nil
 		}
-		stream, err = c.PrepareVideo(ctx, media.VideoRequest{Item: item, SessionID: session, StartTicks: start, NTSC: config.Height == 240 || config.Height == 480, SourceID: tracks.SourceID, Tracks: tracks.Selection, BurnSubtitle: burn})
+		stream, err = c.PrepareVideo(ctx, media.VideoRequest{Item: item, SessionID: session, StartTicks: start, NTSC: !config.Timing.PAL, SourceID: tracks.SourceID, Tracks: tracks.Selection, BurnSubtitle: burn})
 		if err != nil {
 			return nil, err
 		}
 	}
 	if liveTV {
-		// Progressive NTSC keeps its 30 fps cap. Interlaced NTSC uses the
-		// broadcast rate so 30 fps conversion does not periodically shorten
-		// a frame against the core's approximately 59.94 Hz field clock.
-		maxFrameRate := 25.0
-		switch config.Height {
-		case 240:
-			maxFrameRate = 30
-		case 480:
-			maxFrameRate = 30000.0 / 1001
-		}
 		live, ok := c.(media.LiveTV)
 		if !ok {
 			return nil, errors.New("Live TV is not supported by this server")
@@ -84,7 +74,7 @@ func preparePlayback(ctx context.Context, c media.Playback, config Config, reque
 		if choices.explicit != nil {
 			audioIndex = choices.explicit.Selection.AudioIndex
 		}
-		stream, err = live.PrepareLive(ctx, media.LiveRequest{ChannelID: item.ID, MaxFrameRate: maxFrameRate, AudioIndex: audioIndex})
+		stream, err = live.PrepareLive(ctx, media.LiveRequest{ChannelID: item.ID, MaxFrameRate: config.Timing.liveFrameRate(), AudioIndex: audioIndex})
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, nil

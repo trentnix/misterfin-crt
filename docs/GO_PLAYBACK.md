@@ -4,6 +4,8 @@ MiSTer uses the patched MPlayer. Local development uses Python/libmpv inside Gho
 
 Jellyfin and [Plex](GO_PLEX.md) share playback controls and output paths. Each adapter handles stream preparation, progress reporting, and tuner ownership for its server.
 
+The browser’s `playbackQueue` owns local and remote queue entries and decoder handoff. Remote command handling and queue publication remain in `remote_commands.go` and `remote_source.go`. Paged playlists and whole-library shuffle retain their separate navigation state.
+
 ## Players and local use
 
 | Player | Current use | Limits |
@@ -36,6 +38,8 @@ MiSTer's MPlayer retains an 8 MiB read-ahead cache. Recorded video prefills 20% 
 
 [Input profiles](GO_INPUT.md) control hardware bindings and badge labels. Controls expire after three seconds. Pause/resume hides them. Menu toggles and track changes act once per press.
 
+Changing items with Next or Previous starts playback even if the previous item was paused. An explicit Pause after requesting the change is retained while the next item loads.
+
 Held seeks repeat after 350 ms, then every 250 ms. Video steps are 30 seconds and music steps are 10 seconds. Live TV does not seek. Shoulders have no action during video.
 
 On an unwatched resumable video's details screen, Open resumes and SELECT/Tab restarts from zero. Restart is a selection-screen action, not an in-playback control. [Photos](GO_BROWSING.md#photos) retain Left/Right navigation and Up for controls. See [music](GO_MUSIC.md) for album queues and shuffle.
@@ -44,7 +48,9 @@ On an unwatched resumable video's details screen, Open resumes and SELECT/Tab re
 
 Seek presses accumulate toward a destination. With controls hidden, two quick presses reveal the destination overlay. With controls open, the destination stays in that menu. After 0.5 seconds without another press, the current decoder pauses and a replacement stream is prepared. A new seek during preparation cancels that replacement and returns to the destination preview for another 0.5 seconds.
 
-The last frame remains beneath Seeking/Loading until handoff. The replacement uses an explicit start offset and restores the previous pause state. Targets are clamped to the known duration, and seeking becomes available after the first position report. Back cancels playback. Music seeks within its running player instead of replacing the stream.
+The last frame remains beneath Seeking/Loading until handoff. The replacement uses an explicit start offset and restores the latest user pause choice. Targets are clamped to the known duration, and seeking becomes available after the first position report. Back cancels playback. Music seeks within its running player instead of replacing the stream.
+
+`PlaybackController` keeps user pause intent separate from decoder feedback. Each `playbackProcess` owns its command queue, so a seek replacement cannot consume commands left for the old decoder. Busy queues retry required pause/resume delivery on the browser tick.
 
 ## Video options
 
@@ -120,7 +126,7 @@ Invalid JSON limits stop startup. Limits apply to recorded video and Live TV for
 
 Dimensions preserve source proportions. Lower dimensions can reduce decoding work. Larger accepted values do not guarantee smooth MiSTer playback.
 
-Jellyfin video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Recorded video caps at 30 fps for NTSC or 25 fps for PAL. 480i Live TV uses 30000/1001 fps. The player does not force source speed. [Diagnostics](GO_DIAGNOSTICS.md) records requested transcode limits, not measured stream properties.
+Jellyfin video uses progressive MPEG-2 in MPEG-TS with stereo MP3 at 48 kHz. Recorded video caps at 30 fps for NTSC or 25 fps for PAL. 480i Live TV uses 30000/1001 fps. Target assembly supplies these limits through `playback.Timing`, separately from decoder dimensions. Its zero value uses 30 fps. Current CRT targets select PAL or interlaced NTSC timing explicitly. The player does not force source speed. [Diagnostics](GO_DIAGNOSTICS.md) records requested transcode limits, not measured stream properties.
 
 ## Streams and reporting
 

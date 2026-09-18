@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/ui"
 )
 
@@ -34,9 +34,9 @@ func TestListWindowRebasePreservesPixelsAndClipsRows(t *testing.T) {
 
 		rows := VisibleRows(640, height)
 		total := 400
-		m := Scene{Root: true, ListMode: true, Content: Content{Selected: 100, Scroll: 100 - rows/2, Page: jellyfin.Page{TotalRecordCount: &total}}}
+		m := Scene{Root: true, ListMode: true, Content: Content{Selected: 100, Scroll: 100 - rows/2, Page: media.Page{TotalRecordCount: &total}}}
 		for i := 0; i < 192; i++ {
-			m.Content.Page.Items = append(m.Content.Page.Items, jellyfin.Item{ID: fmt.Sprint(i), Name: fmt.Sprint(i)})
+			m.Content.Page.Items = append(m.Content.Page.Items, media.Item{ID: fmt.Sprint(i), Name: fmt.Sprint(i)})
 		}
 		s := testScene(m, PlaybackPresentation{}, SetupPresentation{}, Artwork{}, "", time.Unix(0, 0))
 		anim := Animation{Row: float64(rows / 2), ScrollOffset: -0.4}

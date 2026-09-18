@@ -10,6 +10,7 @@ import (
 	"mistervision/internal/input/control"
 	"mistervision/internal/input/evdev"
 	"mistervision/internal/platform"
+	"mistervision/internal/playback"
 	"mistervision/internal/player"
 	desktopplayer "mistervision/internal/player/ffplay"
 	nativeplayer "mistervision/internal/player/mplayer"
@@ -72,8 +73,8 @@ func TestBrowserStartupPreservesDecoderDefaults(t *testing.T) {
 			if tc.frames != "" && inlineFramePath(o) != tc.frames {
 				t.Fatal("decoder/output frame paths differ")
 			}
-			if got.Height != 480 {
-				t.Fatal("lost physical output configuration")
+			if got.Timing != crtPlaybackTiming(480) {
+				t.Fatal("lost target playback timing")
 			}
 		})
 	}
@@ -268,5 +269,23 @@ func TestUnifiedSettingsAssemblyAndRelativePaths(t *testing.T) {
 	trace.close(nil)
 	if _, err := os.Stat(filepath.Join(dir, "logs/events")); err != nil {
 		t.Fatal("log did not resolve beside settings", err)
+	}
+}
+
+func TestTargetTimingPreservesCRTAndDefaultsOtherSizes(t *testing.T) {
+	for _, tc := range []struct {
+		height int
+		want   playback.Timing
+	}{
+		{240, playback.Timing{}}, {288, playback.Timing{PAL: true}},
+		{480, playback.Timing{LiveFrameRate: 30000.0 / 1001}}, {576, playback.Timing{PAL: true}},
+		{720, playback.Timing{}}, {1080, playback.Timing{}},
+	} {
+		g := platform.Geometry{Width: 640, Height: 240, OutputWidth: 640, OutputHeight: tc.height}
+		for _, config := range []playback.Config{misterPlayback(launchOptions{}, g), desktopPlayback(launchOptions{}, g)} {
+			if config.Timing != tc.want {
+				t.Errorf("height %d: timing %+v, want %+v", tc.height, config.Timing, tc.want)
+			}
+		}
 	}
 }

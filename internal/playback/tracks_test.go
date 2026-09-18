@@ -18,7 +18,7 @@ func TestTrackPreparationChoosesSourceAndBurnIn(t *testing.T) {
 		if !strings.Contains(r.URL.Query().Get("Fields"), "MediaSources") {
 			t.Error("missing source metadata query")
 		}
-		json.NewEncoder(w).Encode(jellyfin.Item{ID: "movie", Type: "Movie", RunTimeTicks: 1000000000, MediaSources: []jellyfin.MediaSource{{ID: "file-source", MediaStreams: []jellyfin.MediaStream{{Type: "Audio", Index: 4}, {Type: "Subtitle", Index: 12, Codec: "ass"}, {Type: "Subtitle", Index: 18, Codec: "pgssub"}}}}})
+		json.NewEncoder(w).Encode(media.Item{ID: "movie", Type: "Movie", RunTimeTicks: 1000000000, MediaSources: []media.MediaSource{{ID: "file-source", MediaStreams: []media.MediaStream{{Type: "Audio", Index: 4}, {Type: "Subtitle", Index: 12, Codec: "ass"}, {Type: "Subtitle", Index: 18, Codec: "pgssub"}}}}})
 	}))
 	defer server.Close()
 	client := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
@@ -29,12 +29,12 @@ func TestTrackPreparationChoosesSourceAndBurnIn(t *testing.T) {
 	}{{12, false, "-1"}, {12, true, "12"}, {18, false, "18"}, {-1, false, "-1"}} {
 		start := int64(50000000)
 		request := Request{
-			Item: jellyfin.Item{ID: "movie", Type: "Movie"}, StartTicks: &start,
+			Item: media.Item{ID: "movie", Type: "Movie"}, StartTicks: &start,
 			Tracks: &TrackOptions{Selection: media.TrackSelection{AudioIndex: 4, SubtitleIndex: tc.index}},
 		}
 		choices := prepareTrackChoices(client, Config{}, request)
 		choices.clientSubtitles = !tc.burnText
-		session, err := preparePlayback(context.Background(), client, Config{Height: 240}, request, choices)
+		session, err := preparePlayback(context.Background(), client, Config{}, request, choices)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +42,7 @@ func TestTrackPreparationChoosesSourceAndBurnIn(t *testing.T) {
 			t.Fatal("wrong source, track, or offset")
 		}
 	}
-	request := Request{Item: jellyfin.Item{ID: "movie"}, Tracks: &TrackOptions{Selection: media.TrackSelection{AudioIndex: 99, SubtitleIndex: -1}}}
+	request := Request{Item: media.Item{ID: "movie"}, Tracks: &TrackOptions{Selection: media.TrackSelection{AudioIndex: 99, SubtitleIndex: -1}}}
 	_, err := preparePlayback(context.Background(), client, Config{}, request, prepareTrackChoices(client, Config{}, request))
 	if err == nil {
 		t.Fatal("missing track silently fell back")
@@ -93,9 +93,9 @@ func TestSubtitleLoaderCancellationAndFailure(t *testing.T) {
 func TestPictureZoomPersistsAcrossSourceAspectRatios(t *testing.T) {
 	for _, aspect := range []string{"16:9", "235:100", "4:3", "1:1"} {
 		t.Run(aspect, func(t *testing.T) {
-			item := jellyfin.Item{ID: "movie", Type: "Movie",
-				MediaStreams: []jellyfin.MediaStream{{Type: "Video", AspectRatio: "16:9"}},
-				MediaSources: []jellyfin.MediaSource{{ID: "source", MediaStreams: []jellyfin.MediaStream{
+			item := media.Item{ID: "movie", Type: "Movie",
+				MediaStreams: []media.MediaStream{{Type: "Video", AspectRatio: "16:9"}},
+				MediaSources: []media.MediaSource{{ID: "source", MediaStreams: []media.MediaStream{
 					{Type: "Video", Width: 720, Height: 480, AspectRatio: aspect},
 				}}},
 			}

@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func benchmarkScene() (Scene, Artwork) {
 	m := Scene{Root: true}
-	m.Content.Page.Items = []jellyfin.Item{{Name: "Movies", CollectionType: "movies"}, {Name: "Television", CollectionType: "tvshows"}, {Name: "Music", CollectionType: "music"}}
+	m.Content.Page.Items = []media.Item{{Name: "Movies", CollectionType: "movies"}, {Name: "Television", CollectionType: "tvshows"}, {Name: "Music", CollectionType: "music"}}
 	backdrop := image.NewRGBA(image.Rect(0, 0, 1280, 720))
 	draw.Draw(backdrop, backdrop.Bounds(), image.NewUniform(color.RGBA{80, 120, 160, 255}), image.Point{}, draw.Src)
 	cover := image.NewRGBA(image.Rect(0, 0, 400, 600))

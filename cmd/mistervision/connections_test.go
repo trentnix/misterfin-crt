@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"mistervision/internal/connection"
 	jfconnection "mistervision/internal/jellyfin/connection"
 	"mistervision/internal/media"
 	"mistervision/internal/plex"
 	"mistervision/internal/serverstate"
 	"mistervision/internal/settings"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestConnectionCatalogProfilesAndRememberedStartup(t *testing.T) {
@@ -37,12 +38,12 @@ func TestConnectionCatalogProfilesAndRememberedStartup(t *testing.T) {
 	if c.selected != "profile/jellyfin" || len(c.choices) != 3 || c.choices[0].Name != "Use existing connection" || len(c.choices[0].Children) != 2 {
 		t.Fatalf("catalog: %+v", c.choices)
 	}
-	jf := c.connectors["profile/jellyfin"].(*connection.Retained).Connector.(jfconnection.Connector)
+	jf := c.connectors["profile/jellyfin"].(*connection.Retained).Connector.(*jfconnection.Connector)
 	px := c.connectors["profile/plex"].(*connection.Retained).Connector.(plex.Connector)
 	if jf.StateDir == px.StateDir || jf.StateDir == dir || px.StateDir == dir {
 		t.Fatal("account storage is shared")
 	}
-	if err := c.connectors["profile/plex"].(*connection.Retained).Remember(); err != nil {
+	if err := c.connectors["profile/plex"].(*connection.Retained).Remember(connection.Server{}); err != nil {
 		t.Fatal(err)
 	}
 	if c = load(); c.selected != "profile/plex" {
@@ -94,7 +95,7 @@ func TestPlexDiscoveryCatalogWithoutServerConfiguration(t *testing.T) {
 	if err := serverstate.SaveServer(filepath.Join(plex.StateDir(px.StateDir), "server.json"), server); err != nil {
 		t.Fatal(err)
 	}
-	if err := catalog.discoveries["plex"].Remember(); err != nil {
+	if err := catalog.discoveries["plex"].Remember(server); err != nil {
 		t.Fatal(err)
 	}
 	catalog = load()
@@ -162,5 +163,64 @@ func TestProfileCatalogCancelsAndPromotesTentativeViewer(t *testing.T) {
 	}
 	if _, err := catalog.connectors[route].Connect(t.Context(), connection.Interaction{}); err != nil || provider.calls != calls {
 		t.Fatal("promoted route reopened the picker")
+	}
+}
+
+func TestConnectionCatalogKeepsNewChoicesAndUpdatesMetadata(t *testing.T) {
+	dir := t.TempDir()
+	source, err := settings.Load(filepath.Join(dir, "settings.json"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := newConnectionCatalog(source, filepath.Join(dir, "missing.conf"), dir, "test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial := catalog.Choices()
+	// No provider state files exist. Published metadata must be sufficient.
+	for _, id := range []string{"jellyfin", "plex"} {
+		for _, name := range []string{"Original " + id, "Renamed " + id} {
+			server := connection.Server{ID: id, Name: name, URL: "http://" + id}
+			snapshot := catalog.Choices()
+			if err := catalog.discoveries[id].Remember(server); err != nil {
+				t.Fatal(err)
+			}
+			choices := catalog.Choices()
+			if choices[0].ID != "existing" {
+				t.Fatal("successful discovery did not create existing connections")
+			}
+			found := false
+			for _, child := range choices[0].Children {
+				if child.ID == id && child.Name == name {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("successful selection did not refresh connection metadata")
+			}
+			if snapshot[0].ID == "existing" {
+				for _, child := range snapshot[0].Children {
+					if child.ID == id && child.Name == name {
+						t.Fatal("publication mutated an earlier snapshot")
+					}
+				}
+			}
+		}
+	}
+	if len(initial) != 2 || initial[0].ID != "jellyfin-new" {
+		t.Fatal("initial menu was mutated")
+	}
+	choices := catalog.Choices()[0].Children
+	if len(choices) != 2 || choices[0].ID != "jellyfin" || choices[1].ID != "plex" {
+		t.Fatal("switching connections lost an earlier discovery")
+	}
+	// The default startup route can discover Jellyfin before either provider
+	// route is chosen. It must publish that connection through the same owner.
+	server := connection.Server{ID: "default", Name: "Startup server", URL: "http://startup"}
+	if err := catalog.retained["default"].Remember(server); err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Choices()[0].Children) != 3 {
+		t.Fatal("default discovery missing from catalog")
 	}
 }

@@ -10,8 +10,9 @@ import (
 // by the active browser. Describe never reads or changes the cached account.
 type Retained struct {
 	Connector Connector
-	// Remember commits the successful selection. Nil disables persistence.
-	Remember func() error
+	// Remember commits the successful selection using public endpoint metadata.
+	// It runs for fresh and retained sessions. Nil disables persistence.
+	Remember func(Server) error
 	session  Session
 	previous *Retained // A tentative selection replaces this cache only after success.
 }
@@ -43,7 +44,7 @@ func (c *Retained) Connect(ctx context.Context, i Interaction) (Session, error) 
 		return Session{}, err
 	}
 	if c.Remember != nil {
-		if err := c.Remember(); err != nil {
+		if err := c.Remember(session.Endpoint); err != nil {
 			return Session{}, errRemember
 		}
 	}

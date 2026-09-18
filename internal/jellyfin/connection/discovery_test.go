@@ -2,6 +2,7 @@ package connection
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,7 +22,7 @@ type discoverFunc func(context.Context) ([]connection.Server, error)
 
 func (f discoverFunc) Discover(ctx context.Context) ([]connection.Server, error) { return f(ctx) }
 
-func TestDiscoverySelectionPersistsAndExplicitConfigurationWins(t *testing.T) {
+func TestDiscoverySelectionRetriesAndExplicitConfigurationWins(t *testing.T) {
 	dir := t.TempDir()
 	first := connection.Server{ID: "first", Name: "First", URL: "http://first:8096"}
 	second := connection.Server{ID: "second", Name: "Second", URL: "http://second:8096"}
@@ -62,15 +63,14 @@ func TestDiscoverySelectionPersistsAndExplicitConfigurationWins(t *testing.T) {
 	if err != nil || config.Server != c.Config.Server || scans != 1 {
 		t.Fatal("JSON config did not win")
 	}
-	saved, err := serverstate.LoadServer(filepath.Join(dir, "jellyfin-server.json"))
-	if err != nil || saved != second {
-		t.Fatal("explicit config changed remembered selection")
+	if _, err := os.Stat(filepath.Join(dir, "jellyfin-server.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("resolving a server persisted an unauthenticated selection")
 	}
 }
 
 func TestDiscoveryFailuresAndCancellationDoNotSaveSelection(t *testing.T) {
 	candidate := connection.Server{ID: "one", Name: "One", URL: "http://one:8096"}
-	for _, kind := range []string{"empty", "network", "cancel", "unoffered", "storage", "damaged"} {
+	for _, kind := range []string{"empty", "network", "cancel", "unoffered", "damaged"} {
 		t.Run(kind, func(t *testing.T) {
 			dir := t.TempDir()
 			scanned := false
@@ -99,11 +99,6 @@ func TestDiscoveryFailuresAndCancellationDoNotSaveSelection(t *testing.T) {
 				if kind == "unoffered" {
 					return connection.Server{}, nil
 				}
-				if kind == "storage" {
-					if err := os.Mkdir(path, 0700); err != nil {
-						t.Fatal(err)
-					}
-				}
 				return candidate, nil
 			}})
 			if err == nil {
@@ -121,7 +116,7 @@ func TestDiscoveryFailuresAndCancellationDoNotSaveSelection(t *testing.T) {
 			if kind == "network" && c.Describe(err).Message == err.Error() {
 				t.Fatal("raw network error displayed")
 			}
-			if kind != "damaged" && kind != "storage" {
+			if kind != "damaged" {
 				if _, err := os.Stat(path); !os.IsNotExist(err) {
 					t.Fatal("failed selection was saved")
 				}
@@ -172,7 +167,7 @@ func TestDiscoveredServerQuickConnectAndSavedSignIn(t *testing.T) {
 	}
 	for range 2 {
 		session, err := c.Connect(ctx, interaction)
-		if err != nil || session.Server == nil || session.Remote == nil {
+		if err != nil || session.Server == nil || session.Remote == nil || session.Endpoint != candidate {
 			t.Fatalf("discovered connection: %v", err)
 		}
 	}
@@ -185,7 +180,7 @@ func TestDiscoveredServerQuickConnectAndSavedSignIn(t *testing.T) {
 }
 
 // TestReselectServerPreservesSavedChoiceUntilSelection checks that returning to
-// discovery bypasses a saved choice without deleting it on failure or cancel.
+// discovery bypasses a saved choice without replacing it before authentication.
 func TestReselectServerPreservesSavedChoiceUntilSelection(t *testing.T) {
 	first := connection.Server{ID: "first", Name: "First", URL: "http://first:8096"}
 	second := connection.Server{ID: "second", Name: "Second", URL: "http://second:8096"}
@@ -223,14 +218,68 @@ func TestReselectServerPreservesSavedChoiceUntilSelection(t *testing.T) {
 				t.Fatal("unsuccessful discovery returned a server")
 			}
 			saved, loadErr := serverstate.LoadServer(path)
-			if loadErr != nil || saved != expected || scans != 1 {
+			if loadErr != nil || saved != first || scans != 1 {
 				t.Fatalf("saved choice: %#v, error: %v, scans: %d", saved, loadErr, scans)
 			}
-			// New-code retries and later launches use the choice without rescanning.
+			// New-code retries use the tentative choice without rescanning.
 			config, _, err = c.resolveConfig(t.Context(), connection.Interaction{})
 			if err != nil || config.Server != expected.URL || scans != 1 {
 				t.Fatal("normal retry did not reuse saved selection")
 			}
 		})
+	}
+}
+
+func TestCancelQuickConnectPreservesWorkingConnection(t *testing.T) {
+	dir := t.TempDir()
+	old := connection.Server{ID: "old-server", Name: "Working", URL: "http://old-server:8096"}
+	original := serverstate.Session{Server: old.URL, ServerID: old.ID, DeviceID: "test-device", Token: "test-token", UserID: "test-user"}
+	if err := serverstate.SaveServer(filepath.Join(dir, "jellyfin-server.json"), old); err != nil {
+		t.Fatal(err)
+	}
+	if err := serverstate.SaveSession(dir, original); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/QuickConnect/Enabled":
+			fmt.Fprint(w, "true")
+		case "/QuickConnect/Initiate":
+			fmt.Fprint(w, `{"Code":"123456","Secret":"test-secret"}`)
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+			w.WriteHeader(500)
+		}
+	}))
+	defer server.Close()
+	next := connection.Server{ID: "other-server", Name: "Other", URL: server.URL}
+	c := Connector{StateDir: dir, DiscoveryOnly: true, Discovery: discoverFunc(func(context.Context) ([]connection.Server, error) { return []connection.Server{next}, nil })}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	_, err := c.Connect(ctx, connection.Interaction{SelectServer: true, ChooseServer: func(context.Context, []connection.Server) (connection.Server, error) { return next, nil }, Progress: func(p connection.Presentation) {
+		if p.Kind == connection.SetupApproval {
+			cancel()
+		}
+	}})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled approval, got %v", err)
+	}
+	saved, err := serverstate.LoadServer(filepath.Join(dir, "jellyfin-server.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved != old {
+		t.Error("canceled sign-in replaced the working server selection")
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "session.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var session serverstate.Session
+	if err := json.Unmarshal(data, &session); err != nil {
+		t.Fatal(err)
+	}
+	if session != original {
+		t.Error("canceled sign-in overwrote the working credentials")
 	}
 }

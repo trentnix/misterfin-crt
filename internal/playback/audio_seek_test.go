@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
 	"mistervision/internal/media"
 	playerapi "mistervision/internal/player"
 	"mistervision/internal/player/ffplay"
@@ -48,7 +47,7 @@ func TestOnlyStartedAudioAcceptsDirectSeek(t *testing.T) {
 	for _, kind := range []string{"Movie", "TvChannel", "Audio"} {
 		var commands bytes.Buffer
 		p := &playerProcess{decoder: mplayer.Decoder{}, control: playerapi.Control{Stdin: &commands}}
-		s := playbackSession{item: jellyfin.Item{Type: kind}, started: true, state: media.PlayState{IsPaused: true}}
+		s := playbackSession{item: media.Item{Type: kind}, started: true, state: media.PlayState{IsPaused: true}}
 		timer := time.NewTimer(time.Hour)
 		s.control(p, Callbacks{}, Control{Kind: SeekAudioStep, Seconds: 10}, timer)
 		timer.Stop()
@@ -56,7 +55,7 @@ func TestOnlyStartedAudioAcceptsDirectSeek(t *testing.T) {
 			t.Fatal("direct seek changed unsupported media or pause state")
 		}
 	}
-	s := playbackSession{item: jellyfin.Item{Type: "Audio"}, started: true}
+	s := playbackSession{item: media.Item{Type: "Audio"}, started: true}
 	var notice error
 	timer := time.NewTimer(time.Hour)
 	defer timer.Stop()
@@ -70,7 +69,7 @@ func TestRelativeAudioSeekPreservesOffsetAndPause(t *testing.T) {
 	for _, seconds := range []int{-37, 83} {
 		var commands bytes.Buffer
 		p := &playerProcess{decoder: mplayer.Decoder{}, control: playerapi.Control{Stdin: &commands}}
-		s := playbackSession{item: jellyfin.Item{Type: "Audio"}, started: true, state: media.PlayState{IsPaused: true}}
+		s := playbackSession{item: media.Item{Type: "Audio"}, started: true, state: media.PlayState{IsPaused: true}}
 		timer := time.NewTimer(time.Hour)
 		s.control(p, Callbacks{}, Control{Kind: SeekAudioRelative, Seconds: seconds}, timer)
 		timer.Stop()

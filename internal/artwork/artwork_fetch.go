@@ -37,9 +37,9 @@ func (l *Loader) Fetch(ctx context.Context, item media.Item, kind string) (image
 	if kind == "Photo" {
 		disk = nil
 	}
-	revision := disk.revision(key)
-	if im := disk.load(key, revision); im != nil && ctx.Err() == nil {
-		if l.remember(ctx, key, disk, revision, im) {
+	revision := l.revisions.current(key)
+	if im := disk.load(&l.revisions, key, revision); im != nil && ctx.Err() == nil {
+		if l.remember(ctx, key, revision, im) {
 			return im, nil
 		}
 	}
@@ -59,8 +59,8 @@ func (l *Loader) Fetch(ctx context.Context, item media.Item, kind string) (image
 				im = rgba
 			}
 		}
-		if l.remember(ctx, key, disk, revision, im) {
-			disk.save(ctx, key, revision, im)
+		if l.remember(ctx, key, revision, im) {
+			disk.save(ctx, &l.revisions, key, revision, im)
 		}
 	}
 	return im, err

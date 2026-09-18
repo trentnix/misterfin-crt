@@ -41,11 +41,11 @@ func (s *browserSession) stopRemote() {
 	s.remote.generation++
 	s.remote.source = nil
 	s.remoteRequests.cancelAll()
-	s.remotePlayback.active = false
-	s.remotePlayback.switching = false
-	s.remotePlayback.queue.Replace(nil, 0)
-	s.remotePlayback.items = nil
-	s.remotePlayback.localRows = nil
+	s.playbackQueue.active = false
+	s.playbackQueue.switching = false
+	s.playbackQueue.queue.Replace(nil, 0)
+	s.playbackQueue.items = nil
+	s.playbackQueue.localRows = nil
 }
 
 type remoteCommandResult struct {
@@ -64,7 +64,7 @@ func (s *browserSession) publishRemoteQueue() {
 	if s.remote.source == nil {
 		return
 	}
-	state := s.remotePlayback.queue.Snapshot()
+	state := s.playbackQueue.queue.Snapshot()
 	s.remote.source.Publish(state)
 	if s.controller.running {
 		s.controller.sendCommand(playback.Report)

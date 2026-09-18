@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/ui"
 )
 
@@ -43,19 +43,19 @@ func TestCustomBackgroundScopeAndCache(t *testing.T) {
 			s := scene
 			switch kind {
 			case "details":
-				s.Content.Detail = &jellyfin.Item{Type: "Movie", Name: "Movie"}
+				s.Content.Detail = &media.Item{Type: "Movie", Name: "Movie"}
 			case "setup":
 				s.Setup.Kind = SetupConnecting
 			case "about":
 				s.About.Visible = true
 			case "video":
 				s.Video = true
-				s.Content.Detail = &jellyfin.Item{Type: "Movie"}
+				s.Content.Detail = &media.Item{Type: "Movie"}
 			case "music":
 				s.Audio = true
-				s.Content.Detail = &jellyfin.Item{Type: "Audio"}
+				s.Content.Detail = &media.Item{Type: "Audio"}
 			case "photo":
-				s.Content.Detail = &jellyfin.Item{Type: "Photo"}
+				s.Content.Detail = &media.Item{Type: "Photo"}
 			}
 			with := append([]byte(nil), NewRenderer().Render(640, h, s).UI...)
 			s.Background = nil

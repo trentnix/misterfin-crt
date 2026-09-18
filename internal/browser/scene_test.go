@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/rendering"
 )
 
@@ -23,8 +23,8 @@ func TestSceneCopiesScalarState(t *testing.T) {
 
 func TestScenePreservesBorrowedItemsAndActions(t *testing.T) {
 	m := New()
-	m.Current().Location = jellyfin.Location{Kind: "items", ParentID: "library", Collection: "music"}
-	m.Current().Page.Items = []jellyfin.Item{{Name: "Artist", Type: "MusicArtist"}}
+	m.Current().Location = media.Location{Kind: "items", ParentID: "library", Collection: "music"}
+	m.Current().Page.Items = []media.Item{{Name: "Artist", Type: "MusicArtist"}}
 	now := time.Unix(100, 0)
 	snapshot := func() rendering.Scene {
 		return sceneFromModel(m, rendering.PlaybackPresentation{}, rendering.SetupPresentation{}, selectionData{}, "", now)
@@ -39,7 +39,7 @@ func TestScenePreservesBorrowedItemsAndActions(t *testing.T) {
 		t.Fatal("different lists share scroll animation")
 	}
 	for _, kind := range []string{"Movie", "Episode", "TvChannel", "Audio", "Photo"} {
-		item := &jellyfin.Item{Type: kind}
+		item := &media.Item{Type: kind}
 		item.UserData.PlaybackPositionTicks = 900000000
 		m.Current().Detail = item
 		scene = snapshot()

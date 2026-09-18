@@ -44,6 +44,10 @@ func (s *browserSession) dispatchKey(key control.Action) bool {
 		}
 		return true
 	}
+	if key == control.Open && !s.controller.picker.visible && (playing || s.localPlaybackPending()) {
+		s.controller.state.HideControls()
+		return s.setPaused(!s.wantsPause())
+	}
 	if playing && !s.controller.picker.visible && menuDirection(key) {
 		key = control.ToggleControls
 	}
@@ -57,9 +61,9 @@ func (s *browserSession) dispatchKey(key control.Action) bool {
 		}
 	}
 	if playing {
-		if key == control.Back && s.remotePlayback.active && !s.controller.picker.visible {
+		if key == control.Back && s.playbackQueue.active && !s.controller.picker.visible {
 			s.remoteRequests.cancelAll()
-			s.remotePlayback.switching = false
+			s.playbackQueue.switching = false
 			s.controller.stopByUser()
 			return true
 		}

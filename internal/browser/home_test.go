@@ -5,19 +5,19 @@ import (
 	"testing"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
-func homeEpisode(id, action string) jellyfin.Item {
+func homeEpisode(id, action string) media.Item {
 	season, episode := 1, 4
-	return jellyfin.Item{ID: id, Name: "Episode name", Type: "Episode", SeriesID: "series", SeriesName: "Dungeons and Dragons", ParentIndexNumber: &season, IndexNumber: &episode, ContinueAction: action}
+	return media.Item{ID: id, Name: "Episode name", Type: "Episode", SeriesID: "series", SeriesName: "Dungeons and Dragons", ParentIndexNumber: &season, IndexNumber: &episode, ContinueAction: action}
 }
 
 func TestHomeCardAndListNavigation(t *testing.T) {
 	s := testSession(t)
-	s.home.items = []jellyfin.Item{homeEpisode("episode", "next")}
+	s.home.items = []media.Item{homeEpisode("episode", "next")}
 	s.home.loaded = true
-	s.model.Current().Page = jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}
+	s.model.Current().Page = media.Page{Items: []media.Item{{ID: "movies", Name: "Movies"}}}
 	s.syncHomeViews()
 	if len(s.model.Current().Page.Items) != 2 || s.model.Current().Item().ID != "movies" {
 		t.Fatal("home arrival moved library selection")
@@ -35,7 +35,7 @@ func TestHomeCardAndListNavigation(t *testing.T) {
 		t.Fatal("home episode did not open existing details")
 	}
 	s.model.ReturnToParent()
-	s.home.items = []jellyfin.Item{homeEpisode("next-episode", "next")}
+	s.home.items = []media.Item{homeEpisode("next-episode", "next")}
 	s.syncHomeViews()
 	if s.model.Current().Item().ID != "next-episode" {
 		t.Fatal("series replacement lost selection")
@@ -51,7 +51,7 @@ func TestHomeCardAndListNavigation(t *testing.T) {
 func TestHomeRefreshRejectsStaleResultsAndKeepsUsefulData(t *testing.T) {
 	s := testSession(t)
 	s.home.generation = 2
-	s.home.items = []jellyfin.Item{homeEpisode("episode", "resume")}
+	s.home.items = []media.Item{homeEpisode("episode", "resume")}
 	if s.handleHome(homeResult{generation: 1}) || len(s.home.items) != 1 {
 		t.Fatal("stale home result accepted")
 	}
@@ -59,7 +59,7 @@ func TestHomeRefreshRejectsStaleResultsAndKeepsUsefulData(t *testing.T) {
 	if !s.handleHome(homeResult{generation: 2, err: errors.New("offline")}) || len(s.home.items) != 1 {
 		t.Fatal("failed refresh erased usable data")
 	}
-	if !s.handleHome(homeResult{generation: 2, page: jellyfin.Page{Items: []jellyfin.Item{}}}) || len(s.home.items) != 0 {
+	if !s.handleHome(homeResult{generation: 2, page: media.Page{Items: []media.Item{}}}) || len(s.home.items) != 0 {
 		t.Fatal("successful empty refresh retained old entries")
 	}
 }
@@ -69,14 +69,14 @@ func TestHomeInitialCardDoesNotStealNavigation(t *testing.T) {
 		s := testSession(t)
 		s.home.loading = true
 		req := s.model.Load(0)
-		s.handlePage(pageResult{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
+		s.handlePage(pageResult{request: *req, page: media.Page{Items: []media.Item{{ID: "movies", Name: "Movies"}}}})
 		if s.model.Current().Item().ID != continueID {
 			t.Fatal("first carousel frame did not select Continue")
 		}
 		if navigate {
 			s.model.Key(control.Next)
 		}
-		s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
+		s.handleHome(homeResult{page: media.Page{Items: []media.Item{homeEpisode("episode", "next")}}})
 		want := continueID
 		if navigate {
 			want = "movies"
@@ -90,8 +90,8 @@ func TestHomeInitialCardDoesNotStealNavigation(t *testing.T) {
 func TestHomeFeedCanArriveBeforeLibraries(t *testing.T) {
 	s := testSession(t)
 	req := s.model.Load(0)
-	s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
-	s.handlePage(pageResult{request: *req, page: jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}}})
+	s.handleHome(homeResult{page: media.Page{Items: []media.Item{homeEpisode("episode", "next")}}})
+	s.handlePage(pageResult{request: *req, page: media.Page{Items: []media.Item{{ID: "movies", Name: "Movies"}}}})
 	if s.model.Current().Item().ID != continueID {
 		t.Fatal("completed feed was not selected on the first carousel frame")
 	}
@@ -100,7 +100,7 @@ func TestHomeFeedCanArriveBeforeLibraries(t *testing.T) {
 func TestInitialContinueCanOpenWhileLoading(t *testing.T) {
 	s := testSession(t)
 	s.home.loading = true
-	s.model.Current().Page = s.homeLibraries(jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}})
+	s.model.Current().Page = s.homeLibraries(media.Page{Items: []media.Item{{ID: "movies", Name: "Movies"}}})
 	req := s.model.Key(control.Open)
 	if req == nil || req.Location.Kind != "continue" {
 		t.Fatal("initial placeholder did not open Continue")
@@ -109,7 +109,7 @@ func TestInitialContinueCanOpenWhileLoading(t *testing.T) {
 	if !s.model.Current().Loading {
 		t.Fatal("pending Continue list did not indicate loading")
 	}
-	s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{homeEpisode("episode", "next")}}})
+	s.handleHome(homeResult{page: media.Page{Items: []media.Item{homeEpisode("episode", "next")}}})
 	if s.model.Current().Loading || s.model.Current().Item().ID != "episode" {
 		t.Fatal("pending Continue list did not receive the feed")
 	}
@@ -118,11 +118,11 @@ func TestInitialContinueCanOpenWhileLoading(t *testing.T) {
 func TestEmptyInitialContinueRemovesPlaceholder(t *testing.T) {
 	for _, navigate := range []bool{false, true} {
 		s := testSession(t)
-		s.model.Current().Page = s.homeLibraries(jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies"}}})
+		s.model.Current().Page = s.homeLibraries(media.Page{Items: []media.Item{{ID: "movies", Name: "Movies"}}})
 		if navigate {
 			s.model.Key(control.Next)
 		}
-		s.handleHome(homeResult{page: jellyfin.Page{Items: []jellyfin.Item{}}})
+		s.handleHome(homeResult{page: media.Page{Items: []media.Item{}}})
 		if len(s.model.Current().Page.Items) != 1 || s.model.Current().Item().ID != "movies" {
 			t.Fatal("empty Continue did not leave the library selected")
 		}
@@ -137,7 +137,7 @@ func TestPendingContinueDoesNotPublishZeroCount(t *testing.T) {
 		t.Fatal("pending feed was presented as an empty feed")
 	}
 	s.home.loaded = true
-	s.home.items = []jellyfin.Item{homeEpisode("episode", "next")}
+	s.home.items = []media.Item{homeEpisode("episode", "next")}
 	s.seedHomeArtwork()
 	count := s.selection.loader.libraries.cached(continueID).count
 	if count == nil || *count != 1 {

@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
+	"mistervision/internal/playback"
+	"mistervision/internal/remote"
 	"mistervision/internal/rendering"
 	"mistervision/internal/videoout"
 )
@@ -29,7 +31,7 @@ func TestSessionRoutesUpWithoutRepeatingToggle(t *testing.T) {
 	for _, kind := range []string{"Movie", "Audio", "Photo"} {
 		t.Run(kind, func(t *testing.T) {
 			s := testSession(t)
-			s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{Type: kind}})
+			s.model.Stack = append(s.model.Stack, View{Detail: &media.Item{Type: kind}})
 			s.controller.item.Type = kind
 			s.controller.state.PlayingVideo = kind == "Movie"
 			if kind == "Audio" {
@@ -58,11 +60,11 @@ func TestSessionRoutesUpWithoutRepeatingToggle(t *testing.T) {
 func TestSessionCancelRejectsLateNeighbor(t *testing.T) {
 	s := testSession(t)
 	s.controller.running = false
-	s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{Type: "Audio"}})
+	s.model.Stack = append(s.model.Stack, View{Detail: &media.Item{Type: "Audio"}})
 	s.media.pending = true
 	canceled := false
 	s.media.cancel = func() { canceled = true }
-	late := neighborResult{generation: s.media.generation, item: &jellyfin.Item{ID: "late", Type: "Audio"}}
+	late := neighborResult{generation: s.media.generation, item: &media.Item{ID: "late", Type: "Audio"}}
 	s.handleKey(control.Back)
 	if !canceled || s.media.pending || len(s.model.Stack) != 1 {
 		t.Fatal("Back did not cancel navigation")
@@ -79,7 +81,7 @@ func TestSessionRejectsStaleAuthAndSelection(t *testing.T) {
 	s.setup = rendering.SetupPresentation{Kind: rendering.SetupApproval, Code: "current"}
 	for _, r := range []workerResult{
 		authCodeResult{generation: 1, presentation: rendering.SetupPresentation{Code: "stale"}},
-		selectionResult{generation: 2, update: selectionUpdate{kind: selectionDetails, detail: &jellyfin.Item{ID: "stale"}}},
+		selectionResult{generation: 2, update: selectionUpdate{kind: selectionDetails, detail: &media.Item{ID: "stale"}}},
 		selectionResult{generation: 2, update: selectionUpdate{kind: selectionCount, count: new(int)}},
 		selectionResult{generation: 2, update: selectionUpdate{kind: selectionArtwork, art: artUpdate{kind: "cover", total: 1}}},
 	} {
@@ -100,7 +102,7 @@ func (sessionTestOutput) Clear() {}
 func setupMusicSession(t *testing.T) *browserSession {
 	t.Helper()
 	s := testSession(t)
-	tracks := []jellyfin.Item{
+	tracks := []media.Item{
 		{ID: "first", Name: "First", Type: "Audio"},
 		{ID: "second", Name: "Second", Type: "Audio"},
 	}
@@ -183,7 +185,7 @@ func TestPlaybackDirectionsOnlyToggleMenu(t *testing.T) {
 		for _, key := range []control.Action{"up", "down", "previous", "next"} {
 			t.Run(kind+"/"+string(key), func(t *testing.T) {
 				s := testSession(t)
-				s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{Type: kind}})
+				s.model.Stack = append(s.model.Stack, View{Detail: &media.Item{Type: kind}})
 				s.controller.item.Type = kind
 				s.controller.running = true
 				s.controller.state.ProgressSeen = true
@@ -212,7 +214,7 @@ func TestPlaybackDirectionsOnlyToggleMenu(t *testing.T) {
 
 func TestMusicSeekingDoesNotChangeTrackOrShowControls(t *testing.T) {
 	s := testSession(t)
-	s.model.Stack = append(s.model.Stack, View{Detail: &jellyfin.Item{Type: "Audio"}})
+	s.model.Stack = append(s.model.Stack, View{Detail: &media.Item{Type: "Audio"}})
 	s.model.StartMusicQueue()
 	s.controller.item.Type = "Audio"
 	s.controller.running = true
@@ -223,7 +225,7 @@ func TestMusicSeekingDoesNotChangeTrackOrShowControls(t *testing.T) {
 	}{{"seek-backward", -10}, {"seek-forward", 10}, {"seek-forward-repeat", 10}} {
 		s.handleKey(tc.key)
 		select {
-		case c := <-s.controller.controls:
+		case c := <-s.controller.active.controls:
 			if c.Kind != "seek" || c.Seconds != tc.seconds {
 				t.Fatal(c)
 			}
@@ -233,5 +235,129 @@ func TestMusicSeekingDoesNotChangeTrackOrShowControls(t *testing.T) {
 	}
 	if s.media.pending || s.controller.Snapshot(time.Now()).ControlsVisible {
 		t.Fatal("seeking changed track or showed menu")
+	}
+}
+
+func TestPlaylistPauseSurvivesLocalTransition(t *testing.T) {
+	for _, phase := range []string{"resolving", "stopping", "between_tracks"} {
+		for _, input := range []struct {
+			name   string
+			apply  func(*browserSession)
+			paused bool
+		}{
+			{"remote_pause", func(s *browserSession) { s.handleRemote(remote.Command{Kind: remote.Pause}) }, true},
+			{"remote_pause_toggle", func(s *browserSession) {
+				s.handleRemote(remote.Command{Kind: remote.Pause})
+				s.handleRemote(remote.Command{Kind: remote.TogglePause})
+			}, false},
+			{"remote_resume_toggle", func(s *browserSession) {
+				s.handleRemote(remote.Command{Kind: remote.Resume})
+				s.handleRemote(remote.Command{Kind: remote.TogglePause})
+			}, true},
+			{"local_toggle", func(s *browserSession) { s.handleKey(control.Open) }, true},
+			{"local_two_toggles", func(s *browserSession) { s.handleKey(control.Open); s.handleKey(control.Open) }, false},
+		} {
+			t.Run(phase+"/"+input.name, func(t *testing.T) {
+				s := setupMusicSession(t)
+				s.model.Stack[len(s.model.Stack)-2].Location.Kind = "playlist"
+				old := s.controller.active.id
+				s.handlePlayback(PlaybackEvent{Kind: PlaybackPosition, ID: old, Ticks: 10000000})
+				if phase == "between_tracks" {
+					s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: old})
+				} else {
+					s.handleRemote(remote.Command{Kind: remote.Next})
+					if phase == "stopping" {
+						s.handleNeighbor(receiveNeighbor(t, s))
+					}
+				}
+				input.apply(s)
+				if phase != "stopping" {
+					s.handleNeighbor(receiveNeighbor(t, s))
+				}
+				if phase != "between_tracks" {
+					s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: old})
+				}
+				s.handlePlayback(PlaybackEvent{Kind: PlaybackPosition, ID: s.controller.active.id, Ticks: 1})
+				if s.controller.item.ID != "second" || s.controller.wantsPause() != input.paused {
+					t.Fatalf("next item=%q paused=%v, want paused=%v", s.controller.item.ID, s.controller.wantsPause(), input.paused)
+				}
+				if input.paused {
+					expectCommand(t, s.controller.active.controls, playback.SetPaused)
+				}
+				if len(s.controller.active.controls) != 0 {
+					t.Fatal("unexpected command reached replacement")
+				}
+			})
+		}
+	}
+}
+
+func TestNextAndPreviousStartPlayingAfterPausedItem(t *testing.T) {
+	for _, queue := range []string{"library", "playlist", "remote", "shuffle"} {
+		for _, command := range []remote.Kind{remote.Next, remote.Previous} {
+			t.Run(queue+"/"+string(command), func(t *testing.T) {
+				s := testSession(t)
+				kind := "Audio"
+				if queue == "playlist" || queue == "remote" {
+					kind = "Movie"
+				}
+				items := []media.Item{{ID: "first", Type: kind}, {ID: "middle", Type: kind}, {ID: "last", Type: kind}}
+				v := s.model.Current()
+				v.Location.Kind = "items"
+				if queue == "playlist" {
+					v.Location.Kind = "playlist"
+				}
+				v.Page.Items = items
+				v.Selected = 1
+				s.model.Key(control.Open)
+				s.startPlayback(nil, false)
+				if queue == "remote" {
+					s.adoptLocalQueue()
+					s.playbackQueue.replace(items, 1)
+				}
+				if queue == "shuffle" {
+					s.shuffle = shuffleQueue{library: "music", items: items, position: 1}
+				}
+				old := s.controller.active.id
+				s.handlePlayback(PlaybackEvent{Kind: PlaybackPosition, ID: old, Ticks: 10000000})
+				setControllerPaused(t, s.controller, true, time.Now())
+				s.handleRemote(remote.Command{Kind: command})
+				if queue == "library" || queue == "playlist" {
+					s.handleNeighbor(receiveNeighbor(t, s))
+				}
+				s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: old})
+				s.handlePlayback(PlaybackEvent{Kind: PlaybackPosition, ID: s.controller.active.id, Ticks: 1})
+				want := "last"
+				if command == remote.Previous {
+					want = "first"
+				}
+				if s.controller.item.ID != want || s.controller.wantsPause() || len(s.controller.active.controls) != 0 {
+					t.Fatalf("next item=%q paused=%v: navigation inherited the previous pause", s.controller.item.ID, s.controller.wantsPause())
+				}
+			})
+		}
+	}
+}
+
+func TestCanceledPlaylistTransitionDiscardsPause(t *testing.T) {
+	s := setupMusicSession(t)
+	s.model.Stack[len(s.model.Stack)-2].Location.Kind = "playlist"
+	old := s.controller.active.id
+	s.handleRemote(remote.Command{Kind: remote.Next})
+	result := receiveNeighbor(t, s)
+	s.handleRemote(remote.Command{Kind: remote.Pause})
+	s.handleRemote(remote.Command{Kind: remote.Stop})
+	if s.handleNeighbor(result) {
+		t.Fatal("stopped transition accepted late item")
+	}
+	s.handlePlayback(PlaybackEvent{Kind: PlaybackEnded, ID: old})
+	if s.controller.running || s.localPlaybackPending() {
+		t.Fatal("canceled playback remained active")
+	}
+	s.model.Key(control.Open)
+	s.startPlayback(nil, false)
+	s.handlePlayback(PlaybackEvent{Kind: PlaybackPosition, ID: s.controller.active.id, Ticks: 1})
+	if s.wantsPause() || len(s.controller.active.controls) != 0 {
+		t.Fatal("new playback inherited canceled pause")
 	}
 }

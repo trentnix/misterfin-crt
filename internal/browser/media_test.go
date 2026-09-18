@@ -22,7 +22,7 @@ func TestResumableVideo(t *testing.T) {
 		t.Fatal("missing details allowed restart")
 	}
 	for _, kind := range []string{"Movie", "Episode", "Video", "MusicVideo", "Audio", "Photo", "TvChannel", "LiveTvChannel", "Series"} {
-		item := jellyfin.Item{Type: kind}
+		item := media.Item{Type: kind}
 		if resumableVideo(&item) {
 			t.Fatalf("%s without resume position allowed restart", kind)
 		}
@@ -41,7 +41,7 @@ func TestResumableVideo(t *testing.T) {
 func TestCleanMusicPauseAndControlTimeout(t *testing.T) {
 	m := New()
 	state := playbackState{}
-	m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: "Audio", Name: "Track", RunTimeTicks: 100000000}})
+	m.Stack = append(m.Stack, View{Detail: &media.Item{Type: "Audio", Name: "Track", RunTimeTicks: 100000000}})
 	m.StartMusicQueue()
 	now := time.Unix(100, 0)
 	frame := func() []byte {
@@ -77,20 +77,20 @@ func TestCleanMusicPauseAndControlTimeout(t *testing.T) {
 
 func TestMediaNavigationCrossesPagesAndSkipsOnlyForPhotos(t *testing.T) {
 	total := 130
-	items := make([]jellyfin.Item, total)
+	items := make([]media.Item, total)
 	for i := range items {
-		items[i] = jellyfin.Item{ID: fmt.Sprint(i), Type: "Photo"}
+		items[i] = media.Item{ID: fmt.Sprint(i), Type: "Photo"}
 	}
 	items[64].Type = "Video"
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
 		start, _ := strconv.Atoi(r.URL.Query().Get("StartIndex"))
-		json.NewEncoder(w).Encode(jellyfin.Page{Items: items[start:min(start+64, total)], TotalRecordCount: &total})
+		json.NewEncoder(w).Encode(media.Page{Items: items[start:min(start+64, total)], TotalRecordCount: &total})
 	}))
 	defer server.Close()
 	c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{})
-	parent := View{Page: jellyfin.Page{Items: items[:64], TotalRecordCount: &total}, Selected: 63, Location: jellyfin.Location{Kind: "items", ParentID: "folder"}}
+	parent := View{Page: media.Page{Items: items[:64], TotalRecordCount: &total}, Selected: 63, Location: media.Location{Kind: "items", ParentID: "folder"}}
 	next, item, err := adjacentMedia(context.Background(), c, parent, "Photo", 1, 6)
 	if err != nil || item == nil || item.ID != "65" || next.Start+next.Selected != 65 {
 		t.Fatal("photo did not cross page", err)
@@ -125,7 +125,7 @@ func TestVideoControlsRestoreCleanFrame(t *testing.T) {
 		state := playbackState{}
 		state.PlayingVideo = true
 		state.ProgressSeen, state.BufferingKnown = true, true
-		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: "Movie", Name: "Movie", RunTimeTicks: 600000000}})
+		m.Stack = append(m.Stack, View{Detail: &media.Item{Type: "Movie", Name: "Movie", RunTimeTicks: 600000000}})
 		now := time.Unix(100, 0)
 		source := bytes.Repeat([]byte{30, 60, 90, 0}, 640*height)
 		draw := func() []byte {
@@ -195,7 +195,7 @@ func TestVideoSeekTargets(t *testing.T) {
 		m := New()
 		state := playbackState{}
 		state.PlayingVideo, state.ProgressSeen = kind != "Audio", true
-		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: kind, RunTimeTicks: 100 * 10000000}})
+		m.Stack = append(m.Stack, View{Detail: &media.Item{Type: kind, RunTimeTicks: 100 * 10000000}})
 		state.PositionTicks = 2 * 10000000
 		state.seekVideo(m.Current().Detail, "seek-forward", now)
 		if kind == "Audio" || media.IsLive(*m.Current().Detail) {
@@ -239,7 +239,7 @@ func TestSeekOverlayShowsUpdatingDestination(t *testing.T) {
 		state := playbackState{}
 		state.PlayingVideo, state.ProgressSeen, state.BufferingKnown = true, true, true
 		state.PositionTicks = 120 * 10000000
-		m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: "Movie"}})
+		m.Stack = append(m.Stack, View{Detail: &media.Item{Type: "Movie"}})
 		source := bytes.Repeat([]byte{30, 60, 90, 0}, 640*height)
 		draw := func() []byte {
 			frame := append([]byte(nil), source...)
@@ -274,7 +274,7 @@ func TestSeekInFlightReplacesDestinationOverlay(t *testing.T) {
 	m := New()
 	state := playbackState{}
 	state.PlayingVideo, state.ProgressSeen, state.Paused = true, true, true
-	m.Stack = append(m.Stack, View{Detail: &jellyfin.Item{Type: "Movie"}})
+	m.Stack = append(m.Stack, View{Detail: &media.Item{Type: "Movie"}})
 	now := time.Unix(100, 0)
 	state.seekVideo(m.Current().Detail, "seek-forward", now)
 	state.seekVideo(m.Current().Detail, "seek-forward", now)

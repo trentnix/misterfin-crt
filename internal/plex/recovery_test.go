@@ -70,7 +70,7 @@ func TestPlexRecoveryConfirmsIdentityAndReopensWithoutAccount(t *testing.T) {
 	}
 	d := &serverDiscovery{account: f.account}
 	result, err := f.connector.connectDiscovered(t.Context(), i, d)
-	if err != nil || !selected || result.Server == nil {
+	if err != nil || !selected || result.Server == nil || result.Endpoint != f.server {
 		t.Fatalf("recovery failed: %v", err)
 	}
 	client := result.Server.(*Client)

@@ -26,7 +26,7 @@ func TestPictureChangePreservesPositionPauseTracksAndSeeks(t *testing.T) {
 	for _, paused := range []bool{false, true} {
 		f := trackFixture(t)
 		c := f.c
-		c.state.Paused = paused
+		setControllerPaused(t, c, paused, f.now)
 		c.tracks.Selection.AudioIndex = 8
 		c.trackOptions = c.tracks.TrackOptions
 		selectPicture(c, f.now, playback.PictureZoom43)
@@ -37,7 +37,7 @@ func TestPictureChangePreservesPositionPauseTracksAndSeeks(t *testing.T) {
 			t.Fatal("picture change was labeled as a seek")
 		}
 		if !paused {
-			expectCommand(t, f.calls[0].controls, "pause")
+			expectCommand(t, f.calls[0].controls, playback.SetPaused)
 		}
 		info := c.tracks
 		info.TrackOptions = f.calls[1].tracks
@@ -46,7 +46,7 @@ func TestPictureChangePreservesPositionPauseTracksAndSeeks(t *testing.T) {
 		c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
 		c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 2, Ticks: 20000000}, f.now)
 		if paused {
-			expectCommand(t, f.calls[1].controls, "pause")
+			expectCommand(t, f.calls[1].controls, playback.SetPaused)
 		}
 		if !c.trackRows(2)[1].Active {
 			t.Fatal("Zoom is not marked active")
@@ -65,9 +65,9 @@ func TestPictureChangePreservesPositionPauseTracksAndSeeks(t *testing.T) {
 func TestFailedPictureChangeRestoresOriginal(t *testing.T) {
 	f := trackFixture(t)
 	selectPicture(f.c, f.now, playback.PictureZoom43)
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.SetPaused)
 	f.c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2, Err: errors.New("cannot prepare")}, f.now)
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.Resume)
 	if !f.c.running || f.calls[0].canceled || f.c.trackOptions.Picture != playback.PictureOriginal || !f.c.trackRows(2)[0].Active {
 		t.Fatal("failed picture change did not retain Original")
 	}
@@ -97,17 +97,17 @@ func TestLivePictureChangesDismissMenuAndKeepFrameAndDecoder(t *testing.T) {
 			c := f.c
 			c.tracks.LivePicture = true
 			c.item.Type = kind
-			c.state.Paused = paused
+			setControllerPaused(t, c, paused, f.now)
 			before := c.state.PositionTicks
 			selectPicture(c, f.now, playback.PictureZoom43)
-			first := <-c.controls
+			first := <-c.active.controls
 			if first.Kind != "picture" || first.Picture != playback.PictureZoom43 || len(f.calls) != 1 || !c.picker.visible || c.state.SeekTarget != nil {
 				t.Fatal("picture change restarted or hid menu")
 			}
 			// Return to Original before the first acknowledgment arrives.
 			c.Key(control.Up, f.now)
 			c.Key(control.Open, f.now)
-			second := <-c.controls
+			second := <-c.active.controls
 			if second.Picture != playback.PictureOriginal || second.Request <= first.Request {
 				t.Fatal("cannot retarget live picture change")
 			}
@@ -122,14 +122,14 @@ func TestLivePictureChangesDismissMenuAndKeepFrameAndDecoder(t *testing.T) {
 			c.Key(control.Select, f.now)
 			c.Key(control.Down, f.now)
 			c.Key(control.Open, f.now)
-			third := <-c.controls
+			third := <-c.active.controls
 			c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: third.Request, Mode: playback.PictureZoom43}}, f.now)
 			if !c.trackRows(2)[1].Active {
 				t.Fatal("successful zoom not active")
 			}
 			c.Key(control.Select, f.now)
 			c.Key(control.Open, f.now) // Applying the active choice also dismisses the picker.
-			if c.picker.visible || len(c.controls) != 0 {
+			if c.picker.visible || len(c.active.controls) != 0 {
 				t.Fatal("reselecting live Zoom left the picker open or sent another command")
 			}
 			c.Key(control.SeekForward, f.now)
@@ -150,7 +150,7 @@ func TestNativePictureFailureKeepsMenuAndOriginal(t *testing.T) {
 	f := trackFixture(t)
 	f.c.tracks.LivePicture = true
 	selectPicture(f.c, f.now, playback.PictureZoom43)
-	request := <-f.c.controls
+	request := <-f.c.active.controls
 	f.c.Handle(PlaybackEvent{Kind: PlaybackPicture, ID: 1, Picture: playback.PictureResult{Request: request.Request, Err: errors.New("cannot change picture mode")}}, f.now)
 	if !f.c.picker.visible || f.c.picturePending || f.c.trackOptions.Picture != playback.PictureOriginal || f.c.notice == "" {
 		t.Fatal("failed picture request lost menu or original mode")

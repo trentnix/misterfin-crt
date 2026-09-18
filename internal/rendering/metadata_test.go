@@ -1,13 +1,14 @@
 package rendering
 
 import (
-	"mistervision/internal/jellyfin"
 	"testing"
+
+	"mistervision/internal/media"
 )
 
 func TestContinueLabels(t *testing.T) {
 	season, episode := 1, 4
-	item := jellyfin.Item{Name: "Episode name", Type: "Episode", SeriesName: "Dungeons and Dragons", ParentIndexNumber: &season, IndexNumber: &episode, ContinueAction: "next"}
+	item := media.Item{Name: "Episode name", Type: "Episode", SeriesName: "Dungeons and Dragons", ParentIndexNumber: &season, IndexNumber: &episode, ContinueAction: "next"}
 	if got := continueSubtitle(item); got != "Next · S1 E4" {
 		t.Fatal(got)
 	}

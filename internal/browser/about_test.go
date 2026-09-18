@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/release"
 )
 
@@ -35,7 +35,7 @@ func TestAboutPreservesBrowseAndIsolatesInput(t *testing.T) {
 func TestAboutCannotInterruptPlayback(t *testing.T) {
 	for _, kind := range []string{"Movie", "Audio", "Photo"} {
 		s := testSession(t)
-		s.model.Current().Detail = &jellyfin.Item{Type: kind}
+		s.model.Current().Detail = &media.Item{Type: kind}
 		s.controller.running = kind != "Photo"
 		s.handleKey(control.About)
 		if s.about.Visible {

@@ -110,7 +110,7 @@ func TestConnectionHandoffStopsRemoteBeforePlex(t *testing.T) {
 			}
 		}
 	}}
-	cfg := Config{Connector: switchConnector{switchServer{id: "jellyfin"}, source}, Connections: []connection.Choice{{ID: "plex", Name: "Plex"}}}
+	cfg := Config{Connector: switchConnector{switchServer{id: "jellyfin"}, source}, Connections: connectionChoices(connection.Choice{ID: "plex", Name: "Plex"})}
 	err := Run(ctx, cfg, playback.Config{}, &runTestOutput{}, renderer, nil, keys)
 	var change *connection.Change
 	if !errors.As(err, &change) || change.ID != "plex" {
@@ -210,7 +210,7 @@ func TestSwitchConnectionBeforeAuthentication(t *testing.T) {
 					}
 				}
 			}}
-			cfg := Config{Connector: connector, Connections: []connection.Choice{{ID: "plex", Name: "Plex"}}}
+			cfg := Config{Connector: connector, Connections: connectionChoices(connection.Choice{ID: "plex", Name: "Plex"})}
 			err := Run(ctx, cfg, playback.Config{}, &runTestOutput{}, renderer, nil, keys)
 			var change *connection.Change
 			if ctx.Err() != nil || !errors.As(err, &change) || change.ID != "plex" {
@@ -329,7 +329,7 @@ func TestCancelSetupRestoresRetainedBrowser(t *testing.T) {
 		}}
 		return Run(ctx, cfg, playback.Config{}, &runTestOutput{}, renderer, nil, keys)
 	}
-	cfg := Config{Connector: retained, ConnectionID: "plex", Navigation: nav, Connections: []connection.Choice{{ID: "existing", Name: "Existing", Children: []connection.Choice{{ID: "plex", Name: "Plex"}}}, {ID: "jellyfin-new", Name: "Jellyfin"}}}
+	cfg := Config{Connector: retained, ConnectionID: "plex", Navigation: nav, Connections: connectionChoices(connection.Choice{ID: "existing", Name: "Existing", Children: []connection.Choice{{ID: "plex", Name: "Plex"}}}, connection.Choice{ID: "jellyfin-new", Name: "Jellyfin"})}
 	err := run(cfg, []control.Action{control.About, control.Down, control.Down, control.Open}, func(s rendering.Scene) bool { return s.Setup.Kind == rendering.SetupHidden })
 	var change *connection.Change
 	if !errors.As(err, &change) || change.ReturnID != "plex" {
@@ -352,5 +352,23 @@ func TestCancelSetupRestoresRetainedBrowser(t *testing.T) {
 	err = run(cfg, []control.Action{control.Quit}, func(s rendering.Scene) bool { return s.Setup.Kind == rendering.SetupHidden && !s.About.Visible })
 	if err != nil || ctx.Err() != nil {
 		t.Fatalf("return to browsing: %v, context %v", err, ctx.Err())
+	}
+}
+
+// connectionChoices supplies an immutable fixture catalog.
+func connectionChoices(choices ...connection.Choice) func() []connection.Choice {
+	return func() []connection.Choice { return choices }
+}
+
+func TestAuthenticationRefreshesCatalogSnapshot(t *testing.T) {
+	s := testSession(t)
+	initial := []connection.Choice{{ID: "plex-new", Name: "Plex"}}
+	choices := initial
+	s.config.Connections = func() []connection.Choice { return choices }
+	s.refreshConnections()
+	choices = []connection.Choice{{ID: "existing", Name: "Existing", Children: []connection.Choice{{ID: "plex", Name: "Living room"}}}, initial[0]}
+	s.handleAuth(authResult{generation: s.connection.generation, connection: &authenticatedConnection{client: switchServer{id: "plex"}}})
+	if len(s.about.Connections) != 2 || s.about.Connections[0].Children[0].Name != "Living room" {
+		t.Fatal("authenticated browser kept the startup catalog")
 	}
 }

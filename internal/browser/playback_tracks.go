@@ -146,7 +146,7 @@ func (c *PlaybackController) applyTrack(now time.Time) {
 		if c.tracks.ClientSubtitles && (!oldOK || old.ClientSubtitle()) && (index < 0 || subOK && sub.ClientSubtitle()) {
 			request := c.subtitleRequest + 1
 			select {
-			case c.controls <- playback.Control{Kind: playback.SelectSubtitle, Index: index, Request: request}:
+			case c.active.controls <- playback.Control{Kind: playback.SelectSubtitle, Index: index, Request: request}:
 				c.subtitleRequest = request
 				c.subtitleLoading = true
 				c.notice = "Loading subtitles..."
@@ -186,7 +186,7 @@ func (c *PlaybackController) applyPicture(mode playback.PictureMode) {
 	}
 	request := c.pictureRequest + 1
 	select {
-	case c.controls <- playback.Control{Kind: playback.SetPicture, Picture: mode, Request: request}:
+	case c.active.controls <- playback.Control{Kind: playback.SetPicture, Picture: mode, Request: request}:
 		c.pictureRequest = request
 		c.picturePending = true
 		c.trackOptions.Picture = mode

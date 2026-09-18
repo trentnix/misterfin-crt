@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func TestAudioProxyRangesAndPrivacy(t *testing.T) {
@@ -26,7 +27,7 @@ func TestAudioProxyRangesAndPrivacy(t *testing.T) {
 	}))
 	defer server.Close()
 	c := jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{Token: "private-token"})
-	stream, err := c.PrepareAudio(t.Context(), jellyfin.Item{ID: "track"}, "session")
+	stream, err := c.PrepareAudio(t.Context(), media.Item{ID: "track"}, "session")
 	if err != nil {
 		t.Fatal(err)
 	}

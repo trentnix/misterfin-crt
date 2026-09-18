@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
 	"mistervision/internal/media"
 	"mistervision/internal/playback"
 	"mistervision/internal/subtitles"
@@ -14,7 +13,7 @@ import (
 
 func trackFixture(t *testing.T) *controllerFixture {
 	f := newControllerFixture(t)
-	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: playback.VideoTracks{ClientSubtitles: true, SourceID: "source", TrackOptions: playback.TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}, Streams: []jellyfin.MediaStream{{Type: "Audio", Index: 3, DisplayTitle: "Japanese"}, {Type: "Audio", Index: 8, DisplayTitle: "English"}, {Type: "Subtitle", Index: 12, Codec: "ass", DisplayTitle: "English text"}, {Type: "Subtitle", Index: 20, Codec: "pgssub", DisplayTitle: "English PGS"}}}}, f.now)
+	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: playback.VideoTracks{ClientSubtitles: true, SourceID: "source", TrackOptions: playback.TrackOptions{Selection: media.TrackSelection{AudioIndex: -1, SubtitleIndex: -1}}, Streams: []media.MediaStream{{Type: "Audio", Index: 3, DisplayTitle: "Japanese"}, {Type: "Audio", Index: 8, DisplayTitle: "English"}, {Type: "Subtitle", Index: 12, Codec: "ass", DisplayTitle: "English text"}, {Type: "Subtitle", Index: 20, Codec: "pgssub", DisplayTitle: "English PGS"}}}}, f.now)
 	return f
 }
 func TestTextSubtitleSelectionDoesNotRestartVideo(t *testing.T) {
@@ -45,7 +44,7 @@ func TestAudioSelectionPreservesPauseOffsetAndFutureSeeks(t *testing.T) {
 	for _, paused := range []bool{false, true} {
 		f := trackFixture(t)
 		c := f.c
-		c.state.Paused = paused
+		setControllerPaused(t, c, paused, f.now)
 		c.Key(control.Select, f.now)
 		c.Key(control.Next, f.now)
 		c.Key(control.Down, f.now)
@@ -58,7 +57,7 @@ func TestAudioSelectionPreservesPauseOffsetAndFutureSeeks(t *testing.T) {
 			t.Fatal("audio switch lost position or stream index")
 		}
 		if !paused {
-			expectCommand(t, f.calls[0].controls, "pause")
+			expectCommand(t, f.calls[0].controls, playback.SetPaused)
 		}
 		info := c.tracks
 		info.TrackOptions = f.calls[1].tracks
@@ -70,7 +69,7 @@ func TestAudioSelectionPreservesPauseOffsetAndFutureSeeks(t *testing.T) {
 		c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 1}, f.now)
 		c.Handle(PlaybackEvent{Kind: PlaybackPosition, ID: 2, Ticks: 20000000}, f.now)
 		if paused {
-			expectCommand(t, f.calls[1].controls, "pause")
+			expectCommand(t, f.calls[1].controls, playback.SetPaused)
 		}
 		c.Key(control.SeekForward, f.now)
 		c.Tick(f.now.Add(time.Second))
@@ -115,7 +114,7 @@ func TestPickerBackAndLiveTV(t *testing.T) {
 			t.Fatal("unavailable Live TV tracks lacked an explanation")
 		}
 		f.c.Key(control.Open, f.now)
-		if len(f.calls) != 1 || len(f.c.controls) != 0 {
+		if len(f.calls) != 1 || len(f.c.active.controls) != 0 {
 			t.Fatal("unavailable Live TV tracks changed playback")
 		}
 		if tab == 0 {
@@ -142,9 +141,9 @@ func TestFailedAudioChangeKeepsOriginalSelection(t *testing.T) {
 	c.Key(control.Next, f.now)
 	c.Key(control.Down, f.now)
 	c.Key(control.Open, f.now)
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.SetPaused)
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2, Err: errors.New("cannot prepare")}, f.now)
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.Resume)
 	if !c.running || c.trackOptions.Selection.AudioIndex != -1 || f.calls[0].canceled {
 		t.Fatal("failed handoff did not preserve old stream")
 	}
@@ -157,7 +156,7 @@ func TestSubtitleDelayAndPause(t *testing.T) {
 	if c.Snapshot(f.now.Add(500*time.Millisecond)).Subtitle != "" {
 		t.Fatal("subtitle clock did not advance")
 	}
-	c.state.Paused = true
+	setControllerPaused(t, c, true, f.now)
 	if c.Snapshot(f.now.Add(time.Second)).Subtitle != "Hello" {
 		t.Fatal("paused subtitle advanced")
 	}
@@ -201,10 +200,10 @@ func TestOffCancelsPendingSubtitleAndRejectsQueuedReply(t *testing.T) {
 	c.Key(control.Select, f.now)
 	c.Key(control.Down, f.now)
 	c.Key(control.Open, f.now)
-	first := <-c.controls
+	first := <-c.active.controls
 	c.Key(control.Up, f.now)
 	c.Key(control.Open, f.now)
-	second := <-c.controls
+	second := <-c.active.controls
 	if second.Index != -1 || second.Request <= first.Request {
 		t.Fatal("Off did not cancel pending text")
 	}
@@ -226,7 +225,7 @@ func TestViewNavigationAndBackDoNotRevealPlaybackControls(t *testing.T) {
 				for tab := 0; tab < 3; tab++ {
 					f := trackFixture(t)
 					c := f.c
-					c.state.Paused = paused
+					setControllerPaused(t, c, paused, f.now)
 					if visible {
 						c.state.RevealControls(f.now)
 					}
@@ -257,7 +256,7 @@ func TestSubtitleCompletionAfterBackLeavesControlsAlone(t *testing.T) {
 		c.Key(control.Select, f.now)
 		c.Key(control.Down, f.now)
 		c.Key(control.Open, f.now)
-		request := <-c.controls
+		request := <-c.active.controls
 		c.Key(control.Back, f.now)
 		if reopen {
 			c.Key(control.ToggleControls, f.now)
@@ -273,7 +272,7 @@ func TestPictureMenuOffersZoomForEveryRecordedAspect(t *testing.T) {
 	for _, aspect := range []string{"16:9", "235:100", "4:3", "1:1"} {
 		t.Run(aspect, func(t *testing.T) {
 			f := trackFixture(t)
-			f.c.tracks.Streams = []jellyfin.MediaStream{{Type: "Video", Width: 720, Height: 480, AspectRatio: aspect}}
+			f.c.tracks.Streams = []media.MediaStream{{Type: "Video", Width: 720, Height: 480, AspectRatio: aspect}}
 			f.c.Key(control.Select, f.now)
 			f.c.Key(control.Next, f.now)
 			f.c.Key(control.Next, f.now)
@@ -297,7 +296,7 @@ func TestPictureMenuKeepsZoomWhenSourceMetadataChanges(t *testing.T) {
 	f.c.Key(control.Next, f.now)
 	f.c.Key(control.Down, f.now)
 	info := f.c.tracks
-	info.Streams = []jellyfin.MediaStream{{Type: "Video", AspectRatio: "4:3"}}
+	info.Streams = []media.MediaStream{{Type: "Video", AspectRatio: "4:3"}}
 	f.c.Handle(PlaybackEvent{Kind: PlaybackTrackInfo, ID: 1, Tracks: info}, f.now)
 	menu := f.c.Snapshot(f.now).Tracks
 	if menu.Selected != 1 || len(menu.Rows) != 2 {
@@ -368,9 +367,9 @@ func TestFailedLiveAudioReplacementKeepsPlaying(t *testing.T) {
 	c.Key(control.Next, f.now)
 	c.Key(control.Down, f.now)
 	c.Key(control.Open, f.now)
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.SetPaused)
 	c.Handle(PlaybackEvent{Kind: PlaybackEnded, ID: 2, Err: errors.New("track disappeared")}, f.now)
-	expectCommand(t, f.calls[0].controls, "pause")
+	expectCommand(t, f.calls[0].controls, playback.Resume)
 	if !c.running || f.calls[0].canceled || c.trackOptions.Selection.AudioIndex != -1 {
 		t.Fatal("failed selection lost the previous live stream")
 	}

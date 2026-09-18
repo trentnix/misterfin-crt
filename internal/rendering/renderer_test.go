@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/ui"
 )
 
@@ -67,7 +67,7 @@ func TestRendererAnimationOwnsTitleAndSelectionTiming(t *testing.T) {
 
 func TestVideoBackgroundCacheMatchesFreshRender(t *testing.T) {
 	m, art := benchmarkScene()
-	m.Content.Detail = &jellyfin.Item{Name: "Episode", Type: "Episode"}
+	m.Content.Detail = &media.Item{Name: "Episode", Type: "Episode"}
 	r := NewRenderer()
 	for _, height := range []int{240, 480, 288, 576, 240} {
 		for _, backdrop := range []Artwork{art, {}, art} {
@@ -90,7 +90,7 @@ func TestVideoBackdropReusesJPEGAndPNGImages(t *testing.T) {
 		image.NewNRGBA(image.Rect(0, 0, 32, 24)),
 	} {
 		m, _ := benchmarkScene()
-		m.Content.Detail = &jellyfin.Item{Name: "Episode", Type: "Episode"}
+		m.Content.Detail = &media.Item{Name: "Episode", Type: "Episode"}
 		s := testScene(m, PlaybackPresentation{}, SetupPresentation{}, Artwork{Backdrop: source}, "", time.Unix(100, 0))
 		s.Video = true
 		r := NewRenderer()

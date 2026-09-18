@@ -8,6 +8,7 @@ import (
 
 	"mistervision/internal/input/control"
 	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 	"mistervision/internal/playback"
 	"mistervision/internal/player/ffplay"
 	"mistervision/internal/sound"
@@ -19,7 +20,7 @@ func TestBrowsingSoundsFollowChangesNotRawKeys(t *testing.T) {
 	recorder := &testFeedback{}
 	s.feedback = recorder
 	v := s.model.Current()
-	v.Page = jellyfin.Page{Items: []jellyfin.Item{{ID: "one", Name: "One"}, {ID: "two", Name: "Two"}}}
+	v.Page = media.Page{Items: []media.Item{{ID: "one", Name: "One"}, {ID: "two", Name: "Two"}}}
 	s.handleKey(control.Previous) // At the first item: no change.
 	s.handleKey(control.Up)       // Carousel ignores vertical navigation.
 	if len(recorder.cues) != 0 {
@@ -58,7 +59,7 @@ func TestFailedDecoderLaunchReleasesSoundSuspension(t *testing.T) {
 	driver := playbackDriver{ctx: context.Background(), feedback: recorder, output: sessionTestOutput{},
 		config: playback.Config{VideoDecoder: ffplay.Decoder{Player: "/missing/misterfin-test-player"}},
 		events: make(chan PlaybackEvent, 16)}
-	process := driver.launch(&jellyfin.Client{}, jellyfin.Item{Type: "Movie"}, nil, nil, false, nil, playback.TrackOptions{})
+	process := driver.launch(&jellyfin.Client{}, media.Item{Type: "Movie"}, nil, nil, false, playback.TrackOptions{})
 	select {
 	case <-process.done:
 	case <-time.After(time.Second):

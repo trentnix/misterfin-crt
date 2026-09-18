@@ -7,16 +7,17 @@ import (
 	"mistervision/internal/playback"
 )
 
-// playbackProcess holds one decoder's lifecycle resources. Only the controller
+// playbackProcess holds one decoder's command queue and lifecycle resources. Only the controller
 // closes its gate and cleanup signal. Completion comes back as an event.
 type playbackProcess struct {
-	id      int
-	cancel  context.CancelFunc
-	done    chan struct{}         // Bridge closes when playback.Run returns.
-	cleanup chan struct{}         // Closing allows server cleanup to run asynchronously.
-	gate    chan struct{}         // Closing permits a prepared replacement to start decoding.
-	tracks  *playback.VideoTracks // Immutable metadata received before the start gate.
-	ready   bool                  // Preparation succeeded. The decoder may still be waiting on its gate.
+	controls chan playback.Control // Commands are never shared with another decoder.
+	id       int
+	cancel   context.CancelFunc
+	done     chan struct{}         // Bridge closes when playback.Run returns.
+	cleanup  chan struct{}         // Closing allows server cleanup to run asynchronously.
+	gate     chan struct{}         // Closing permits a prepared replacement to start decoding.
+	tracks   *playback.VideoTracks // Immutable metadata received before the start gate.
+	ready    bool                  // Preparation succeeded. The decoder may still be waiting on its gate.
 }
 
 func (p *playbackProcess) stop() {
@@ -35,7 +36,8 @@ func (p *playbackProcess) stopWithAsyncCleanup() {
 	p.stop()
 }
 
-// playbackLaunch starts asynchronous work and returns its lifecycle handles.
+// playbackLaunch starts asynchronous work with a fresh command queue and returns
+// the process that owns it.
 // If prepare is true, the bridge reports PlaybackPrepared before waiting on gate.
 // The controller owns gate closure. The bridge owns done closure and event IDs.
 type playbackLaunch func(
@@ -43,7 +45,6 @@ type playbackLaunch func(
 	offset *int64,
 	gate <-chan struct{},
 	prepare bool,
-	controls chan playback.Control,
 	tracks playback.TrackOptions,
 ) playbackProcess
 

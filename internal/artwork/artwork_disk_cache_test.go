@@ -120,50 +120,51 @@ func TestArtworkDiskFormatPreservesAlphaAndRejectsCorruption(t *testing.T) {
 }
 
 func TestArtworkDiskIsolationCancellationAndRetry(t *testing.T) {
+	var revisions artworkRevisions
 	root := t.TempDir()
 	c := NewDiskCache(root, "http://server/", "user")
 	key := imageKey{"id", "Logo", "tag"}
 	im := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	ctx := context.Background()
-	rev := c.revision(key)
-	c.save(ctx, key, rev, im)
+	rev := revisions.current(key)
+	c.save(ctx, &revisions, key, rev, im)
 	for _, other := range []*DiskCache{NewDiskCache(root, "http://other", "user"), NewDiskCache(root, "http://server", "other")} {
-		if other.load(key, other.revision(key)) != nil {
+		if other.load(&revisions, key, revisions.current(key)) != nil {
 			t.Fatal("cross-account artwork leak")
 		}
 	}
-	if NewDiskCache(root, "http://server", "user").load(key, rev) == nil {
+	if NewDiskCache(root, "http://server", "user").load(&revisions, key, rev) == nil {
 		t.Fatal("trailing slash changed namespace")
 	}
 	for _, other := range []imageKey{{"other", "Logo", "tag"}, {"id", "Primary", "tag"}, {"id", "Logo", "other"}} {
-		if c.load(other, c.revision(other)) != nil {
+		if c.load(&revisions, other, revisions.current(other)) != nil {
 			t.Fatal("image identities collided")
 		}
 	}
-	c.invalidate(key)
-	fresh := c.revision(key)
-	if c.load(key, fresh) != nil {
+	revisions.invalidate(key)
+	fresh := revisions.current(key)
+	if c.load(&revisions, key, fresh) != nil {
 		t.Fatal("retry loaded stale image")
 	}
-	c.save(ctx, key, rev, im)
-	if NewDiskCache(root, "http://server", "user").load(key, rev) != nil {
+	c.save(ctx, &revisions, key, rev, im)
+	if NewDiskCache(root, "http://server", "user").load(&revisions, key, rev) != nil {
 		t.Fatal("stale worker recreated invalidated file")
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	c.save(canceled, key, fresh, im)
-	if c.load(key, fresh) != nil {
+	c.save(canceled, &revisions, key, fresh, im)
+	if c.load(&revisions, key, fresh) != nil {
 		t.Fatal("canceled request persisted")
 	}
-	c.save(ctx, key, fresh, im)
-	if c.load(key, c.revision(key)) == nil || c.load(key, rev) != nil {
+	c.save(ctx, &revisions, key, fresh, im)
+	if c.load(&revisions, key, revisions.current(key)) == nil || c.load(&revisions, key, rev) != nil {
 		t.Fatal("retry revision was not enforced")
 	}
 	l := NewLoader(nil, 640, 240, nil)
 	l.disk = c
-	rev = c.revision(key)
+	rev = l.revisions.current(key)
 	l.Forget(jellyfin.Item{ID: key.id, ImageTags: map[string]string{"Logo": key.tag}})
-	if l.remember(ctx, key, c, rev, im) || l.cache.cached(key) != nil {
+	if l.remember(ctx, key, rev, im) || l.cache.cached(key) != nil {
 		t.Fatal("stale worker repopulated memory after retry")
 	}
 }
@@ -225,16 +226,17 @@ func TestArtworkDiskPruning(t *testing.T) {
 }
 
 func BenchmarkArtworkDiskRestore(b *testing.B) {
+	var revisions artworkRevisions
 	c := NewDiskCache(b.TempDir(), "server", "user")
 	key := imageKey{"id", "Backdrop", "tag"}
 	im := image.NewRGBA(image.Rect(0, 0, 640, 360))
-	revision := c.revision(key)
-	c.save(context.Background(), key, revision, im)
+	revision := revisions.current(key)
+	c.save(context.Background(), &revisions, key, revision, im)
 	b.SetBytes(int64(len(im.Pix)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		if c.load(key, revision) == nil {
+		if c.load(&revisions, key, revision) == nil {
 			b.Fatal("disk cache miss")
 		}
 	}

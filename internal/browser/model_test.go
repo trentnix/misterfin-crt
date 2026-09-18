@@ -5,20 +5,20 @@ import (
 	"testing"
 
 	"mistervision/internal/input/control"
-	"mistervision/internal/jellyfin"
+	"mistervision/internal/media"
 )
 
 func TestNavigationCancelsStaleResultsAndRestoresSelection(t *testing.T) {
 	m := New()
 	req := m.Load(0)
-	m.Apply(*req, jellyfin.Page{Items: []jellyfin.Item{{ID: "movies", Name: "Movies", CollectionType: "movies"}, {ID: "music", Name: "Music", CollectionType: "music"}}}, nil)
+	m.Apply(*req, media.Page{Items: []media.Item{{ID: "movies", Name: "Movies", CollectionType: "movies"}, {ID: "music", Name: "Music", CollectionType: "music"}}}, nil)
 	m.Key(control.Next)
 	load := m.Key(control.Open)
 	if load.Location.ParentID != "music" || load.Location.Collection != "music" {
 		t.Fatal(load)
 	}
 	m.Key(control.Back)
-	if m.Apply(*load, jellyfin.Page{Items: []jellyfin.Item{{ID: "stale"}}}, nil) {
+	if m.Apply(*load, media.Page{Items: []media.Item{{ID: "stale"}}}, nil) {
 		t.Fatal("accepted stale response")
 	}
 	if m.Current().Selected != 1 || m.Current().Title != "Libraries" {
@@ -28,20 +28,20 @@ func TestNavigationCancelsStaleResultsAndRestoresSelection(t *testing.T) {
 
 func TestPagingFailurePreservesRowsAndRetriesOffset(t *testing.T) {
 	m := New()
-	m.Current().Location = jellyfin.Location{Kind: "items", Collection: "movies"}
+	m.Current().Location = media.Location{Kind: "items", Collection: "movies"}
 	m.ListMode = true
 	total := 503
-	items := make([]jellyfin.Item, 64)
+	items := make([]media.Item, 64)
 	for i := range items {
 		items[i].ID = "movie"
 	}
-	m.Apply(*m.Load(0), jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
+	m.Apply(*m.Load(0), media.Page{Items: items, TotalRecordCount: &total}, nil)
 	m.Current().Selected = 63
 	r := m.Key(control.Down)
 	if r.Start != 64 {
 		t.Fatal(r)
 	}
-	m.Apply(*r, jellyfin.Page{}, errors.New("server unavailable"))
+	m.Apply(*r, media.Page{}, errors.New("server unavailable"))
 	if len(m.Current().Page.Items) != 64 || m.Current().Start != 0 || m.Current().Error == "" {
 		t.Fatal("failed page replaced existing rows")
 	}
@@ -49,13 +49,13 @@ func TestPagingFailurePreservesRowsAndRetriesOffset(t *testing.T) {
 	if r.Start != 64 {
 		t.Fatal("retry changed page")
 	}
-	m.Apply(*r, jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
+	m.Apply(*r, media.Page{Items: items, TotalRecordCount: &total}, nil)
 	if m.Current().Start != 0 || m.Current().Selected != 64 || len(m.Current().Page.Items) != 128 {
 		t.Fatal("page did not advance")
 	}
 	m.Current().Selected = 127
 	r = m.Key(control.Down)
-	m.Apply(*r, jellyfin.Page{Items: []jellyfin.Item{}, TotalRecordCount: &total}, nil)
+	m.Apply(*r, media.Page{Items: []media.Item{}, TotalRecordCount: &total}, nil)
 	if m.Current().Start != 0 || len(m.Current().Page.Items) != 128 || m.Current().Error == "" {
 		t.Fatal("empty page hid previous data")
 	}
@@ -63,18 +63,18 @@ func TestPagingFailurePreservesRowsAndRetriesOffset(t *testing.T) {
 
 func TestSeriesAndUnsupportedItems(t *testing.T) {
 	m := New()
-	m.Current().Location = jellyfin.Location{Kind: "items", Collection: "mixed"}
-	m.Current().Page.Items = []jellyfin.Item{{ID: "series", Type: "Series"}}
+	m.Current().Location = media.Location{Kind: "items", Collection: "mixed"}
+	m.Current().Page.Items = []media.Item{{ID: "series", Type: "Series"}}
 	r := m.Key(control.Open)
 	if r.Location.Kind != "seasons" || r.Location.SeriesID != "series" {
 		t.Fatal(r)
 	}
-	m.Apply(*r, jellyfin.Page{Items: []jellyfin.Item{{ID: "season", Type: "Season"}}}, nil)
+	m.Apply(*r, media.Page{Items: []media.Item{{ID: "season", Type: "Season"}}}, nil)
 	r = m.Key(control.Open)
 	if r.Location.Kind != "episodes" || r.Location.SeriesID != "series" || r.Location.ParentID != "season" {
 		t.Fatal(r)
 	}
-	m.Apply(*r, jellyfin.Page{Items: []jellyfin.Item{{ID: "book", Type: "Book"}}}, nil)
+	m.Apply(*r, media.Page{Items: []media.Item{{ID: "book", Type: "Book"}}}, nil)
 	if r = m.Key(control.Open); r != nil || m.Current().Detail == nil {
 		t.Fatal("unsupported item did not produce details")
 	}
@@ -82,7 +82,7 @@ func TestSeriesAndUnsupportedItems(t *testing.T) {
 
 func TestCarouselListToggleAndExit(t *testing.T) {
 	m := New()
-	m.Current().Page.Items = make([]jellyfin.Item, 4)
+	m.Current().Page.Items = make([]media.Item, 4)
 	m.Key(control.Down)
 	if m.Current().Selected != 0 {
 		t.Fatal("carousel moved vertically")
@@ -114,14 +114,14 @@ func TestScreenJumpAndBackwardPageBoundary(t *testing.T) {
 	v.Location.Kind = "items"
 	m.ListMode = true
 	total := 130
-	items := make([]jellyfin.Item, 64)
-	m.Apply(*m.Load(0), jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
+	items := make([]media.Item, 64)
+	m.Apply(*m.Load(0), media.Page{Items: items, TotalRecordCount: &total}, nil)
 	if m.Key(control.Next) != nil || v.Selected != 6 || v.Scroll != 3 {
 		t.Fatal("jump must move one screen")
 	}
 	v.Selected = 63
 	r := m.Key(control.Down)
-	m.Apply(*r, jellyfin.Page{Items: items, TotalRecordCount: &total}, nil)
+	m.Apply(*r, media.Page{Items: items, TotalRecordCount: &total}, nil)
 	r = m.Key(control.Up)
 	if r != nil {
 		t.Fatal("cached previous page caused a request")

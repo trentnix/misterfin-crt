@@ -3,8 +3,9 @@ package connection
 import (
 	"context"
 	"errors"
-	"mistervision/internal/media"
 	"testing"
+
+	"mistervision/internal/media"
 )
 
 type retainedTestServer struct{ media.Server }
@@ -18,14 +19,20 @@ func (c *retainedTestConnector) Connect(context.Context, Interaction) (Session, 
 	if c.fail {
 		return Session{}, errors.New("offline")
 	}
-	return Session{Server: &retainedTestServer{}}, nil
+	return Session{Server: &retainedTestServer{}, Endpoint: Server{ID: "test", Name: "Test", URL: "http://test"}}, nil
 }
 func (*retainedTestConnector) Describe(error) Presentation { return Presentation{Kind: SetupFailure} }
 
 func TestRetainedAccountsAreIndependentAndCanReauthenticate(t *testing.T) {
 	a, b := &retainedTestConnector{}, &retainedTestConnector{}
 	saves := 0
-	first := &Retained{Connector: a, Remember: func() error { saves++; return nil }}
+	first := &Retained{Connector: a, Remember: func(endpoint Server) error {
+		if endpoint != (Server{ID: "test", Name: "Test", URL: "http://test"}) {
+			t.Fatal("retained account lost public endpoint metadata")
+		}
+		saves++
+		return nil
+	}}
 	second := &Retained{Connector: b}
 	one, err := first.Connect(t.Context(), Interaction{})
 	if err != nil {
@@ -60,7 +67,7 @@ func TestRetainedDoesNotRememberCanceledOrUnwritableSelections(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	calls := 0
-	c := &Retained{Connector: &retainedTestConnector{}, Remember: func() error { calls++; return errors.New("private disk detail") }}
+	c := &Retained{Connector: &retainedTestConnector{}, Remember: func(Server) error { calls++; return errors.New("private disk detail") }}
 	if _, err := c.Connect(ctx, Interaction{}); !errors.Is(err, context.Canceled) || calls != 0 {
 		t.Fatal("canceled attempt saved state")
 	}
@@ -120,7 +127,7 @@ func TestTentativeSelectionRetriesBeforeReplacingWorkingAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored, err = retained.Connect(t.Context(), Interaction{})
-	if err != nil || restored.Server != replacement.Server || restored.Server == original.Server || provider.calls != 4 {
+	if err != nil || restored.Server != replacement.Server || restored.Endpoint != replacement.Endpoint || restored.Server == original.Server || provider.calls != 4 {
 		t.Fatal("successful setup did not replace the remembered account")
 	}
 	provider.fail = true

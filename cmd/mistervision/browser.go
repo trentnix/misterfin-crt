@@ -39,7 +39,7 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 	if err != nil {
 		return err
 	}
-	config.Connections = catalog.choices
+	config.Connections = catalog.Choices
 	if catalog.notice != "" {
 		config.StartupNotices = append(config.StartupNotices, catalog.notice)
 	}

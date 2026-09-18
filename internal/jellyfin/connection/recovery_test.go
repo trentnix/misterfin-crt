@@ -117,7 +117,7 @@ func TestAddressRecoveryPreservesSignInAndRemembersNewAddress(t *testing.T) {
 	}
 	for range 2 {
 		result, err := f.connector.Connect(t.Context(), interaction)
-		if err != nil || result.Server == nil || result.Server.Identity().Server != f.next.URL {
+		if err != nil || result.Server == nil || result.Server.Identity().Server != f.next.URL || result.Endpoint != f.next {
 			t.Fatalf("recovery: %v", err)
 		}
 	}
@@ -259,7 +259,7 @@ func TestRecoveryDoesNotDowngradeHTTPS(t *testing.T) {
 	f := newRecoveryFixture(t, "stable-id", 0)
 	old := f.old
 	old.URL = "https://old.example"
-	_, err := f.connector.recoverAddress(t.Context(), f.accept(t), jellyfin.Config{Server: old.URL}, old, f.original, false)
+	_, _, err := f.connector.recoverAddress(t.Context(), f.accept(t), jellyfin.Config{Server: old.URL}, old, f.original, false)
 	if err == nil || f.probes.Load() != 0 || f.authenticated.Load() != 0 {
 		t.Fatal("HTTPS recovery offered an HTTP endpoint")
 	}

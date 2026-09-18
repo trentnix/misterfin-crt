@@ -37,3 +37,18 @@ func selectBrowserTarget(d platform.Presenter, o launchOptions, bindings evdev.C
 	}
 	return desktopTarget(d, o)
 }
+
+// crtPlaybackTiming preserves the CRT modes mirrored by the current targets.
+// Other desktop sizes use the default 30 fps policy instead of implying PAL.
+// A future destination can supply playback.Timing directly without this helper.
+func crtPlaybackTiming(height int) playback.Timing {
+	switch height {
+	case 288, 576:
+		return playback.Timing{PAL: true}
+	case 480:
+		// Match the core's approximately 59.94 Hz field clock without speeding video.
+		return playback.Timing{LiveFrameRate: 30000.0 / 1001}
+	default:
+		return playback.Timing{}
+	}
+}

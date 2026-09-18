@@ -36,7 +36,7 @@ func desktopTarget(d platform.Presenter, o launchOptions) browserTarget {
 // player executable was supplied.
 func desktopPlayback(o launchOptions, g platform.Geometry) playback.Config {
 	decoder := ffplay.Decoder{Player: o.player}
-	config := playback.Config{VideoDecoder: decoder, AudioDecoder: decoder, Height: g.OutputHeight}
+	config := playback.Config{VideoDecoder: decoder, AudioDecoder: decoder, Timing: crtPlaybackTiming(g.OutputHeight)}
 	if o.terminalPlayer != "" {
 		config.VideoDecoder = pythonhelper.Decoder{Script: o.terminalPlayer, Output: inlineFramePath(o), Width: g.OutputWidth, Height: g.OutputHeight}
 		config.AudioDecoder = config.VideoDecoder

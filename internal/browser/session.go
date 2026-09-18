@@ -23,7 +23,7 @@ type browserSession struct {
 	remote           remoteSession
 	controlSource    remote.Source // Supplied by the authenticated connection and reusable after update cancellation.
 	remoteRequests   remoteRequests
-	remotePlayback   remotePlayback
+	playbackQueue    playbackQueue
 	message          rendering.MessagePresentation
 	startupNotices   []string // Pending until browsing can show each notice.
 
@@ -68,16 +68,16 @@ func newBrowserSession(ctx context.Context, config Config, player playback.Confi
 		media:      mediaNavigation{cancel: func() {}},
 	}
 	s.driver = playbackDriver{feedback: feedback, ctx: ctx, config: player, output: output, events: make(chan PlaybackEvent, 16)}
-	s.controller = newPlaybackController(func(item media.Item, offset *int64, gate <-chan struct{}, prepared bool, controls chan playback.Control, tracks playback.TrackOptions) playbackProcess {
-		return s.driver.launch(s.client, item, offset, gate, prepared, controls, tracks)
+	s.controller = newPlaybackController(func(item media.Item, offset *int64, gate <-chan struct{}, prepared bool, tracks playback.TrackOptions) playbackProcess {
+		return s.driver.launch(s.client, item, offset, gate, prepared, tracks)
 	})
 	s.model.Rows = rendering.VisibleRows(s.geometry.Width, s.geometry.Height)
 	s.about.Build = config.Build
 	s.about.CanInstall = config.Updater != nil
-	s.about.Connections = config.Connections
+	s.refreshConnections()
 	s.about.CurrentConnection = config.ReturnConnectionID
 	s.about.CanReturnToConnection = config.ReturnConnectionID != ""
-	for i, option := range config.Connections {
+	for i, option := range s.about.Connections {
 		if option.ID == config.ConnectionID {
 			s.about.ConnectionSelected = i
 			break

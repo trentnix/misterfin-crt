@@ -46,7 +46,7 @@ func TestServerSelection(t *testing.T) {
 				return
 			}
 			switch c := connector.(type) {
-			case jfconnection.Connector:
+			case *jfconnection.Connector:
 				if (c.Discovery != nil) != (tc.name == "default") {
 					t.Fatal("discovery must be available only without explicit server settings")
 				}
@@ -86,7 +86,7 @@ func TestUnifiedServerOverridesLegacyConnectionAndDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch c := connector.(type) {
-			case jfconnection.Connector:
+			case *jfconnection.Connector:
 				if c.Config == nil || c.Config.Server != "http://selected-server" || c.Config.APIKey != "" || c.Config.InsecureTLS || c.Config.Transcode.MaxWidth != 640 || c.Config.Transcode.MaxHeight != 480 || c.Config.Transcode.VideoBitrate != 8000000 || c.ConfigPath != path {
 					t.Fatal("JSON did not control Jellyfin connection")
 				}

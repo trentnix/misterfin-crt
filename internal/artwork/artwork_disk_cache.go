@@ -13,19 +13,11 @@ import (
 const artworkDiskBudget = 128 * 1024 * 1024
 const artworkDiskEntries = 512
 
-type artworkRevision struct {
-	number  uint64
-	discard bool
-}
-
 // DiskCache retains ordinary artwork across authenticated sessions.
-// Workers serialize file I/O. Retry only changes revision state, so it does not
-// wait for disk reads or writes. Older requests cannot overwrite a retried image.
+// Workers serialize file I/O and use the loader's revisions to reject stale writes.
 type DiskCache struct {
 	cacheFiles
-	ioMu      sync.Mutex
-	mu        sync.Mutex
-	revisions map[imageKey]artworkRevision
+	ioMu sync.Mutex
 }
 
 // NewDiskCache partitions ordinary artwork by server and user. An empty root
@@ -35,7 +27,7 @@ func NewDiskCache(root, server, user string) *DiskCache {
 	if dir == "" {
 		return nil
 	}
-	return &DiskCache{cacheFiles: cacheFiles{dir: dir, suffix: ".rgba", maxEntries: artworkDiskEntries, maxBytes: artworkDiskBudget}, revisions: make(map[imageKey]artworkRevision)}
+	return &DiskCache{cacheFiles: cacheFiles{dir: dir, suffix: ".rgba", maxEntries: artworkDiskEntries, maxBytes: artworkDiskBudget}}
 }
 
 func artworkFileName(key imageKey) string {
@@ -43,36 +35,14 @@ func artworkFileName(key imageKey) string {
 	return fmt.Sprintf("%x.rgba", sha256.Sum256(data))
 }
 
-func (c *DiskCache) revision(key imageKey) artworkRevision {
-	if c == nil {
-		return artworkRevision{}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.revisions[key]
-}
-
-// invalidate marks the current tag for refresh, without filesystem work on input.
-func (c *DiskCache) invalidate(key imageKey) {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	r := c.revisions[key]
-	r.number++
-	r.discard = true
-	c.revisions[key] = r
-}
-
-func (c *DiskCache) load(key imageKey, revision artworkRevision) image.Image {
+func (c *DiskCache) load(revisions *artworkRevisions, key imageKey, revision artworkRevision) image.Image {
 	if c == nil {
 		return nil
 	}
 	c.ioMu.Lock()
 	defer c.ioMu.Unlock()
 	if revision.discard {
-		if c.revision(key) == revision {
+		if revisions.current(key) == revision {
 			name := artworkFileName(key)
 			c.remove(name)
 		}
@@ -80,7 +50,7 @@ func (c *DiskCache) load(key imageKey, revision artworkRevision) image.Image {
 	}
 	data := c.read(artworkFileName(key), 20, artworkFileLimit)
 	im := decodeCachedArtwork(data)
-	if im == nil || c.revision(key) != revision {
+	if im == nil || revisions.current(key) != revision {
 		return nil
 	}
 	return im
@@ -88,7 +58,7 @@ func (c *DiskCache) load(key imageKey, revision artworkRevision) image.Image {
 
 // save uses atomic replacement and skips canceled or superseded requests.
 // Cache failures do not prevent displaying an image fetched from the server.
-func (c *DiskCache) save(ctx context.Context, key imageKey, revision artworkRevision, im image.Image) {
+func (c *DiskCache) save(ctx context.Context, revisions *artworkRevisions, key imageKey, revision artworkRevision, im image.Image) {
 	if c == nil || ctx.Err() != nil {
 		return
 	}
@@ -98,7 +68,7 @@ func (c *DiskCache) save(ctx context.Context, key imageKey, revision artworkRevi
 	}
 	c.ioMu.Lock()
 	defer c.ioMu.Unlock()
-	if ctx.Err() != nil || c.revision(key) != revision {
+	if ctx.Err() != nil || revisions.current(key) != revision {
 		return
 	}
 	staged, err := c.stage(data)
@@ -112,17 +82,17 @@ func (c *DiskCache) save(ctx context.Context, key imageKey, revision artworkRevi
 	name := artworkFileName(key)
 	// The short commit step prevents invalidation racing publication. File
 	// creation, pixel writes, and pruning never hold the revision mutex.
-	c.mu.Lock()
-	current := c.revisions[key]
+	revisions.mu.Lock()
+	current := revisions.revisions[key]
 	if current != revision || c.publish(staged, name) != nil {
-		c.mu.Unlock()
+		revisions.mu.Unlock()
 		return
 	}
 	if current.discard {
 		current.discard = false
-		c.revisions[key] = current
+		revisions.revisions[key] = current
 	}
-	c.mu.Unlock()
+	revisions.mu.Unlock()
 	c.written(name, len(data))
 	c.prune(name)
 }

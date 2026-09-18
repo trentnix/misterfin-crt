@@ -12,6 +12,7 @@ import (
 	"mistervision/internal/diagnostics"
 	"mistervision/internal/input/control"
 	"mistervision/internal/musicviz"
+	"mistervision/internal/playback"
 	"mistervision/internal/settings"
 )
 
@@ -92,7 +93,7 @@ func TestMusicFallbacksPreservePlayback(t *testing.T) {
 				t.Fatal("background failure stopped playback")
 			}
 			s.controller.Key(control.Open, time.Now())
-			expectCommand(t, s.controller.controls, "pause")
+			expectCommand(t, s.controller.active.controls, playback.SetPaused)
 			if err := log.Close(); err != nil {
 				t.Fatal(err)
 			}

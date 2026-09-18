@@ -22,8 +22,9 @@ const (
 )
 
 // Describe translates Jellyfin failures into safe, actionable instructions.
-// A nil error presents a new attempt. It never displays raw error messages.
-func (c Connector) Describe(err error) connection.Presentation {
+// A nil error presents a new attempt. It reads only immutable configuration,
+// so it can run during Connect. It never displays raw error messages.
+func (c *Connector) Describe(err error) connection.Presentation {
 	if err == nil {
 		return connection.Presentation{Kind: connection.SetupConnecting, Title: "Connecting to Jellyfin", Message: "Checking your connection and saved sign-in."}
 	}

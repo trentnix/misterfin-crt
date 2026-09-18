@@ -3,6 +3,7 @@ package artwork
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -19,6 +20,16 @@ import (
 )
 
 func TestRetryRejectsOlderInFlightImage(t *testing.T) {
+	for _, persistent := range []bool{false, true} {
+		for _, kind := range []string{"Primary", "Photo"} {
+			t.Run(fmt.Sprintf("disk=%t/%s", persistent, kind), func(t *testing.T) {
+				testRetryRejectsOlderInFlightImage(t, persistent, kind)
+			})
+		}
+	}
+}
+
+func testRetryRejectsOlderInFlightImage(t *testing.T, persistent bool, kind string) {
 	old := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	fresh := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	old.Set(0, 0, color.RGBA{R: 255, A: 255})
@@ -45,18 +56,21 @@ func TestRetryRejectsOlderInFlightImage(t *testing.T) {
 	}))
 	defer server.Close()
 	defer once.Do(func() { close(release) })
-	disk := NewDiskCache(t.TempDir(), server.URL, "user")
+	var disk *DiskCache
+	if persistent {
+		disk = NewDiskCache(t.TempDir(), server.URL, "user")
+	}
 	l := NewLoader(jellyfin.NewClient(jellyfin.Config{Server: server.URL}, jellyfin.Session{}), 640, 240, disk)
 	item := jellyfin.Item{ID: "item", ImageTags: map[string]string{"Primary": "tag"}}
 	done := make(chan struct{})
-	go func() { defer close(done); _, _ = l.Fetch(context.Background(), item, "Primary") }()
+	go func() { defer close(done); _, _ = l.Fetch(context.Background(), item, kind) }()
 	select {
 	case <-started:
 	case <-time.After(3 * time.Second):
 		t.Fatal("request did not start")
 	}
 	l.Forget(item)
-	im, err := l.Fetch(context.Background(), item, "Primary")
+	im, err := l.Fetch(context.Background(), item, kind)
 	if err != nil || im == nil {
 		t.Fatal("fresh request failed", err)
 	}
@@ -66,14 +80,17 @@ func TestRetryRejectsOlderInFlightImage(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("old request did not finish")
 	}
-	if l.Cached(item, "Primary").At(0, 0) != fresh.At(0, 0) {
+	if l.Cached(item, kind).At(0, 0) != fresh.At(0, 0) {
 		t.Fatal("old worker replaced fresh memory")
 	}
-	key := artworkKey(item, "Primary")
-	persisted := disk.load(key, disk.revision(key))
-	if persisted == nil || persisted.At(0, 0) != fresh.At(0, 0) {
-		t.Fatal("old worker replaced fresh disk image")
+	if persistent && kind != "Photo" {
+		key := artworkKey(item, kind)
+		persisted := disk.load(&l.revisions, key, l.revisions.current(key))
+		if persisted == nil || persisted.At(0, 0) != fresh.At(0, 0) {
+			t.Fatal("old worker replaced fresh disk image")
+		}
 	}
+
 	// A saved collage also must not restore the explicitly invalidated image.
 	l.Forget(item)
 	l.Restore(context.Background(), []Cover{{ID: item.ID, Tag: "tag", Image: old}})
@@ -83,17 +100,18 @@ func TestRetryRejectsOlderInFlightImage(t *testing.T) {
 }
 
 func TestConcurrentArtworkPublicationIsComplete(t *testing.T) {
+	var revisions artworkRevisions
 	c := NewDiskCache(t.TempDir(), "server", "user")
 	key := imageKey{"item", "Primary", "tag"}
 	im := image.NewRGBA(image.Rect(0, 0, 20, 20))
-	c.save(context.Background(), key, c.revision(key), im)
+	c.save(context.Background(), &revisions, key, revisions.current(key), im)
 	var wg sync.WaitGroup
 	for range 3 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for range 20 {
-				c.save(context.Background(), key, c.revision(key), im)
+				c.save(context.Background(), &revisions, key, revisions.current(key), im)
 			}
 		}()
 	}

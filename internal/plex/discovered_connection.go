@@ -25,8 +25,10 @@ func (c Connector) connectDiscovered(ctx context.Context, interaction connection
 	if stateErr != nil && !errors.Is(stateErr, os.ErrNotExist) {
 		return connection.Session{}, ErrSessionSave
 	}
+	// A configured address change requires fresh identity and resource grants.
+	// Keep the linked account, but skip reuse of the previous endpoint's token.
 	if stateErr == nil && c.Config.Server != "" && state.URL != c.Config.Server {
-		return connection.Session{}, errServerURL
+		interaction.SelectServer = true
 	}
 	if !interaction.SelectServer && !interaction.NewAccount && !interaction.SelectProfile && stateErr == nil && state.HomeChecked && state.Profile == nil {
 		result, err := c.connectRemembered(ctx, interaction, state.Server)
@@ -227,7 +229,7 @@ func (c Connector) connectSelected(ctx context.Context, discovery *serverDiscove
 	if err := saveDiscoveryState(dir, state); err != nil {
 		return connection.Session{}, err
 	}
-	return connection.Session{Server: client, Recovered: recovered, Profile: discovery.profile, Avatars: discovery.avatars, SwitchProfile: discovery.profile != nil}, nil
+	return connection.Session{Endpoint: server, Server: client, Recovered: recovered, Profile: discovery.profile, Avatars: discovery.avatars, SwitchProfile: discovery.profile != nil}, nil
 }
 
 // connectRemembered validates the saved media-server token without requiring
@@ -265,7 +267,7 @@ func (c Connector) connectRemembered(ctx context.Context, interaction connection
 	if err := client.validate(ctx); err != nil {
 		return connection.Session{}, err
 	}
-	return connection.Session{Server: client, Recovered: recovered}, nil
+	return connection.Session{Endpoint: server, Server: client, Recovered: recovered}, nil
 }
 
 // discoveredSessionDir locates legacy credentials stored per server address.
