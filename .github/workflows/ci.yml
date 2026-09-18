@@ -45,6 +45,25 @@ jobs:
       - name: Test browser through the headless harness
         run: make test-browse
 
+      - name: Exercise repeated playback and recovery
+        run: make test-endurance
+      - name: Collect performance report
+        run: make performance
+      - name: Publish performance summary
+        if: always()
+        run: |
+          if test -f build/reports/performance/report.md; then
+            cat build/reports/performance/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Retain validation reports
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: validation-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
   arm:
     name: Compile MiSTer application
     runs-on: ubuntu-24.04

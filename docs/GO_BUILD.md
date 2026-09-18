@@ -55,9 +55,9 @@ To rebuild MPlayer from the source bundle, run `make native-player` in its extra
 
 `make release-manifest` can run after separate `make arm` and `make native-player` builds. It writes `build/release-manifest.txt`, which records Go metadata, MPlayer source/compiler details, and both executable checksums. Packaging includes that record as `mistervision/BUILD.txt`, with the release version and source revision. Packaging the same inputs produces identical archives. This does not promise identical compiler output across toolchain or environment changes.
 
-The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release.
+The [release workflow](../.github/workflows/release.yml) runs when a version tag is pushed. It can also run manually with that tag selected as the workflow ref. It builds the bundle and creates a GitHub draft release with generated notes and all three assets. It refuses to overwrite an existing release. After creating the draft, it downloads the three assets, verifies their contents and source revision, and exercises installation and interrupted-update recovery in temporary storage. A verification failure leaves the release unpublished as a draft.
 
-Before publishing, review the notes, require successful Go validation, verify the downloaded checksums, and test the paired binaries on MiSTer. Publishing requires a manual action on GitHub. Draft or private releases are unavailable to the application's unauthenticated checker.
+Before publishing, review the notes, require successful Go validation and downloaded-asset verification, and test the paired binaries on MiSTer. Publishing requires a manual action on GitHub. Draft or private releases are unavailable to the application's unauthenticated checker.
 
 The [latest release](https://github.com/trentnix/mistervision/releases/latest) provides both archives and their checksums. Bundles include `mistervision/UPDATE_FORMAT` with transaction format `1`. The updater rejects older or incompatible formats before replacing any files.
 
@@ -144,9 +144,71 @@ make test-browse
 | CI job | Checks and triggers | Timeout |
 | --- | --- | --- |
 | [Host validation](../.github/workflows/ci.yml) | Commands above, on pushes, pull requests, and manual runs. | 15 minutes |
+| Endurance smoke and performance reports | Two real-decoder recovery cycles and existing Go benchmarks run in host validation. Reports upload even when later checks fail. | Within the host limit |
+| [Extended reliability](../.github/workflows/reliability.yml) | A 15-minute run each night. Manual runs select 5, 15, 30, or 60 minutes. | 80 minutes |
 | [ARM compilation](../.github/workflows/ci.yml) | `make arm` with checksum-verified Zig 0.14.1, on the same triggers. | 10 minutes |
 | [Native player](../.github/workflows/native-player.yml) | Complete patched MPlayer build and ARM verification when build inputs change, on `v*` tags, or on manual request. | 30 minutes |
 
 The validation workflows use Ubuntu 24.04, read-only repository permissions, and Node.js 24 action runtimes. Node.js is not an application dependency. The separate release workflow has a 40-minute limit and repository write permission to create draft releases. No workflow deploys to MiSTer or makes the repository public.
 
 CI does not establish physical CRT timing. Hardware checks must cover startup/exit, video and music, repeated overlay toggling, seeking, paused picture changes, and A/V synchronization in each supported output mode. See [tested scope](GO_DISPLAY.md#tested-scope).
+
+## Endurance and recovery
+
+Build dependencies are the same as the browser tests. The short check runs two cycles:
+
+```sh
+make test-endurance
+```
+
+For a longer run, keep one browser process alive for at least 15 minutes:
+
+```sh
+make host
+python3 -m tools.ghostty.endurance --seconds 900
+```
+
+Each cycle uses generated video, the production desktop decoder with null audio, and an isolated Jellyfin fixture. It changes movies, verifies moving frames, pauses, shows and hides controls, resumes, seeks, stops, rejects a stream with HTTP 503, retries after restoration, cancels a blocked stream request, and plays again. It checks decoder cleanup and normal application exit. Every wait has a deadline. Missing Linux process data, FFmpeg, libmpv, or the host binary fails the command instead of silently skipping it.
+
+`build/reports/endurance.json` records the tested binary checksum, startup and initial list-navigation time, playback-ready/seek/recovery timings, browser memory, file descriptors, threads, and child counts. Resource changes are reported without arbitrary performance thresholds. `endurance.events.json` retains the bounded diagnostic history from the fixture. Use `--report PATH` for a separate run. Failure reports can contain no completed samples if startup fails.
+
+The harness finishes the current cycle after the duration expires. Scheduled runs upload reports for 30 days. PR runs upload reports for 14 days. Tests use no saved accounts and do not open workstation audio or a physical display. The fixture serves the same generated clip for each requested seek offset, so these runs test replacement/recovery and resumed frame delivery, not content-accurate seeking or CRT cadence. They do not cover Plex server behavior, a real tuner, midstream network restoration, or long uninterrupted A/V synchronization. Existing provider and decoder tests cover separate cases.
+
+## Performance reports
+
+Run the existing rendering, caption, artwork-cache, music-visualization, UI, and output-publication benchmarks:
+
+```sh
+make performance
+```
+
+Reports contain raw Go benchmark output, individual samples, medians, the revision and dirty-checkout flag, and hardware/toolchain metadata in `build/reports/performance/`. PR and scheduled workflows attach the reports and show the Markdown table in their job summaries. Timing changes are informational. Benchmark failures still fail the command.
+
+To compare against a downloaded report from a previous run:
+
+```sh
+python3 tools/performance_report.py --baseline /tmp/previous-report.json
+```
+
+The comparison omits timing deltas if the recorded environment differs. Matching metadata does not eliminate shared-runner noise. Compare repeated measurements before treating a difference as a regression. These benchmarks do not measure physical scanout or A/V drift.
+
+## Verify a release
+
+With Go and an authenticated GitHub CLI, download and verify a draft or published release:
+
+```sh
+make verify-release VERSION=v1.2.2
+```
+
+The local Git checkout must contain the release tag. Verification checks both archive hashes, every bundled checksum, executable permissions and ARM headers, version and revision metadata, the source archive against that Git revision, and the upstream player source checksum. It then installs the real ZIP through the production updater into temporary storage and tests interrupted replacement and repeat recovery while preserving fixture settings and sign-in files. The test never executes the installed ARM binaries on the host. Checksums are integrity checks, not independent signatures.
+
+To verify existing downloads and optionally execute the packaged pair on a MiSTer:
+
+```sh
+python3 tools/verify_release.py v1.2.2 \
+  --directory /tmp/mistervision-v1.2.2-release \
+  --mister root@192.168.1.42 \
+  --identity /home/trent/.ssh/misterfin_crt_development
+```
+
+Omit `--identity` to use normal SSH configuration. Hardware checks require noninteractive SSH access, FFmpeg on the host, and free space in MiSTer's `/tmp`. The command creates a unique temporary directory, renders a headless test frame, decodes generated video with null audio/video outputs, and removes its files. It does not deploy, edit settings, switch the core, or validate the CRT picture. Existing hardware installation and visual checks remain separate. Hardware execution is never triggered by hosted CI.
