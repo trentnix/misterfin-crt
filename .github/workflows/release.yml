@@ -57,3 +57,8 @@ jobs:
             "build/releases/$VERSION/mistervision-$VERSION-mister.zip" \
             "build/releases/$VERSION/mistervision-$VERSION-source.tar.gz" \
             "build/releases/$VERSION/SHA256SUMS"
+      - name: Verify downloaded draft assets and updater recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: python3 tools/verify_release.py "$VERSION" --revision "$GITHUB_SHA"

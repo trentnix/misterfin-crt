@@ -8,7 +8,7 @@ GO_ARM_CC ?= sh $(CURDIR)/tools/zig-cc-go.sh
 
 .DEFAULT_GOAL := host
 
-.PHONY: host arm lint vulnerability-check native-player release-manifest release test test-browse headless clean
+.PHONY: host arm lint vulnerability-check native-player release-manifest release test test-browse test-endurance performance verify-release headless clean
 host:
 	CGO_ENABLED=1 $(GO) build -trimpath -ldflags "$(GO_LDFLAGS)" -o build/mistervision ./cmd/mistervision
 
@@ -43,10 +43,22 @@ release:
 test:
 	CGO_ENABLED=1 $(GO) test ./...
 	CGO_ENABLED=0 $(GO) test ./...
-	python3 -m unittest -v tools/ghostty/test_ghostty_harness.py tools/ghostty/test_video_player.py tools/test_native_overlay.py tools/test_interlaced_console.py tools/test_native_picture.py tools/test_mplayer_timing.py tools/test_native_captions.py tools/test_package_release.py
+	python3 -m unittest -v tools/ghostty/test_ghostty_harness.py tools/ghostty/test_video_player.py tools/test_native_overlay.py tools/test_interlaced_console.py tools/test_native_picture.py tools/test_mplayer_timing.py tools/test_native_captions.py tools/test_package_release.py tools/test_verify_release.py tools/test_performance_report.py tools/ghostty/test_endurance_support.py
 
 test-browse: host
 	python3 -m unittest -v tools/ghostty/test_go_browse.py
+
+# Fast repeated playback/recovery smoke check. Longer runs use --seconds.
+test-endurance: host
+	python3 -m tools.ghostty.endurance --cycles 2
+
+# Informational medians and raw samples. Timing changes do not fail the build.
+performance:
+	python3 tools/performance_report.py
+
+# VERSION must name an existing release tag. Downloads draft or public assets.
+verify-release:
+	python3 tools/verify_release.py "$(VERSION)"
 
 headless: host
 	./build/mistervision -headless 640x288 -output build/go-frame.raw

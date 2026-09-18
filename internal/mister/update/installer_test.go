@@ -82,6 +82,12 @@ func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) { retur
 
 func testInstaller(t *testing.T, archive []byte) (*Installer, map[string][]byte) {
 	t.Helper()
+	return testInstallerVersion(t, archive, "v0.2.0")
+}
+
+// testInstallerVersion serves a fixture or downloaded bundle into a temporary installation.
+func testInstallerVersion(t *testing.T, archive []byte, version string) (*Installer, map[string][]byte) {
+	t.Helper()
 	dir := t.TempDir()
 	app := filepath.Join(dir, "mistervision")
 	launcher := filepath.Join(dir, "Scripts", "MiSTerVision.sh")
@@ -108,7 +114,7 @@ func testInstaller(t *testing.T, archive []byte) (*Installer, map[string][]byte)
 			t.Error("credentials sent to release server")
 		}
 		if strings.HasSuffix(r.URL.Path, "/SHA256SUMS") {
-			fmt.Fprintf(w, "%x  mistervision-v0.2.0-mister.zip\n", sha256.Sum256(archive))
+			fmt.Fprintf(w, "%x  mistervision-%s-mister.zip\n", sha256.Sum256(archive), version)
 		} else {
 			w.Write(archive)
 		}

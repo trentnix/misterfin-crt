@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import pty
 import queue
+import select
 import struct
 import subprocess
 import tempfile
@@ -41,6 +42,7 @@ class Scenario:
     page_delay: float = 0
     video_delay: float = 0
     transcode_profile: str = ""
+    media: bytes | None = None
     player: str = "idle"
     controlling_terminal: bool = True
     legacy_settings: bool = False
@@ -51,7 +53,8 @@ class BrowserFixture(unittest.TestCase):
     """Own a mock server, temporary files, and a browser with applied-event waits.
 
     Tests call start_browser explicitly. Cleanup also runs after failed assertions.
-    This fixture never opens an actual media decoder or workstation audio device.
+    Players are synthetic by default. The decode scenario runs libmpv with null
+    audio. No scenario opens the workstation audio device.
     """
 
     def start_browser(self, scenario=None):
@@ -93,11 +96,18 @@ class BrowserFixture(unittest.TestCase):
             self.home_gate.set()
         self.addCleanup(self.home_gate.set)
         self.video_response_gate = None
+        self.media_unavailable = threading.Event()
         self.stop_report_gate = threading.Event()
         self.stop_report_gate.set()
         test = self
 
         class Handler(mock.Handler):
+            def handle(self):
+                try:
+                    super().handle()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # Cancellation can also close the next keep-alive read.
+
             def log_message(self, *_args):
                 pass
 
@@ -112,8 +122,8 @@ class BrowserFixture(unittest.TestCase):
                 path = urlparse(self.path).path
                 query = parse_qs(urlparse(self.path).query)
                 if path == "/socket" and test.scenario.remote_control:
-                    # This fixture sends server frames only. Production framing,
-                    # TLS, reconnects, and heartbeat handling have Go tests.
+                    # Support client heartbeats during endurance runs. Full protocol,
+                    # TLS, and reconnection behavior remain covered by Go tests.
                     key = self.headers["Sec-WebSocket-Key"]
                     accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
                     self.send_response(101)
@@ -122,7 +132,19 @@ class BrowserFixture(unittest.TestCase):
                     self.send_header("Sec-WebSocket-Accept", accept)
                     self.end_headers()
                     self.close_connection = True
+                    incoming = bytearray()
                     while not test.remote_done.is_set():
+                        if select.select([self.connection], [], [], 0)[0]:
+                            packet = self.connection.recv(4096)
+                            if not packet:
+                                return
+                            incoming.extend(packet)
+                            for opcode, payload in websocket_frames(incoming):
+                                if opcode == 8:
+                                    return
+                                if opcode == 9:
+                                    self.wfile.write(bytes([0x8a, len(payload)]) + payload)
+                                    self.wfile.flush()
                         try:
                             command = test.remote_commands.get(timeout=.1)
                         except queue.Empty:
@@ -162,6 +184,8 @@ class BrowserFixture(unittest.TestCase):
                     self.wfile.write(payload)
                     return
                 if urlparse(self.path).path.startswith(("/Videos/", "/Audio/")):
+                    if test.media_unavailable.is_set():
+                        return self._send({"error": "fixture unavailable"}, status=503)
                     if test.scenario.video_delay:
                         time.sleep(test.scenario.video_delay)
                     if (test.scenario.slow_seek and
@@ -172,9 +196,10 @@ class BrowserFixture(unittest.TestCase):
                         gate.wait(timeout=3)
                     try:
                         self.send_response(200)
-                        self.send_header("Content-Length", "10")
+                        payload = test.scenario.media if test.scenario.media is not None else b"test video"
+                        self.send_header("Content-Length", str(len(payload)))
                         self.end_headers()
-                        self.wfile.write(b"test video")
+                        self.wfile.write(payload)
                     except (BrokenPipeError, ConnectionResetError):
                         pass
                     return
@@ -347,6 +372,13 @@ class BrowserFixture(unittest.TestCase):
 
     def install_player(self):
         """Copy a readable fixture program to the isolated executable/helper path."""
+        if self.scenario.player == "decode":
+            # Use production libmpv decoding but never open workstation audio.
+            player = self.directory / "test-player.py"
+            helper = ROOT / "tools/ghostty/video_player.py"
+            player.write_text("import runpy, sys\nsys.argv += ['--audio', 'null']\n"
+                              + f"runpy.run_path({str(helper)!r}, run_name='__main__')\n")
+            return ["-terminal-player", str(player)]
         programs = {"idle": "idle_player.sh", "finish": "finish_player.sh",
                     "inline": "inline_player.py", "buffering": "buffering_player.py"}
         program = Path(__file__).parent / programs[self.scenario.player]
@@ -388,3 +420,25 @@ class BrowserFixture(unittest.TestCase):
                 settings[section] = value
         (self.directory / "settings.json").write_text(json.dumps(settings))
 
+
+def websocket_frames(buffer):
+    """Consume complete masked client frames for the loopback fixture's heartbeats."""
+    while len(buffer) >= 2:
+        opcode, size = buffer[0] & 15, buffer[1] & 127
+        if not buffer[1] & 128:
+            raise ValueError("fixture expects masked client frames")
+        header = 2
+        if size in (126, 127):
+            count = 2 if size == 126 else 8
+            if len(buffer) < header + count:
+                return
+            size = int.from_bytes(buffer[header:header + count], 'big')
+            header += count
+        if size > 1 << 20 or (opcode >= 8 and size > 125):
+            raise ValueError("fixture frame exceeds limit")
+        if len(buffer) < header + 4 + size:
+            return
+        mask = buffer[header:header + 4]
+        payload = bytes(b ^ mask[i % 4] for i, b in enumerate(buffer[header + 4:header + 4 + size]))
+        del buffer[:header + 4 + size]
+        yield opcode, payload
