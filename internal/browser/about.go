@@ -79,6 +79,7 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 	}
 	switch key {
 	case control.About, control.Back:
+		s.about.AccountMessage = ""
 		if s.about.NotesVisible && key == control.Back {
 			s.about.NotesVisible = false
 			s.about.Message = ""
@@ -88,6 +89,7 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 		}
 	case control.Open:
 		if s.about.Release.Available && !s.about.Checking {
+			s.about.AccountMessage = ""
 			if s.about.NotesVisible {
 				s.installUpdate()
 			} else {
@@ -97,6 +99,7 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 		}
 	case control.Up:
 		if !s.about.NotesVisible && s.about.ProfileAction != connection.ProfileUnchanged && s.client != nil && s.setup.Kind == rendering.SetupHidden {
+			s.about.AccountMessage = ""
 			s.connectionChange = &connection.Change{ID: s.config.ConnectionID, ReturnID: s.config.ConnectionID, ProfileAction: s.about.ProfileAction}
 			s.model.Quit = true
 		}
@@ -105,6 +108,7 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 		}
 	case control.Down:
 		if !s.about.NotesVisible && len(s.about.Connections) > 0 {
+			s.about.AccountMessage = ""
 			s.about.ConnectionsVisible = true
 			s.about.ConnectionMessage = ""
 		}

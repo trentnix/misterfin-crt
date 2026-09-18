@@ -162,3 +162,19 @@ func TestAboutProfileActionMatchesAvailableChoices(t *testing.T) {
 		}
 	}
 }
+
+func TestAboutDisplaysAccountFailureDuringReleaseCheck(t *testing.T) {
+	for _, size := range [][2]int{{320, 240}, {640, 240}, {640, 480}} {
+		w, h := size[0], size[1]
+		scene := Scene{About: AboutPresentation{
+			Visible: true, Checking: true,
+			AccountMessage: connection.SignInStorageTitle + ". " + connection.SignInStorageMessage,
+			Release:        release.Status{Available: true, Latest: "v9.0.0"},
+		}}
+		canvas := ui.New(w, h)
+		renderScene(canvas, &sceneCache{}, scene, Animation{})
+		if !screenContainsText(canvas, connection.SignInStorageTitle) || !screenContainsText(canvas, "then retry.") || screenContainsText(canvas, "Checking for updates...") {
+			t.Fatalf("account error was hidden at %dx%d", w, h)
+		}
+	}
+}

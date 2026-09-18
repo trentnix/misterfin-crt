@@ -23,6 +23,7 @@ func askConfirmation(ctx context.Context, generation int, prompt connection.Conf
 // forgetSignIn suspends remote playback requests while a local account decision
 // is pending. Keeping the listener alive lets cancellation resume normal control.
 func (s *browserSession) forgetSignIn() {
+	s.about.AccountMessage = ""
 	s.remoteRequests.cancelAll()
 	s.connection.forget(s.ctx, s.send)
 }
@@ -47,7 +48,7 @@ func (r forgetResult) apply(s *browserSession) bool {
 	s.about.Visible = true
 	if r.err != nil && !errors.Is(r.err, connection.ErrCanceled) {
 		p := s.config.Connector.Describe(r.err)
-		s.about.Message = p.Title + ". " + p.Message
+		s.about.AccountMessage = p.Title + ". " + p.Message
 	}
 	if err := s.pendingAuthError; err != nil {
 		s.pendingAuthError = nil

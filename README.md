@@ -14,7 +14,7 @@ My goal is a great media experience on CRTs. I test and use MiSTerVision on a Mi
 
 ## Run on MiSTer
 
-These instructions cover v1.2.0. Existing v1.1.0 installations can update through About.
+These instructions cover v1.3.0. Existing MiSTerVision installations can update through About.
 
 For a new installation, download `mistervision-vX.Y.Z-mister.zip` from the [latest release](https://github.com/trentnix/mistervision/releases/latest). Extract the ZIP and copy these files to the SD card. Keep the launcher filename free of spaces. Make the launcher and both binaries executable if your filesystem requires it. If upgrading an existing installation manually, exit the application first and keep your configuration and state files.
 
@@ -63,7 +63,7 @@ For Plex, use:
 
 Sign-ins, playback choices, and artwork caches stay separate for each provider, server, and viewer. See [configuration](docs/GO_CONFIGURATION.md) and [Plex limits](docs/GO_PLEX.md).
 
-### Switch connections or Plex viewers
+### Switch connections or users
 
 Open **About → Connections → Use existing connection** to return to a configured or remembered server. That option appears only when a connection is available. You can keep Jellyfin and Plex signed in, but only the active connection plays media or accepts remote commands. Back cancels a new connection attempt and lets you return to the previous browser.
 
@@ -72,6 +72,8 @@ For Jellyfin, press Up in About for **Switch profile** when multiple users are s
 For Plex Home, press Up in About for **Switch profile** when more than one profile is available. The viewer’s avatar and name appear on the carousel and About. Protected viewers must enter their PIN again after an application restart. To change the linked Plex account, choose **Sign in with another account** on **Choose a Plex server**.
 
 Back from a profile picker opened through About returns to About without changing the active user.
+
+To remove a saved Jellyfin user, select **Forget user** in About or the user picker. To log out of Plex, select **Sign out** in About. Both actions require confirmation and remove the saved sign-in only from this connection on this device. They do not delete the server account or media. Connecting to Plex again requires account linking.
 
 Jellyfin users and Plex Home viewers are different from named server connections in `connections.profiles`. No JSON is needed for Home viewers. See [Plex Home](docs/GO_PLEX.md#plex-home-profiles) and [multiple server connections](docs/GO_CONFIGURATION.md#multiple-connections).
 
@@ -164,6 +166,10 @@ These images use the current shared renderer. Browsing captures come from the de
 | Plex Home viewers | Protected profile |
 | --- | --- |
 | ![Three visible Plex Home cards and a counter for four viewers](docs/images/screenshots/plex-profiles.png) | ![Viewer avatar and name above the centered PIN keypad](docs/images/screenshots/plex-pin.png) |
+
+| Saved Jellyfin users | About and Plex sign-out |
+| --- | --- |
+| ![Saved Jellyfin users with Add user and Forget user controls](docs/images/screenshots/jellyfin-users.png) | ![About with Switch profile, Sign out, Connections, and update controls](docs/images/screenshots/about.png) |
 
 The [full gallery](docs/SCREENSHOTS.md) also shows account linking, server selection, the movie list, setup help, and About.
 

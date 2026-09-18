@@ -49,6 +49,11 @@ func TestDocumentationPreviews(t *testing.T) {
 			Servers: []connection.Server{{ID: "home", Name: "Home Plex", URL: "http://192.0.2.20:32400"}},
 			SignIn:  "Sign in with another account", Back: connection.BackProfiles,
 		}},
+		"jellyfin-users": {Setup: SetupPresentation{Kind: SetupProfiles, AddUser: true, Forget: true, Back: connection.BackConnection, Profiles: []connection.Profile{
+			{ID: "alex", Name: "Alex", Avatar: branding.Logo()},
+			{ID: "sam", Name: "Sam"},
+		}}},
+		"plex-sign-out": {Setup: SetupPresentation{Kind: SetupConfirm, Title: "Sign out of Plex?", Message: "Remove Alex's saved sign-in and profile access from this device?\nYour Plex account and Home members will not be deleted.", Retry: "Sign out"}},
 		"plex-profiles": {Setup: SetupPresentation{Kind: SetupProfiles, Profiles: profiles}},
 		"plex-pin":      {Setup: SetupPresentation{Kind: SetupPIN, Profiles: profiles, PINLength: 2, PINKey: 4}},
 		"setup-help": {Setup: SetupPresentation{
@@ -57,7 +62,7 @@ func TestDocumentationPreviews(t *testing.T) {
 			PathLabel: "Configuration file", Path: "/media/fat/mistervision/settings.json",
 		}},
 		"about": {About: AboutPresentation{
-			Visible: true, Build: release.Build{Version: "dev"}, Checking: true,
+			Visible: true, Build: release.Build{Version: "v1.3.0"}, Checked: true, ForgetLabel: "Sign out",
 			Profile: &profiles[0], ProfileAction: connection.ProfileChoose, Connections: choices,
 		}},
 	}

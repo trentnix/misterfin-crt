@@ -8,7 +8,9 @@ Application assembly selects Jellyfin by default or the [Plex adapter](GO_PLEX.m
 
 `connection.Interaction` supplies progress, cancellable server/profile choices, and confirmations. The browser sends an immutable prompt to its event loop and replies through a one-use channel. Generation checks reject stale prompts. Neither the renderer nor the discovery adapter handles physical input.
 
-`connectionManager` serializes connection and local removal workers. Removal keeps the browser open while the provider prepares confirmation, blocks remote commands, and cancels pending remote media lookups. Confirmation takes priority over global Menu input. Background sign-in failures wait until the removal decision finishes. Cancel restores About unless a deferred failure requires sign-in recovery. Providers report `connection.ErrSignedOut` after committing removal, which invalidates retained sessions and pending browser results even if later cleanup fails. Retry finishes that cleanup before opening fresh sign-in.
+`connectionManager` serializes connection and local removal workers. Removal keeps the browser open while the provider prepares confirmation, blocks remote commands, and cancels pending remote media lookups. Confirmation takes priority over global Menu input. Background sign-in failures wait until the removal decision finishes. Cancel restores About unless a deferred failure requires sign-in recovery.
+
+Providers report `connection.ErrSignedOut` after committing removal, which invalidates retained sessions and pending browser results even if later cleanup fails. Retry finishes that cleanup before opening fresh sign-in. About keeps account-action failures separate from release status so background update checks cannot hide them.
 
 `Session.ProfileAction` offers one viewer action: choose, add, or none. The browser carries the chosen action back through `connection.Change` and `Interaction`. `Presentation.Back` identifies the preceding setup screen and survives progress and failures. The application retains the current session until a replacement succeeds, so canceling a profile change restores About on the previous connection.
 

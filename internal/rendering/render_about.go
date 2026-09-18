@@ -52,7 +52,7 @@ func (p *screenPainter) about() {
 		center(p.canvas, baseY-62, truncate("Version "+a.Build.String(), p.width-48, 1), dimColor, 1)
 	}
 	color := uint32(0xc0c0c0)
-	if a.Release.Available && !a.Checking && a.Message == "" {
+	if a.Release.Available && !a.Checking && a.Message == "" && a.AccountMessage == "" {
 		color = titleColor
 	}
 	for i, line := range lines {

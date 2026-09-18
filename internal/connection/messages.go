@@ -4,7 +4,7 @@ package connection
 const SignInStorageTitle = "Can't save or read sign-in"
 
 // SignInStorageMessage explains how to recover access to private sign-in storage.
-const SignInStorageMessage = "Make sure this folder is readable and writable, then retry."
+const SignInStorageMessage = "Make sure the sign-in folder is readable and writable, then retry."
 
 // CodeExpiredTitle names an expired account-linking code.
 const CodeExpiredTitle = "Code expired"

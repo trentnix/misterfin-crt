@@ -9,6 +9,7 @@ import (
 	"mistervision/internal/connection"
 	"mistervision/internal/input/control"
 	"mistervision/internal/media"
+	"mistervision/internal/release"
 	"mistervision/internal/remote"
 )
 
@@ -130,7 +131,7 @@ func TestAboutRemovalOpensConfirmationWithoutConnectionScreen(t *testing.T) {
 				if !s.about.Visible || s.setup.Kind != connection.SetupHidden || s.client == nil || s.model != model || s.connectionChange != nil || s.connection.forgetting {
 					t.Fatal("cancel or failure did not preserve About and browsing")
 				}
-				if outcome == "storage failure" && s.about.Message != "Cannot save sign-in. Check the sign-in folder." {
+				if outcome == "storage failure" && s.about.AccountMessage != "Cannot save sign-in. Check the sign-in folder." {
 					t.Fatal("storage failure was hidden or exposed private details")
 				}
 			}
@@ -386,5 +387,99 @@ func TestBackgroundSignInFailureWaitsForRemovalDecision(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func TestRemovalFailureSurvivesReleaseCheck(t *testing.T) {
+	for _, result := range []struct {
+		name string
+		err  error
+	}{
+		{"success", nil},
+		{"unavailable", release.ErrUnavailable},
+		{"failure", errors.New("network failure")},
+	} {
+		for _, checkFirst := range []bool{false, true} {
+			phase := "check-after-error"
+			if checkFirst {
+				phase = "check-before-error"
+			}
+			t.Run(result.name+"/"+phase, func(t *testing.T) {
+				s := testSession(t)
+				s.ctx = t.Context()
+				s.controller.running = false
+				s.client = switchServer{id: "old"}
+				s.config.Connector = removalConnector{}
+				s.connection.forgetting = true
+				finish := make(chan struct{})
+				s.config.CheckUpdate = func(ctx context.Context) (release.Status, error) {
+					select {
+					case <-finish:
+						return release.Status{Latest: "v9.0.0", Available: true}, result.err
+					case <-ctx.Done():
+						return release.Status{}, ctx.Err()
+					}
+				}
+				if checkFirst {
+					s.checkUpdate()
+				}
+				forgetResult{err: errors.New("private storage failure")}.apply(s)
+				if !checkFirst {
+					s.checkUpdate()
+				}
+				const want = "Cannot save sign-in. Check the sign-in folder."
+				if !s.about.Checking || s.about.Status() != want {
+					t.Fatalf("pending release check hid removal error: %q", s.about.Status())
+				}
+				close(finish)
+				select {
+				case event := <-s.events:
+					event.apply(s)
+				case <-time.After(2 * time.Second):
+					t.Fatal("release check did not finish")
+				}
+				if s.about.Checking || !s.about.Checked || s.about.Status() != want || s.client == nil {
+					t.Fatal("release completion changed account feedback or lost the active session")
+				}
+				if result.err == nil && !s.about.Release.Available {
+					t.Fatal("account feedback prevented release status from updating")
+				}
+				s.handleKey(control.Back)
+				s.handleKey(control.About)
+				if s.about.AccountMessage != "" || s.about.Status() == want || !s.about.Visible {
+					t.Fatal("dismissed account error reappeared on About")
+				}
+			})
+		}
+	}
+}
+
+func TestRetryRemovalClearsPreviousFailure(t *testing.T) {
+	s := testSession(t)
+	t.Cleanup(s.connection.close)
+	s.controller.running = false
+	s.client = switchServer{id: "old"}
+	s.about.Visible = true
+	s.about.ForgetLabel = "Forget user"
+	s.about.AccountMessage = "Previous removal failed."
+	ready := make(chan struct{})
+	close(ready)
+	s.config.Connector = removalConnector{prepare: ready}
+	s.connection.config = s.config
+	s.handleKey(control.Next)
+	applyNext := func() {
+		t.Helper()
+		select {
+		case event := <-s.events:
+			event.apply(s)
+		case <-time.After(2 * time.Second):
+			t.Fatal("removal worker did not respond")
+		}
+	}
+	applyNext()
+	s.handleKey(control.Back)
+	applyNext()
+	if !s.about.Visible || s.connection.forgetting || s.about.AccountMessage != "" {
+		t.Fatal("canceling a new removal restored an old failure")
 	}
 }
