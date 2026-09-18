@@ -57,7 +57,7 @@ func (s *browserSession) handleHome(r homeResult) bool {
 		s.home.items = r.page.Items
 	}
 	if errors.Is(r.err, media.ErrUnauthorized) {
-		s.setup = s.setupPresentation(r.err)
+		s.requireSignIn(r.err)
 	}
 	s.syncHomeViews()
 	s.config.Diagnostics.Record("browser.home", slog.Int("items", len(s.home.items)), slog.Bool("failed", r.err != nil))

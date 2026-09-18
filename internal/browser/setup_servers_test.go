@@ -144,11 +144,11 @@ func TestSetupBackCancelsSelectedServer(t *testing.T) {
 			if stage == connection.SetupFailure {
 				s.handleAuth(authResult{generation: generation, err: errors.New("sign-in failed")})
 			}
-			if !s.setup.BackToServers {
+			if s.setup.Back != connection.BackServers {
 				t.Fatal("selected-server setup does not offer Back")
 			}
 			s.dispatchKey(control.Back)
-			if s.model.Quit || !s.connection.selectServer || s.setup.BackToServers {
+			if s.model.Quit || !s.connection.selectServer || s.setup.Back == connection.BackServers {
 				t.Fatal("Back did not start a fresh server choice")
 			}
 			wait(connection.SetupServers)
@@ -162,7 +162,7 @@ func TestSetupBackCancelsSelectedServer(t *testing.T) {
 			}
 			s.dispatchKey(control.Open)
 			wait(connection.SetupApproval)
-			if !s.setup.BackToServers || s.connection.selectServer {
+			if s.setup.Back != connection.BackServers || s.connection.selectServer {
 				t.Fatal("new selection did not restore sign-in navigation")
 			}
 			s.dispatchKey(control.Back)
@@ -235,14 +235,14 @@ func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 						kind = connection.SetupApproval
 					}
 					wait(kind)
-					if !s.setup.BackToServers {
+					if s.setup.Back != connection.BackServers {
 						t.Fatalf("launch %d: remembered discovery sign-in offers Exit instead of Back", launch)
 					}
 					if enabled {
 						previous := s.setup.Code
 						s.dispatchKey(control.Open)
 						wait(connection.SetupApproval)
-						if s.setup.Code == previous || !s.setup.BackToServers {
+						if s.setup.Code == previous || s.setup.Back != connection.BackServers {
 							t.Fatal("new code lost Back navigation")
 						}
 					}
@@ -256,7 +256,7 @@ func TestDiscoveryBackAfterRelaunch(t *testing.T) {
 						t.Fatal("Back exited instead of returning to discovery")
 					}
 					wait(connection.SetupServers)
-					if s.setup.BackToServers {
+					if s.setup.Back == connection.BackServers {
 						t.Fatal("picker must offer Exit")
 					}
 					s.dispatchKey(control.Back)
@@ -280,7 +280,7 @@ func TestRecoveryChoiceKeepsExplanationAndCanBackOut(t *testing.T) {
 	s.handleAuthCode(authCodeResult{generation: 0, presentation: connection.Presentation{Kind: connection.SetupServers, Title: "Server address changed", Message: "Same server at a new address."}})
 	candidate := connection.Server{ID: "same", Name: "Server", URL: "http://new"}
 	(serverChoicesResult{generation: 0, servers: []connection.Server{candidate}, choice: make(chan serverChoice, 1)}).apply(s)
-	if s.setup.Title != "Server address changed" || s.setup.Message == "" || s.setup.BackToServers {
+	if s.setup.Title != "Server address changed" || s.setup.Message == "" || s.setup.Back == connection.BackServers {
 		t.Fatal("recovery explanation or navigation changed")
 	}
 	s.handleKey(control.Back)
@@ -299,7 +299,7 @@ type accountChoosingConnector struct {
 func (c accountChoosingConnector) Connect(ctx context.Context, i connection.Interaction) (connection.Session, error) {
 	c.started <- i
 	if i.NewAccount {
-		i.Show(connection.Presentation{Kind: connection.SetupApproval, Title: "Link account", Code: "ABCD", Retry: "New code", BackToServers: true})
+		i.Show(connection.Presentation{Kind: connection.SetupApproval, Title: "Link account", Code: "ABCD", Retry: "New code", Back: connection.BackServers})
 		<-ctx.Done()
 		return connection.Session{}, ctx.Err()
 	}

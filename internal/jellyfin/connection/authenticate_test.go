@@ -26,9 +26,15 @@ func TestAPIKeyKeepsDeviceIdentityWithoutSavingKey(t *testing.T) {
 	first := ""
 	for range 2 {
 		c := &Connector{Config: &config, StateDir: dir}
-		result, err := c.Connect(t.Context(), connection.Interaction{})
+		result, err := c.Connect(t.Context(), connection.Interaction{ProfileAction: connection.ProfileChoose, ChooseProfile: func(context.Context, connection.ProfilePrompt) (connection.ProfileSelection, error) {
+			t.Fatal("API key offered user switching")
+			return connection.ProfileSelection{}, nil
+		}})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if result.ProfileAction == connection.ProfileChoose || result.Profile != nil {
+			t.Fatal("API key exposed a switchable user")
 		}
 		session := result.Server.(*jellyfin.Client).Session
 		if session.Token != config.APIKey || session.UserID != "user" || session.DeviceID == "" {

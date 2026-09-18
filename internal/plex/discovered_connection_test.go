@@ -346,7 +346,7 @@ func TestPlexAccountReplacement(t *testing.T) {
 				Progress: func(p connection.Presentation) {
 					if p.Kind == connection.SetupApproval {
 						codes++
-						if !p.BackToServers {
+						if p.Back != connection.BackServers {
 							t.Error("new sign-in cannot return to saved picker")
 						}
 						if outcome == "cancel code" {

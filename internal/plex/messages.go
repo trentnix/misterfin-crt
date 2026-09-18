@@ -22,4 +22,10 @@ const (
 	messageDiscoveryFailed         = "Check your internet connection and Plex account, then retry.\nYour saved connection has not been cleared."
 	messageConfigInvalid           = "Set server.url to your Plex server's HTTP or HTTPS address.\nFor example: http://192.168.1.10:32400"
 	messagePINIncorrect            = "Incorrect PIN. Try again."
+	messageSignOut                 = "Remove %s's saved sign-in and profile access from this device?\nYour Plex account and Home members will not be deleted."
+	messageLinkAccount             = "Open plex.tv/link with the account you want to use.\nEnter this code to approve MiSTerVision."
+	messageReauthorizeAccount      = "Sign-in for %s expired or was revoked.\nOpen plex.tv/link with that account and enter this code."
+	messageDifferentAccount        = "You were using %s, but linked %s.\nContinue with this different account?"
+	messageProfileUnavailable      = "Your previous profile is no longer available. Choose another profile."
+	messageHomeUnavailable         = "Your previous Home profile is no longer available.\nContinue as %s instead?"
 )

@@ -31,6 +31,11 @@ func (s *browserSession) dispatchKey(key control.Action) bool {
 			return false
 		}
 	}
+	// Account decisions are modal, including while the provider applies a reply.
+	// Global About must not cover a confirmation that is waiting for input.
+	if s.setup.Kind == rendering.SetupConfirm {
+		return s.handleConfirmationKey(key)
+	}
 	if s.about.Visible {
 		return s.handleAboutKey(key)
 	}

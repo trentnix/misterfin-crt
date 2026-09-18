@@ -19,14 +19,16 @@ func (r profileChoicesResult) apply(s *browserSession) bool {
 	}
 	profiles := append([]connection.Profile(nil), r.prompt.Profiles...)
 	for i := range profiles {
-		if avatar := s.connection.profileAvatars[profiles[i].ID]; avatar != nil {
+		if avatar := s.connection.profileAvatars[profileAvatarKey(profiles[i].ID, profiles[i].AvatarKey)]; avatar != nil {
 			profiles[i].Avatar = avatar
 		}
 	}
 	s.connection.profileChoice = r.choice
 	s.connection.profilePIN = ""
-	s.connection.profileFlow = true
-	s.setup = connection.Presentation{Kind: connection.SetupProfiles, Title: "Who’s watching?", Message: r.prompt.Message, Profiles: profiles, Selected: max(0, min(r.prompt.Selected, len(r.prompt.Profiles)-1))}
+	s.setup = connection.Presentation{Kind: connection.SetupProfiles, Title: "Who’s watching?", Message: r.prompt.Message, Profiles: profiles, AddUser: r.prompt.AddUser, Forget: r.prompt.Forget, Selected: max(0, min(r.prompt.Selected, len(r.prompt.Profiles)-1))}
+	if s.config.ReturnConnectionID != "" {
+		s.setup.Back = connection.BackConnection
+	}
 	if r.prompt.PIN {
 		s.setup.Kind = connection.SetupPIN
 	}
@@ -41,17 +43,13 @@ func (s *browserSession) handleProfileKey(key control.Action) bool {
 		s.connection.profilePIN = ""
 		p.PINLength = 0
 		if p.Kind == connection.SetupPIN && p.PINChecking {
-			s.connection.selectProfile = true
+			s.connection.profileAction = connection.ProfileChoose
 			s.authenticate()
 			return true
 		}
 		if p.Kind == connection.SetupPIN {
 			p.Kind = connection.SetupProfiles
 			p.Message = ""
-			return true
-		}
-		if s.config.ReturnConnectionID != "" {
-			s.changeConnection(s.config.ReturnConnectionID)
 			return true
 		}
 		return s.handleSetupBack()
@@ -61,6 +59,17 @@ func (s *browserSession) handleProfileKey(key control.Action) bool {
 	}
 	if p.Kind == connection.SetupProfiles {
 		switch key {
+		case control.Select:
+			if p.AddUser {
+				s.connection.profileChoice <- connection.ProfileSelection{Action: connection.ProfileAdd}
+				s.connection.profileChoice = nil
+				s.setup = connection.Presentation{Kind: connection.SetupConnecting, Title: "Adding user", Message: "Requesting a sign-in code.", Back: connection.BackProfiles}
+			}
+		case control.Down:
+			if p.Forget {
+				s.connection.profileChoice <- connection.ProfileSelection{ID: p.Profiles[p.Selected].ID, Action: connection.ProfileForget}
+				s.connection.profileChoice = nil
+			}
 		case control.Previous:
 			p.Selected = max(0, p.Selected-1)
 		case control.Next:
@@ -128,5 +137,5 @@ func (s *browserSession) submitProfile() {
 		s.setup.Message = "Checking PIN..."
 		return
 	}
-	s.setup = connection.Presentation{Kind: connection.SetupConnecting, Title: "Opening profile", Message: "Checking access to your media."}
+	s.setup = connection.Presentation{Kind: connection.SetupConnecting, Title: "Opening profile", Message: "Checking access to your media.", Back: s.setup.Back}
 }

@@ -12,10 +12,14 @@ type retainedTestServer struct{ media.Server }
 type retainedTestConnector struct {
 	calls int
 	fail  bool
+	err   error
 }
 
 func (c *retainedTestConnector) Connect(context.Context, Interaction) (Session, error) {
 	c.calls++
+	if c.err != nil {
+		return Session{}, c.err
+	}
 	if c.fail {
 		return Session{}, errors.New("offline")
 	}
@@ -136,5 +140,58 @@ func TestTentativeSelectionRetriesBeforeReplacingWorkingAccount(t *testing.T) {
 	}
 	if _, err := retained.Connect(t.Context(), Interaction{}); err == nil {
 		t.Fatal("promoted route retained rejected credentials")
+	}
+}
+
+func TestSignOutInvalidatesOriginalAndTentativeRoutes(t *testing.T) {
+	for _, failure := range []error{ErrSignedOut, errors.Join(ErrSignedOut, errors.New("cleanup failed"))} {
+		provider := &retainedTestConnector{}
+		retained := &Retained{Connector: provider}
+		original, err := retained.Connect(t.Context(), Interaction{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tentative := retained.NewSelection()
+		provider.err = failure
+		if _, err := tentative.Connect(t.Context(), Interaction{ProfileAction: ProfileForget}); !errors.Is(err, ErrSignedOut) {
+			t.Fatal(err)
+		}
+		provider.err = nil
+		fresh, err := retained.Connect(t.Context(), Interaction{})
+		if err != nil || fresh.Server == original.Server || provider.calls != 3 {
+			t.Fatal("signed-out account remained in memory")
+		}
+	}
+}
+
+func TestConfirmationDoesNotApproveCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	i := Interaction{Confirm: func(context.Context, Confirmation) (bool, error) { cancel(); return true, nil }}
+	accepted, err := i.Ask(ctx, Confirmation{})
+	if accepted || !errors.Is(err, context.Canceled) {
+		t.Fatal("cancellation became approval")
+	}
+	accepted, err = (Interaction{}).Ask(t.Context(), Confirmation{})
+	if accepted || err != nil {
+		t.Fatal("missing confirmation approved an action")
+	}
+}
+
+func TestCanceledRemovalKeepsRetainedAccount(t *testing.T) {
+	for _, failure := range []error{ErrCanceled, errors.New("storage failed")} {
+		provider := &retainedTestConnector{}
+		retained := &Retained{Connector: provider}
+		original, err := retained.Connect(t.Context(), Interaction{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider.err = failure
+		if _, err := retained.Connect(t.Context(), Interaction{ProfileAction: ProfileForget}); !errors.Is(err, failure) {
+			t.Fatal("removal result was lost")
+		}
+		again, err := retained.Connect(t.Context(), Interaction{})
+		if err != nil || again.Server != original.Server || provider.calls != 2 {
+			t.Fatal("canceled or failed removal discarded the working account")
+		}
 	}
 }

@@ -57,7 +57,7 @@ func newRecoveryFixture(t *testing.T, publicID string, oldStatus int) *recoveryF
 				t.Error("identity probe sent credentials")
 			}
 			json.NewEncoder(w).Encode(map[string]string{"Id": publicID})
-		case "/UserViews":
+		case "/Users/Me":
 			if !f.approved.Load() {
 				t.Error("credentials sent before address confirmation")
 			}
@@ -65,7 +65,7 @@ func newRecoveryFixture(t *testing.T, publicID string, oldStatus int) *recoveryF
 				t.Error("saved token was not preserved")
 			}
 			f.authenticated.Add(1)
-			fmt.Fprint(w, `{"Items":[]}`)
+			fmt.Fprint(w, `{"Id":"viewer","Name":"Viewer"}`)
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 			w.WriteHeader(500)

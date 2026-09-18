@@ -120,8 +120,8 @@ func runBrowser(ctx context.Context, d platform.Display, o launchOptions, trace 
 		catalog.startSelection(change.ID)
 		config.ReturnConnectionID = change.ReturnID
 		catalog.selected = change.ID
-		if change.SelectProfile {
-			catalog.selected = catalog.startProfileSelection(change.ID)
+		if change.ProfileAction != connection.ProfileUnchanged {
+			catalog.selected = catalog.startProfileSelection(change.ID, change.ProfileAction)
 		}
 		config.StartupNotices = nil
 	}

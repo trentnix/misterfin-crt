@@ -161,10 +161,10 @@ func TestBackCancelsPINVerificationAndReopensProfiles(t *testing.T) {
 	profiles := []connection.Profile{{ID: "one", Name: "One", Protected: true}}
 	config := Config{StateDir: t.TempDir(), Connector: profileTestConnector{connect: func(ctx context.Context, i connection.Interaction) (connection.Session, error) {
 		calls++
-		if calls == 2 && !i.SelectProfile {
+		if calls == 2 && i.ProfileAction == connection.ProfileUnchanged {
 			t.Error("cancel did not request profile selection")
 		}
-		_, err := i.ChooseProfile(ctx, connection.ProfilePrompt{Profiles: profiles, PIN: !i.SelectProfile})
+		_, err := i.ChooseProfile(ctx, connection.ProfilePrompt{Profiles: profiles, PIN: i.ProfileAction == connection.ProfileUnchanged})
 		if calls == 1 {
 			defer close(canceled)
 			if err != nil {
@@ -203,5 +203,21 @@ func TestBackCancelsPINVerificationAndReopensProfiles(t *testing.T) {
 	}
 	if s.setup.PINChecking || s.setup.PINLength != 0 {
 		t.Fatal("Back retained verification input")
+	}
+}
+
+func TestUpdatedAvatarCannotBeReplacedByOlderVersion(t *testing.T) {
+	s := testSession(t)
+	s.about.Profile = &connection.Profile{ID: "viewer", Name: "New name", AvatarKey: "new"}
+	newest := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	old := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	(profileAvatarResult{id: "viewer", version: "new", avatar: newest}).apply(s)
+	(profileAvatarResult{id: "viewer", version: "old", avatar: old}).apply(s)
+	if s.about.Profile.Avatar != newest || s.about.Profile.Name != "New name" {
+		t.Fatal("stale artwork replaced refreshed identity")
+	}
+	(profileChoicesResult{prompt: connection.ProfilePrompt{Profiles: []connection.Profile{*s.about.Profile}}}).apply(s)
+	if s.setup.Profiles[0].Avatar != newest {
+		t.Fatal("picker restored old artwork")
 	}
 }

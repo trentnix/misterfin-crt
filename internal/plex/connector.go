@@ -27,6 +27,12 @@ var _ connection.Connector = Connector{}
 // Connect validates saved credentials or requests approval at plex.tv/link.
 // Plex sessions do not provide a remote-control source.
 func (c Connector) Connect(ctx context.Context, interaction connection.Interaction) (connection.Session, error) {
+	if err := ctx.Err(); err != nil {
+		return connection.Session{}, err
+	}
+	if interaction.ProfileAction == connection.ProfileForget {
+		return connection.Session{}, c.signOut(ctx, interaction)
+	}
 	if c.Config.Server != "" {
 		server, err := serverURL(c.Config.Server)
 		if err != nil {
@@ -60,6 +66,11 @@ func (c Connector) Describe(err error) connection.Presentation {
 		p.Message = messageDiscoveredConnectFailed
 	}
 	switch {
+	case errors.Is(err, connection.ErrSignedOut):
+		p.Title, p.Message = connection.SignOutIncompleteTitle, connection.SignOutIncompleteMessage
+		p.Path, p.PathLabel = StateDir(c.StateDir), "Sign-in folder"
+	case errors.Is(err, connection.ErrCanceled):
+		p.Title, p.Message = connection.SignInCanceledTitle, connection.SignInCanceledMessage
 	case errors.Is(err, ErrSessionSave):
 		p.Title, p.Message = connection.SignInStorageTitle, connection.SignInStorageMessage
 		p.Path, p.PathLabel = StateDir(c.StateDir), "Sign-in folder"

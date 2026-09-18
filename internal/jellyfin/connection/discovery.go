@@ -90,7 +90,7 @@ func (c *Connector) resolveConfig(ctx context.Context, interaction connection.In
 	// A remembered discovery choice can be changed during sign-in too. Publish
 	// navigation before loading credentials so failures retain the Back action.
 	progress := c.Describe(nil)
-	progress.BackToServers = true
+	progress.Back = connection.BackServers
 	interaction.Show(progress)
 	config.Server = server.URL
 	return config, remembered, nil

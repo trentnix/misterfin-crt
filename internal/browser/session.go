@@ -32,6 +32,7 @@ type browserSession struct {
 	model            *Model
 	client           media.Server
 	setup            rendering.SetupPresentation
+	pendingAuthError error // Background sign-in failure deferred until local removal finishes.
 	about            rendering.AboutPresentation
 	connection       connectionManager
 	requests         requestState

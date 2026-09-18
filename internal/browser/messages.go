@@ -5,6 +5,8 @@ package browser
 
 // Request recovery guidance.
 const (
+	titleSignOutCleanup         = "Finishing sign out"
+	messageSignOutCleanup       = "Removing remaining saved sign-in data."
 	messageRetry                = "Try again."
 	messageSignInAgain          = "Sign in again through About > Connections."
 	messageTunerUnavailable     = "Try another channel or check that your tuner is available."

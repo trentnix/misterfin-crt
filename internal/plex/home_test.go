@@ -48,7 +48,7 @@ func TestHomeSelectionScopesCredentials(t *testing.T) {
 				t.Fatal(err)
 			}
 			client := session.Server.(*Client)
-			if picks != 1 || !session.SwitchProfile || session.Profile.ID != "8" || client.Session.Token != "child-server-token" || client.Identity().User != "8" {
+			if picks != 1 || session.ProfileAction != connection.ProfileChoose || session.Profile.ID != "8" || client.Session.Token != "child-server-token" || client.Identity().User != "8" {
 				t.Fatal("viewer did not scope the session")
 			}
 			state, err := loadDiscoveryState(StateDir(f.connector.StateDir))
@@ -131,7 +131,7 @@ func TestHomeSwitchFailurePreservesCurrentViewer(t *testing.T) {
 			}
 			path := filepath.Join(StateDir(f.connector.StateDir), "server.json")
 			before, _ := os.ReadFile(path)
-			i.SelectProfile = true
+			i.ProfileAction = connection.ProfileChoose
 			i.ChooseProfile = func(context.Context, connection.ProfilePrompt) (connection.ProfileSelection, error) {
 				switch failure {
 				case "cancel":
@@ -201,19 +201,28 @@ func TestSingleHomeProfileSkipsPickerButHonorsPIN(t *testing.T) {
 			client := NewClient(Config{}, serverstate.Session{UserID: "7", Token: "owner-token"})
 			client.accountURL = server.URL
 			d := serverDiscovery{account: client}
-			prompts := 0
-			err := d.chooseHome(t.Context(), connection.Interaction{ChooseProfile: func(ctx context.Context, p connection.ProfilePrompt) (connection.ProfileSelection, error) {
-				prompts++
-				if !protected || !p.PIN {
-					t.Fatal("single-profile policy failed")
+			for _, explicit := range []bool{false, true} {
+				prompts := 0
+				action := connection.ProfileUnchanged
+				if explicit {
+					action = connection.ProfileChoose
 				}
-				return connection.ProfileSelection{ID: "7", PIN: "1234"}, nil
-			}}, accountIdentity{Home: true}, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if (protected && prompts != 1) || (!protected && prompts != 0) {
-				t.Fatal("unexpected picker")
+				err := d.chooseHome(t.Context(), connection.Interaction{ProfileAction: action, ChooseProfile: func(ctx context.Context, p connection.ProfilePrompt) (connection.ProfileSelection, error) {
+					prompts++
+					if !protected || !p.PIN {
+						t.Fatal("single-profile policy failed")
+					}
+					return connection.ProfileSelection{ID: "7", PIN: "1234"}, nil
+				}}, accountIdentity{Home: true}, "7")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if (protected && prompts != 1) || (!protected && prompts != 0) {
+					t.Fatal("unexpected picker")
+				}
+				if d.switchProfile || (d.profileBack() == connection.BackProfiles) != protected {
+					t.Fatal("single viewer offered redundant profile navigation")
+				}
 			}
 		})
 	}
@@ -326,6 +335,12 @@ func TestHomeRemovedWhileServerPickerOpen(t *testing.T) {
 	serverPicks := 0
 	var presentation connection.Presentation
 	i := connection.Interaction{
+		Confirm: func(_ context.Context, p connection.Confirmation) (bool, error) {
+			if p.Title != "Profile no longer available" {
+				t.Fatal("missing viewer change confirmation")
+			}
+			return true, nil
+		},
 		Progress: func(p connection.Presentation) { presentation = p },
 		ChooseProfile: func(context.Context, connection.ProfilePrompt) (connection.ProfileSelection, error) {
 			return connection.ProfileSelection{ID: "8"}, nil
@@ -336,14 +351,14 @@ func TestHomeRemovedWhileServerPickerOpen(t *testing.T) {
 				f.home.Store(false)
 				return connection.Server{}, connection.ErrChooseProfile
 			}
-			if presentation.BackToProfiles || !strings.Contains(presentation.Message, "Test Viewer") {
+			if presentation.Back == connection.BackProfiles || !strings.Contains(presentation.Message, "Test Viewer") {
 				t.Fatal("server picker retained the former Home profile")
 			}
 			return chooseFirst(ctx, servers)
 		},
 	}
 	result, err := f.connector.connectDiscovered(t.Context(), i, &serverDiscovery{account: f.account})
-	if err != nil || result.Profile != nil || result.SwitchProfile || result.Avatars != nil || serverPicks != 2 {
+	if err != nil || result.Profile != nil || result.ProfileAction == connection.ProfileChoose || result.Avatars != nil || serverPicks != 2 {
 		t.Fatalf("membership change did not return to account server selection: %v", err)
 	}
 }
@@ -360,5 +375,23 @@ func TestHomeMetadataDoesNotDownloadAvatars(t *testing.T) {
 	profiles, source, err := client.homeProfiles(t.Context())
 	if err != nil || len(profiles) != 1 || profiles[0].Avatar != nil || source == nil {
 		t.Fatalf("metadata did not provide immediate profiles and deferred artwork: %v", err)
+	}
+}
+
+func TestHomeRefreshesNamesAndAvatarReferences(t *testing.T) {
+	client := NewClient(Config{}, serverstate.Session{})
+	client.accountURL = "https://account.test"
+	name := "First"
+	client.accountHTTP.Transport = discoveryTransportFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`<MediaContainer><User id="1" title="%s" protected="0" thumb="https://plex.tv/%s"/></MediaContainer>`, name, name)))}, nil
+	})
+	first, _, err := client.homeProfiles(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	name = "Updated"
+	second, _, err := client.homeProfiles(t.Context())
+	if err != nil || second[0].Name != "Updated" || second[0].AvatarKey == first[0].AvatarKey {
+		t.Fatal("Home kept stale identity metadata")
 	}
 }

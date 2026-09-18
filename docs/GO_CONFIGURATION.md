@@ -91,11 +91,13 @@ Each profile must have a unique `id`, a display `name`, and validated `server` s
 
 The original top-level `server` and legacy configuration still work and appear as an existing connection. On first launch, they take precedence over named profiles. If neither a configured nor remembered default server exists, the first profile is used. The last successful choice is saved in `connection-choice.json` under the state directory and selected automatically on later launches. Editing connection configuration resets that startup choice. A failed sign-in does not replace it.
 
-Plex Home viewing profiles are separate from `connections.profiles`. Choose Home viewers on screen through [Plex Home profiles](GO_PLEX.md#plex-home-profiles). No extra JSON settings are required.
+Jellyfin users and Plex Home viewing profiles are separate from `connections.profiles`. Choose viewers on screen through [Jellyfin users](GO_BROWSING.md#jellyfin-users) or [Plex Home profiles](GO_PLEX.md#plex-home-profiles). No extra JSON settings are required.
 
 Accounts retain independent sign-ins and browsing positions during the application run. Switching cancels the old session's work before activating the next connection. Only the active account receives remote commands or plays media. Display mode, controller mappings, navigation sounds, and backgrounds stay loaded. Switching configured accounts does not restart the application. Restart after editing the configuration file to load new or changed profiles.
 
 Named sign-ins live under `state/connections/<id>-<account digest>/`. A Jellyfin server chosen through About uses `state/discovery/jellyfin/`, separate from the default connection. Plex discovery commits the linked account, viewer, and server credentials together in `state/discovery/plex/server.json`. See [Plex discovery](GO_PLEX.md#server-discovery). Navigation positions are held in memory, not saved across application restarts.
+
+Jellyfin's `jellyfin-users.json` records which saved users remain available. An empty roster prevents an older `session.json` from restoring a forgotten user. Plex sign-out writes a signed-out record before removing legacy credential files. If cleanup is interrupted, that record prevents reuse of old tokens. Use the on-screen removal actions instead of deleting individual state files.
 
 ## Application settings
 
@@ -198,7 +200,9 @@ The remembered discovery selection (`jellyfin-server.json` in the state director
 
 ## Saved sign-in recovery
 
-Jellyfin uses `session.json` in the selected [state directory](GO_BROWSING.md#setup-and-sign-in). Current Plex connections use a private `plex/server.json` record that commits the linking account, viewer, and server grant together. Discovery uses the same record under `discovery/plex/`. Plex records are limited to 16 KiB. Invalid or incomplete records remain untouched and produce a sign-in storage error. The client must not recover by opening a different viewer.
+Jellyfin uses `session.json` for the active user and `jellyfin-users.json` for saved Quick Connect users in the selected [state directory](GO_BROWSING.md#setup-and-sign-in). The user file contains private tokens, is limited to 64 users and 1 MiB, and requests owner-only permissions. Invalid or unreadable user files remain untouched and show a sign-in storage error. Failed switches preserve the active-session record. API keys stay in configuration and are never copied into the saved-user file.
+
+Current Plex connections use a private `plex/server.json` record that commits the linking account, viewer, and server grant together. Discovery uses the same record under `discovery/plex/`. Plex records are limited to 16 KiB. Invalid or incomplete records remain untouched and produce a sign-in storage error. The client must not recover by opening a different viewer.
 
 Jellyfin and legacy Plex `session.json` records are limited to 64 KiB. If a legacy record is malformed or too large, the client preserves it as `session-damaged-*` beside the original and starts a fresh sign-in. A notice explains the recovery.
 

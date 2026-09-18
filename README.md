@@ -6,7 +6,7 @@
 
 MiSTerVision is a Jellyfin and Plex client for CRT televisions on MiSTer FPGA. It supports movies, TV shows, live TV, music, photos, collections, and playlists through one interface.
 
-Both providers share the same browsing and playback controls. Server discovery, saved connection switching, and Plex Home profiles with avatars and PIN entry are available in v1.2.0.
+Both providers share browsing and playback controls, server discovery, and saved connection switching. Jellyfin can switch saved Quick Connect users. Plex supports Home profiles with avatars and PIN entry. About also lets you forget a Jellyfin user or sign out of Plex on this device.
 
 My goal is a great media experience on CRTs. I test and use MiSTerVision on a MiSTer connected to a consumer 4:3 CRT television, not a PVM or an HD set. I have tested both server providers, including Jellyfin 12.
 
@@ -67,9 +67,13 @@ Sign-ins, playback choices, and artwork caches stay separate for each provider, 
 
 Open **About → Connections → Use existing connection** to return to a configured or remembered server. That option appears only when a connection is available. You can keep Jellyfin and Plex signed in, but only the active connection plays media or accepts remote commands. Back cancels a new connection attempt and lets you return to the previous browser.
 
-For Plex Home, press Up in About for **Switch profile**. The viewer’s avatar and name appear on the carousel and About. Protected viewers must enter their PIN again after an application restart. To change the linked Plex account, choose **Sign in with another account** on **Choose a Plex server**.
+For Jellyfin, press Up in About for **Switch profile** when multiple users are saved. With only one user, About offers **Add user** directly. **Add user** opens Quick Connect. Approve the code while signed in as the user you want to add. Later launches reopen the last selected user. API-key connections keep their configured user. See [Jellyfin user switching](docs/GO_BROWSING.md#jellyfin-users).
 
-Plex Home viewers are different from named server connections in `connections.profiles`. No JSON is needed for Home viewers. See [Plex Home](docs/GO_PLEX.md#plex-home-profiles) and [multiple server connections](docs/GO_CONFIGURATION.md#multiple-connections).
+For Plex Home, press Up in About for **Switch profile** when more than one profile is available. The viewer’s avatar and name appear on the carousel and About. Protected viewers must enter their PIN again after an application restart. To change the linked Plex account, choose **Sign in with another account** on **Choose a Plex server**.
+
+Back from a profile picker opened through About returns to About without changing the active user.
+
+Jellyfin users and Plex Home viewers are different from named server connections in `connections.profiles`. No JSON is needed for Home viewers. See [Plex Home](docs/GO_PLEX.md#plex-home-profiles) and [multiple server connections](docs/GO_CONFIGURATION.md#multiple-connections).
 
 ## Updates
 

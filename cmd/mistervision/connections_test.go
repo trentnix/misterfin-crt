@@ -106,8 +106,9 @@ func TestPlexDiscoveryCatalogWithoutServerConfiguration(t *testing.T) {
 
 // profileCatalogConnector supplies distinct viewers without network or storage.
 type profileCatalogConnector struct {
-	fail  bool
-	calls int
+	fail   bool
+	calls  int
+	action connection.ProfileAction
 }
 type catalogViewer struct {
 	media.Server
@@ -117,14 +118,15 @@ type catalogViewer struct {
 func (v catalogViewer) Identity() media.Identity { return media.Identity{Server: "plex", User: v.user} }
 func (c *profileCatalogConnector) Connect(ctx context.Context, i connection.Interaction) (connection.Session, error) {
 	c.calls++
+	c.action = i.ProfileAction
 	if c.fail {
 		return connection.Session{}, context.Canceled
 	}
 	user := "first"
-	if i.SelectProfile {
+	if i.ProfileAction != connection.ProfileUnchanged {
 		user = "second"
 	}
-	return connection.Session{Server: catalogViewer{user: user}, Profile: &connection.Profile{ID: user, Name: user}, SwitchProfile: true}, nil
+	return connection.Session{Server: catalogViewer{user: user}, Profile: &connection.Profile{ID: user, Name: user}, ProfileAction: connection.ProfileChoose}, nil
 }
 func (*profileCatalogConnector) Describe(error) connection.Presentation {
 	return connection.Presentation{}
@@ -138,7 +140,7 @@ func TestProfileCatalogCancelsAndPromotesTentativeViewer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	route := catalog.startProfileSelection("profile/plex")
+	route := catalog.startProfileSelection("profile/plex", connection.ProfileChoose)
 	if catalog.connectionID(route) != "profile/plex" {
 		t.Fatal("profile switch changed connection identity")
 	}
@@ -151,7 +153,7 @@ func TestProfileCatalogCancelsAndPromotesTentativeViewer(t *testing.T) {
 		t.Fatal("cancel lost the working viewer")
 	}
 	provider.fail = false
-	route = catalog.startProfileSelection("profile/plex")
+	route = catalog.startProfileSelection("profile/plex", connection.ProfileChoose)
 	replacement, err := catalog.connectors[route].Connect(t.Context(), connection.Interaction{})
 	if err != nil || replacement.Profile.ID != "second" {
 		t.Fatal("profile switch was not requested")
@@ -163,6 +165,24 @@ func TestProfileCatalogCancelsAndPromotesTentativeViewer(t *testing.T) {
 	}
 	if _, err := catalog.connectors[route].Connect(t.Context(), connection.Interaction{}); err != nil || provider.calls != calls {
 		t.Fatal("promoted route reopened the picker")
+	}
+}
+
+func TestProfileConnectionRetainsActionAndCancelRouteOnFailure(t *testing.T) {
+	for _, action := range []connection.ProfileAction{connection.ProfileChoose, connection.ProfileAdd} {
+		provider := &profileCatalogConnector{fail: true}
+		attempt := profileConnection{connector: provider, action: action}
+		for range 2 {
+			back := connection.BackDefault
+			_, err := attempt.Connect(t.Context(), connection.Interaction{Progress: func(p connection.Presentation) { back = p.Back }})
+			if !errors.Is(err, context.Canceled) || provider.action != action || back != connection.BackConnection {
+				t.Fatal("failed attempt lost its action or route back to the connected browser")
+			}
+		}
+		_, _ = attempt.Connect(t.Context(), connection.Interaction{ProfileAction: connection.ProfileChoose})
+		if provider.action != connection.ProfileChoose {
+			t.Fatal("Back could not reopen the picker during direct Add user")
+		}
 	}
 }
 

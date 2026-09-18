@@ -28,10 +28,31 @@ func TestAuthenticationReportsRecoverableConditions(t *testing.T) {
 			}))
 			defer server.Close()
 			client := NewClient(Config{Server: server.URL, APIKey: tc.key, Username: "viewer"}, Session{DeviceID: "test"})
-			err := client.Authenticate(context.Background(), t.TempDir(), func(string) { t.Error("unexpected approval code") })
+			_, err := client.Authenticate(context.Background(), func(string) { t.Error("unexpected approval code") })
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("got %v, want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestSavedAuthenticationReturnsVerifiedViewer(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Path != "/Users/Me" {
+			t.Errorf("authentication requested unrelated data: %s", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"Id":"viewer","Name":"Viewer","PrimaryImageTag":"avatar"}`)
+	}))
+	defer server.Close()
+	saved := Session{Server: server.URL, Token: "saved", UserID: "viewer", DeviceID: "device"}
+	client := NewClient(Config{Server: server.URL}, saved)
+	user, err := client.Authenticate(t.Context(), func(string) { t.Error("started replacement sign-in") })
+	if err != nil || user.ID != "viewer" || user.Name != "Viewer" || user.PrimaryImageTag != "avatar" {
+		t.Fatalf("authenticated viewer: %+v, %v", user, err)
+	}
+	if requests != 1 || client.Session != saved {
+		t.Fatal("saved authentication repeated a request or changed credentials")
 	}
 }

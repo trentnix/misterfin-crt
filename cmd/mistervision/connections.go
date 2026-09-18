@@ -243,21 +243,29 @@ func (c *connectionCatalog) startSelection(id string) {
 
 // startProfileSelection borrows a tentative cache for the active connection.
 // Canceling returns to its retained session. Success promotes the new viewer.
-func (c *connectionCatalog) startProfileSelection(id string) string {
+func (c *connectionCatalog) startProfileSelection(id string, action connection.ProfileAction) string {
 	route := "viewer/" + id
-	c.connectors[route] = &profileConnection{connector: c.retained[id].NewSelection()}
+	c.connectors[route] = &profileConnection{connector: c.retained[id].NewSelection(), action: action}
 	return route
 }
 
 // profileConnection requests a viewer only until this attempt connects.
 type profileConnection struct {
+	action    connection.ProfileAction
 	connector connection.Connector
 	connected bool
 }
 
 // Connect requests a fresh profile until the tentative session succeeds.
 func (c *profileConnection) Connect(ctx context.Context, i connection.Interaction) (connection.Session, error) {
-	i.SelectProfile = i.SelectProfile || !c.connected
+	if i.ProfileAction == connection.ProfileUnchanged && !c.connected {
+		i.ProfileAction = c.action
+	}
+	if !c.connected {
+		progress := c.Describe(nil)
+		progress.Back = connection.BackConnection
+		i.Show(progress)
+	}
 	session, err := c.connector.Connect(ctx, i)
 	if err == nil {
 		c.connected = true

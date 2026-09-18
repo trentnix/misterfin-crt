@@ -349,7 +349,20 @@ func TestCancelSetupRestoresRetainedBrowser(t *testing.T) {
 	if nav.model == nil {
 		t.Fatal("previous browsing state was lost")
 	}
-	err = run(cfg, []control.Action{control.Quit}, func(s rendering.Scene) bool { return s.Setup.Kind == rendering.SetupHidden && !s.About.Visible })
+	sawAbout := false
+	err = run(cfg, []control.Action{control.Back, control.Quit}, func(s rendering.Scene) bool {
+		if s.Setup.Kind != rendering.SetupHidden {
+			return false
+		}
+		if !sawAbout {
+			if !s.About.Visible {
+				return false
+			}
+			sawAbout = true
+			return true
+		}
+		return !s.About.Visible
+	})
 	if err != nil || ctx.Err() != nil {
 		t.Fatalf("return to browsing: %v, context %v", err, ctx.Err())
 	}

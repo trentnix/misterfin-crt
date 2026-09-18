@@ -17,7 +17,7 @@ import (
 func (c Connector) loadAccount(origin string) (serverstate.Session, bool, error) {
 	dir := StateDir(c.StateDir)
 	state, err := loadDiscoveryState(dir)
-	if err == nil && state.Account != nil {
+	if err == nil && (state.Account != nil || state.SignedOut) {
 		return loadDiscoveryAccount(dir, origin)
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {

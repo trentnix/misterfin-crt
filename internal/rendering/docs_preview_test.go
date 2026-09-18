@@ -37,17 +37,17 @@ func TestDocumentationPreviews(t *testing.T) {
 			Servers: []connection.Server{{ID: "home", Name: "Home Jellyfin", URL: "http://192.0.2.10:8096"}},
 		}},
 		"quick-connect": {Setup: SetupPresentation{
-			Kind: SetupApproval, Title: "Quick Connect", Retry: "New code", Code: "123456", BackToServers: true,
+			Kind: SetupApproval, Title: "Quick Connect", Retry: "New code", Code: "123456", Back: connection.BackServers,
 			Message: "In a signed-in Jellyfin client, open Quick Connect.\nEnter this code to approve MiSTerVision.",
 		}},
 		"plex-link": {Setup: SetupPresentation{
-			Kind: SetupApproval, Title: "Link Plex", Retry: "New code", Code: "ABCD", BackToServers: true,
+			Kind: SetupApproval, Title: "Link Plex", Retry: "New code", Code: "ABCD", Back: connection.BackServers,
 			Message: "Open plex.tv/link with the account you want to use.\nEnter this code to approve MiSTerVision.",
 		}},
 		"plex-servers": {Setup: SetupPresentation{
 			Kind: SetupServers, Title: "Choose a Plex server", Message: "Signed in as Alex.",
 			Servers: []connection.Server{{ID: "home", Name: "Home Plex", URL: "http://192.0.2.20:32400"}},
-			SignIn:  "Sign in with another account", BackToProfiles: true,
+			SignIn:  "Sign in with another account", Back: connection.BackProfiles,
 		}},
 		"plex-profiles": {Setup: SetupPresentation{Kind: SetupProfiles, Profiles: profiles}},
 		"plex-pin":      {Setup: SetupPresentation{Kind: SetupPIN, Profiles: profiles, PINLength: 2, PINKey: 4}},
@@ -58,7 +58,7 @@ func TestDocumentationPreviews(t *testing.T) {
 		}},
 		"about": {About: AboutPresentation{
 			Visible: true, Build: release.Build{Version: "dev"}, Checking: true,
-			Profile: &profiles[0], SwitchProfile: true, Connections: choices,
+			Profile: &profiles[0], ProfileAction: connection.ProfileChoose, Connections: choices,
 		}},
 	}
 	for name, scene := range scenes {

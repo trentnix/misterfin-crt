@@ -61,6 +61,9 @@ func (r updateResult) apply(s *browserSession) bool {
 // handleAboutKey isolates page controls from navigation and playback. Returning
 // to the preceding screen preserves its selection, notices, and pending work.
 func (s *browserSession) handleAboutKey(key control.Action) bool {
+	if s.connection.forgetting {
+		return false
+	}
 	if s.about.Updating {
 		if key == control.Back && s.about.Progress.Phase != update.Installing && s.update.cancel != nil {
 			s.update.cancel()
@@ -93,8 +96,8 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 			}
 		}
 	case control.Up:
-		if !s.about.NotesVisible && s.about.SwitchProfile && s.client != nil && s.setup.Kind == rendering.SetupHidden {
-			s.connectionChange = &connection.Change{ID: s.config.ConnectionID, ReturnID: s.config.ConnectionID, SelectProfile: true}
+		if !s.about.NotesVisible && s.about.ProfileAction != connection.ProfileUnchanged && s.client != nil && s.setup.Kind == rendering.SetupHidden {
+			s.connectionChange = &connection.Change{ID: s.config.ConnectionID, ReturnID: s.config.ConnectionID, ProfileAction: s.about.ProfileAction}
 			s.model.Quit = true
 		}
 		if s.about.NotesVisible {
@@ -107,6 +110,10 @@ func (s *browserSession) handleAboutKey(key control.Action) bool {
 		}
 		if s.about.NotesVisible {
 			s.about.Scroll = min(s.about.ScrollLimit(max(320, s.geometry.Width), max(240, s.geometry.Height), s.controls), s.about.Scroll+1)
+		}
+	case control.Next:
+		if !s.about.NotesVisible && s.about.ForgetLabel != "" && s.client != nil && s.config.Connector != nil && s.setup.Kind == rendering.SetupHidden {
+			s.forgetSignIn()
 		}
 	case control.Select, control.Retry:
 		s.checkUpdate()

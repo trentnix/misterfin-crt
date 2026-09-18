@@ -26,4 +26,7 @@ const (
 	messageUsernameInvalid      = "The configured username was not found on the server.\nCheck the configured username, then retry."
 	messageSignInRejected       = "Jellyfin rejected your sign-in. Sign in again.\nIf you use an API key, check it in your configuration."
 	messageSignInRecovered      = "Saved sign-in was damaged and backed up.\nOpen Quick Connect in Jellyfin and approve this code."
+	messageForgetUser           = "Remove %s's saved sign-in from this device?\nTheir Jellyfin account and media will not be deleted."
+	messageReauthorize          = "Sign-in for %s expired or was revoked.\nApprove this code from that user's Jellyfin account."
+	messageDifferentUser        = "You requested %s, but approved %s.\nContinue with this different user?"
 )

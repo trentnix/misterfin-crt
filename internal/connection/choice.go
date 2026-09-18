@@ -12,8 +12,8 @@ type Choice struct {
 // and cleaned up its session. Application assembly resolves ID to a Connector.
 type Change struct {
 	ID string
-	// SelectProfile requests a tentative viewer switch on the same connection.
-	SelectProfile bool
+	// ProfileAction requests a tentative viewer change on the same connection.
+	ProfileAction ProfileAction
 	// ReturnID identifies the last connected route if the new attempt is canceled.
 	// Empty means there is no connected browser to return to.
 	ReturnID string

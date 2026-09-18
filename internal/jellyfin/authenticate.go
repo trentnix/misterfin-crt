@@ -17,8 +17,6 @@ var (
 	ErrQuickConnectExpired = errors.New("Quick Connect expired")
 	// ErrUsernameNotFound means no server account matched the configured name.
 	ErrUsernameNotFound = errors.New("configured username was not found")
-	// ErrSessionSave means sign-in succeeded but persistent storage failed.
-	ErrSessionSave = errors.New("signed in but cannot save session")
 )
 
 // Authenticate preserves saved tokens on temporary failures. Only an explicit
@@ -28,65 +26,67 @@ var (
 //
 // Authenticate mutates Session and must not run concurrently with other Client
 // operations. showCode must be non-nil if Quick Connect is needed. It runs
-// synchronously and receives only the public approval code. Quick Connect tokens
-// are saved under dir. Cancellation stops polling and returns the context error.
-func (c *Client) Authenticate(ctx context.Context, dir string, showCode func(string)) error {
+// synchronously and receives only the public approval code. The caller must
+// persist Session after successful authentication. The returned User comes from
+// the authenticated response, so callers need no separate identity request.
+// Cancellation stops polling and returns the context error.
+func (c *Client) Authenticate(ctx context.Context, showCode func(string)) (User, error) {
 	if c.Session.Token != "" && c.Session.UserID != "" {
-		_, err := c.List(ctx, Location{Kind: "views"}, 0, 1)
+		if c.Config.APIKey != "" && c.Session.Token == c.Config.APIKey {
+			return c.authenticateAPIKey(ctx)
+		}
+		user, err := c.CurrentUser(ctx)
 		if err == nil {
-			return nil
+			return user, nil
 		}
 		if !Rejected(err) {
-			return err
+			return User{}, err
 		}
 		c.Session.Token = ""
 		c.Session.UserID = ""
 	} else if c.Config.APIKey != "" {
 		return c.authenticateAPIKey(ctx)
 	}
-	return c.authenticateQuickConnect(ctx, dir, showCode)
+	return c.authenticateQuickConnect(ctx, showCode)
 }
 
 // authenticateAPIKey resolves the configured username without creating a saved
 // Quick Connect token. It leaves the configured API key on Session.
-func (c *Client) authenticateAPIKey(ctx context.Context) error {
+func (c *Client) authenticateAPIKey(ctx context.Context) (User, error) {
 	c.Session.Token = c.Config.APIKey
-	var users []Item
+	var users []User
 	if err := c.json(ctx, "GET", "/Users", nil, nil, &users); err != nil {
-		return err
+		return User{}, err
 	}
 	for _, u := range users {
-		if strings.EqualFold(u.Name, c.Config.Username) {
+		if u.ID != "" && strings.EqualFold(u.Name, c.Config.Username) {
 			c.Session.UserID = u.ID
-			break
+			return u, nil
 		}
 	}
-	if c.Session.UserID == "" {
-		return ErrUsernameNotFound
-	}
-	return nil
+	return User{}, ErrUsernameNotFound
 }
 
 // authenticateQuickConnect publishes the user code, polls until approved or
-// canceled, and persists the resulting token. The secret stays inside requests.
-func (c *Client) authenticateQuickConnect(ctx context.Context, dir string, showCode func(string)) error {
+// canceled, and installs the resulting token on Session. The secret stays inside requests.
+func (c *Client) authenticateQuickConnect(ctx context.Context, showCode func(string)) (User, error) {
 	c.Session.Token = ""
 	var enabled bool
 	if err := c.json(ctx, "GET", "/QuickConnect/Enabled", nil, nil, &enabled); err != nil {
-		return err
+		return User{}, err
 	}
 	if !enabled {
-		return ErrQuickConnectDisabled
+		return User{}, ErrQuickConnectDisabled
 	}
 	var qc struct {
 		Secret, Code  string
 		Authenticated bool
 	}
 	if err := c.json(ctx, "POST", "/QuickConnect/Initiate", nil, nil, &qc); err != nil {
-		return err
+		return User{}, err
 	}
 	if qc.Secret == "" || qc.Code == "" {
-		return errors.New("invalid Quick Connect response")
+		return User{}, errors.New("invalid Quick Connect response")
 	}
 	showCode(qc.Code)
 	deadline := time.NewTimer(5 * time.Minute)
@@ -96,33 +96,30 @@ func (c *Client) authenticateQuickConnect(ctx context.Context, dir string, showC
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return User{}, ctx.Err()
 		case <-deadline.C:
-			return ErrQuickConnectExpired
+			return User{}, ErrQuickConnectExpired
 		case <-ticker.C:
 		}
 		var result struct{ Authenticated bool }
 		if err := c.json(ctx, "GET", "/QuickConnect/Connect", url.Values{"secret": {qc.Secret}}, nil, &result); err != nil {
-			return err
+			return User{}, err
 		}
 		if !result.Authenticated {
 			continue
 		}
 		var login struct {
 			AccessToken string
-			User        Item
+			User        User
 		}
 		if err := c.json(ctx, "POST", "/Users/AuthenticateWithQuickConnect", nil, map[string]string{"Secret": qc.Secret}, &login); err != nil {
-			return err
+			return User{}, err
 		}
-		if login.AccessToken == "" || login.User.ID == "" {
-			return errors.New("invalid sign-in response")
+		if login.AccessToken == "" || login.User.ID == "" || login.User.Name == "" {
+			return User{}, errors.New("invalid sign-in response")
 		}
 		c.Session.Token = login.AccessToken
 		c.Session.UserID = login.User.ID
-		if err := SaveSession(dir, c.Session); err != nil {
-			return ErrSessionSave
-		}
-		return nil
+		return login.User, nil
 	}
 }

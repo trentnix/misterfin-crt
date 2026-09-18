@@ -16,7 +16,8 @@ import (
 type AboutPresentation struct {
 	// Connections is an immutable menu snapshot supplied by application assembly.
 	Profile            *connection.Profile
-	SwitchProfile      bool
+	ProfileAction      connection.ProfileAction
+	ForgetLabel        string
 	Connections        []connection.Choice
 	ConnectionsVisible bool
 	ConnectionSelected int

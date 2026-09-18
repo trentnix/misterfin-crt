@@ -29,14 +29,22 @@ func (c *Retained) Connect(ctx context.Context, i Interaction) (Session, error) 
 	if err := ctx.Err(); err != nil {
 		return Session{}, err
 	}
-	if i.SelectServer || i.Reauthenticate || i.NewAccount || i.SelectProfile {
+	forgetting := i.ProfileAction == ProfileForget
+	if !forgetting && (i.SelectServer || i.Reauthenticate || i.NewAccount || i.ProfileAction != ProfileUnchanged) {
 		c.session = Session{}
 	}
 	session := c.session
-	if session.Server == nil {
+	// A local removal keeps the working account until the provider commits it.
+	if session.Server == nil || forgetting {
 		var err error
 		session, err = c.Connector.Connect(ctx, i)
 		if err != nil {
+			if errors.Is(err, ErrSignedOut) {
+				c.session = Session{}
+				if c.previous != nil {
+					c.previous.session = Session{}
+				}
+			}
 			return Session{}, err
 		}
 	}

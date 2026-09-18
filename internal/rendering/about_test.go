@@ -77,7 +77,8 @@ func TestAboutFailureFitsCompactDisplay(t *testing.T) {
 		for _, size := range [][2]int{{320, 240}, {640, 240}, {640, 288}, {640, 480}} {
 			w, h := size[0], size[1]
 			scene := Scene{Controls: labels, About: AboutPresentation{
-				Visible: true, Checked: true, CanInstall: true, SwitchProfile: true,
+				Visible: true, Checked: true, CanInstall: true, ProfileAction: connection.ProfileChoose,
+				ForgetLabel: "Forget user",
 				Profile:     &connection.Profile{Name: "Test viewer"},
 				Connections: []connection.Choice{{ID: "plex", Name: "Plex"}},
 				Release:     release.Status{Available: true, Latest: "v1.2.1", HasBundle: true},
@@ -114,13 +115,17 @@ func TestAboutFailureFitsCompactDisplay(t *testing.T) {
 // screenContainsText matches the complete glyph mask in a text color. Requiring
 // unlit pixels too prevents a solid button badge from passing as readable text.
 func screenContainsText(c *ui.Canvas, text string) bool {
-	glyphs := ui.New(ui.TextWidth(text), 8)
-	glyphs.Text(0, 0, text, 0xffffff, glyphs.Width)
-	for _, color := range []uint32{titleColor, dimColor, 0xc0c0c0} {
-		for y := 0; y <= c.Height-8; y++ {
+	return screenContainsScaledText(c, text, 1)
+}
+
+func screenContainsScaledText(c *ui.Canvas, text string, scale int) bool {
+	glyphs := ui.New(ui.TextWidth(text)*scale, 8*scale)
+	glyphs.TextScaled(0, 0, text, 0xffffff, glyphs.Width, scale)
+	for _, color := range []uint32{titleColor, dimColor, 0xc0c0c0, 0xd0d0d0} {
+		for y := 0; y <= c.Height-glyphs.Height; y++ {
 			for x := 0; x <= c.Width-glyphs.Width; x++ {
 				matches := true
-				for gy := 0; gy < 8 && matches; gy++ {
+				for gy := 0; gy < glyphs.Height && matches; gy++ {
 					for gx := 0; gx < glyphs.Width; gx++ {
 						j := (gy*glyphs.Width + gx) * 4
 						i := ((y+gy)*c.Width + x + gx) * 4
@@ -138,4 +143,22 @@ func screenContainsText(c *ui.Canvas, text string) bool {
 		}
 	}
 	return false
+}
+
+func TestAboutProfileActionMatchesAvailableChoices(t *testing.T) {
+	for _, tc := range []struct {
+		action connection.ProfileAction
+		want   string
+	}{
+		{connection.ProfileUnchanged, ""}, {connection.ProfileAdd, "Add user"}, {connection.ProfileChoose, "Switch profile"},
+	} {
+		scene := Scene{About: AboutPresentation{Visible: true, Checking: true, Profile: &connection.Profile{Name: "Only viewer"}, ProfileAction: tc.action}}
+		c := ui.New(640, 240)
+		renderScene(c, &sceneCache{}, scene, Animation{})
+		for _, label := range []string{"Add user", "Switch profile"} {
+			if screenContainsText(c, label) != (label == tc.want) {
+				t.Errorf("profile action %q, wanted %q", label, tc.want)
+			}
+		}
+	}
 }
